@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { usePage } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import {
     ShoppingCart,
     Package,
@@ -19,7 +19,7 @@ const allActions = [
         label: 'Tạo đơn mới',
         description: 'Tạo đơn tại bàn / mang đi',
         icon: PlusCircle,
-        href: '/pos',
+        href: '/orders/create',
         color: 'emerald',
         roles: ['owner', 'admin', 'manager', 'cashier', 'staff'],
     },

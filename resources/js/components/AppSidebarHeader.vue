@@ -73,17 +73,17 @@ void isSuperAdmin.value;
 const isOwner = computed(() => roles.value.includes('owner'));
 const isEmployee = computed(() =>
     roles.value.some((role) =>
-        [
-            'cashier',
-            'waiter',
-            'kitchen',
-            'inventory_staff',
-            'shipper',
-        ].includes(role),
+        ['cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'].includes(
+            role,
+        ),
     ),
 );
-const isWarehouseStaff = computed(() => roles.value.includes('warehouse_staff'));
-const isWarehouseManager = computed(() => roles.value.includes('warehouse_manager'));
+const isWarehouseStaff = computed(() =>
+    roles.value.includes('warehouse_staff'),
+);
+const isWarehouseManager = computed(() =>
+    roles.value.includes('warehouse_manager'),
+);
 const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);
@@ -107,7 +107,13 @@ const showPolicyModal = ref(false);
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
             <nav
-                v-else-if="user && !isSuperAdminRoute && !isEmployee && !isWarehouseStaff && !isWarehouseManager"
+                v-else-if="
+                    user &&
+                    !isSuperAdminRoute &&
+                    !isEmployee &&
+                    !isWarehouseStaff &&
+                    !isWarehouseManager
+                "
                 class="hidden shrink-0 items-center gap-0.5 md:flex"
             >
                 <Link
@@ -125,7 +131,11 @@ const showPolicyModal = ref(false);
                 </Link>
             </nav>
             <nav
-                v-else-if="user && !isSuperAdminRoute && (isWarehouseStaff || isWarehouseManager)"
+                v-else-if="
+                    user &&
+                    !isSuperAdminRoute &&
+                    (isWarehouseStaff || isWarehouseManager)
+                "
                 class="hidden shrink-0 items-center gap-0.5 md:flex"
             >
                 <Link

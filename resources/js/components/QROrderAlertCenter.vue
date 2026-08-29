@@ -199,7 +199,7 @@ async function addUpsellItem() {
         // Let's implement an API call to the existing order update:
         // First, let's fetch the products list to find the ID matching recommended_item.
         const res = await axios.get('/orders/create');
-void res; // This returns Inertia, but wait, we can search in products list
+        void res; // This returns Inertia, but wait, we can search in products list
         // Let's call the orders update patch endpoint
         const orderRes = await axios.patch(`/orders/${currentOrderId.value}`, {
             items: [
@@ -210,7 +210,7 @@ void res; // This returns Inertia, but wait, we can search in products list
                 },
             ],
         });
-void orderRes;
+        void orderRes;
         toast.success(
             `Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`,
         );
@@ -347,7 +347,9 @@ onMounted(() => {
                     uid: `cancel-item-${Date.now()}`,
                     type: 'kitchen_item_cancelled',
                     title: alertTitle,
-                    subtitle: isAll ? `Áp dụng toàn bộ đơn chờ` : `Bàn ${e.table_name}`,
+                    subtitle: isAll
+                        ? `Áp dụng toàn bộ đơn chờ`
+                        : `Bàn ${e.table_name}`,
                     details: detailsMsg,
                     time: e.timestamp,
                     urgency: 'critical',
@@ -355,7 +357,7 @@ onMounted(() => {
 
                 toast.error(
                     `⚠️ Bếp báo hủy món: ${e.product_name} (${isAll ? 'Tất cả đơn chờ' : 'Bàn ' + e.table_name}). Vui lòng báo khách!`,
-                    { duration: 15000 }
+                    { duration: 15000 },
                 );
             })
 
@@ -366,15 +368,19 @@ onMounted(() => {
                     uid: `kitchen-call-${Date.now()}`,
                     type: 'kitchen_waiter_called',
                     title: `🛎️ BẾP RÉO LẤY MÓN - BÀN ${e.table_name}`,
-                    subtitle: e.item_name ? `Món: ${e.item_name}` : `Đơn #${e.order_number}`,
-                    details: e.message || 'Món ăn đã chế biến xong, bếp gọi phục vụ ra lấy món gấp!',
+                    subtitle: e.item_name
+                        ? `Món: ${e.item_name}`
+                        : `Đơn #${e.order_number}`,
+                    details:
+                        e.message ||
+                        'Món ăn đã chế biến xong, bếp gọi phục vụ ra lấy món gấp!',
                     time: e.timestamp,
                     urgency: 'high',
                 });
 
                 toast.info(
                     `🛎️ Bếp réo lấy món! Bàn ${e.table_name} ${e.item_name ? '(' + e.item_name + ')' : ''}`,
-                    { duration: 10000 }
+                    { duration: 10000 },
                 );
             });
     }
@@ -477,145 +483,145 @@ onUnmounted(() => {
 
         <!-- ── AI Upsell proposal modal ────────────────────────────────────── -->
         <Teleport to="body">
-        <div
-            v-if="showUpsellModal && upsellData"
-            class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        >
             <div
-                class="animate-zoom-in relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 shadow-2xl"
+                v-if="showUpsellModal && upsellData"
+                class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
-                <!-- Header with AI styling -->
-                <header
-                    class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
+                <div
+                    class="animate-zoom-in relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 shadow-2xl"
                 >
-                    <div class="flex items-center gap-2">
-                        <Bot class="size-5 animate-pulse text-amber-400" />
-                        <h3
-                            class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
-                        >
-                            Smart Upselling Engine
-                            <Sparkles
-                                class="size-3.5 animate-pulse text-amber-400"
-                            />
-                        </h3>
-                    </div>
-                    <button
-                        @click="showUpsellModal = false"
-                        class="bg-slate-850 rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                    <!-- Header with AI styling -->
+                    <header
+                        class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
                     >
-                        <X class="size-4" />
-                    </button>
-                </header>
-
-                <div class="space-y-4 p-5">
-                    <!-- Recommendation details -->
-                    <div
-                        class="border-slate-850 space-y-2 rounded-2xl border bg-slate-950 p-4"
-                    >
-                        <p
-                            class="text-xs leading-relaxed font-medium text-slate-300"
-                        >
-                            {{ upsellData.suggestion }}
-                        </p>
-                        <div
-                            class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
-                        >
-                            <span
-                                >Độ tin cậy:
-                                {{
-                                    Math.round(upsellData.confidence * 100)
-                                }}%</span
+                        <div class="flex items-center gap-2">
+                            <Bot class="size-5 animate-pulse text-amber-400" />
+                            <h3
+                                class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
                             >
-                            <span>Chỉ số Lift: {{ upsellData.lift }}x</span>
+                                Smart Upselling Engine
+                                <Sparkles
+                                    class="size-3.5 animate-pulse text-amber-400"
+                                />
+                            </h3>
+                        </div>
+                        <button
+                            @click="showUpsellModal = false"
+                            class="bg-slate-850 rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </header>
+
+                    <div class="space-y-4 p-5">
+                        <!-- Recommendation details -->
+                        <div
+                            class="border-slate-850 space-y-2 rounded-2xl border bg-slate-950 p-4"
+                        >
+                            <p
+                                class="text-xs leading-relaxed font-medium text-slate-300"
+                            >
+                                {{ upsellData.suggestion }}
+                            </p>
+                            <div
+                                class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
+                            >
+                                <span
+                                    >Độ tin cậy:
+                                    {{
+                                        Math.round(upsellData.confidence * 100)
+                                    }}%</span
+                                >
+                                <span>Chỉ số Lift: {{ upsellData.lift }}x</span>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="upsellData.recommended_item"
+                            class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                        >
+                            <span class="font-bold text-slate-200"
+                                >Gợi ý: Mời dùng
+                                {{ upsellData.recommended_item }}</span
+                            >
+                            <span
+                                class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
+                                >-10% combo</span
+                            >
                         </div>
                     </div>
 
-                    <div
-                        v-if="upsellData.recommended_item"
-                        class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                    <footer
+                        class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
                     >
-                        <span class="font-bold text-slate-200"
-                            >Gợi ý: Mời dùng
-                            {{ upsellData.recommended_item }}</span
+                        <button
+                            @click="showUpsellModal = false"
+                            class="hover:bg-slate-850 h-10 flex-1 rounded-xl border border-slate-800 text-xs font-bold text-slate-400"
                         >
-                        <span
-                            class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
-                            >-10% combo</span
+                            Bỏ qua
+                        </button>
+                        <button
+                            @click="addUpsellItem"
+                            class="flex h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
                         >
-                    </div>
+                            <Check class="size-4" /> Thêm vào đơn
+                        </button>
+                    </footer>
                 </div>
-
-                <footer
-                    class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
-                >
-                    <button
-                        @click="showUpsellModal = false"
-                        class="hover:bg-slate-850 h-10 flex-1 rounded-xl border border-slate-800 text-xs font-bold text-slate-400"
-                    >
-                        Bỏ qua
-                    </button>
-                    <button
-                        @click="addUpsellItem"
-                        class="flex h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
-                    >
-                        <Check class="size-4" /> Thêm vào đơn
-                    </button>
-                </footer>
             </div>
-        </div>
         </Teleport>
 
         <!-- ── Cancellation Reason Modal ────────────────────────────────────── -->
         <Teleport to="body">
-        <div
-            v-if="showCancelModal"
-            class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        >
             <div
-                class="animate-zoom-in relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
+                v-if="showCancelModal"
+                class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
-                <header
-                    class="border-slate-850 flex items-center justify-between border-b p-4"
+                <div
+                    class="animate-zoom-in relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl"
                 >
-                    <h3 class="text-xs font-bold text-slate-200">
-                        Lý do từ chối yêu cầu QR
-                    </h3>
-                    <button
-                        @click="showCancelModal = false"
-                        class="bg-slate-850 hover:bg-slate-850 rounded-lg p-1 text-slate-400"
+                    <header
+                        class="border-slate-850 flex items-center justify-between border-b p-4"
                     >
-                        <X class="size-4" />
-                    </button>
-                </header>
+                        <h3 class="text-xs font-bold text-slate-200">
+                            Lý do từ chối yêu cầu QR
+                        </h3>
+                        <button
+                            @click="showCancelModal = false"
+                            class="bg-slate-850 hover:bg-slate-850 rounded-lg p-1 text-slate-400"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </header>
 
-                <div class="space-y-3 p-4">
-                    <textarea
-                        v-model="cancelReason"
-                        rows="3"
-                        placeholder="Nhập lý do từ chối (ví dụ: Bàn trống quét phá hoại, Khách bấm nhầm...)"
-                        class="border-slate-850 text-slate-350 w-full resize-none rounded-xl border bg-slate-950 p-2.5 text-xs focus:border-red-500 focus:outline-none"
-                    ></textarea>
+                    <div class="space-y-3 p-4">
+                        <textarea
+                            v-model="cancelReason"
+                            rows="3"
+                            placeholder="Nhập lý do từ chối (ví dụ: Bàn trống quét phá hoại, Khách bấm nhầm...)"
+                            class="border-slate-850 text-slate-350 w-full resize-none rounded-xl border bg-slate-950 p-2.5 text-xs focus:border-red-500 focus:outline-none"
+                        ></textarea>
+                    </div>
+
+                    <footer
+                        class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
+                    >
+                        <button
+                            @click="showCancelModal = false"
+                            class="hover:bg-slate-850 h-9 flex-1 rounded-lg border border-slate-800 text-xs font-bold text-slate-400"
+                        >
+                            Quay lại
+                        </button>
+                        <button
+                            @click="submitCancel"
+                            :disabled="!cancelReason.trim()"
+                            class="disabled:text-slate-650 h-9 flex-1 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800"
+                        >
+                            Từ chối đặt món
+                        </button>
+                    </footer>
                 </div>
-
-                <footer
-                    class="border-slate-850 flex gap-2 border-t bg-slate-950/20 p-4"
-                >
-                    <button
-                        @click="showCancelModal = false"
-                        class="hover:bg-slate-850 h-9 flex-1 rounded-lg border border-slate-800 text-xs font-bold text-slate-400"
-                    >
-                        Quay lại
-                    </button>
-                    <button
-                        @click="submitCancel"
-                        :disabled="!cancelReason.trim()"
-                        class="disabled:text-slate-650 h-9 flex-1 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800"
-                    >
-                        Từ chối đặt món
-                    </button>
-                </footer>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

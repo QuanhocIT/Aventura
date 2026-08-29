@@ -24,21 +24,31 @@ const props = withDefaults(
 </script>
 
 <template>
-    <section :class="cn('dashboard-card-frame dashboard-summary-card', props.class)">
+    <section
+        :class="cn('dashboard-card-frame dashboard-summary-card', props.class)"
+    >
         <header class="dashboard-card-header">
             <div class="flex min-w-0 items-start gap-3">
-                <span class="dashboard-section-icon dashboard-section-icon--violet">
+                <span
+                    class="dashboard-section-icon dashboard-section-icon--violet"
+                >
                     <component :is="icon" class="size-4" />
                 </span>
                 <div class="min-w-0">
                     <h2 class="dashboard-card-title">{{ title }}</h2>
-                    <p v-if="description" class="dashboard-card-description">{{ description }}</p>
+                    <p v-if="description" class="dashboard-card-description">
+                        {{ description }}
+                    </p>
                 </div>
             </div>
             <slot name="actions" />
         </header>
         <div class="dashboard-card-body dashboard-summary-card__body">
-            <DashboardEmptyState v-if="empty" :title="emptyTitle" :description="emptyDescription" />
+            <DashboardEmptyState
+                v-if="empty"
+                :title="emptyTitle"
+                :description="emptyDescription"
+            />
             <slot v-else />
         </div>
         <footer v-if="$slots.footer" class="dashboard-card-footer">

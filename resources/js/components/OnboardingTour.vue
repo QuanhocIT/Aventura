@@ -426,193 +426,199 @@ defineExpose({
     <div>
         <!-- Backdrop đè sáng đè lên phần tử được chọn -->
         <Teleport to="body">
-        <div
-            v-if="isTourActive && targetRect && isCorrectPage"
-            class="pointer-events-none fixed inset-0 transition-opacity duration-300"
-            style="z-index: 9998"
-            :style="{
-                background: `radial-gradient(circle 85px at ${targetRect.left + targetRect.width / 2}px ${targetRect.top + targetRect.height / 2}px, transparent 92%, rgba(15, 23, 42, 0.2) 100%)`,
-            }"
-        />
-
-        <!-- Pulse Highlight đè trực tiếp lên phần tử mục tiêu -->
-        <div
-            v-if="isTourActive && targetRect && isCorrectPage"
-            class="pointer-events-none fixed animate-pulse rounded-md border-2 border-primary"
-            style="z-index: 9998"
-            :style="{
-                top: `${targetRect.top - 2}px`,
-                left: `${targetRect.left - 2}px`,
-                width: `${targetRect.width + 4}px`,
-                height: `${targetRect.height + 4}px`,
-                boxShadow:
-                    '0 0 0 4px rgba(99, 102, 241, 0.22), 0 0 15px 4px rgba(99, 102, 241, 0.55)',
-            }"
-        />
-
-        <!-- Glowing indicator dot -->
-        <span
-            v-if="isTourActive && targetRect && isCorrectPage"
-            class="pointer-events-none fixed size-4 animate-ping rounded-full bg-indigo-500"
-            style="z-index: 9999"
-            :style="{
-                top: `${targetRect.top + targetRect.height / 2 - 8}px`,
-                left: `${targetRect.left + targetRect.width / 2 - 8}px`,
-            }"
-        />
-
-        <!-- Tooltip Card -->
-        <div
-            v-if="isTourActive && activeStep && (!isCorrectPage || targetRect)"
-            :style="isCorrectPage ? tooltipStyle : fallbackTooltipStyle"
-            class="flex max-h-[min(70vh,420px)] w-[min(320px,calc(100vw-32px))] scale-100 transform flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/60 dark:bg-slate-900/90"
-        >
-            <!-- Step Header -->
-            <div class="flex items-center justify-between border-b pb-2.5">
-                <span
-                    class="flex items-center gap-1.5 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
-                >
-                    <Compass class="size-3.5" />
-                    {{ activeStep.title }}
-                </span>
-                <button
-                    @click="skipTour"
-                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                    <X class="size-4" />
-                </button>
-            </div>
-
-            <!-- Cảnh báo đi sai trang -->
             <div
-                v-if="!isCorrectPage"
-                class="rounded-lg border border-amber-200/50 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-            >
-                <p class="font-medium">Bạn đã chuyển trang!</p>
-                <p class="mt-1">
-                    Để tiếp tục phần hướng dẫn, vui lòng nhấp vào nút bên dưới
-                    để quay lại đúng trang.
-                </p>
-                <button
-                    @click="navigateToStepPage"
-                    class="mt-2.5 flex items-center gap-1 font-semibold text-amber-900 hover:underline dark:text-amber-200"
-                >
-                    Đến trang hướng dẫn <ChevronRight class="size-3" />
-                </button>
-            </div>
+                v-if="isTourActive && targetRect && isCorrectPage"
+                class="pointer-events-none fixed inset-0 transition-opacity duration-300"
+                style="z-index: 9998"
+                :style="{
+                    background: `radial-gradient(circle 85px at ${targetRect.left + targetRect.width / 2}px ${targetRect.top + targetRect.height / 2}px, transparent 92%, rgba(15, 23, 42, 0.2) 100%)`,
+                }"
+            />
 
-            <!-- Content -->
+            <!-- Pulse Highlight đè trực tiếp lên phần tử mục tiêu -->
             <div
-                v-else
-                class="text-sm leading-relaxed font-normal text-slate-600 dark:text-slate-300"
-            >
-                {{ activeStep.content }}
-            </div>
+                v-if="isTourActive && targetRect && isCorrectPage"
+                class="pointer-events-none fixed animate-pulse rounded-md border-2 border-primary"
+                style="z-index: 9998"
+                :style="{
+                    top: `${targetRect.top - 2}px`,
+                    left: `${targetRect.left - 2}px`,
+                    width: `${targetRect.width + 4}px`,
+                    height: `${targetRect.height + 4}px`,
+                    boxShadow:
+                        '0 0 0 4px rgba(99, 102, 241, 0.22), 0 0 15px 4px rgba(99, 102, 241, 0.55)',
+                }"
+            />
 
-            <!-- Footer & Progress -->
-            <div class="mt-1 flex items-center justify-between border-t pt-3">
-                <!-- Dots progress -->
-                <div class="flex gap-1">
+            <!-- Glowing indicator dot -->
+            <span
+                v-if="isTourActive && targetRect && isCorrectPage"
+                class="pointer-events-none fixed size-4 animate-ping rounded-full bg-indigo-500"
+                style="z-index: 9999"
+                :style="{
+                    top: `${targetRect.top + targetRect.height / 2 - 8}px`,
+                    left: `${targetRect.left + targetRect.width / 2 - 8}px`,
+                }"
+            />
+
+            <!-- Tooltip Card -->
+            <div
+                v-if="
+                    isTourActive && activeStep && (!isCorrectPage || targetRect)
+                "
+                :style="isCorrectPage ? tooltipStyle : fallbackTooltipStyle"
+                class="flex max-h-[min(70vh,420px)] w-[min(320px,calc(100vw-32px))] scale-100 transform flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/60 dark:bg-slate-900/90"
+            >
+                <!-- Step Header -->
+                <div class="flex items-center justify-between border-b pb-2.5">
                     <span
-                        v-for="(s, idx) in currentSteps"
-                        :key="idx"
-                        class="h-1.5 rounded-full transition-all duration-300"
-                        :class="
-                            idx === activeStepIndex
-                                ? 'w-4 bg-indigo-600 dark:bg-indigo-400'
-                                : 'w-1.5 bg-slate-200 dark:bg-slate-700'
-                        "
-                    />
+                        class="flex items-center gap-1.5 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+                    >
+                        <Compass class="size-3.5" />
+                        {{ activeStep.title }}
+                    </span>
+                    <button
+                        @click="skipTour"
+                        class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                        <X class="size-4" />
+                    </button>
                 </div>
 
-                <!-- Action Button -->
-                <button
-                    v-if="isCorrectPage"
-                    @click="nextStep"
-                    class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-medium text-white shadow-md shadow-indigo-600/10 transition-all hover:bg-indigo-700 active:scale-95"
+                <!-- Cảnh báo đi sai trang -->
+                <div
+                    v-if="!isCorrectPage"
+                    class="rounded-lg border border-amber-200/50 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                 >
-                    {{
-                        activeStepIndex === currentSteps.length - 1
-                            ? 'Hoàn thành'
-                            : 'Tiếp tục'
-                    }}
-                    <ArrowRight class="size-3.5" />
-                </button>
+                    <p class="font-medium">Bạn đã chuyển trang!</p>
+                    <p class="mt-1">
+                        Để tiếp tục phần hướng dẫn, vui lòng nhấp vào nút bên
+                        dưới để quay lại đúng trang.
+                    </p>
+                    <button
+                        @click="navigateToStepPage"
+                        class="mt-2.5 flex items-center gap-1 font-semibold text-amber-900 hover:underline dark:text-amber-200"
+                    >
+                        Đến trang hướng dẫn <ChevronRight class="size-3" />
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div
+                    v-else
+                    class="text-sm leading-relaxed font-normal text-slate-600 dark:text-slate-300"
+                >
+                    {{ activeStep.content }}
+                </div>
+
+                <!-- Footer & Progress -->
+                <div
+                    class="mt-1 flex items-center justify-between border-t pt-3"
+                >
+                    <!-- Dots progress -->
+                    <div class="flex gap-1">
+                        <span
+                            v-for="(s, idx) in currentSteps"
+                            :key="idx"
+                            class="h-1.5 rounded-full transition-all duration-300"
+                            :class="
+                                idx === activeStepIndex
+                                    ? 'w-4 bg-indigo-600 dark:bg-indigo-400'
+                                    : 'w-1.5 bg-slate-200 dark:bg-slate-700'
+                            "
+                        />
+                    </div>
+
+                    <!-- Action Button -->
+                    <button
+                        v-if="isCorrectPage"
+                        @click="nextStep"
+                        class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-medium text-white shadow-md shadow-indigo-600/10 transition-all hover:bg-indigo-700 active:scale-95"
+                    >
+                        {{
+                            activeStepIndex === currentSteps.length - 1
+                                ? 'Hoàn thành'
+                                : 'Tiếp tục'
+                        }}
+                        <ArrowRight class="size-3.5" />
+                    </button>
+                </div>
             </div>
-        </div>
         </Teleport>
 
         <!-- Success Modal (Hoàn thành cả ngày) -->
         <Teleport to="body">
-        <div
-            v-if="isSuccessOpen"
-            class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300"
-            style="z-index: 10000"
-        >
             <div
-                class="flex w-full max-w-md animate-in flex-col items-center gap-6 rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-2xl duration-200 zoom-in-95 fade-in dark:border-slate-800 dark:bg-slate-900"
+                v-if="isSuccessOpen"
+                class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+                style="z-index: 10000"
             >
                 <div
-                    class="flex size-16 animate-bounce items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
-                >
-                    <Award class="size-9" />
-                </div>
-
-                <div>
-                    <h2
-                        class="text-xl font-bold text-slate-800 dark:text-slate-100"
-                    >
-                        Chúc mừng bạn đã hoàn thành Ngày {{ currentDay }}! 🎉
-                    </h2>
-                    <p
-                        class="mt-2.5 px-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400"
-                    >
-                        <span v-if="currentDay === 1">
-                            Tuyệt vời! Bạn đã nắm vững các bước tạo nhóm thực
-                            đơn và thêm món ăn thực tế. Cửa hàng của bạn đã sẵn
-                            sàng bán sản phẩm đầu tiên!
-                        </span>
-                        <span v-else-if="currentDay === 2">
-                            Xuất sắc! Việc thiết lập công thức và định lượng
-                            nguyên liệu sẽ giúp phần mềm tự động tính toán tồn
-                            kho của bạn chính xác sau mỗi hóa đơn bán hàng.
-                        </span>
-                        <span v-else>
-                            Hoàn hảo! Bạn đã hoàn tất chuỗi Guided Tours chuẩn
-                            hóa F&B. Bạn hiện đã làm chủ được nhân sự, quản lý
-                            lịch làm việc và kho nguyên liệu!
-                        </span>
-                    </p>
-                </div>
-
-                <!-- Progress bar inside success modal -->
-                <div
-                    class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                    class="flex w-full max-w-md animate-in flex-col items-center gap-6 rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-2xl duration-200 zoom-in-95 fade-in dark:border-slate-800 dark:bg-slate-900"
                 >
                     <div
-                        class="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                        :style="{ width: `${(currentDay / 3) * 100}%` }"
-                    />
-                </div>
+                        class="flex size-16 animate-bounce items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+                    >
+                        <Award class="size-9" />
+                    </div>
 
-                <div class="mt-2 flex w-full flex-col gap-2">
-                    <button
-                        v-if="currentDay < 3"
-                        @click="startNextDay"
-                        class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/10 transition-colors hover:bg-indigo-700 active:scale-98"
+                    <div>
+                        <h2
+                            class="text-xl font-bold text-slate-800 dark:text-slate-100"
+                        >
+                            Chúc mừng bạn đã hoàn thành Ngày {{ currentDay }}!
+                            🎉
+                        </h2>
+                        <p
+                            class="mt-2.5 px-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400"
+                        >
+                            <span v-if="currentDay === 1">
+                                Tuyệt vời! Bạn đã nắm vững các bước tạo nhóm
+                                thực đơn và thêm món ăn thực tế. Cửa hàng của
+                                bạn đã sẵn sàng bán sản phẩm đầu tiên!
+                            </span>
+                            <span v-else-if="currentDay === 2">
+                                Xuất sắc! Việc thiết lập công thức và định lượng
+                                nguyên liệu sẽ giúp phần mềm tự động tính toán
+                                tồn kho của bạn chính xác sau mỗi hóa đơn bán
+                                hàng.
+                            </span>
+                            <span v-else>
+                                Hoàn hảo! Bạn đã hoàn tất chuỗi Guided Tours
+                                chuẩn hóa F&B. Bạn hiện đã làm chủ được nhân sự,
+                                quản lý lịch làm việc và kho nguyên liệu!
+                            </span>
+                        </p>
+                    </div>
+
+                    <!-- Progress bar inside success modal -->
+                    <div
+                        class="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
                     >
-                        Tiến đến Ngày {{ currentDay + 1 }}
-                        <ChevronRight class="size-4" />
-                    </button>
-                    <button
-                        @click="isSuccessOpen = false"
-                        class="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                    >
-                        Để sau / Đóng
-                    </button>
+                        <div
+                            class="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                            :style="{ width: `${(currentDay / 3) * 100}%` }"
+                        />
+                    </div>
+
+                    <div class="mt-2 flex w-full flex-col gap-2">
+                        <button
+                            v-if="currentDay < 3"
+                            @click="startNextDay"
+                            class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/10 transition-colors hover:bg-indigo-700 active:scale-98"
+                        >
+                            Tiến đến Ngày {{ currentDay + 1 }}
+                            <ChevronRight class="size-4" />
+                        </button>
+                        <button
+                            @click="isSuccessOpen = false"
+                            class="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                        >
+                            Để sau / Đóng
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

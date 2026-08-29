@@ -17,11 +17,14 @@ type PendingMutation = {
 const STORAGE_KEY = 'aventura:offline-mutations:v1';
 
 function readQueue(): PendingMutation[] {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') {
+        return [];
+    }
 
     try {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
+
         return Array.isArray(parsed) ? parsed : [];
     } catch {
         return [];
@@ -34,14 +37,23 @@ export function useOfflineMutationQueue() {
 
     const persist = () => {
         if (typeof window !== 'undefined') {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queue.value));
+            window.localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(queue.value),
+            );
         }
     };
 
     const pendingCount = computed(() => queue.value.length);
-    const failedCount = computed(() => queue.value.filter((item) => item.status === 'failed').length);
+    const failedCount = computed(
+        () => queue.value.filter((item) => item.status === 'failed').length,
+    );
 
-    const enqueue = (url: string, payload: Record<string, unknown>, method: QueueMethod = 'post') => {
+    const enqueue = (
+        url: string,
+        payload: Record<string, unknown>,
+        method: QueueMethod = 'post',
+    ) => {
         queue.value.push({
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             method,
@@ -55,27 +67,46 @@ export function useOfflineMutationQueue() {
     };
 
     const flush = async () => {
-        if (isFlushing || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+        if (
+            isFlushing ||
+            (typeof navigator !== 'undefined' && !navigator.onLine)
+        ) {
+            return;
+        }
 
         isFlushing = true;
+
         for (const item of [...queue.value]) {
-            if (item.status === 'failed') continue;
+            if (item.status === 'failed') {
+                continue;
+            }
+
             item.status = 'syncing';
             item.attempts += 1;
             persist();
 
             try {
                 await axios[item.method](item.url, item.payload);
-                queue.value = queue.value.filter((queued) => queued.id !== item.id);
+                queue.value = queue.value.filter(
+                    (queued) => queued.id !== item.id,
+                );
                 persist();
             } catch (error: any) {
                 const status = error?.response?.status;
-                item.status = status && status !== 409 && status !== 429 ? 'failed' : 'pending';
-                item.error = error?.response?.data?.message ?? 'Chưa thể đồng bộ';
+                item.status =
+                    status && status !== 409 && status !== 429
+                        ? 'failed'
+                        : 'pending';
+                item.error =
+                    error?.response?.data?.message ?? 'Chưa thể đồng bộ';
                 persist();
-                if (!status) break;
+
+                if (!status) {
+                    break;
+                }
             }
         }
+
         isFlushing = false;
     };
 

@@ -108,8 +108,7 @@ const defaultDescriptions: Record<string, string> = {
     free: 'Gói cơ bản, trải nghiệm POS miễn phí.',
     starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
     pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
-    enterprise:
-        'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
+    enterprise: 'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
 };
 
 const description = computed(

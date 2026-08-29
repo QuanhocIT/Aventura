@@ -17,7 +17,10 @@ const props = withDefaults(
 <template>
     <div
         :class="
-            cn('dashboard-empty-state flex flex-col items-center justify-center py-12', props.class)
+            cn(
+                'dashboard-empty-state flex flex-col items-center justify-center py-12',
+                props.class,
+            )
         "
     >
         <div class="relative">

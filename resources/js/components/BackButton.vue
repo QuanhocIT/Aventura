@@ -65,7 +65,10 @@ function handleBack() {
         type="button"
         :variant="variant"
         :size="size"
-        :class="['inline-flex items-center gap-1.5 transition-all', props.class]"
+        :class="[
+            'inline-flex items-center gap-1.5 transition-all',
+            props.class,
+        ]"
         @click="handleBack"
         :title="label"
     >

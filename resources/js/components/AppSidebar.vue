@@ -128,7 +128,12 @@ const isOperationsInspector = computed(() =>
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const usesManagementSidebar = computed(
-    () => isOwner.value || isManager.value || isWarehouseManager.value || isOperationsInspector.value || isWarehouseStaff.value,
+    () =>
+        isOwner.value ||
+        isManager.value ||
+        isWarehouseManager.value ||
+        isOperationsInspector.value ||
+        isWarehouseStaff.value,
 );
 const isSupplier = computed(() => hasRole('supplier'));
 const supplierPortalEnabled = computed(() =>
@@ -1336,7 +1341,12 @@ const operationsInspectorNav: NavItem[] = [
         icon: ScrollText,
         section: 'governance',
     },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset, section: 'settings' },
+    {
+        title: 'Liên hệ & Hỗ trợ',
+        href: '/support',
+        icon: Headset,
+        section: 'settings',
+    },
 ];
 
 const warehouseManagerNav = computed<NavItem[]>(() => {
@@ -1534,7 +1544,12 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
             section: 'people',
         },
         // ─── Hỗ trợ ───────────────────────────────────────────────────────────
-        { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset, section: 'settings' },
+        {
+            title: 'Liên hệ & Hỗ trợ',
+            href: '/support',
+            icon: Headset,
+            section: 'settings',
+        },
     ];
 
     const sectionByHref: Record<string, string> = {

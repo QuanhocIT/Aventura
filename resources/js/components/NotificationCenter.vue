@@ -100,7 +100,9 @@ function markRead(id: number) {
         notif.read = true;
 
         if (notif.serverId) {
-            void axios.post(`/notifications/${notif.serverId}/read`).catch(() => undefined);
+            void axios
+                .post(`/notifications/${notif.serverId}/read`)
+                .catch(() => undefined);
         }
     }
 }
@@ -142,7 +144,9 @@ function markAllRead() {
 
     items.value.forEach((n) => (n.read = true));
     serverIds.forEach((serverId) => {
-        void axios.post(`/notifications/${serverId}/read`).catch(() => undefined);
+        void axios
+            .post(`/notifications/${serverId}/read`)
+            .catch(() => undefined);
     });
 }
 
@@ -165,7 +169,11 @@ async function loadDatabaseNotifications() {
         const notifications = response.data?.notifications ?? [];
 
         notifications.reverse().forEach((notification: any) => {
-            if (items.value.some((item) => item.serverId === String(notification.id))) {
+            if (
+                items.value.some(
+                    (item) => item.serverId === String(notification.id),
+                )
+            ) {
                 return;
             }
 
@@ -242,7 +250,11 @@ watch(
     () => (page.props as any).flash,
     (flash) => {
         const currentMsg =
-            flash?.success || flash?.error || flash?.info || flash?.warning || '';
+            flash?.success ||
+            flash?.error ||
+            flash?.info ||
+            flash?.warning ||
+            '';
 
         if (!currentMsg) {
             lastNotifFlashMsg = '';

@@ -186,7 +186,11 @@
     }
     body {
         overflow-x: clip;
-        font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+        font-family:
+            'Be Vietnam Pro',
+            system-ui,
+            -apple-system,
+            sans-serif;
         color: #1f2937;
     }
 
@@ -1041,7 +1045,7 @@ button:not(:disabled):active,
     }
 
     .dashboard-page-actions,
-.dashboard-filterbar {
+    .dashboard-filterbar {
         width: 100%;
     }
 

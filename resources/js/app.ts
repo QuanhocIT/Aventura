@@ -16,7 +16,6 @@ import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeAutoTablePagination } from '@/lib/autoTablePagination';
 import { initializeFlashToast } from '@/lib/flashToast';
 
-
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({

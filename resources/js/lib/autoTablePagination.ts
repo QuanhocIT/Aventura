@@ -130,7 +130,8 @@ function ensureControls(table: HTMLTableElement, state: TableState) {
         navigation.className = 'flex flex-wrap items-center gap-1';
         navigation.addEventListener('click', (event) => {
             const target = event.target as HTMLElement | null;
-            const button = target?.closest<HTMLButtonElement>('button[data-page]');
+            const button =
+                target?.closest<HTMLButtonElement>('button[data-page]');
             const nextPage = Number(button?.dataset.page);
 
             if (!button || button.disabled || !Number.isInteger(nextPage)) {
@@ -197,7 +198,8 @@ function applyTable(table: HTMLTableElement) {
 
     const start = (state.page - 1) * PAGE_SIZE;
     rows.forEach((row, index) => {
-        row.style.display = index >= start && index < start + PAGE_SIZE ? '' : 'none';
+        row.style.display =
+            index >= start && index < start + PAGE_SIZE ? '' : 'none';
     });
 
     ensureControls(table, state);

@@ -96,11 +96,10 @@ function openUpgradeModal() {
     window.dispatchEvent(new CustomEvent('open-upgrade-modal'));
 }
 
-const shiftAllowedUntil = computed(
-    () =>
-        page.props.auth?.shift_lock_exempt
-            ? null
-            : (page.props.auth?.shift_allowed_until as number | null),
+const shiftAllowedUntil = computed(() =>
+    page.props.auth?.shift_lock_exempt
+        ? null
+        : (page.props.auth?.shift_allowed_until as number | null),
 );
 const currentTimeSec = ref(Math.floor(Date.now() / 1000));
 const showShiftExpiredModal = ref(false);
@@ -378,15 +377,15 @@ onUnmounted(() => {
                         </h3>
                     </div>
                     <p class="text-sm text-slate-600 dark:text-slate-400">
-                        Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ tự
-                        động đăng xuất để bảo mật thông tin.
+                        Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ
+                        tự động đăng xuất để bảo mật thông tin.
                     </p>
                     <p
                         class="rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-xs text-amber-600 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400"
                     >
-                        <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu form
-                        đang thực hiện đã được tự động lưu tạm trên trình duyệt của
-                        bạn và sẽ khôi phục khi bạn vào ca trở lại.
+                        <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu
+                        form đang thực hiện đã được tự động lưu tạm trên trình
+                        duyệt của bạn và sẽ khôi phục khi bạn vào ca trở lại.
                     </p>
                     <div class="flex justify-end pt-2">
                         <button

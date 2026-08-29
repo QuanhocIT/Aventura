@@ -87,9 +87,7 @@ watch(
         <!-- Today's KPI row -->
         <div
             v-if="stats"
-            :class="[
-                'dashboard-kpi-grid dashboard-main-kpi-grid',
-            ]"
+            :class="['dashboard-kpi-grid dashboard-main-kpi-grid']"
         >
             <!-- Đơn hàng -->
             <div

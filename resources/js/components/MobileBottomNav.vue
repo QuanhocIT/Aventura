@@ -5,8 +5,8 @@ import { computed } from 'vue';
 
 const page = usePage();
 const currentUrl = computed(() => page.url);
-const supplierPortalEnabled = computed(
-    () => Boolean((page.props as any).supplier_portal_enabled),
+const supplierPortalEnabled = computed(() =>
+    Boolean((page.props as any).supplier_portal_enabled),
 );
 
 const emit = defineEmits(['open-po-modal', 'toggle-chatbot']);

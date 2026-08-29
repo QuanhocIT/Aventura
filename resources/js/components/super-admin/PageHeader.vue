@@ -22,7 +22,12 @@ const props = defineProps<{
             <div class="space-y-1">
                 <slot name="breadcrumb">
                     <div v-if="backHref || showBack" class="mb-1.5">
-                        <BackButton :fallback-href="backHref || '/super-admin/dashboard'" :label="backLabel || 'Quay lại'" />
+                        <BackButton
+                            :fallback-href="
+                                backHref || '/super-admin/dashboard'
+                            "
+                            :label="backLabel || 'Quay lại'"
+                        />
                     </div>
                 </slot>
                 <h1

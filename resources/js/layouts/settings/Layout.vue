@@ -22,7 +22,9 @@ const currentUrl = computed(() => page.url);
 const roles = computed(() => {
     const raw = (page.props.roles as string[] | undefined) ?? [];
 
-    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
 });
 
 const isOwnerOrSuperAdmin = computed(() =>
@@ -123,12 +125,20 @@ const isItemActive = (href: string) => {
             </div>
             <div class="space-y-1.5">
                 <p class="settings-eyebrow">
-                    {{ isOwnerOrSuperAdmin ? 'Không gian quản trị' : 'Cài đặt cá nhân' }}
+                    {{
+                        isOwnerOrSuperAdmin
+                            ? 'Không gian quản trị'
+                            : 'Cài đặt cá nhân'
+                    }}
                 </p>
                 <h1
                     class="bg-gradient-to-r from-neutral-950 via-neutral-800 to-neutral-500 bg-clip-text text-3xl font-black tracking-tight text-neutral-950 text-transparent sm:text-4xl dark:from-neutral-50 dark:via-neutral-200 dark:to-neutral-500 dark:text-neutral-50"
                 >
-                    {{ isOwnerOrSuperAdmin ? 'Thiết lập hệ thống' : 'Hồ sơ & Tài khoản' }}
+                    {{
+                        isOwnerOrSuperAdmin
+                            ? 'Thiết lập hệ thống'
+                            : 'Hồ sơ & Tài khoản'
+                    }}
                 </h1>
                 <p
                     class="max-w-3xl text-base leading-7 text-neutral-500 dark:text-neutral-400"
@@ -163,7 +173,7 @@ const isItemActive = (href: string) => {
                             'settings-nav-item group justify-start gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-wide transition-all duration-200 lg:w-full',
                             isItemActive(item.href)
                                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 dark:bg-white dark:text-slate-950 dark:shadow-none'
-                                : 'text-slate-700 font-semibold hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60 dark:hover:text-white',
+                                : 'font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/60 dark:hover:text-white',
                         ]"
                         as-child
                     >

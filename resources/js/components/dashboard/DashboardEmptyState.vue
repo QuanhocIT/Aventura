@@ -24,7 +24,9 @@ const props = withDefaults(
             <component :is="icon" class="size-6" />
         </span>
         <p class="dashboard-empty-state__title">{{ title }}</p>
-        <p v-if="description" class="dashboard-empty-state__description">{{ description }}</p>
+        <p v-if="description" class="dashboard-empty-state__description">
+            {{ description }}
+        </p>
         <div v-if="$slots.action" class="mt-4">
             <slot name="action" />
         </div>

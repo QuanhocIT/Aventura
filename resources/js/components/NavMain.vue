@@ -481,9 +481,9 @@ watch(
                 "
                 :aria-label="props.collapsibleGroups ? group.label : undefined"
                 :class="[
-                    'group/header relative flex h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold tracking-[0.01em] text-slate-800 dark:text-slate-200 transition-all duration-200',
+                    'group/header relative flex h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold tracking-[0.01em] text-slate-800 transition-all duration-200 dark:text-slate-200',
                     props.collapsibleGroups
-                        ? 'cursor-pointer hover:bg-sidebar-accent/80 hover:text-slate-950 dark:hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring'
+                        ? 'cursor-pointer hover:bg-sidebar-accent/80 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-sidebar-ring dark:hover:text-white'
                         : 'text-slate-800 dark:text-slate-200',
                     isGroupExpanded(group) && !isGroupActive(group)
                         ? 'bg-sidebar-accent/50 text-slate-900 dark:text-white'
@@ -493,7 +493,7 @@ watch(
             >
                 <component
                     :is="group.icon"
-                    class="size-[18px] shrink-0 opacity-90 transition-opacity duration-200 text-indigo-600 dark:text-indigo-400"
+                    class="size-[18px] shrink-0 text-indigo-600 opacity-90 transition-opacity duration-200 dark:text-indigo-400"
                     aria-hidden="true"
                 />
                 <span class="min-w-0 flex-1 truncate leading-none">

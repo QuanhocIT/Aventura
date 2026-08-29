@@ -24,7 +24,8 @@ const {
 } = useBranchContext();
 
 const canSelect = computed(
-    () => props.selectable && canSelectBranch.value && branches.value.length > 0,
+    () =>
+        props.selectable && canSelectBranch.value && branches.value.length > 0,
 );
 
 const handleChange = (event: Event) => {

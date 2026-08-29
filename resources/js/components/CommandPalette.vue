@@ -247,143 +247,146 @@ onUnmounted(() => {
 <template>
     <!-- Modal Backdrop -->
     <Teleport to="body">
-    <div
-        v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh] backdrop-blur-sm"
-        @click="isOpen = false"
-    >
-        <!-- Palette Body -->
         <div
-            class="flex max-h-[50vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur"
-            @click.stop
+            v-if="isOpen"
+            class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh] backdrop-blur-sm"
+            @click="isOpen = false"
         >
-            <!-- Input box -->
+            <!-- Palette Body -->
             <div
-                class="flex shrink-0 items-center gap-3 border-b border-border/70 px-4 py-3"
+                class="flex max-h-[50vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur"
+                @click.stop
             >
-                <Search class="size-5 shrink-0 text-muted-foreground" />
-                <input
-                    type="text"
-                    v-model="query"
-                    placeholder="Tìm kiếm nhà hàng, email, hóa đơn hoặc gõ lệnh nhanh (> imp, > ticket...)..."
-                    class="w-full border-none bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none focus:ring-0"
-                    ref="searchInput"
-                    v-focus
-                    @keydown.esc="isOpen = false"
-                />
-                <span
-                    class="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground"
-                    >ESC</span
-                >
-            </div>
-
-            <!-- Loader -->
-            <div
-                v-if="loading"
-                class="shrink-0 py-12 text-center text-sm text-muted-foreground"
-            >
-                Đang tìm kiếm dữ liệu...
-            </div>
-
-            <!-- Results feed -->
-            <div v-else class="flex-1 space-y-4 overflow-y-auto p-2">
-                <!-- If query is empty, show default quick actions -->
-                <div v-if="!query" class="space-y-1.5">
-                    <p
-                        class="mb-1.5 px-2.5 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
-                    >
-                        Lệnh nhanh SuperAdmin
-                    </p>
-                    <div
-                        v-for="act in quickActions"
-                        :key="act.cmd"
-                        @click="query = act.cmd + ' '"
-                        class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-all hover:bg-muted"
-                    >
-                        <component
-                            :is="act.icon"
-                            class="size-4.5 shrink-0 text-muted-foreground"
-                        />
-                        <span class="font-medium">{{ act.label }}</span>
-                    </div>
-                </div>
-
-                <!-- If searching, show lists -->
-                <div v-else-if="allVisibleItems.length > 0" class="space-y-1">
-                    <div
-                        v-for="(item, idx) in allVisibleItems"
-                        :key="item.id || item.cmd"
-                        @click="executeAction(item)"
-                        :class="[
-                            'flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
-                            idx === activeIndex
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-foreground hover:bg-muted',
-                        ]"
-                    >
-                        <component
-                            :is="item.icon || Terminal"
-                            :class="[
-                                'size-4.5 shrink-0',
-                                idx === activeIndex
-                                    ? 'text-white'
-                                    : 'text-muted-foreground',
-                            ]"
-                        />
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate font-medium">
-                                {{
-                                    item.name ||
-                                    item.subject ||
-                                    item.invoice_number
-                                }}
-                            </p>
-                            <p
-                                :class="[
-                                    'truncate text-xs',
-                                    idx === activeIndex
-                                        ? 'text-indigo-200'
-                                        : 'text-muted-foreground',
-                                ]"
-                            >
-                                <span v-if="item.type === 'restaurant'"
-                                    >Mã: {{ item.code }} · Trạng thái:
-                                    {{ item.status }}</span
-                                >
-                                <span v-else-if="item.type === 'user'"
-                                    >Email: {{ item.email }}</span
-                                >
-                                <span v-else-if="item.type === 'ticket'"
-                                    >Mã vé: {{ item.ticket_number }} · Trạng
-                                    thái: {{ item.status }}</span
-                                >
-                                <span v-else-if="item.type === 'invoice'"
-                                    >Tổng tiền: {{ item.total }} VND · Trạng
-                                    thái: {{ item.status }}</span
-                                >
-                                <span v-else-if="item.type === 'action'"
-                                    >Lệnh nhanh SuperAdmin</span
-                                >
-                            </p>
-                        </div>
-                        <span
-                            v-if="idx === activeIndex"
-                            class="shrink-0 text-[10px] font-bold tracking-wider text-white/80 uppercase"
-                            >Enter ↩</span
-                        >
-                    </div>
-                </div>
-
-                <!-- No results -->
+                <!-- Input box -->
                 <div
-                    v-else
+                    class="flex shrink-0 items-center gap-3 border-b border-border/70 px-4 py-3"
+                >
+                    <Search class="size-5 shrink-0 text-muted-foreground" />
+                    <input
+                        type="text"
+                        v-model="query"
+                        placeholder="Tìm kiếm nhà hàng, email, hóa đơn hoặc gõ lệnh nhanh (> imp, > ticket...)..."
+                        class="w-full border-none bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none focus:ring-0"
+                        ref="searchInput"
+                        v-focus
+                        @keydown.esc="isOpen = false"
+                    />
+                    <span
+                        class="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground"
+                        >ESC</span
+                    >
+                </div>
+
+                <!-- Loader -->
+                <div
+                    v-if="loading"
                     class="shrink-0 py-12 text-center text-sm text-muted-foreground"
                 >
-                    Không tìm thấy dữ liệu hoặc lệnh nhanh tương ứng.
+                    Đang tìm kiếm dữ liệu...
+                </div>
+
+                <!-- Results feed -->
+                <div v-else class="flex-1 space-y-4 overflow-y-auto p-2">
+                    <!-- If query is empty, show default quick actions -->
+                    <div v-if="!query" class="space-y-1.5">
+                        <p
+                            class="mb-1.5 px-2.5 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
+                        >
+                            Lệnh nhanh SuperAdmin
+                        </p>
+                        <div
+                            v-for="act in quickActions"
+                            :key="act.cmd"
+                            @click="query = act.cmd + ' '"
+                            class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-all hover:bg-muted"
+                        >
+                            <component
+                                :is="act.icon"
+                                class="size-4.5 shrink-0 text-muted-foreground"
+                            />
+                            <span class="font-medium">{{ act.label }}</span>
+                        </div>
+                    </div>
+
+                    <!-- If searching, show lists -->
+                    <div
+                        v-else-if="allVisibleItems.length > 0"
+                        class="space-y-1"
+                    >
+                        <div
+                            v-for="(item, idx) in allVisibleItems"
+                            :key="item.id || item.cmd"
+                            @click="executeAction(item)"
+                            :class="[
+                                'flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all',
+                                idx === activeIndex
+                                    ? 'bg-indigo-600 text-white shadow-md'
+                                    : 'text-foreground hover:bg-muted',
+                            ]"
+                        >
+                            <component
+                                :is="item.icon || Terminal"
+                                :class="[
+                                    'size-4.5 shrink-0',
+                                    idx === activeIndex
+                                        ? 'text-white'
+                                        : 'text-muted-foreground',
+                                ]"
+                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate font-medium">
+                                    {{
+                                        item.name ||
+                                        item.subject ||
+                                        item.invoice_number
+                                    }}
+                                </p>
+                                <p
+                                    :class="[
+                                        'truncate text-xs',
+                                        idx === activeIndex
+                                            ? 'text-indigo-200'
+                                            : 'text-muted-foreground',
+                                    ]"
+                                >
+                                    <span v-if="item.type === 'restaurant'"
+                                        >Mã: {{ item.code }} · Trạng thái:
+                                        {{ item.status }}</span
+                                    >
+                                    <span v-else-if="item.type === 'user'"
+                                        >Email: {{ item.email }}</span
+                                    >
+                                    <span v-else-if="item.type === 'ticket'"
+                                        >Mã vé: {{ item.ticket_number }} · Trạng
+                                        thái: {{ item.status }}</span
+                                    >
+                                    <span v-else-if="item.type === 'invoice'"
+                                        >Tổng tiền: {{ item.total }} VND · Trạng
+                                        thái: {{ item.status }}</span
+                                    >
+                                    <span v-else-if="item.type === 'action'"
+                                        >Lệnh nhanh SuperAdmin</span
+                                    >
+                                </p>
+                            </div>
+                            <span
+                                v-if="idx === activeIndex"
+                                class="shrink-0 text-[10px] font-bold tracking-wider text-white/80 uppercase"
+                                >Enter ↩</span
+                            >
+                        </div>
+                    </div>
+
+                    <!-- No results -->
+                    <div
+                        v-else
+                        class="shrink-0 py-12 text-center text-sm text-muted-foreground"
+                    >
+                        Không tìm thấy dữ liệu hoặc lệnh nhanh tương ứng.
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
     </Teleport>
 </template>
 
