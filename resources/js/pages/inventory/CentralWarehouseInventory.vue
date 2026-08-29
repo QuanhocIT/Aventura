@@ -110,7 +110,11 @@ const props = defineProps<{
         branch_name?: string | null;
         ingredient_name?: string | null;
         unit_symbol?: string | null;
-        status: 'open' | 'in_progress' | 'pending_owner_approval' | 'pending_verification';
+        status:
+            | 'open'
+            | 'in_progress'
+            | 'pending_owner_approval'
+            | 'pending_verification';
         negative_quantity: number;
         on_hand: number;
         estimated_value: number;
@@ -368,7 +372,9 @@ const activityTypeLabel = (type: string) =>
                             >
                                 Tồn kho Kho Tổng
                             </h1>
-                            <p class="mt-1 text-sm text-slate-600 dark:text-indigo-100/75">
+                            <p
+                                class="mt-1 text-sm text-slate-600 dark:text-indigo-100/75"
+                            >
                                 Theo dõi tồn thực tế, tồn khả dụng và lô hàng
                                 tại kho nguồn.
                             </p>
@@ -478,7 +484,11 @@ const activityTypeLabel = (type: string) =>
             >
         </section>
 
-        <WarehouseAiRecommendations :initial-ai="props.centralWarehouseAi" context="stock" :max="3" />
+        <WarehouseAiRecommendations
+            :initial-ai="props.centralWarehouseAi"
+            context="stock"
+            :max="3"
+        />
 
         <NegativeInventoryCases
             :cases="negativeStockCases"
@@ -1245,256 +1255,268 @@ const activityTypeLabel = (type: string) =>
         </section>
     </div>
     <Teleport to="body">
-    <div
-        v-if="adjusting || wasting || batchAction"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-        @click.self="closeActions"
-    >
         <div
-            class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
+            v-if="adjusting || wasting || batchAction"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+            @click.self="closeActions"
         >
-            <template v-if="adjusting">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
-                        >
-                            Kiểm kê nhanh
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            Đối chiếu {{ adjusting.name }}
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            Tồn hệ thống:
-                            {{ formatQuantity(adjusting.on_hand) }}
-                            {{ adjusting.unit_symbol }} · Tồn lý thuyết:
-                            {{ formatQuantity(adjusting.theoretical) }}
-                            {{ adjusting.unit_symbol }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeActions"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form class="space-y-4" @submit.prevent="submitAdjust">
-                    <div
-                        class="rounded-xl border border-indigo-400/20 bg-indigo-950/20 p-3 text-xs text-indigo-100"
-                    >
-                        Kiểm kê nhanh sẽ ghi nhận lại tồn thực tế và tạo giao
-                        dịch kiểm kê. Nếu chênh lệch lớn, hệ thống vẫn lưu audit
-                        để truy vết.
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số lượng thực tế</Label
-                        ><Input
-                            v-model="adjustForm.reconcile_items[0].physical_qty"
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            required
-                        />
-                        <p class="text-[11px] text-muted-foreground">
-                            Đơn vị: {{ adjusting.unit_symbol }}
-                        </p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ghi chú kiểm kê</Label
-                        ><textarea
-                            v-model="adjustForm.notes"
-                            rows="3"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Vị trí kiểm, nguyên nhân chênh lệch, người chứng kiến..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
+            <div
+                class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
+            >
+                <template v-if="adjusting">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
+                            >
+                                Kiểm kê nhanh
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Đối chiếu {{ adjusting.name }}
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Tồn hệ thống:
+                                {{ formatQuantity(adjusting.on_hand) }}
+                                {{ adjusting.unit_symbol }} · Tồn lý thuyết:
+                                {{ formatQuantity(adjusting.theoretical) }}
+                                {{ adjusting.unit_symbol }}
+                            </p>
+                        </div>
                         <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
+                            size="icon"
                             @click="closeActions"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="adjustForm.processing"
-                            class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
-                            ><Check class="size-4" /> Ghi nhận kiểm kê</Button
-                        >
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                </form>
-            </template>
+                    <form class="space-y-4" @submit.prevent="submitAdjust">
+                        <div
+                            class="rounded-xl border border-indigo-400/20 bg-indigo-950/20 p-3 text-xs text-indigo-100"
+                        >
+                            Kiểm kê nhanh sẽ ghi nhận lại tồn thực tế và tạo
+                            giao dịch kiểm kê. Nếu chênh lệch lớn, hệ thống vẫn
+                            lưu audit để truy vết.
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số lượng thực tế</Label
+                            ><Input
+                                v-model="
+                                    adjustForm.reconcile_items[0].physical_qty
+                                "
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                required
+                            />
+                            <p class="text-[11px] text-muted-foreground">
+                                Đơn vị: {{ adjusting.unit_symbol }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ghi chú kiểm kê</Label
+                            ><textarea
+                                v-model="adjustForm.notes"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Vị trí kiểm, nguyên nhân chênh lệch, người chứng kiến..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeActions"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="adjustForm.processing"
+                                class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                                ><Check class="size-4" /> Ghi nhận kiểm
+                                kê</Button
+                            >
+                        </div>
+                    </form>
+                </template>
 
-            <template v-else-if="wasting">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
-                        >
-                            Kiểm soát hao hụt
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            Ghi hao hụt · {{ wasting.name }}
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            Tồn khả dụng hiện tại:
-                            {{ formatQuantity(wasting.available) }}
-                            {{ wasting.unit_symbol }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeActions"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form class="space-y-4" @submit.prevent="submitWaste">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số lượng hao hụt</Label
-                        ><Input
-                            v-model="wasteForm.quantity"
-                            type="number"
-                            min="0.001"
-                            step="0.001"
-                            :max="wasting.available"
-                            required
-                        />
-                        <p
-                            v-if="wasteForm.errors.quantity"
-                            class="text-xs text-rose-500"
-                        >
-                            {{ wasteForm.errors.quantity }}
-                        </p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nguyên nhân</Label
-                        ><select
-                            v-model="wasteForm.waste_category"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option value="spoilage">Hư hỏng</option>
-                            <option value="expired">Hết hạn</option>
-                            <option value="damaged">Hàng lỗi</option>
-                            <option value="cooking_loss">
-                                Hao hụt chế biến
-                            </option>
-                            <option value="theft">Thất thoát</option>
-                            <option value="other">Khác</option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Biên bản / ghi chú</Label
-                        ><textarea
-                            v-model="wasteForm.notes"
-                            rows="3"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Bắt buộc ghi rõ khi chọn nguyên nhân Khác..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ảnh bằng chứng bắt buộc</Label
-                        ><Input
-                            type="file"
-                            accept="image/*"
-                            required
-                            @change="onWastePhotoChange"
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
+                <template v-else-if="wasting">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            >
+                                Kiểm soát hao hụt
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Ghi hao hụt · {{ wasting.name }}
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Tồn khả dụng hiện tại:
+                                {{ formatQuantity(wasting.available) }}
+                                {{ wasting.unit_symbol }}
+                            </p>
+                        </div>
                         <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
+                            size="icon"
                             @click="closeActions"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="wasteForm.processing"
-                            class="bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            ><MinusCircle class="size-4" /> Gửi ghi nhận hao
-                            hụt</Button
-                        >
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                </form>
-            </template>
+                    <form class="space-y-4" @submit.prevent="submitWaste">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số lượng hao hụt</Label
+                            ><Input
+                                v-model="wasteForm.quantity"
+                                type="number"
+                                min="0.001"
+                                step="0.001"
+                                :max="wasting.available"
+                                required
+                            />
+                            <p
+                                v-if="wasteForm.errors.quantity"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ wasteForm.errors.quantity }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nguyên nhân</Label
+                            ><select
+                                v-model="wasteForm.waste_category"
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="spoilage">Hư hỏng</option>
+                                <option value="expired">Hết hạn</option>
+                                <option value="damaged">Hàng lỗi</option>
+                                <option value="cooking_loss">
+                                    Hao hụt chế biến
+                                </option>
+                                <option value="theft">Thất thoát</option>
+                                <option value="other">Khác</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Biên bản / ghi chú</Label
+                            ><textarea
+                                v-model="wasteForm.notes"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Bắt buộc ghi rõ khi chọn nguyên nhân Khác..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ảnh bằng chứng bắt buộc</Label
+                            ><Input
+                                type="file"
+                                accept="image/*"
+                                required
+                                @change="onWastePhotoChange"
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeActions"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="wasteForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                ><MinusCircle class="size-4" /> Gửi ghi nhận hao
+                                hụt</Button
+                            >
+                        </div>
+                    </form>
+                </template>
 
-            <template v-else-if="batchAction">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-amber-400 uppercase"
-                        >
-                            Quản trị lô hàng
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            {{
-                                batchAction.action === 'lock'
-                                    ? 'Khóa lô'
-                                    : batchAction.action === 'recall'
-                                      ? 'Yêu cầu thu hồi lô'
-                                      : 'Mở khóa lô'
-                            }}
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            {{ batchAction.item.name }} ·
-                            {{ batchAction.batch.batch_number }} · còn
-                            {{
-                                formatQuantity(
-                                    batchAction.batch.quantity_remaining,
-                                )
-                            }}
-                            {{ batchAction.item.unit_symbol }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeActions"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form class="space-y-4" @submit.prevent="submitBatchAction">
-                    <div
-                        class="rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
-                    >
-                        {{
-                            batchAction.action === 'unlock'
-                                ? 'Mở khóa sẽ đưa lô về trạng thái có thể được FEFO sử dụng. Chỉ Owner/Super Admin được thực hiện.'
-                                : 'Thao tác này ảnh hưởng trực tiếp đến khả năng xuất dùng của lô và được ghi vào audit log.'
-                        }}
-                    </div>
-                    <div
-                        v-if="batchAction.action === 'lock'"
-                        class="flex flex-col gap-1.5"
-                    >
-                        <Label>Lý do khóa lô</Label
-                        ><textarea
-                            v-model="batchForm.reason"
-                            rows="4"
-                            required
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Ví dụ: nghi ngờ chất lượng, chờ kiểm nghiệm..."
-                        />
-                    </div>
-                    <div
-                        v-if="batchAction.action === 'recall'"
-                        class="flex flex-col gap-1.5"
-                    >
-                        <Label>Ghi chú thu hồi</Label
-                        ><textarea
-                            v-model="batchForm.note"
-                            rows="4"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Nhà cung cấp, số biên bản, hướng xử lý..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
+                <template v-else-if="batchAction">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-amber-400 uppercase"
+                            >
+                                Quản trị lô hàng
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                {{
+                                    batchAction.action === 'lock'
+                                        ? 'Khóa lô'
+                                        : batchAction.action === 'recall'
+                                          ? 'Yêu cầu thu hồi lô'
+                                          : 'Mở khóa lô'
+                                }}
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ batchAction.item.name }} ·
+                                {{ batchAction.batch.batch_number }} · còn
+                                {{
+                                    formatQuantity(
+                                        batchAction.batch.quantity_remaining,
+                                    )
+                                }}
+                                {{ batchAction.item.unit_symbol }}
+                            </p>
+                        </div>
                         <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
+                            size="icon"
                             @click="closeActions"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="batchForm.processing"
-                            class="bg-amber-600 font-bold text-white hover:bg-amber-700"
-                            >Xác nhận thao tác</Button
-                        >
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                </form>
-            </template>
+                    <form class="space-y-4" @submit.prevent="submitBatchAction">
+                        <div
+                            class="rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
+                        >
+                            {{
+                                batchAction.action === 'unlock'
+                                    ? 'Mở khóa sẽ đưa lô về trạng thái có thể được FEFO sử dụng. Chỉ Owner/Super Admin được thực hiện.'
+                                    : 'Thao tác này ảnh hưởng trực tiếp đến khả năng xuất dùng của lô và được ghi vào audit log.'
+                            }}
+                        </div>
+                        <div
+                            v-if="batchAction.action === 'lock'"
+                            class="flex flex-col gap-1.5"
+                        >
+                            <Label>Lý do khóa lô</Label
+                            ><textarea
+                                v-model="batchForm.reason"
+                                rows="4"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: nghi ngờ chất lượng, chờ kiểm nghiệm..."
+                            />
+                        </div>
+                        <div
+                            v-if="batchAction.action === 'recall'"
+                            class="flex flex-col gap-1.5"
+                        >
+                            <Label>Ghi chú thu hồi</Label
+                            ><textarea
+                                v-model="batchForm.note"
+                                rows="4"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Nhà cung cấp, số biên bản, hướng xử lý..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeActions"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="batchForm.processing"
+                                class="bg-amber-600 font-bold text-white hover:bg-amber-700"
+                                >Xác nhận thao tác</Button
+                            >
+                        </div>
+                    </form>
+                </template>
+            </div>
         </div>
-    </div>
     </Teleport>
 </template>

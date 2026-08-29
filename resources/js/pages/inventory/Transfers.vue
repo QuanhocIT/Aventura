@@ -287,7 +287,10 @@ const isOverdue = (transfer: Transfer) => {
 };
 
 const overdueHours = (transfer: Transfer) =>
-    Math.max(0, Math.round(ageInHours(transfer) - (slaHours[transfer.status] ?? 0)));
+    Math.max(
+        0,
+        Math.round(ageInHours(transfer) - (slaHours[transfer.status] ?? 0)),
+    );
 
 const needsAction = (transfer: Transfer) =>
     transfer.can_route ||
@@ -308,20 +311,20 @@ const nextAction = (transfer: Transfer) => {
     }
 
     if (transfer.can_route) {
-return 'Định tuyến nguồn cấp';
-}
+        return 'Định tuyến nguồn cấp';
+    }
 
     if (transfer.can_dispatch) {
-return 'Xác nhận xuất kho';
-}
+        return 'Xác nhận xuất kho';
+    }
 
     if (transfer.can_receive) {
-return 'Kiểm đếm & nhận hàng';
-}
+        return 'Kiểm đếm & nhận hàng';
+    }
 
     if (transfer.can_resolve) {
-return 'Chốt chênh lệch';
-}
+        return 'Chốt chênh lệch';
+    }
 
     return 'Theo dõi tiến độ';
 };
@@ -347,8 +350,7 @@ const operationalStats = computed(() => {
     const discrepancyValue = props.transfers.reduce(
         (total, transfer) =>
             total +
-            transfer.discrepancy_quantity *
-                (transfer.source_unit_cost ?? 0),
+            transfer.discrepancy_quantity * (transfer.source_unit_cost ?? 0),
         0,
     );
     const cycleTimes = completed
@@ -424,7 +426,8 @@ const filteredTransfers = computed(() => {
             branchFilter.value === 'all' ||
             transfer.from_branch_id === branchFilter.value ||
             transfer.to_branch_id === branchFilter.value;
-        const matchesQueue = !workQueueOnly.value || shouldShowInQueue(transfer);
+        const matchesQueue =
+            !workQueueOnly.value || shouldShowInQueue(transfer);
         const haystack = [
             transfer.ingredient,
             transfer.from_branch,
@@ -660,7 +663,7 @@ const submitReceive = () => {
         0
             ? 'damaged'
             : receiveForm.quantity_received <
-                  Number(receiving.value.quantity_dispatched ?? 0)
+                Number(receiving.value.quantity_dispatched ?? 0)
               ? 'shortage'
               : 'good';
     receiveForm.post(`/inventory/transfers/${receiving.value.id}/receive`, {
@@ -712,8 +715,8 @@ const formatNumber = (value: number | null) =>
     value === null
         ? '—'
         : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(
-          value,
-      );
+              value,
+          );
 
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -724,12 +727,12 @@ const formatCurrency = (value: number) =>
 
 const formatDuration = (hours: number) => {
     if (!hours) {
-return '—';
-}
+        return '—';
+    }
 
     if (hours < 24) {
-return `${Math.round(hours)} giờ`;
-}
+        return `${Math.round(hours)} giờ`;
+    }
 
     return `${Math.floor(hours / 24)} ngày ${Math.round(hours % 24)} giờ`;
 };
@@ -757,17 +760,24 @@ return `${Math.round(hours)} giờ`;
                     <h1
                         class="mt-1 text-xl font-black tracking-tight text-slate-900 sm:text-2xl dark:text-white"
                     >
-                        {{ requestOnly ? 'Xin điều chuyển kho' : 'Điều chuyển kho' }}
+                        {{
+                            requestOnly
+                                ? 'Xin điều chuyển kho'
+                                : 'Điều chuyển kho'
+                        }}
                     </h1>
                     <p
                         class="mt-1 max-w-2xl text-xs leading-5 text-slate-600 dark:text-teal-100/70"
                     >
                         <template v-if="requestOnly">
-                            Gửi yêu cầu bổ sung nguyên liệu đột xuất để Chủ doanh nghiệp xem xét và điều phối. Bạn chỉ theo dõi tiến độ yêu cầu.
+                            Gửi yêu cầu bổ sung nguyên liệu đột xuất để Chủ
+                            doanh nghiệp xem xét và điều phối. Bạn chỉ theo dõi
+                            tiến độ yêu cầu.
                         </template>
                         <template v-else>
-                            Theo dõi đủ chu trình yêu cầu, định tuyến nguồn, xuất
-                            kho, bàn giao, nhận thực tế và xử lý chênh lệch.
+                            Theo dõi đủ chu trình yêu cầu, định tuyến nguồn,
+                            xuất kho, bàn giao, nhận thực tế và xử lý chênh
+                            lệch.
                         </template>
                     </p>
                 </div>
@@ -790,13 +800,19 @@ return `${Math.round(hours)} giờ`;
                 <p
                     class="text-[10px] font-bold tracking-wider text-blue-300 uppercase"
                 >
-                    {{ requestOnly ? 'Chờ Chủ doanh nghiệp xem xét' : 'Chờ định tuyến' }}
+                    {{
+                        requestOnly
+                            ? 'Chờ Chủ doanh nghiệp xem xét'
+                            : 'Chờ định tuyến'
+                    }}
                 </p>
                 <p class="mt-2 text-2xl font-black text-white">
                     {{ props.summary.requested }}
                 </p>
                 <p class="mt-1 text-[11px] text-muted-foreground">
-                    {{ requestOnly ? 'Chưa được điều phối' : 'Cần chọn kho cấp' }}
+                    {{
+                        requestOnly ? 'Chưa được điều phối' : 'Cần chọn kho cấp'
+                    }}
                 </p>
             </button>
             <button
@@ -873,15 +889,27 @@ return `${Math.round(hours)} giờ`;
             class="grid gap-4 xl:grid-cols-[1.35fr_1fr]"
             aria-label="Trung tâm điều hành điều chuyển"
         >
-            <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm sm:p-5">
+            <div
+                class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm sm:p-5"
+            >
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div class="flex items-center gap-2">
                             <ListTodo class="size-4 text-teal-400" />
-                            <h2 class="font-black text-foreground">{{ requestOnly ? 'Yêu cầu đang theo dõi' : 'Việc cần xử lý' }}</h2>
+                            <h2 class="font-black text-foreground">
+                                {{
+                                    requestOnly
+                                        ? 'Yêu cầu đang theo dõi'
+                                        : 'Việc cần xử lý'
+                                }}
+                            </h2>
                         </div>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            {{ requestOnly ? 'Theo dõi yêu cầu bổ sung và phản hồi điều phối từ Chủ doanh nghiệp.' : 'Ưu tiên các phiếu đang chờ người dùng hiện tại thao tác.' }}
+                            {{
+                                requestOnly
+                                    ? 'Theo dõi yêu cầu bổ sung và phản hồi điều phối từ Chủ doanh nghiệp.'
+                                    : 'Ưu tiên các phiếu đang chờ người dùng hiện tại thao tác.'
+                            }}
                         </p>
                     </div>
                     <button
@@ -889,7 +917,12 @@ return `${Math.round(hours)} giờ`;
                         class="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 px-2.5 py-1.5 text-xs font-bold text-teal-300 transition hover:bg-teal-400/10"
                         @click="setWorkQueue"
                     >
-                        <Filter class="size-3.5" /> {{ requestOnly ? 'Xem toàn bộ yêu cầu' : 'Xem toàn bộ hàng đợi' }}
+                        <Filter class="size-3.5" />
+                        {{
+                            requestOnly
+                                ? 'Xem toàn bộ yêu cầu'
+                                : 'Xem toàn bộ hàng đợi'
+                        }}
                     </button>
                 </div>
 
@@ -905,8 +938,16 @@ return `${Math.round(hours)} giờ`;
                             @click="openDetails(transfer)"
                         >
                             <div class="flex flex-wrap items-center gap-2">
-                                <span class="font-mono text-[10px] font-bold text-muted-foreground">TR-{{ String(transfer.id).padStart(5, '0') }}</span>
-                                <span class="truncate text-sm font-bold text-foreground">{{ transfer.ingredient }}</span>
+                                <span
+                                    class="font-mono text-[10px] font-bold text-muted-foreground"
+                                    >TR-{{
+                                        String(transfer.id).padStart(5, '0')
+                                    }}</span
+                                >
+                                <span
+                                    class="truncate text-sm font-bold text-foreground"
+                                    >{{ transfer.ingredient }}</span
+                                >
                                 <span
                                     v-if="transfer.priority === 'urgent'"
                                     class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
@@ -917,60 +958,131 @@ return `${Math.round(hours)} giờ`;
                                     v-if="isOverdue(transfer)"
                                     class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
                                 >
-                                    <Timer class="size-3" /> Quá SLA {{ overdueHours(transfer) }}h
+                                    <Timer class="size-3" /> Quá SLA
+                                    {{ overdueHours(transfer) }}h
                                 </span>
                             </div>
-                            <p class="mt-1 truncate text-xs text-muted-foreground">
-                                {{ transfer.from_branch || 'Chưa chọn nguồn' }} → {{ transfer.to_branch }} · {{ nextAction(transfer) }}
+                            <p
+                                class="mt-1 truncate text-xs text-muted-foreground"
+                            >
+                                {{ transfer.from_branch || 'Chưa chọn nguồn' }}
+                                → {{ transfer.to_branch }} ·
+                                {{ nextAction(transfer) }}
                             </p>
                         </button>
                         <div class="flex shrink-0 items-center gap-2">
-                            <span class="text-xs font-semibold text-muted-foreground">{{ formatNumber(transfer.quantity_requested) }} {{ transfer.unit }}</span>
-                            <Button size="sm" class="gap-1.5 bg-teal-600 font-bold text-white hover:bg-teal-500" @click="openDetails(transfer)">
-                                {{ requestOnly ? 'Xem tiến độ' : 'Xử lý' }} <Activity class="size-3.5" />
+                            <span
+                                class="text-xs font-semibold text-muted-foreground"
+                                >{{ formatNumber(transfer.quantity_requested) }}
+                                {{ transfer.unit }}</span
+                            >
+                            <Button
+                                size="sm"
+                                class="gap-1.5 bg-teal-600 font-bold text-white hover:bg-teal-500"
+                                @click="openDetails(transfer)"
+                            >
+                                {{ requestOnly ? 'Xem tiến độ' : 'Xử lý' }}
+                                <Activity class="size-3.5" />
                             </Button>
                         </div>
                     </div>
                 </div>
-                <div v-else class="mt-4 rounded-xl border border-dashed border-emerald-400/20 bg-emerald-950/10 p-5 text-center">
+                <div
+                    v-else
+                    class="mt-4 rounded-xl border border-dashed border-emerald-400/20 bg-emerald-950/10 p-5 text-center"
+                >
                     <CheckCircle2 class="mx-auto size-6 text-emerald-400" />
-                    <p class="mt-2 text-sm font-bold text-foreground">Không còn việc tồn</p>
-                    <p class="mt-1 text-xs text-muted-foreground">Các phiếu thuộc quyền của bạn đã được xử lý hoặc đang chờ bước tiếp theo.</p>
+                    <p class="mt-2 text-sm font-bold text-foreground">
+                        Không còn việc tồn
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                        Các phiếu thuộc quyền của bạn đã được xử lý hoặc đang
+                        chờ bước tiếp theo.
+                    </p>
                 </div>
             </div>
 
-            <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm sm:p-5">
+            <div
+                class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm sm:p-5"
+            >
                 <div class="flex items-center gap-2">
                     <Activity class="size-4 text-indigo-400" />
-                    <h2 class="font-black text-foreground">Sức khỏe luồng điều chuyển</h2>
+                    <h2 class="font-black text-foreground">
+                        Sức khỏe luồng điều chuyển
+                    </h2>
                 </div>
-                <p class="mt-1 text-xs text-muted-foreground">Tổng hợp theo các phiếu đang hiển thị trong phạm vi dữ liệu của bạn.</p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Tổng hợp theo các phiếu đang hiển thị trong phạm vi dữ liệu
+                    của bạn.
+                </p>
                 <div class="mt-4 grid grid-cols-2 gap-2">
                     <div class="rounded-xl bg-muted/40 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Đang mở</p>
-                        <p class="mt-1 text-lg font-black text-foreground">{{ operationalStats.activeCount }}</p>
-                        <p class="text-[11px] text-muted-foreground">phiếu chưa đối soát</p>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Đang mở
+                        </p>
+                        <p class="mt-1 text-lg font-black text-foreground">
+                            {{ operationalStats.activeCount }}
+                        </p>
+                        <p class="text-[11px] text-muted-foreground">
+                            phiếu chưa đối soát
+                        </p>
                     </div>
                     <div class="rounded-xl bg-rose-500/5 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-rose-300">Quá SLA</p>
-                        <p class="mt-1 text-lg font-black text-rose-300">{{ operationalStats.overdueCount }}</p>
-                        <p class="text-[11px] text-muted-foreground">cần đôn đốc</p>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-rose-300 uppercase"
+                        >
+                            Quá SLA
+                        </p>
+                        <p class="mt-1 text-lg font-black text-rose-300">
+                            {{ operationalStats.overdueCount }}
+                        </p>
+                        <p class="text-[11px] text-muted-foreground">
+                            cần đôn đốc
+                        </p>
                     </div>
                     <div class="rounded-xl bg-violet-500/5 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-violet-300">Giá trị đang đi</p>
-                        <p class="mt-1 text-lg font-black text-violet-200">{{ formatCurrency(operationalStats.inTransitValue) }}</p>
-                        <p class="text-[11px] text-muted-foreground">tạm tính theo giá xuất</p>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-violet-300 uppercase"
+                        >
+                            Giá trị đang đi
+                        </p>
+                        <p class="mt-1 text-lg font-black text-violet-200">
+                            {{
+                                formatCurrency(operationalStats.inTransitValue)
+                            }}
+                        </p>
+                        <p class="text-[11px] text-muted-foreground">
+                            tạm tính theo giá xuất
+                        </p>
                     </div>
                     <div class="rounded-xl bg-amber-500/5 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-amber-300">Chênh lệch</p>
-                        <p class="mt-1 text-lg font-black text-amber-200">{{ formatCurrency(operationalStats.discrepancyValue) }}</p>
-                        <p class="text-[11px] text-muted-foreground">giá trị cần xác minh</p>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-amber-300 uppercase"
+                        >
+                            Chênh lệch
+                        </p>
+                        <p class="mt-1 text-lg font-black text-amber-200">
+                            {{
+                                formatCurrency(
+                                    operationalStats.discrepancyValue,
+                                )
+                            }}
+                        </p>
+                        <p class="text-[11px] text-muted-foreground">
+                            giá trị cần xác minh
+                        </p>
                     </div>
                 </div>
-                <div class="mt-3 flex items-center gap-2 rounded-xl border border-border/70 px-3 py-2.5 text-xs text-muted-foreground">
+                <div
+                    class="mt-3 flex items-center gap-2 rounded-xl border border-border/70 px-3 py-2.5 text-xs text-muted-foreground"
+                >
                     <CalendarClock class="size-4 text-teal-400" />
                     <span>Thời gian hoàn tất trung bình:</span>
-                    <strong class="text-foreground">{{ formatDuration(operationalStats.averageCycleHours) }}</strong>
+                    <strong class="text-foreground">{{
+                        formatDuration(operationalStats.averageCycleHours)
+                    }}</strong>
                 </div>
             </div>
         </section>
@@ -982,10 +1094,18 @@ return `${Math.round(hours)} giờ`;
             <div class="mb-4 flex items-center justify-between gap-3">
                 <div>
                     <h2 class="font-black text-foreground">
-                        {{ requestOnly ? 'Gửi yêu cầu bổ sung' : 'Tạo yêu cầu điều chuyển' }}
+                        {{
+                            requestOnly
+                                ? 'Gửi yêu cầu bổ sung'
+                                : 'Tạo yêu cầu điều chuyển'
+                        }}
                     </h2>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        {{ requestOnly ? 'Yêu cầu sẽ được gửi tới Chủ doanh nghiệp để xem xét và điều phối. Tạo yêu cầu không làm thay đổi tồn kho.' : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.' }}
+                        {{
+                            requestOnly
+                                ? 'Yêu cầu sẽ được gửi tới Chủ doanh nghiệp để xem xét và điều phối. Tạo yêu cầu không làm thay đổi tồn kho.'
+                                : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.'
+                        }}
                     </p>
                 </div>
                 <Button variant="ghost" size="icon" @click="showRequest = false"
@@ -1073,7 +1193,9 @@ return `${Math.round(hours)} giờ`;
                         required
                         class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                     >
-                        <option value="urgent">Khẩn cấp — cần bổ sung sớm</option>
+                        <option value="urgent">
+                            Khẩn cấp — cần bổ sung sớm
+                        </option>
                         <option value="normal">Thông thường</option>
                     </select>
                     <p class="text-[11px] text-muted-foreground">
@@ -1129,7 +1251,13 @@ return `${Math.round(hours)} giờ`;
                 class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:w-56"
             >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="requested">{{ requestOnly ? 'Chờ Chủ doanh nghiệp xem xét' : 'Chờ định tuyến' }}</option>
+                <option value="requested">
+                    {{
+                        requestOnly
+                            ? 'Chờ Chủ doanh nghiệp xem xét'
+                            : 'Chờ định tuyến'
+                    }}
+                </option>
                 <option value="routed">Chờ xuất kho</option>
                 <option value="dispatched">Đang vận chuyển</option>
                 <option value="discrepancy">Chờ xử lý chênh lệch</option>
@@ -1213,7 +1341,8 @@ return `${Math.round(hours)} giờ`;
                                 v-if="isOverdue(transfer)"
                                 class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300"
                             >
-                                <Timer class="size-3" /> Quá SLA {{ overdueHours(transfer) }}h
+                                <Timer class="size-3" /> Quá SLA
+                                {{ overdueHours(transfer) }}h
                             </span>
                         </div>
                         <div
@@ -1489,599 +1618,974 @@ return `${Math.round(hours)} giờ`;
     </div>
 
     <Teleport to="body">
-    <div
-        v-if="
-            showRequest ||
-            routing ||
-            dispatching ||
-            receiving ||
-            resolving ||
-            cancelling ||
-            rejecting ||
-            detailTransfer
-        "
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-        @click.self="closeModals"
-    >
         <div
-            class="max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
-            :class="detailTransfer ? 'max-w-2xl' : 'max-w-lg'"
+            v-if="
+                showRequest ||
+                routing ||
+                dispatching ||
+                receiving ||
+                resolving ||
+                cancelling ||
+                rejecting ||
+                detailTransfer
+            "
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+            @click.self="closeModals"
         >
-            <template v-if="showRequest">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-[10px] font-bold tracking-wider text-teal-400 uppercase">Khởi tạo điều chuyển</p>
-                        <h2 class="mt-1 text-xl font-black">Tạo yêu cầu điều chuyển</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ requestOnly ? 'Yêu cầu được gửi tới Chủ doanh nghiệp để xem xét và điều phối; chưa thay đổi tồn kho.' : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.' }}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"><X class="size-4" /></Button>
-                </div>
-                <form @submit.prevent="submitRequest" class="space-y-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Chi nhánh cần hàng</Label>
-                        <select v-model="requestForm.to_branch_id" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
-                            <option v-for="branch in props.branches" :key="branch.id" :value="branch.id">
-                                {{ branch.name }}
-                            </option>
-                        </select>
-                        <p v-if="requestForm.errors.to_branch_id" class="text-xs text-rose-500">{{ requestForm.errors.to_branch_id }}</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nguyên liệu</Label>
-                        <select v-model="requestForm.ingredient_id" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
-                            <option value="" disabled>— Chọn nguyên liệu —</option>
-                            <option v-for="ingredient in availableIngredients" :key="ingredient.id" :value="ingredient.id">
-                                {{ ingredient.name }} ({{ ingredient.unit }})
-                            </option>
-                        </select>
-                        <p v-if="requestForm.errors.ingredient_id" class="text-xs text-rose-500">{{ requestForm.errors.ingredient_id }}</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số lượng cần</Label>
-                        <Input v-model="requestForm.quantity_requested" type="number" step="0.001" min="0.001" required />
-                        <p v-if="selectedIngredient" class="text-[11px] text-muted-foreground">Đơn vị: {{ selectedIngredient.unit }}</p>
-                        <p v-else class="text-[11px] text-muted-foreground">Chỉ hiển thị nguyên liệu dùng được tại chi nhánh nhận.</p>
-                        <p v-if="requestForm.errors.quantity_requested" class="text-xs text-rose-500">{{ requestForm.errors.quantity_requested }}</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Mức độ yêu cầu</Label>
-                        <select v-model="requestForm.priority" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
-                            <option value="urgent">Khẩn cấp — cần bổ sung sớm</option>
-                            <option value="normal">Thông thường</option>
-                        </select>
-                        <p class="text-[11px] text-muted-foreground">Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn cấp.</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Lý do / nhu cầu vận hành</Label>
-                        <Input v-model="requestForm.reason" required placeholder="VD: Thiếu hàng phục vụ ca tối, mượn tạm..." />
-                        <p v-if="requestForm.errors.reason" class="text-xs text-rose-500">{{ requestForm.errors.reason }}</p>
-                    </div>
-                    <div class="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="outline" @click="closeModals">Hủy</Button>
-                        <Button type="submit" :disabled="requestForm.processing" class="border-0 bg-teal-500 font-bold text-white hover:bg-teal-400">Gửi yêu cầu</Button>
-                    </div>
-                </form>
-            </template>
-            <template v-else-if="detailTransfer">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-[10px] font-bold tracking-wider text-teal-400 uppercase">Hồ sơ điều chuyển</p>
-                        <div class="mt-1 flex flex-wrap items-center gap-2">
-                            <h2 class="text-xl font-black">TR-{{ String(detailTransfer.id).padStart(5, '0') }}</h2>
-                            <span
-                                class="rounded-full border px-2 py-1 text-[10px] font-bold"
-                                :class="statusConfig[detailTransfer.status].className"
+            <div
+                class="max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
+                :class="detailTransfer ? 'max-w-2xl' : 'max-w-lg'"
+            >
+                <template v-if="showRequest">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-teal-400 uppercase"
                             >
-                                {{ statusLabel(detailTransfer.status) }}
-                            </span>
-                            <span v-if="isOverdue(detailTransfer)" class="rounded-full bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300">Quá SLA {{ overdueHours(detailTransfer) }}h</span>
+                                Khởi tạo điều chuyển
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Tạo yêu cầu điều chuyển
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{
+                                    requestOnly
+                                        ? 'Yêu cầu được gửi tới Chủ doanh nghiệp để xem xét và điều phối; chưa thay đổi tồn kho.'
+                                        : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.'
+                                }}
+                            </p>
                         </div>
-                        <p class="mt-1 text-xs text-muted-foreground">{{ detailTransfer.ingredient }} · {{ detailTransfer.from_branch || 'Chưa chọn nguồn' }} → {{ detailTransfer.to_branch }}</p>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"><X class="size-4" /></Button>
-                </div>
-
-                <div class="grid gap-3 sm:grid-cols-4">
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Yêu cầu</p>
-                        <p class="mt-1 font-black text-foreground">{{ formatNumber(detailTransfer.quantity_requested) }} {{ detailTransfer.unit }}</p>
-                    </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Đã xuất</p>
-                        <p class="mt-1 font-black text-foreground">{{ formatNumber(detailTransfer.quantity_dispatched) }} {{ detailTransfer.unit }}</p>
-                    </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Thực nhận</p>
-                        <p class="mt-1 font-black text-foreground">{{ formatNumber(detailTransfer.quantity_received) }} {{ detailTransfer.unit }}</p>
-                    </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Giá trị tạm tính</p>
-                        <p class="mt-1 font-black text-foreground">{{ formatCurrency((detailTransfer.quantity_dispatched ?? detailTransfer.quantity_requested) * detailTransfer.source_unit_cost) }}</p>
-                    </div>
-                </div>
-
-                <div class="mt-5 rounded-2xl border border-border/80 p-4">
-                    <div class="flex items-center gap-2">
-                        <Activity class="size-4 text-teal-400" />
-                        <h3 class="text-sm font-black text-foreground">Tiến trình & trách nhiệm</h3>
-                    </div>
-                    <div class="mt-4 grid gap-3 sm:grid-cols-4">
-                        <div v-for="step in timelineFor(detailTransfer)" :key="step.label" class="relative rounded-xl border p-3" :class="step.done ? 'border-teal-400/25 bg-teal-400/5' : 'border-border/60 bg-muted/20 opacity-60'">
-                            <div class="flex items-center gap-2">
-                                <CheckCircle2 v-if="step.done" class="size-4 text-teal-400" />
-                                <Clock3 v-else class="size-4 text-muted-foreground" />
-                                <span class="text-xs font-bold text-foreground">{{ step.label }}</span>
+                    <form @submit.prevent="submitRequest" class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Chi nhánh cần hàng</Label>
+                            <select
+                                v-model="requestForm.to_branch_id"
+                                required
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                            >
+                                <option
+                                    v-for="branch in props.branches"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                >
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="requestForm.errors.to_branch_id"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ requestForm.errors.to_branch_id }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nguyên liệu</Label>
+                            <select
+                                v-model="requestForm.ingredient_id"
+                                required
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                            >
+                                <option value="" disabled>
+                                    — Chọn nguyên liệu —
+                                </option>
+                                <option
+                                    v-for="ingredient in availableIngredients"
+                                    :key="ingredient.id"
+                                    :value="ingredient.id"
+                                >
+                                    {{ ingredient.name }} ({{
+                                        ingredient.unit
+                                    }})
+                                </option>
+                            </select>
+                            <p
+                                v-if="requestForm.errors.ingredient_id"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ requestForm.errors.ingredient_id }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số lượng cần</Label>
+                            <Input
+                                v-model="requestForm.quantity_requested"
+                                type="number"
+                                step="0.001"
+                                min="0.001"
+                                required
+                            />
+                            <p
+                                v-if="selectedIngredient"
+                                class="text-[11px] text-muted-foreground"
+                            >
+                                Đơn vị: {{ selectedIngredient.unit }}
+                            </p>
+                            <p v-else class="text-[11px] text-muted-foreground">
+                                Chỉ hiển thị nguyên liệu dùng được tại chi nhánh
+                                nhận.
+                            </p>
+                            <p
+                                v-if="requestForm.errors.quantity_requested"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ requestForm.errors.quantity_requested }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Mức độ yêu cầu</Label>
+                            <select
+                                v-model="requestForm.priority"
+                                required
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                            >
+                                <option value="urgent">
+                                    Khẩn cấp — cần bổ sung sớm
+                                </option>
+                                <option value="normal">Thông thường</option>
+                            </select>
+                            <p class="text-[11px] text-muted-foreground">
+                                Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn
+                                cấp.
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Lý do / nhu cầu vận hành</Label>
+                            <Input
+                                v-model="requestForm.reason"
+                                required
+                                placeholder="VD: Thiếu hàng phục vụ ca tối, mượn tạm..."
+                            />
+                            <p
+                                v-if="requestForm.errors.reason"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ requestForm.errors.reason }}
+                            </p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="requestForm.processing"
+                                class="border-0 bg-teal-500 font-bold text-white hover:bg-teal-400"
+                                >Gửi yêu cầu</Button
+                            >
+                        </div>
+                    </form>
+                </template>
+                <template v-else-if="detailTransfer">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-teal-400 uppercase"
+                            >
+                                Hồ sơ điều chuyển
+                            </p>
+                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                <h2 class="text-xl font-black">
+                                    TR-{{
+                                        String(detailTransfer.id).padStart(
+                                            5,
+                                            '0',
+                                        )
+                                    }}
+                                </h2>
+                                <span
+                                    class="rounded-full border px-2 py-1 text-[10px] font-bold"
+                                    :class="
+                                        statusConfig[detailTransfer.status]
+                                            .className
+                                    "
+                                >
+                                    {{ statusLabel(detailTransfer.status) }}
+                                </span>
+                                <span
+                                    v-if="isOverdue(detailTransfer)"
+                                    class="rounded-full bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300"
+                                    >Quá SLA
+                                    {{ overdueHours(detailTransfer) }}h</span
+                                >
                             </div>
-                            <p class="mt-2 text-[11px] text-muted-foreground">{{ step.at || 'Chưa thực hiện' }}</p>
-                            <p v-if="step.by" class="mt-1 truncate text-[11px] text-muted-foreground">{{ step.by }}</p>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ detailTransfer.ingredient }} ·
+                                {{
+                                    detailTransfer.from_branch ||
+                                    'Chưa chọn nguồn'
+                                }}
+                                → {{ detailTransfer.to_branch }}
+                            </p>
                         </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                </div>
 
-                <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div class="rounded-xl border border-border/80 p-4">
-                        <h3 class="text-xs font-black uppercase tracking-wider text-muted-foreground">Nội dung yêu cầu</h3>
-                        <p class="mt-2 text-sm text-foreground">{{ detailTransfer.reason }}</p>
-                        <p class="mt-2 text-xs text-muted-foreground">Người yêu cầu: {{ detailTransfer.requested_by || '—' }}</p>
-                        <p v-if="detailTransfer.owner_note" class="mt-2 text-xs text-muted-foreground"><b>Điều phối:</b> {{ detailTransfer.owner_note }}</p>
-                    </div>
-                    <div class="rounded-xl border border-border/80 p-4">
-                        <h3 class="text-xs font-black uppercase tracking-wider text-muted-foreground">Bàn giao & đối soát</h3>
-                        <p v-if="detailTransfer.handover_code" class="mt-2 text-sm text-foreground">Mã giao nhận: <strong class="font-mono tracking-[0.2em] text-violet-300">{{ detailTransfer.handover_code }}</strong></p>
-                        <p v-if="detailTransfer.received_condition" class="mt-2 text-xs text-muted-foreground">Tình trạng: {{ detailTransfer.received_condition }}</p>
-                        <p v-if="detailTransfer.received_note" class="mt-2 text-xs text-muted-foreground">Biên bản: {{ detailTransfer.received_note }}</p>
-                        <p v-if="detailTransfer.discrepancy_quantity > 0" class="mt-2 text-xs font-semibold text-rose-300">Thiếu {{ formatNumber(detailTransfer.discrepancy_quantity) }} {{ detailTransfer.unit }}</p>
-                        <a v-if="detailTransfer.receiving_evidence_path" :href="`/secure-files/download?path=${encodeURIComponent(detailTransfer.receiving_evidence_path)}`" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-400"><FileText class="size-3.5" /> Mở bằng chứng</a>
-                        <p v-if="detailTransfer.discrepancy_resolution" class="mt-2 text-xs text-muted-foreground"><b>Đã chốt:</b> {{ detailTransfer.discrepancy_resolution }}</p>
-                    </div>
-                </div>
-
-                <div class="mt-5 flex flex-wrap justify-end gap-2">
-                    <Button type="button" variant="outline" @click="closeModals">Đóng</Button>
-                    <Button v-if="detailTransfer.can_route" type="button" class="gap-1.5 bg-indigo-600 font-bold text-white hover:bg-indigo-700" @click="openRoute(detailTransfer)"><RouteIcon class="size-3.5" /> Định tuyến</Button>
-                    <Button v-if="detailTransfer.can_dispatch" type="button" class="gap-1.5 bg-amber-600 font-bold text-white hover:bg-amber-700" @click="openDispatch(detailTransfer)"><PackageOpen class="size-3.5" /> Xuất kho</Button>
-                    <Button v-if="detailTransfer.can_receive" type="button" class="gap-1.5 bg-emerald-600 font-bold text-white hover:bg-emerald-700" @click="openReceive(detailTransfer)"><PackageCheck class="size-3.5" /> Nhận hàng</Button>
-                    <Button v-if="detailTransfer.can_resolve" type="button" class="gap-1.5 bg-rose-600 font-bold text-white hover:bg-rose-700" @click="openResolve(detailTransfer)"><ClipboardCheck class="size-3.5" /> Chốt chênh lệch</Button>
-                </div>
-            </template>
-            <template v-else-if="routing">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
-                        >
-                            Bước 1 · Định tuyến
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            Chọn kho cấp hàng
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            {{ routing.ingredient }} ·
-                            {{ routing.quantity_requested }}
-                            {{ routing.unit }} → {{ routing.to_branch }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form @submit.prevent="submitRoute" class="space-y-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Chi nhánh cấp hàng</Label
-                        ><select
-                            v-model="routeForm.from_branch_id"
-                            required
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option value="" disabled>
-                                — Chọn nguồn có tồn —
-                            </option>
-                            <option
-                                v-for="branch in routeBranchOptions"
-                                :key="branch.id"
-                                :value="branch.id"
-                                :disabled="branch.available_quantity < routing.quantity_requested"
+                    <div class="grid gap-3 sm:grid-cols-4">
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                             >
-                                {{ branch.name }} · tồn {{ formatNumber(branch.available_quantity) }} {{ routing.unit }}
-                            </option>
-                        </select>
-                        <p
-                            v-if="routeForm.errors.from_branch_id"
-                            class="text-xs text-rose-500"
-                        >
-                            {{ routeForm.errors.from_branch_id }}
-                        </p>
+                                Yêu cầu
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{
+                                    formatNumber(
+                                        detailTransfer.quantity_requested,
+                                    )
+                                }}
+                                {{ detailTransfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Đã xuất
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{
+                                    formatNumber(
+                                        detailTransfer.quantity_dispatched,
+                                    )
+                                }}
+                                {{ detailTransfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Thực nhận
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{
+                                    formatNumber(
+                                        detailTransfer.quantity_received,
+                                    )
+                                }}
+                                {{ detailTransfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Giá trị tạm tính
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{
+                                    formatCurrency(
+                                        (detailTransfer.quantity_dispatched ??
+                                            detailTransfer.quantity_requested) *
+                                            detailTransfer.source_unit_cost,
+                                    )
+                                }}
+                            </p>
+                        </div>
                     </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ghi chú điều phối</Label
-                        ><textarea
-                            v-model="routeForm.owner_note"
-                            rows="3"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Ưu tiên lô gần hạn, ghi rõ cách bàn giao..."
-                        />
+
+                    <div class="mt-5 rounded-2xl border border-border/80 p-4">
+                        <div class="flex items-center gap-2">
+                            <Activity class="size-4 text-teal-400" />
+                            <h3 class="text-sm font-black text-foreground">
+                                Tiến trình & trách nhiệm
+                            </h3>
+                        </div>
+                        <div class="mt-4 grid gap-3 sm:grid-cols-4">
+                            <div
+                                v-for="step in timelineFor(detailTransfer)"
+                                :key="step.label"
+                                class="relative rounded-xl border p-3"
+                                :class="
+                                    step.done
+                                        ? 'border-teal-400/25 bg-teal-400/5'
+                                        : 'border-border/60 bg-muted/20 opacity-60'
+                                "
+                            >
+                                <div class="flex items-center gap-2">
+                                    <CheckCircle2
+                                        v-if="step.done"
+                                        class="size-4 text-teal-400"
+                                    />
+                                    <Clock3
+                                        v-else
+                                        class="size-4 text-muted-foreground"
+                                    />
+                                    <span
+                                        class="text-xs font-bold text-foreground"
+                                        >{{ step.label }}</span
+                                    >
+                                </div>
+                                <p
+                                    class="mt-2 text-[11px] text-muted-foreground"
+                                >
+                                    {{ step.at || 'Chưa thực hiện' }}
+                                </p>
+                                <p
+                                    v-if="step.by"
+                                    class="mt-1 truncate text-[11px] text-muted-foreground"
+                                >
+                                    {{ step.by }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex justify-end gap-2">
+
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div class="rounded-xl border border-border/80 p-4">
+                            <h3
+                                class="text-xs font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                Nội dung yêu cầu
+                            </h3>
+                            <p class="mt-2 text-sm text-foreground">
+                                {{ detailTransfer.reason }}
+                            </p>
+                            <p class="mt-2 text-xs text-muted-foreground">
+                                Người yêu cầu:
+                                {{ detailTransfer.requested_by || '—' }}
+                            </p>
+                            <p
+                                v-if="detailTransfer.owner_note"
+                                class="mt-2 text-xs text-muted-foreground"
+                            >
+                                <b>Điều phối:</b>
+                                {{ detailTransfer.owner_note }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl border border-border/80 p-4">
+                            <h3
+                                class="text-xs font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                Bàn giao & đối soát
+                            </h3>
+                            <p
+                                v-if="detailTransfer.handover_code"
+                                class="mt-2 text-sm text-foreground"
+                            >
+                                Mã giao nhận:
+                                <strong
+                                    class="font-mono tracking-[0.2em] text-violet-300"
+                                    >{{ detailTransfer.handover_code }}</strong
+                                >
+                            </p>
+                            <p
+                                v-if="detailTransfer.received_condition"
+                                class="mt-2 text-xs text-muted-foreground"
+                            >
+                                Tình trạng:
+                                {{ detailTransfer.received_condition }}
+                            </p>
+                            <p
+                                v-if="detailTransfer.received_note"
+                                class="mt-2 text-xs text-muted-foreground"
+                            >
+                                Biên bản: {{ detailTransfer.received_note }}
+                            </p>
+                            <p
+                                v-if="detailTransfer.discrepancy_quantity > 0"
+                                class="mt-2 text-xs font-semibold text-rose-300"
+                            >
+                                Thiếu
+                                {{
+                                    formatNumber(
+                                        detailTransfer.discrepancy_quantity,
+                                    )
+                                }}
+                                {{ detailTransfer.unit }}
+                            </p>
+                            <a
+                                v-if="detailTransfer.receiving_evidence_path"
+                                :href="`/secure-files/download?path=${encodeURIComponent(detailTransfer.receiving_evidence_path)}`"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-400"
+                                ><FileText class="size-3.5" /> Mở bằng chứng</a
+                            >
+                            <p
+                                v-if="detailTransfer.discrepancy_resolution"
+                                class="mt-2 text-xs text-muted-foreground"
+                            >
+                                <b>Đã chốt:</b>
+                                {{ detailTransfer.discrepancy_resolution }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap justify-end gap-2">
                         <Button
                             type="button"
                             variant="outline"
                             @click="closeModals"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="routeForm.processing"
-                            class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
-                            >Định tuyến & sinh mã</Button
+                            >Đóng</Button
                         >
-                    </div>
-                </form>
-            </template>
-
-            <template v-else-if="dispatching">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-amber-400 uppercase"
-                        >
-                            Bước 2 · Xuất kho
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            Xác nhận xuất hàng
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            {{ dispatching.ingredient }} ·
-                            {{ dispatching.from_branch }} →
-                            {{ dispatching.to_branch }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <div
-                    class="mb-4 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
-                >
-                    <p>
-                        Tồn hiện tại kho nguồn:
-                        <b
-                            >{{
-                                formatNumber(
-                                    dispatching.source_available_quantity,
-                                )
-                            }}
-                            {{ dispatching.unit }}</b
-                        >
-                    </p>
-                    <p class="mt-1 text-amber-100/70">
-                        Hệ thống chỉ cho xuất đủ
-                        {{ formatNumber(dispatching.quantity_requested) }}
-                        {{ dispatching.unit }} để tránh tạo yêu cầu hoàn tất
-                        giả.
-                    </p>
-                </div>
-                <form @submit.prevent="submitDispatch" class="space-y-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số lượng xuất</Label
-                        ><Input
-                            v-model="dispatchForm.quantity_dispatched"
-                            type="number"
-                            step="0.001"
-                            min="0.001"
-                            :max="dispatching.quantity_requested"
-                            required
-                        />
-                        <p
-                            v-if="dispatchForm.errors.quantity_dispatched"
-                            class="text-xs text-rose-500"
-                        >
-                            {{ dispatchForm.errors.quantity_dispatched }}
-                        </p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ghi chú xuất kho</Label
-                        ><textarea
-                            v-model="dispatchForm.dispatch_note"
-                            rows="3"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Tình trạng đóng gói, người bàn giao, phương tiện..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
                         <Button
+                            v-if="detailTransfer.can_route"
                             type="button"
-                            variant="outline"
-                            @click="closeModals"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="dispatchForm.processing"
-                            class="bg-amber-600 font-bold text-white hover:bg-amber-700"
-                            ><PackageOpen class="size-4" /> Xác nhận
-                            xuất</Button
+                            class="gap-1.5 bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                            @click="openRoute(detailTransfer)"
+                            ><RouteIcon class="size-3.5" /> Định tuyến</Button
+                        >
+                        <Button
+                            v-if="detailTransfer.can_dispatch"
+                            type="button"
+                            class="gap-1.5 bg-amber-600 font-bold text-white hover:bg-amber-700"
+                            @click="openDispatch(detailTransfer)"
+                            ><PackageOpen class="size-3.5" /> Xuất kho</Button
+                        >
+                        <Button
+                            v-if="detailTransfer.can_receive"
+                            type="button"
+                            class="gap-1.5 bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                            @click="openReceive(detailTransfer)"
+                            ><PackageCheck class="size-3.5" /> Nhận hàng</Button
+                        >
+                        <Button
+                            v-if="detailTransfer.can_resolve"
+                            type="button"
+                            class="gap-1.5 bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            @click="openResolve(detailTransfer)"
+                            ><ClipboardCheck class="size-3.5" /> Chốt chênh
+                            lệch</Button
                         >
                     </div>
-                </form>
-            </template>
-
-            <template v-else-if="receiving">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase"
-                        >
-                            Bước 3 · Nhận hàng
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            Kiểm đếm thực nhận
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            {{ receiving.ingredient }} · đã xuất
-                            {{ receiving.quantity_dispatched }}
-                            {{ receiving.unit }}
-                        </p>
+                </template>
+                <template v-else-if="routing">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
+                            >
+                                Bước 1 · Định tuyến
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Chọn kho cấp hàng
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ routing.ingredient }} ·
+                                {{ routing.quantity_requested }}
+                                {{ routing.unit }} → {{ routing.to_branch }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form @submit.prevent="submitReceive" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div class="flex flex-col gap-1.5 sm:col-span-2">
-                            <Label class="text-xs font-bold text-foreground">Mã giao nhận bàn giao <span class="text-rose-500">*</span></Label>
-                            <Input
-                                v-model="receiveForm.handover_code"
-                                class="font-mono tracking-[0.2em] uppercase"
-                                maxlength="6"
-                                required
-                                placeholder="Nhập mã 6 ký tự (VD: ABC123)"
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1 sm:col-span-2 pt-1">
-                            <Label class="text-xs font-black uppercase tracking-wider text-emerald-400">Phân loại kiểm đếm thực nhận</Label>
-                            <p class="text-[11px] text-muted-foreground">Nhập số lượng thực tế đếm được theo từng tình trạng hàng (Số lượng đã xuất: {{ receiving.quantity_dispatched }} {{ receiving.unit }})</p>
-                        </div>
-
+                    <form @submit.prevent="submitRoute" class="space-y-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-emerald-400">✅ Đạt chất lượng ({{ receiving.unit }}) <span class="text-rose-500">*</span></Label>
-                            <Input
-                                v-model="receiveForm.quantity_received_good"
-                                type="number"
-                                step="0.001"
-                                min="0"
-                                :max="receiving.quantity_dispatched ?? 0"
+                            <Label>Chi nhánh cấp hàng</Label
+                            ><select
+                                v-model="routeForm.from_branch_id"
                                 required
-                                placeholder="Nhập số lượng đạt"
-                            />
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="" disabled>
+                                    — Chọn nguồn có tồn —
+                                </option>
+                                <option
+                                    v-for="branch in routeBranchOptions"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                    :disabled="
+                                        branch.available_quantity <
+                                        routing.quantity_requested
+                                    "
+                                >
+                                    {{ branch.name }} · tồn
+                                    {{
+                                        formatNumber(branch.available_quantity)
+                                    }}
+                                    {{ routing.unit }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="routeForm.errors.from_branch_id"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ routeForm.errors.from_branch_id }}
+                            </p>
                         </div>
-
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-amber-400">⚠️ Hàng hư hỏng / vỡ ({{ receiving.unit }})</Label>
-                            <Input
-                                v-model="receiveForm.quantity_received_damaged"
-                                type="number"
-                                step="0.001"
-                                min="0"
-                                :max="receiving.quantity_dispatched ?? 0"
-                                placeholder="0 (hoặc số hỏng)"
+                            <Label>Ghi chú điều phối</Label
+                            ><textarea
+                                v-model="routeForm.owner_note"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ưu tiên lô gần hạn, ghi rõ cách bàn giao..."
                             />
                         </div>
-
-                        <div class="flex flex-col gap-1.5 sm:col-span-2">
-                            <Label class="text-xs font-bold text-rose-400">❌ Hàng hết hạn / kém chất lượng ({{ receiving.unit }})</Label>
-                            <Input
-                                v-model="receiveForm.quantity_received_expired"
-                                type="number"
-                                step="0.001"
-                                min="0"
-                                :max="receiving.quantity_dispatched ?? 0"
-                                placeholder="0 (hoặc số hết hạn)"
-                            />
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="routeForm.processing"
+                                class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                                >Định tuyến & sinh mã</Button
+                            >
                         </div>
+                    </form>
+                </template>
 
-                        <div class="flex items-center justify-between rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-2.5 sm:col-span-2">
-                            <span class="text-xs font-bold text-foreground">Tổng số lượng thực nhận:</span>
-                            <span class="font-mono text-sm font-black text-emerald-300">
-                                {{ Number(receiveForm.quantity_received_good || 0) + Number(receiveForm.quantity_received_damaged || 0) + Number(receiveForm.quantity_received_expired || 0) }} {{ receiving.unit }}
-                            </span>
+                <template v-else-if="dispatching">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-amber-400 uppercase"
+                            >
+                                Bước 2 · Xuất kho
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Xác nhận xuất hàng
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ dispatching.ingredient }} ·
+                                {{ dispatching.from_branch }} →
+                                {{ dispatching.to_branch }}
+                            </p>
                         </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Tình trạng hàng</Label
-                        ><select
-                            v-model="receiveForm.received_condition"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option value="good">Đủ và đạt chất lượng</option>
-                            <option value="shortage">Thiếu số lượng</option>
-                            <option value="damaged">Hư hỏng</option>
-                            <option value="mixed">Vừa thiếu vừa hư hỏng</option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Biên bản nhận / mô tả chênh lệch</Label
-                        ><textarea
-                            v-model="receiveForm.received_note"
-                            rows="4"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Bắt buộc ghi rõ nếu nhận thiếu hoặc hàng hỏng..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            >Ảnh/PDF bằng chứng (bắt buộc nếu thiếu hoặc
-                            hỏng)</Label
-                        >
-                        <Input
-                            type="file"
-                            accept="image/*,.pdf"
-                            @change="onEvidenceChange"
-                        />
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <Input v-model="receiveForm.transport_temperature_min_c" type="number" step="0.1" placeholder="Nhiệt độ thấp nhất (°C)" />
-                        <Input v-model="receiveForm.transport_temperature_max_c" type="number" step="0.1" placeholder="Nhiệt độ cao nhất (°C)" />
-                        <Input v-model="receiveForm.vehicle_number" placeholder="Biển số xe" />
-                        <Input v-model="receiveForm.carrier_name" placeholder="Đơn vị vận chuyển" />
-                    </div>
-                    <p
-                        v-if="
-                            receiveForm.errors.handover_code ||
-                            receiveForm.errors.quantity_received
-                        "
-                        class="text-xs text-rose-500"
-                    >
-                        {{
-                            receiveForm.errors.handover_code ||
-                            receiveForm.errors.quantity_received
-                        }}
-                    </p>
-                    <div class="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="closeModals"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="receiveForm.processing"
-                            class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
-                            ><PackageCheck class="size-4" /> Xác nhận nhận
-                            hàng</Button
-                        >
-                    </div>
-                </form>
-            </template>
-
-            <template v-else-if="resolving">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
-                        >
-                            Đối soát
-                        </p>
-                        <h2 class="mt-1 text-xl font-black">Chốt chênh lệch</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            Thiếu {{ resolving.discrepancy_quantity }}
-                            {{ resolving.unit }} · {{ resolving.ingredient }}
-                        </p>
-                    </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form @submit.prevent="submitResolution" class="space-y-4">
                     <div
-                        class="rounded-xl border border-rose-400/20 bg-rose-950/20 p-3 text-xs text-rose-100"
+                        class="mb-4 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
                     >
-                        Hàng thực nhận đã được cộng vào kho đích. Việc chốt này
-                        xác nhận hướng xử lý phần thiếu/hỏng và đóng hồ sơ điều
-                        chuyển.
+                        <p>
+                            Tồn hiện tại kho nguồn:
+                            <b
+                                >{{
+                                    formatNumber(
+                                        dispatching.source_available_quantity,
+                                    )
+                                }}
+                                {{ dispatching.unit }}</b
+                            >
+                        </p>
+                        <p class="mt-1 text-amber-100/70">
+                            Hệ thống chỉ cho xuất đủ
+                            {{ formatNumber(dispatching.quantity_requested) }}
+                            {{ dispatching.unit }} để tránh tạo yêu cầu hoàn tất
+                            giả.
+                        </p>
                     </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Hướng xử lý / biên bản cuối</Label
-                        ><textarea
-                            v-model="resolutionForm.discrepancy_resolution"
-                            rows="5"
-                            required
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Ví dụ: Đã xác nhận thiếu do hư hỏng trên đường, lập biên bản và ghi nhận chi phí hao hụt..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="closeModals"
-                            >Hủy</Button
-                        ><Button
-                            type="submit"
-                            :disabled="resolutionForm.processing"
-                            class="bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            ><ClipboardCheck class="size-4" /> Chốt hồ
-                            sơ</Button
-                        >
-                    </div>
-                </form>
-            </template>
+                    <form @submit.prevent="submitDispatch" class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số lượng xuất</Label
+                            ><Input
+                                v-model="dispatchForm.quantity_dispatched"
+                                type="number"
+                                step="0.001"
+                                min="0.001"
+                                :max="dispatching.quantity_requested"
+                                required
+                            />
+                            <p
+                                v-if="dispatchForm.errors.quantity_dispatched"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ dispatchForm.errors.quantity_dispatched }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ghi chú xuất kho</Label
+                            ><textarea
+                                v-model="dispatchForm.dispatch_note"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Tình trạng đóng gói, người bàn giao, phương tiện..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="dispatchForm.processing"
+                                class="bg-amber-600 font-bold text-white hover:bg-amber-700"
+                                ><PackageOpen class="size-4" /> Xác nhận
+                                xuất</Button
+                            >
+                        </div>
+                    </form>
+                </template>
 
-            <template v-else-if="cancelling || rejecting">
-                <div class="mb-5 flex items-start justify-between gap-3">
-                    <div>
+                <template v-else-if="receiving">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-emerald-400 uppercase"
+                            >
+                                Bước 3 · Nhận hàng
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Kiểm đếm thực nhận
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ receiving.ingredient }} · đã xuất
+                                {{ receiving.quantity_dispatched }}
+                                {{ receiving.unit }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
+                    </div>
+                    <form @submit.prevent="submitReceive" class="space-y-4">
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="flex flex-col gap-1.5 sm:col-span-2">
+                                <Label class="text-xs font-bold text-foreground"
+                                    >Mã giao nhận bàn giao
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="receiveForm.handover_code"
+                                    class="font-mono tracking-[0.2em] uppercase"
+                                    maxlength="6"
+                                    required
+                                    placeholder="Nhập mã 6 ký tự (VD: ABC123)"
+                                />
+                            </div>
+
+                            <div class="flex flex-col gap-1 pt-1 sm:col-span-2">
+                                <Label
+                                    class="text-xs font-black tracking-wider text-emerald-400 uppercase"
+                                    >Phân loại kiểm đếm thực nhận</Label
+                                >
+                                <p class="text-[11px] text-muted-foreground">
+                                    Nhập số lượng thực tế đếm được theo từng
+                                    tình trạng hàng (Số lượng đã xuất:
+                                    {{ receiving.quantity_dispatched }}
+                                    {{ receiving.unit }})
+                                </p>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <Label
+                                    class="text-xs font-bold text-emerald-400"
+                                    >✅ Đạt chất lượng ({{ receiving.unit }})
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="receiveForm.quantity_received_good"
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    :max="receiving.quantity_dispatched ?? 0"
+                                    required
+                                    placeholder="Nhập số lượng đạt"
+                                />
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <Label class="text-xs font-bold text-amber-400"
+                                    >⚠️ Hàng hư hỏng / vỡ ({{
+                                        receiving.unit
+                                    }})</Label
+                                >
+                                <Input
+                                    v-model="
+                                        receiveForm.quantity_received_damaged
+                                    "
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    :max="receiving.quantity_dispatched ?? 0"
+                                    placeholder="0 (hoặc số hỏng)"
+                                />
+                            </div>
+
+                            <div class="flex flex-col gap-1.5 sm:col-span-2">
+                                <Label class="text-xs font-bold text-rose-400"
+                                    >❌ Hàng hết hạn / kém chất lượng ({{
+                                        receiving.unit
+                                    }})</Label
+                                >
+                                <Input
+                                    v-model="
+                                        receiveForm.quantity_received_expired
+                                    "
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    :max="receiving.quantity_dispatched ?? 0"
+                                    placeholder="0 (hoặc số hết hạn)"
+                                />
+                            </div>
+
+                            <div
+                                class="flex items-center justify-between rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-2.5 sm:col-span-2"
+                            >
+                                <span class="text-xs font-bold text-foreground"
+                                    >Tổng số lượng thực nhận:</span
+                                >
+                                <span
+                                    class="font-mono text-sm font-black text-emerald-300"
+                                >
+                                    {{
+                                        Number(
+                                            receiveForm.quantity_received_good ||
+                                                0,
+                                        ) +
+                                        Number(
+                                            receiveForm.quantity_received_damaged ||
+                                                0,
+                                        ) +
+                                        Number(
+                                            receiveForm.quantity_received_expired ||
+                                                0,
+                                        )
+                                    }}
+                                    {{ receiving.unit }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Tình trạng hàng</Label
+                            ><select
+                                v-model="receiveForm.received_condition"
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="good">
+                                    Đủ và đạt chất lượng
+                                </option>
+                                <option value="shortage">Thiếu số lượng</option>
+                                <option value="damaged">Hư hỏng</option>
+                                <option value="mixed">
+                                    Vừa thiếu vừa hư hỏng
+                                </option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Biên bản nhận / mô tả chênh lệch</Label
+                            ><textarea
+                                v-model="receiveForm.received_note"
+                                rows="4"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Bắt buộc ghi rõ nếu nhận thiếu hoặc hàng hỏng..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                >Ảnh/PDF bằng chứng (bắt buộc nếu thiếu hoặc
+                                hỏng)</Label
+                            >
+                            <Input
+                                type="file"
+                                accept="image/*,.pdf"
+                                @change="onEvidenceChange"
+                            />
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <Input
+                                v-model="
+                                    receiveForm.transport_temperature_min_c
+                                "
+                                type="number"
+                                step="0.1"
+                                placeholder="Nhiệt độ thấp nhất (°C)"
+                            />
+                            <Input
+                                v-model="
+                                    receiveForm.transport_temperature_max_c
+                                "
+                                type="number"
+                                step="0.1"
+                                placeholder="Nhiệt độ cao nhất (°C)"
+                            />
+                            <Input
+                                v-model="receiveForm.vehicle_number"
+                                placeholder="Biển số xe"
+                            />
+                            <Input
+                                v-model="receiveForm.carrier_name"
+                                placeholder="Đơn vị vận chuyển"
+                            />
+                        </div>
                         <p
-                            class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            v-if="
+                                receiveForm.errors.handover_code ||
+                                receiveForm.errors.quantity_received
+                            "
+                            class="text-xs text-rose-500"
                         >
-                            Kiểm soát yêu cầu
+                            {{
+                                receiveForm.errors.handover_code ||
+                                receiveForm.errors.quantity_received
+                            }}
                         </p>
-                        <h2 class="mt-1 text-xl font-black">
-                            {{ cancelling ? 'Hủy yêu cầu' : 'Từ chối yêu cầu' }}
-                        </h2>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            {{ (cancelling || rejecting)?.ingredient }} ·
-                            {{ (cancelling || rejecting)?.to_branch }}
-                        </p>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="receiveForm.processing"
+                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                                ><PackageCheck class="size-4" /> Xác nhận nhận
+                                hàng</Button
+                            >
+                        </div>
+                    </form>
+                </template>
+
+                <template v-else-if="resolving">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            >
+                                Đối soát
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Chốt chênh lệch
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Thiếu {{ resolving.discrepancy_quantity }}
+                                {{ resolving.unit }} ·
+                                {{ resolving.ingredient }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                    <Button variant="ghost" size="icon" @click="closeModals"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
-                <form
-                    v-if="cancelling"
-                    @submit.prevent="submitCancel"
-                    class="space-y-4"
-                >
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Lý do hủy</Label
-                        ><textarea
-                            v-model="cancelForm.cancel_reason"
-                            rows="4"
-                            required
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Ví dụ: Chi nhánh đã tự cân đối được hàng..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="closeModals"
-                            >Quay lại</Button
-                        ><Button
-                            type="submit"
-                            :disabled="cancelForm.processing"
-                            class="bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            >Xác nhận hủy</Button
+                    <form @submit.prevent="submitResolution" class="space-y-4">
+                        <div
+                            class="rounded-xl border border-rose-400/20 bg-rose-950/20 p-3 text-xs text-rose-100"
                         >
+                            Hàng thực nhận đã được cộng vào kho đích. Việc chốt
+                            này xác nhận hướng xử lý phần thiếu/hỏng và đóng hồ
+                            sơ điều chuyển.
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Hướng xử lý / biên bản cuối</Label
+                            ><textarea
+                                v-model="resolutionForm.discrepancy_resolution"
+                                rows="5"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: Đã xác nhận thiếu do hư hỏng trên đường, lập biên bản và ghi nhận chi phí hao hụt..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                :disabled="resolutionForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                ><ClipboardCheck class="size-4" /> Chốt hồ
+                                sơ</Button
+                            >
+                        </div>
+                    </form>
+                </template>
+
+                <template v-else-if="cancelling || rejecting">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            >
+                                Kiểm soát yêu cầu
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                {{
+                                    cancelling
+                                        ? 'Hủy yêu cầu'
+                                        : 'Từ chối yêu cầu'
+                                }}
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ (cancelling || rejecting)?.ingredient }} ·
+                                {{ (cancelling || rejecting)?.to_branch }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                </form>
-                <form v-else @submit.prevent="submitReject" class="space-y-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Lý do từ chối</Label
-                        ><textarea
-                            v-model="rejectForm.reject_reason"
-                            rows="4"
-                            required
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Ví dụ: Không có tồn khả dụng tại các kho cấp..."
-                        />
-                    </div>
-                    <div class="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="closeModals"
-                            >Quay lại</Button
-                        ><Button
-                            type="submit"
-                            :disabled="rejectForm.processing"
-                            class="bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            >Từ chối yêu cầu</Button
-                        >
-                    </div>
-                </form>
-            </template>
+                    <form
+                        v-if="cancelling"
+                        @submit.prevent="submitCancel"
+                        class="space-y-4"
+                    >
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Lý do hủy</Label
+                            ><textarea
+                                v-model="cancelForm.cancel_reason"
+                                rows="4"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: Chi nhánh đã tự cân đối được hàng..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Quay lại</Button
+                            ><Button
+                                type="submit"
+                                :disabled="cancelForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                >Xác nhận hủy</Button
+                            >
+                        </div>
+                    </form>
+                    <form
+                        v-else
+                        @submit.prevent="submitReject"
+                        class="space-y-4"
+                    >
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Lý do từ chối</Label
+                            ><textarea
+                                v-model="rejectForm.reject_reason"
+                                rows="4"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: Không có tồn khả dụng tại các kho cấp..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Quay lại</Button
+                            ><Button
+                                type="submit"
+                                :disabled="rejectForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                >Từ chối yêu cầu</Button
+                            >
+                        </div>
+                    </form>
+                </template>
+            </div>
         </div>
-    </div>
     </Teleport>
 </template>

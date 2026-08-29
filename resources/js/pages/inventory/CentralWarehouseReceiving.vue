@@ -139,7 +139,13 @@ type Voucher = {
 
 type ReceivingDocument = {
     id: number;
-    document_type: 'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other' | string;
+    document_type:
+        | 'invoice'
+        | 'delivery_note'
+        | 'qc'
+        | 'receiving_photo'
+        | 'other'
+        | string;
     original_name: string;
     mime_type?: string | null;
     size_bytes?: number | null;
@@ -201,7 +207,9 @@ const showGrnForm = ref(
 const isSubmittingGrn = ref(false);
 const grnErrors = ref<string[]>([]);
 const grnFiles = ref<File[]>([]);
-const grnDocumentType = ref<'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other'>('other');
+const grnDocumentType = ref<
+    'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other'
+>('other');
 
 const emptyLine = (): GrnLine => ({
     ingredient_id: null,
@@ -278,30 +286,41 @@ const formatDateOnly = (value: string | null | undefined) => {
 };
 
 const statusLabel = (status: string) =>
-    status === 'pending_disposition' ? 'Chờ trả/hủy' :
-    status === 'returned' ? 'Đã trả NCC' :
-    status === 'destroyed' ? 'Đã tiêu hủy' :
-    status === 'rejected' ? 'Bị từ chối — cần sửa' :
-    ({
-        draft: 'Chờ xác minh',
-        discrepancy: 'Có chênh lệch',
-        pending_review: 'Chờ xem xét',
-        confirmed: 'Đã nhập kho',
-        closed: 'Đã đóng',
-    })[status] || status;
+    status === 'pending_disposition'
+        ? 'Chờ trả/hủy'
+        : status === 'returned'
+          ? 'Đã trả NCC'
+          : status === 'destroyed'
+            ? 'Đã tiêu hủy'
+            : status === 'rejected'
+              ? 'Bị từ chối — cần sửa'
+              : {
+                    draft: 'Chờ xác minh',
+                    discrepancy: 'Có chênh lệch',
+                    pending_review: 'Chờ xem xét',
+                    confirmed: 'Đã nhập kho',
+                    closed: 'Đã đóng',
+                }[status] || status;
 
 const statusClass = (status: string) =>
-    status === 'pending_disposition' ? 'border-rose-400/30 bg-rose-500/10 text-rose-300' :
-    status === 'returned' ? 'border-sky-400/30 bg-sky-500/10 text-sky-300' :
-    status === 'destroyed' ? 'border-slate-400/30 bg-slate-500/10 text-slate-300' :
-    status === 'rejected' ? 'border-red-400/30 bg-red-500/10 text-red-300' :
-    ({
-        draft: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
-        discrepancy: 'border-rose-400/30 bg-rose-500/10 text-rose-300',
-        pending_review: 'border-amber-400/30 bg-amber-500/10 text-amber-300',
-        confirmed: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
-        closed: 'border-slate-400/30 bg-slate-500/10 text-slate-300',
-    })[status] || 'border-border bg-muted text-muted-foreground';
+    status === 'pending_disposition'
+        ? 'border-rose-400/30 bg-rose-500/10 text-rose-300'
+        : status === 'returned'
+          ? 'border-sky-400/30 bg-sky-500/10 text-sky-300'
+          : status === 'destroyed'
+            ? 'border-slate-400/30 bg-slate-500/10 text-slate-300'
+            : status === 'rejected'
+              ? 'border-red-400/30 bg-red-500/10 text-red-300'
+              : {
+                    draft: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
+                    discrepancy:
+                        'border-rose-400/30 bg-rose-500/10 text-rose-300',
+                    pending_review:
+                        'border-amber-400/30 bg-amber-500/10 text-amber-300',
+                    confirmed:
+                        'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+                    closed: 'border-slate-400/30 bg-slate-500/10 text-slate-300',
+                }[status] || 'border-border bg-muted text-muted-foreground';
 
 const qualityLabel = (status: string | null | undefined) =>
     ({
@@ -327,7 +346,8 @@ const ingredientUnit = (ingredientId: number | null) =>
 
 const canReview = (voucher: Voucher) =>
     props.canManageWarehouse &&
-    (props.canApproveOwnReceiving || voucher.received_by?.id !== props.currentUserId);
+    (props.canApproveOwnReceiving ||
+        voucher.received_by?.id !== props.currentUserId);
 
 const selectedPurchaseOrder = computed(() =>
     props.purchaseOrders.find(
@@ -342,9 +362,13 @@ const filteredVouchers = computed(() => {
         const matchesFilter =
             filter.value === 'all' ||
             (filter.value === 'pending' &&
-                ['draft', 'discrepancy', 'pending_review', 'pending_disposition', 'rejected'].includes(
-                    voucher.status,
-                )) ||
+                [
+                    'draft',
+                    'discrepancy',
+                    'pending_review',
+                    'pending_disposition',
+                    'rejected',
+                ].includes(voucher.status)) ||
             (filter.value === 'discrepancy' &&
                 ['discrepancy', 'pending_review'].includes(voucher.status)) ||
             (filter.value === 'confirmed' &&
@@ -445,15 +469,20 @@ const rejectVoucher = async () => {
     isRejecting.value = true;
 
     try {
-        await axios.post(`/api/warehouse/receiving-vouchers/${rejecting.value.id}/reject`, {
-            reason: rejectReason.value.trim(),
-        });
+        await axios.post(
+            `/api/warehouse/receiving-vouchers/${rejecting.value.id}/reject`,
+            {
+                reason: rejectReason.value.trim(),
+            },
+        );
         rejecting.value.status = 'rejected';
         rejecting.value.rejection_reason = rejectReason.value.trim();
         closeReject();
         toast.success('Đã từ chối phiếu. Phiếu chưa làm thay đổi tồn kho.');
     } catch (error: any) {
-        toast.error(error.response?.data?.message ?? 'Không thể từ chối phiếu.');
+        toast.error(
+            error.response?.data?.message ?? 'Không thể từ chối phiếu.',
+        );
     } finally {
         isRejecting.value = false;
     }
@@ -463,7 +492,10 @@ const handleConfirmEvidence = (event: Event) => {
     const files = (event.target as HTMLInputElement).files;
 
     if (files) {
-        confirmEvidence.value = [...confirmEvidence.value, ...Array.from(files)];
+        confirmEvidence.value = [
+            ...confirmEvidence.value,
+            ...Array.from(files),
+        ];
     }
 };
 
@@ -471,7 +503,10 @@ const handleDispositionEvidence = (event: Event) => {
     const files = (event.target as HTMLInputElement).files;
 
     if (files) {
-        dispositionEvidence.value = [...dispositionEvidence.value, ...Array.from(files)];
+        dispositionEvidence.value = [
+            ...dispositionEvidence.value,
+            ...Array.from(files),
+        ];
     }
 };
 
@@ -521,33 +556,57 @@ const confirmVoucher = async () => {
     isProcessing.value = voucher.id;
 
     try {
-        const payload = confirmQualityStatus.value === 'failed'
-            ? (() => {
-                const formData = new FormData();
-                formData.append('notes', confirmNotes.value.trim());
-                formData.append('quality_status', confirmQualityStatus.value);
-                formData.append('quality_notes', confirmQualityNotes.value.trim());
+        const payload =
+            confirmQualityStatus.value === 'failed'
+                ? (() => {
+                      const formData = new FormData();
+                      formData.append('notes', confirmNotes.value.trim());
+                      formData.append(
+                          'quality_status',
+                          confirmQualityStatus.value,
+                      );
+                      formData.append(
+                          'quality_notes',
+                          confirmQualityNotes.value.trim(),
+                      );
 
-                if (confirmTemperatureMin.value !== null && confirmTemperatureMin.value !== '') {
-                    formData.append('temperature_min_c', String(confirmTemperatureMin.value));
-                }
+                      if (
+                          confirmTemperatureMin.value !== null &&
+                          confirmTemperatureMin.value !== ''
+                      ) {
+                          formData.append(
+                              'temperature_min_c',
+                              String(confirmTemperatureMin.value),
+                          );
+                      }
 
-                if (confirmTemperatureMax.value !== null && confirmTemperatureMax.value !== '') {
-                    formData.append('temperature_max_c', String(confirmTemperatureMax.value));
-                }
+                      if (
+                          confirmTemperatureMax.value !== null &&
+                          confirmTemperatureMax.value !== ''
+                      ) {
+                          formData.append(
+                              'temperature_max_c',
+                              String(confirmTemperatureMax.value),
+                          );
+                      }
 
-                confirmEvidence.value.forEach((file) => formData.append('evidence[]', file));
+                      confirmEvidence.value.forEach((file) =>
+                          formData.append('evidence[]', file),
+                      );
 
-                return formData;
-            })()
-            : {
-                notes: confirmNotes.value.trim(),
-                quality_status: confirmQualityStatus.value,
-                quality_notes: confirmQualityNotes.value.trim(),
-                temperature_min_c: confirmTemperatureMin.value,
-                temperature_max_c: confirmTemperatureMax.value,
-            };
-        await axios.post(`/api/warehouse/receiving-vouchers/${voucher.id}/confirm`, payload);
+                      return formData;
+                  })()
+                : {
+                      notes: confirmNotes.value.trim(),
+                      quality_status: confirmQualityStatus.value,
+                      quality_notes: confirmQualityNotes.value.trim(),
+                      temperature_min_c: confirmTemperatureMin.value,
+                      temperature_max_c: confirmTemperatureMax.value,
+                  };
+        await axios.post(
+            `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
+            payload,
+        );
         voucher.status = 'confirmed';
         voucher.verified_at = new Date().toISOString();
         voucher.quality_status = confirmQualityStatus.value;
@@ -575,7 +634,9 @@ const confirmVoucher = async () => {
             voucher.status = 'pending_disposition';
             closeConfirm();
             openDisposition(voucher);
-            toast.warning('Lô không đạt đã được cách ly. Hãy ghi nhận trả NCC hoặc tiêu hủy.');
+            toast.warning(
+                'Lô không đạt đã được cách ly. Hãy ghi nhận trả NCC hoặc tiêu hủy.',
+            );
 
             return;
         }
@@ -589,11 +650,18 @@ const confirmVoucher = async () => {
 };
 
 const disposeReceiving = async () => {
-    if (!dispositionVoucher.value || !dispositionReason.value.trim() || isDisposing.value) {
+    if (
+        !dispositionVoucher.value ||
+        !dispositionReason.value.trim() ||
+        isDisposing.value
+    ) {
         return;
     }
 
-    if (dispositionKind.value === 'destroy' && dispositionEvidence.value.length === 0) {
+    if (
+        dispositionKind.value === 'destroy' &&
+        dispositionEvidence.value.length === 0
+    ) {
         toast.error('Tiêu hủy phải có ảnh/biên bản làm bằng chứng.');
 
         return;
@@ -603,16 +671,27 @@ const disposeReceiving = async () => {
     const formData = new FormData();
     formData.append('disposition', dispositionKind.value);
     formData.append('reason', dispositionReason.value.trim());
-    dispositionEvidence.value.forEach((file) => formData.append('evidence[]', file));
+    dispositionEvidence.value.forEach((file) =>
+        formData.append('evidence[]', file),
+    );
 
     try {
-        await axios.post(`/api/warehouse/receiving-vouchers/${dispositionVoucher.value.id}/dispose`, formData);
-        dispositionVoucher.value.status = dispositionKind.value === 'destroy' ? 'destroyed' : 'returned';
-        summary.value.pending_review = Math.max(0, (summary.value.pending_review ?? 1) - 1);
+        await axios.post(
+            `/api/warehouse/receiving-vouchers/${dispositionVoucher.value.id}/dispose`,
+            formData,
+        );
+        dispositionVoucher.value.status =
+            dispositionKind.value === 'destroy' ? 'destroyed' : 'returned';
+        summary.value.pending_review = Math.max(
+            0,
+            (summary.value.pending_review ?? 1) - 1,
+        );
         closeDisposition();
         toast.success('Đã ghi nhận xử lý lô không đạt.');
     } catch (error: any) {
-        toast.error(error.response?.data?.message ?? 'Không thể ghi nhận xử lý lệnh.');
+        toast.error(
+            error.response?.data?.message ?? 'Không thể ghi nhận xử lý lệnh.',
+        );
     } finally {
         isDisposing.value = false;
     }
@@ -726,7 +805,9 @@ const validateGrn = () => {
         }
 
         if (line.actual_qty > 0 && !line.lot_number.trim()) {
-            errors.push(`Dòng ${lineNo}: phải nhập số lô để truy xuất nguồn gốc.`);
+            errors.push(
+                `Dòng ${lineNo}: phải nhập số lô để truy xuất nguồn gốc.`,
+            );
         }
 
         if (line.actual_qty > 0 && !line.location_id) {
@@ -746,7 +827,8 @@ const validateGrn = () => {
     if (
         grnForm.value.temperature_min_c !== null &&
         grnForm.value.temperature_max_c !== null &&
-        Number(grnForm.value.temperature_min_c) > Number(grnForm.value.temperature_max_c)
+        Number(grnForm.value.temperature_min_c) >
+            Number(grnForm.value.temperature_max_c)
     ) {
         errors.push('Nhiệt độ tối thiểu không được lớn hơn nhiệt độ tối đa.');
     }
@@ -754,7 +836,8 @@ const validateGrn = () => {
     if (
         grnForm.value.invoice_total_amount !== '' &&
         grnForm.value.vat_amount !== '' &&
-        Number(grnForm.value.vat_amount) > Number(grnForm.value.invoice_total_amount)
+        Number(grnForm.value.vat_amount) >
+            Number(grnForm.value.invoice_total_amount)
     ) {
         errors.push('Tiền thuế không được lớn hơn tổng tiền hóa đơn.');
     }
@@ -806,7 +889,10 @@ const submitGrn = async () => {
     }
 
     if (grnForm.value.invoice_total_amount !== '') {
-        formData.append('invoice_total_amount', String(grnForm.value.invoice_total_amount));
+        formData.append(
+            'invoice_total_amount',
+            String(grnForm.value.invoice_total_amount),
+        );
     }
 
     if (grnForm.value.vat_amount !== '') {
@@ -829,12 +915,24 @@ const submitGrn = async () => {
         formData.append('receiving_dock', grnForm.value.receiving_dock.trim());
     }
 
-    if (grnForm.value.temperature_min_c !== null && grnForm.value.temperature_min_c !== '') {
-        formData.append('temperature_min_c', String(grnForm.value.temperature_min_c));
+    if (
+        grnForm.value.temperature_min_c !== null &&
+        grnForm.value.temperature_min_c !== ''
+    ) {
+        formData.append(
+            'temperature_min_c',
+            String(grnForm.value.temperature_min_c),
+        );
     }
 
-    if (grnForm.value.temperature_max_c !== null && grnForm.value.temperature_max_c !== '') {
-        formData.append('temperature_max_c', String(grnForm.value.temperature_max_c));
+    if (
+        grnForm.value.temperature_max_c !== null &&
+        grnForm.value.temperature_max_c !== ''
+    ) {
+        formData.append(
+            'temperature_max_c',
+            String(grnForm.value.temperature_max_c),
+        );
     }
 
     grnForm.value.items.forEach((line, index) => {
@@ -861,7 +959,10 @@ const submitGrn = async () => {
         }
 
         if (line.manufactured_date) {
-            formData.append(`items[${index}][manufactured_date]`, line.manufactured_date);
+            formData.append(
+                `items[${index}][manufactured_date]`,
+                line.manufactured_date,
+            );
         }
 
         if (line.location_id) {
@@ -962,7 +1063,7 @@ const documentTypeLabel = (type: string) =>
     <Head title="Nhập nguyên liệu vào Kho Tổng" />
     <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
         <section
-            class="rounded-2xl border border-orange-100/90 bg-gradient-to-r from-orange-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0b0804] dark:via-black dark:to-[#0b0804] dark:text-white backdrop-blur-md"
+            class="rounded-2xl border border-orange-100/90 bg-gradient-to-r from-orange-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs backdrop-blur-md sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0b0804] dark:via-black dark:to-[#0b0804] dark:text-white"
         >
             <div
                 class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center"
@@ -975,7 +1076,7 @@ const documentTypeLabel = (type: string) =>
                     >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-500/20 dark:border dark:border-orange-500/30 dark:bg-orange-500/25 dark:text-orange-300 backdrop-blur-md"
+                            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-500/20 backdrop-blur-md dark:border dark:border-orange-500/30 dark:bg-orange-500/25 dark:text-orange-300"
                         >
                             <ClipboardCheck class="size-5" />
                         </div>
@@ -985,7 +1086,9 @@ const documentTypeLabel = (type: string) =>
                             >
                                 Nhận hàng & GRN
                             </h1>
-                            <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
+                            <p
+                                class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400"
+                            >
                                 Kiểm soát chứng từ, số lượng thực nhận, lô, HSD
                                 và vị trí trước khi nhập Kho Tổng.
                             </p>
@@ -995,9 +1098,10 @@ const documentTypeLabel = (type: string) =>
                 <div class="flex flex-wrap gap-2">
                     <Button
                         v-if="canCreateReceiving"
-                        class="h-9 gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600 active:translate-y-0 shadow-xs"
+                        class="h-9 gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white shadow-xs hover:bg-orange-600 active:translate-y-0"
                         @click="showGrnForm = true"
-                        ><Plus class="size-3.5" /> Nhập nguyên liệu vào Kho Tổng</Button
+                        ><Plus class="size-3.5" /> Nhập nguyên liệu vào Kho
+                        Tổng</Button
                     ><Link href="/inventory/staff-portal"
                         ><Button
                             variant="outline"
@@ -1310,7 +1414,11 @@ const documentTypeLabel = (type: string) =>
                                             ><Button
                                                 v-if="
                                                     canReview(voucher) &&
-                                                    ['draft', 'discrepancy', 'pending_review'].includes(voucher.status)
+                                                    [
+                                                        'draft',
+                                                        'discrepancy',
+                                                        'pending_review',
+                                                    ].includes(voucher.status)
                                                 "
                                                 size="sm"
                                                 variant="outline"
@@ -1508,34 +1616,47 @@ const documentTypeLabel = (type: string) =>
                                                                 class="text-muted-foreground"
                                                                 >Cửa nhận:</span
                                                             >
-                                                            {{ voucher.receiving_dock || '-' }}
+                                                            {{
+                                                                voucher.receiving_dock ||
+                                                                '-'
+                                                            }}
                                                         </p>
                                                         <p>
                                                             <span
                                                                 class="text-muted-foreground"
-                                                                >Đơn vị vận chuyển:</span
+                                                                >Đơn vị vận
+                                                                chuyển:</span
                                                             >
-                                                            {{ voucher.carrier_name || '-' }}
+                                                            {{
+                                                                voucher.carrier_name ||
+                                                                '-'
+                                                            }}
                                                         </p>
                                                         <p>
                                                             <span
                                                                 class="text-muted-foreground"
-                                                                >Bắt đầu cất:</span
+                                                                >Bắt đầu
+                                                                cất:</span
                                                             >
                                                             {{
                                                                 voucher.putaway_started_at
-                                                                    ? formatDate(voucher.putaway_started_at)
+                                                                    ? formatDate(
+                                                                          voucher.putaway_started_at,
+                                                                      )
                                                                     : 'Chưa có'
                                                             }}
                                                         </p>
                                                         <p>
                                                             <span
                                                                 class="text-muted-foreground"
-                                                                >Hoàn tất cất:</span
+                                                                >Hoàn tất
+                                                                cất:</span
                                                             >
                                                             {{
                                                                 voucher.putaway_completed_at
-                                                                    ? formatDate(voucher.putaway_completed_at)
+                                                                    ? formatDate(
+                                                                          voucher.putaway_completed_at,
+                                                                      )
                                                                     : 'Chưa hoàn tất'
                                                             }}
                                                         </p>
@@ -1583,29 +1704,54 @@ const documentTypeLabel = (type: string) =>
                                                         }}
                                                     </p>
                                                     <p
-                                                        v-if="voucher.rejection_reason"
+                                                        v-if="
+                                                            voucher.rejection_reason
+                                                        "
                                                         class="mt-2 text-red-300"
                                                     >
-                                                        Từ chối: {{ voucher.rejection_reason }}
+                                                        Từ chối:
+                                                        {{
+                                                            voucher.rejection_reason
+                                                        }}
                                                     </p>
                                                 </div>
                                                 <div
-                                                    v-if="voucher.documents?.length"
+                                                    v-if="
+                                                        voucher.documents
+                                                            ?.length
+                                                    "
                                                     class="rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-4 text-xs"
                                                 >
-                                                    <p class="mb-2 flex items-center gap-2 font-bold text-foreground">
-                                                        <FileText class="size-4 text-indigo-300" />
+                                                    <p
+                                                        class="mb-2 flex items-center gap-2 font-bold text-foreground"
+                                                    >
+                                                        <FileText
+                                                            class="size-4 text-indigo-300"
+                                                        />
                                                         Chứng từ đã phân loại
                                                     </p>
                                                     <a
                                                         v-for="document in voucher.documents"
                                                         :key="document.id"
-                                                        :href="documentUrl(voucher, document)"
+                                                        :href="
+                                                            documentUrl(
+                                                                voucher,
+                                                                document,
+                                                            )
+                                                        "
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         class="mb-1 block truncate text-indigo-300 hover:text-indigo-200"
                                                     >
-                                                        {{ documentTypeLabel(document.document_type) }} · {{ document.original_name }}
+                                                        {{
+                                                            documentTypeLabel(
+                                                                document.document_type,
+                                                            )
+                                                        }}
+                                                        ·
+                                                        {{
+                                                            document.original_name
+                                                        }}
                                                     </a>
                                                 </div>
                                                 <div
@@ -1629,7 +1775,10 @@ const documentTypeLabel = (type: string) =>
                                                         ) in voucher.evidence_paths"
                                                         :key="path"
                                                         :href="
-                                                            evidenceUrl(voucher, path)
+                                                            evidenceUrl(
+                                                                voucher,
+                                                                path,
+                                                            )
                                                         "
                                                         target="_blank"
                                                         class="block truncate text-indigo-300 hover:text-indigo-200"
@@ -1906,632 +2055,803 @@ const documentTypeLabel = (type: string) =>
     </div>
 
     <Teleport to="body">
-    <div
-        v-if="confirming"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
-        @click.self="closeConfirm"
-    >
         <div
-            class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
+            v-if="confirming"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+            @click.self="closeConfirm"
         >
-            <div class="mb-5 flex items-start justify-between gap-3">
-                <div>
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
-                    >
-                        Xác minh GRN
-                    </p>
-                    <h2 class="mt-1 text-xl font-black">
-                        {{ confirming.voucher_code }} · Nhập vào Kho Tổng
-                    </h2>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                        Sau khi xác nhận, hệ thống tạo giao dịch nhập, cập nhật
-                        giá vốn bình quân và tạo lô hàng.
-                    </p>
-                </div>
-                <Button variant="ghost" size="icon" @click="closeConfirm"
-                    ><X class="size-4"
-                /></Button>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-xs">
-                <div class="rounded-xl bg-muted/30 p-3">
-                    <p class="text-muted-foreground">Dự kiến</p>
-                    <strong class="mt-1 block text-foreground">{{
-                        formatQuantity(confirming.total_expected_qty)
-                    }}</strong>
-                </div>
-                <div class="rounded-xl bg-sky-500/10 p-3">
-                    <p class="text-sky-200/70">Thực nhận</p>
-                    <strong class="mt-1 block text-sky-200">{{
-                        formatQuantity(confirming.total_actual_qty)
-                    }}</strong>
-                </div>
-                <div class="rounded-xl bg-rose-500/10 p-3">
-                    <p class="text-rose-200/70">Chênh lệch</p>
-                    <strong class="mt-1 block text-rose-200">{{
-                        formatQuantity(
-                            Math.abs(
-                                Number(confirming.total_discrepancy_qty || 0),
-                            ),
-                        )
-                    }}</strong>
-                </div>
-            </div>
             <div
-                v-if="discrepancyItems.length"
-                class="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs"
+                class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
             >
-                <p class="flex items-center gap-2 font-bold text-rose-200">
-                    <AlertTriangle class="size-4" /> Phiếu có
-                    {{ discrepancyItems.length }} dòng chênh lệch
-                </p>
-                <p class="mt-1 text-muted-foreground">
-                    Cần ghi rõ nguyên nhân và trách nhiệm xử lý trước khi hạch
-                    toán.
-                </p>
-                <ul class="mt-3 space-y-1 text-rose-100">
-                    <li v-for="item in discrepancyItems" :key="item.id">
-                        •
-                        {{
-                            item.ingredient?.name ||
-                            `Nguyên liệu #${item.ingredient_id}`
-                        }}: {{ itemStatusLabel(item.item_status) }}
-                    </li>
-                </ul>
-            </div>
-            <form class="mt-5 space-y-4" @submit.prevent="confirmVoucher">
-                <div class="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
+                        >
+                            Xác minh GRN
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            {{ confirming.voucher_code }} · Nhập vào Kho Tổng
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Sau khi xác nhận, hệ thống tạo giao dịch nhập, cập
+                            nhật giá vốn bình quân và tạo lô hàng.
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeConfirm"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs">
+                    <div class="rounded-xl bg-muted/30 p-3">
+                        <p class="text-muted-foreground">Dự kiến</p>
+                        <strong class="mt-1 block text-foreground">{{
+                            formatQuantity(confirming.total_expected_qty)
+                        }}</strong>
+                    </div>
+                    <div class="rounded-xl bg-sky-500/10 p-3">
+                        <p class="text-sky-200/70">Thực nhận</p>
+                        <strong class="mt-1 block text-sky-200">{{
+                            formatQuantity(confirming.total_actual_qty)
+                        }}</strong>
+                    </div>
+                    <div class="rounded-xl bg-rose-500/10 p-3">
+                        <p class="text-rose-200/70">Chênh lệch</p>
+                        <strong class="mt-1 block text-rose-200">{{
+                            formatQuantity(
+                                Math.abs(
+                                    Number(
+                                        confirming.total_discrepancy_qty || 0,
+                                    ),
+                                ),
+                            )
+                        }}</strong>
+                    </div>
+                </div>
+                <div
+                    v-if="discrepancyItems.length"
+                    class="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs"
+                >
+                    <p class="flex items-center gap-2 font-bold text-rose-200">
+                        <AlertTriangle class="size-4" /> Phiếu có
+                        {{ discrepancyItems.length }} dòng chênh lệch
+                    </p>
+                    <p class="mt-1 text-muted-foreground">
+                        Cần ghi rõ nguyên nhân và trách nhiệm xử lý trước khi
+                        hạch toán.
+                    </p>
+                    <ul class="mt-3 space-y-1 text-rose-100">
+                        <li v-for="item in discrepancyItems" :key="item.id">
+                            •
+                            {{
+                                item.ingredient?.name ||
+                                `Nguyên liệu #${item.ingredient_id}`
+                            }}: {{ itemStatusLabel(item.item_status) }}
+                        </li>
+                    </ul>
+                </div>
+                <form class="mt-5 space-y-4" @submit.prevent="confirmVoucher">
+                    <div
+                        class="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4"
+                    >
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="flex flex-col gap-1.5">
+                                <Label>Nhiệt độ thấp nhất (°C)</Label>
+                                <Input
+                                    v-model="confirmTemperatureMin"
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="Ví dụ 2"
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <Label>Nhiệt độ cao nhất (°C)</Label>
+                                <Input
+                                    v-model="confirmTemperatureMax"
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="Ví dụ 6"
+                                />
+                            </div>
+                        </div>
+                        <p class="mt-2 text-[11px] text-muted-foreground">
+                            Bắt buộc với hàng tươi, kho lạnh hoặc nguyên liệu có
+                            cài ngưỡng.
+                        </p>
+                    </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Nhiệt độ thấp nhất (°C)</Label>
-                            <Input v-model="confirmTemperatureMin" type="number" step="0.1" placeholder="Ví dụ 2" />
+                            <Label>Kết quả kiểm tra chất lượng</Label>
+                            <select
+                                v-model="confirmQualityStatus"
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="passed">
+                                    Đạt — cho phép sử dụng
+                                </option>
+                                <option value="conditional">
+                                    Đạt có điều kiện — khóa lô chờ xử lý
+                                </option>
+                                <option value="failed">
+                                    Không đạt — không nhập kho
+                                </option>
+                            </select>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label>Nhiệt độ cao nhất (°C)</Label>
-                            <Input v-model="confirmTemperatureMax" type="number" step="0.1" placeholder="Ví dụ 6" />
+                            <Label>Ghi chú chất lượng</Label>
+                            <Input
+                                v-model="confirmQualityNotes"
+                                placeholder="Nhiệt độ, bao bì, ngoại quan..."
+                            />
                         </div>
                     </div>
-                    <p class="mt-2 text-[11px] text-muted-foreground">Bắt buộc với hàng tươi, kho lạnh hoặc nguyên liệu có cài ngưỡng.</p>
-                </div>
-                <div class="grid gap-3 sm:grid-cols-2">
                     <div class="flex flex-col gap-1.5">
-                        <Label>Kết quả kiểm tra chất lượng</Label>
-                        <select
-                            v-model="confirmQualityStatus"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        <Label
+                            >Bằng chứng xử lý chất lượng (nếu không đạt)</Label
                         >
-                            <option value="passed">
-                                Đạt — cho phép sử dụng
-                            </option>
-                            <option value="conditional">
-                                Đạt có điều kiện — khóa lô chờ xử lý
-                            </option>
-                            <option value="failed">
-                                Không đạt — không nhập kho
-                            </option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ghi chú chất lượng</Label>
-                        <Input
-                            v-model="confirmQualityNotes"
-                            placeholder="Nhiệt độ, bao bì, ngoại quan..."
-                        />
-                    </div>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Bằng chứng xử lý chất lượng (nếu không đạt)</Label>
-                    <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleConfirmEvidence" />
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>{{
-                        discrepancyItems.length
-                            ? 'Giải trình bắt buộc'
-                            : 'Ghi chú xác minh'
-                    }}</Label
-                    ><textarea
-                        v-model="confirmNotes"
-                        rows="4"
-                        class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        :placeholder="
-                            discrepancyItems.length
-                                ? 'Nêu nguyên nhân thiếu/thừa, biên bản, hướng xử lý...'
-                                : 'Ghi nhận tình trạng thực tế khi nhập hàng...'
-                        "
-                    />
-                </div>
-                <p
-                    v-if="confirmError"
-                    class="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-300"
-                >
-                    {{ confirmError }}
-                </p>
-                <div class="flex justify-end gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="closeConfirm"
-                        >Hủy</Button
-                    ><Button
-                        type="submit"
-                        class="gap-1.5 bg-orange-600 text-white hover:bg-orange-700"
-                        :disabled="isProcessing === confirming.id"
-                        ><CheckCircle2 class="size-4" />
-                        {{
-                            isProcessing === confirming.id
-                                ? 'Đang hạch toán...'
-                                : 'Xác minh & nhập kho'
-                        }}</Button
-                    >
-                </div>
-            </form>
-        </div>
-    </div>
-    </Teleport>
-
-    <Teleport to="body">
-    <div
-        v-if="rejecting"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        @click.self="closeReject"
-    >
-        <div class="w-full max-w-xl rounded-3xl border border-red-400/25 bg-background p-6 shadow-2xl">
-            <div class="mb-5 flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-red-400">Từ chối phiếu nhập</p>
-                    <h2 class="mt-1 text-xl font-black">{{ rejecting.voucher_code }}</h2>
-                    <p class="mt-1 text-xs text-muted-foreground">Phiếu bị từ chối sẽ không tạo giao dịch, lô hàng hoặc cộng tồn kho.</p>
-                </div>
-                <Button variant="ghost" size="icon" @click="closeReject"><X class="size-4" /></Button>
-            </div>
-            <form class="space-y-4" @submit.prevent="rejectVoucher">
-                <div class="flex flex-col gap-1.5">
-                    <Label>Lý do từ chối / yêu cầu bổ sung</Label>
-                    <textarea v-model="rejectReason" rows="5" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Thiếu hóa đơn, sai số lô, chênh lệch chưa có biên bản..." />
-                </div>
-                <div class="flex justify-end gap-2">
-                    <Button type="button" variant="outline" @click="closeReject">Hủy</Button>
-                    <Button type="submit" class="bg-red-600 text-white hover:bg-red-700" :disabled="isRejecting">{{ isRejecting ? 'Đang lưu...' : 'Từ chối phiếu' }}</Button>
-                </div>
-            </form>
-        </div>
-    </div>
-    </Teleport>
-
-    <Teleport to="body">
-    <div
-        v-if="dispositionVoucher"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        @click.self="closeDisposition"
-    >
-        <div class="w-full max-w-xl rounded-3xl border border-rose-400/25 bg-background p-6 shadow-2xl">
-            <div class="mb-5 flex items-start justify-between gap-3">
-                <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Xử lý lô không đạt</p>
-                    <h2 class="mt-1 text-xl font-black">{{ dispositionVoucher.voucher_code }}</h2>
-                    <p class="mt-1 text-xs text-muted-foreground">Lô này chưa được cộng vào tồn kho.</p>
-                </div>
-                <Button variant="ghost" size="icon" @click="closeDisposition"><X class="size-4" /></Button>
-            </div>
-            <form class="space-y-4" @submit.prevent="disposeReceiving">
-                <div class="flex flex-col gap-1.5">
-                    <Label>Hướng xử lý</Label>
-                    <select v-model="dispositionKind" class="h-10 rounded-md border border-input bg-background px-3 text-sm">
-                        <option value="return_supplier">Trả nhà cung cấp</option>
-                        <option value="destroy">Tiêu hủy</option>
-                    </select>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Lý do / biên bản</Label>
-                    <textarea v-model="dispositionReason" rows="4" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Nêu rõ lý do, số biên bản, người bàn giao..." />
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Bằng chứng {{ dispositionKind === 'destroy' ? '(bắt buộc)' : '(khuyến nghị)' }}</Label>
-                    <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleDispositionEvidence" />
-                </div>
-                <div class="flex justify-end gap-2">
-                    <Button type="button" variant="outline" @click="closeDisposition">Hủy</Button>
-                    <Button type="submit" class="bg-rose-600 text-white hover:bg-rose-700" :disabled="isDisposing">Ghi nhận xử lý</Button>
-                </div>
-            </form>
-        </div>
-    </div>
-    </Teleport>
-
-    <Teleport to="body">
-    <div
-        v-if="showGrnForm"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5"
-        @click.self="showGrnForm = false"
-    >
-        <div
-            class="max-h-[95vh] w-full max-w-[1400px] overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-7"
-        >
-            <div class="mb-5 flex items-start justify-between gap-3">
-                <div>
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
-                    >
-                        Phiếu nhập nguyên liệu mới
-                    </p>
-                    <h2 class="mt-1 text-2xl font-black">
-                        Tạo GRN và ghi nhận hàng thực nhận
-                    </h2>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                        Mỗi dòng cần số lượng thực nhận, lô/HSD nếu có và vị trí
-                        cất hàng. Chênh lệch phải có lý do.
-                    </p>
-                </div>
-                <Button variant="ghost" size="icon" @click="showGrnForm = false"
-                    ><X class="size-4"
-                /></Button>
-            </div>
-            <form class="space-y-5" @submit.prevent="submitGrn">
-                <div class="grid gap-3 md:grid-cols-3">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Thời điểm nhận</Label
-                        ><Input
-                            v-model="grnForm.received_at"
-                            type="datetime-local"
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5 md:col-span-2">
-                        <Label>Đối chiếu đơn mua hàng (khuyến nghị)</Label
-                        ><select
-                            v-model="grnForm.purchase_order_id"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                            @change="onPurchaseOrderChange"
-                        >
-                            <option :value="null">Không gắn PO</option>
-                            <option
-                                v-for="order in purchaseOrders"
-                                :key="order.id"
-                                :value="order.id"
-                            >
-                                {{ order.po_number }} · {{ order.status }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid gap-3 md:grid-cols-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ký hiệu / mẫu số hóa đơn</Label>
-                        <Input v-model="grnForm.invoice_series" placeholder="01GTKT0/001" />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ngày hóa đơn</Label>
-                        <Input v-model="grnForm.invoice_date" type="date" />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Tổng tiền hóa đơn (đ)</Label>
-                        <Input v-model="grnForm.invoice_total_amount" type="number" min="0" step="1" />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Thuế GTGT (đ)</Label>
-                        <Input v-model="grnForm.vat_amount" type="number" min="0" step="1" />
-                    </div>
-                </div>
-                <div class="grid gap-3 md:grid-cols-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Đơn vị vận chuyển</Label>
-                        <Input v-model="grnForm.carrier_name" placeholder="Tên đơn vị / tài xế" />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Cửa / khu tiếp nhận</Label>
-                        <Input v-model="grnForm.receiving_dock" placeholder="Cửa nhập số 1" />
-                    </div>
-                    <div class="flex items-end md:col-span-2">
-                        <p class="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3 text-[11px] text-muted-foreground">Phiếu sẽ được gửi thẳng vào hàng đợi duyệt. Tồn kho chỉ tăng sau khi Trưởng kho hoặc người có thẩm quyền xác minh.</p>
-                    </div>
-                </div>
-                <div class="grid gap-3 md:grid-cols-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số phiếu giao hàng</Label
-                        ><Input
-                            v-model="grnForm.delivery_note_number"
-                            placeholder="DN-..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Số hóa đơn</Label
-                        ><Input
-                            v-model="grnForm.invoice_number"
-                            placeholder="INV-..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Biển số xe</Label
-                        ><Input
-                            v-model="grnForm.vehicle_number"
-                            placeholder="51A-..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Mã niêm phong</Label
-                        ><Input
-                            v-model="grnForm.seal_code"
-                            placeholder="SEAL-..."
-                        />
-                    </div>
-                </div>
-                <div class="grid gap-3 md:grid-cols-4">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nhiệt độ thấp nhất (°C)</Label>
-                        <Input v-model="grnForm.temperature_min_c" type="number" step="0.1" placeholder="Ví dụ 2" />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nhiệt độ cao nhất (°C)</Label>
-                        <Input v-model="grnForm.temperature_max_c" type="number" step="0.1" placeholder="Ví dụ 6" />
-                    </div>
-                    <div class="flex items-end md:col-span-2">
-                        <p class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground">Hàng tươi/kho lạnh sẽ không được xác minh nếu thiếu nhiệt độ nhận hàng.</p>
-                    </div>
-                </div>
-                <div class="rounded-2xl border border-border">
-                    <div
-                        class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/20 p-4"
-                    >
-                        <div>
-                            <p
-                                class="flex items-center gap-2 text-sm font-bold"
-                            >
-                                <PackageCheck class="size-4 text-orange-300" />
-                                Dòng hàng thực nhận
-                            </p>
-                            <p class="mt-1 text-[11px] text-muted-foreground">
-                                Nếu giao thiếu/thừa, nhập số thực tế và lý do
-                                ngay trên dòng.
-                            </p>
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            class="gap-1.5"
-                            @click="addGrnLine"
-                            ><Plus class="size-3.5" /> Thêm dòng</Button
-                        >
-                    </div>
-                    <div class="overflow-x-auto p-3">
-                        <table class="w-full min-w-[1250px] text-xs">
-                            <thead class="text-[10px] text-muted-foreground">
-                                <tr>
-                                    <th class="p-2 text-left">Nguyên liệu</th>
-                                    <th class="w-28 p-2 text-right">Dự kiến</th>
-                                    <th class="w-28 p-2 text-right">
-                                        Thực nhận
-                                    </th>
-                                    <th class="w-32 p-2 text-right">Đơn giá</th>
-                                    <th class="w-36 p-2">Số lô</th>
-                                    <th class="w-36 p-2">NSX</th>
-                                    <th class="w-36 p-2">HSD</th>
-                                    <th class="w-52 p-2">Vị trí cất</th>
-                                    <th class="w-56 p-2">Lý do chênh lệch</th>
-                                    <th class="w-12 p-2"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                <tr
-                                    v-for="(line, index) in grnForm.items"
-                                    :key="index"
-                                >
-                                    <td class="p-2">
-                                        <select
-                                            v-model="line.ingredient_id"
-                                            class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
-                                            @change="onIngredientChange(line)"
-                                        >
-                                            <option :value="null">
-                                                Chọn nguyên liệu
-                                            </option>
-                                            <option
-                                                v-for="ingredient in ingredients"
-                                                :key="ingredient.id"
-                                                :value="ingredient.id"
-                                            >
-                                                {{ ingredient.name
-                                                }}{{
-                                                    ingredient.sku
-                                                        ? ` · ${ingredient.sku}`
-                                                        : ''
-                                                }}
-                                            </option></select
-                                        ><span
-                                            class="mt-1 block text-[10px] text-muted-foreground"
-                                            >Đơn vị:
-                                            {{
-                                                ingredientUnit(
-                                                    line.ingredient_id,
-                                                )
-                                            }}</span
-                                        >
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.expected_qty"
-                                            type="number"
-                                            min="0"
-                                            step="0.001"
-                                            class="h-9 text-right text-xs"
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.actual_qty"
-                                            type="number"
-                                            min="0"
-                                            step="0.001"
-                                            class="h-9 text-right text-xs"
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.unit_cost"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            class="h-9 text-right text-xs"
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.lot_number"
-                                            class="h-9 text-xs"
-                                            placeholder="LOT-..."
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.manufactured_date"
-                                            type="date"
-                                            class="h-9 text-xs"
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.expiry_date"
-                                            type="date"
-                                            class="h-9 text-xs"
-                                        />
-                                    </td>
-                                    <td class="p-2">
-                                        <select
-                                            v-model="line.location_id"
-                                            class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
-                                        >
-                                            <option :value="null">
-                                                Chọn vị trí
-                                            </option>
-                                            <option
-                                                v-for="location in warehouseLocations"
-                                                :key="location.id"
-                                                :value="location.id"
-                                            >
-                                                {{ location.location_code }} ·
-                                                {{ location.zone
-                                                }}{{
-                                                    location.is_quarantine
-                                                        ? ' · Cách ly'
-                                                        : ''
-                                                }}
-                                            </option>
-                                        </select>
-                                    </td>
-                                    <td class="p-2">
-                                        <Input
-                                            v-model="line.discrepancy_reason"
-                                            class="h-9 text-xs"
-                                            placeholder="Bắt buộc nếu lệch"
-                                        />
-                                    </td>
-                                    <td class="p-2 text-right">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            class="size-8 text-rose-300"
-                                            title="Xóa dòng"
-                                            @click="removeGrnLine(index)"
-                                            ><X class="size-4"
-                                        /></Button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Ghi chú phiếu</Label
-                        ><textarea
-                            v-model="grnForm.notes"
-                            rows="3"
-                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Tình trạng xe, niêm phong, nhiệt độ, biên bản giao nhận..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Hóa đơn / ảnh giao nhận</Label
-                        ><input
+                        <input
                             type="file"
                             multiple
                             accept="image/*,.pdf"
                             class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs"
-                            @change="handleGrnFiles"
+                            @change="handleConfirmEvidence"
                         />
-                        <select
-                            v-model="grnDocumentType"
-                            class="h-9 rounded-md border border-input bg-background px-3 text-xs"
-                        >
-                            <option value="invoice">Hóa đơn</option>
-                            <option value="delivery_note">Phiếu giao hàng</option>
-                            <option value="qc">Biên bản QC</option>
-                            <option value="receiving_photo">Ảnh giao nhận</option>
-                            <option value="other">Chứng từ khác</option>
-                        </select>
-                        <div
-                            v-if="grnFiles.length"
-                            class="mt-1 flex flex-wrap gap-1.5"
-                        >
-                            <span
-                                v-for="(file, index) in grnFiles"
-                                :key="`${file.name}-${index}`"
-                                class="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] text-foreground"
-                                ><span class="max-w-[220px] truncate">{{
-                                    file.name
-                                }}</span
-                                ><button
-                                    type="button"
-                                    class="text-rose-300"
-                                    @click="removeGrnFile(index)"
-                                >
-                                    <X class="size-3" /></button
-                            ></span>
-                        </div>
                     </div>
-                </div>
-                <div
-                    v-if="grnErrors.length"
-                    class="rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs text-rose-200"
-                >
-                    <p class="mb-2 flex items-center gap-2 font-bold">
-                        <AlertTriangle class="size-4" /> Chưa thể tạo phiếu
+                    <div class="flex flex-col gap-1.5">
+                        <Label>{{
+                            discrepancyItems.length
+                                ? 'Giải trình bắt buộc'
+                                : 'Ghi chú xác minh'
+                        }}</Label
+                        ><textarea
+                            v-model="confirmNotes"
+                            rows="4"
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            :placeholder="
+                                discrepancyItems.length
+                                    ? 'Nêu nguyên nhân thiếu/thừa, biên bản, hướng xử lý...'
+                                    : 'Ghi nhận tình trạng thực tế khi nhập hàng...'
+                            "
+                        />
+                    </div>
+                    <p
+                        v-if="confirmError"
+                        class="rounded-lg bg-rose-500/10 p-3 text-xs text-rose-300"
+                    >
+                        {{ confirmError }}
                     </p>
-                    <ul class="list-disc space-y-1 pl-5">
-                        <li v-for="error in grnErrors" :key="error">
-                            {{ error }}
-                        </li>
-                    </ul>
-                </div>
-                <div
-                    class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
-                >
-                    <p class="max-w-xl text-[11px] text-muted-foreground">
-                        Phiếu có chênh lệch sẽ ở trạng thái chờ xác minh, chưa
-                        cộng vào tồn kho. Sau khi được xác minh, hệ thống sẽ tạo
-                        giao dịch nhập, lô hàng và cập nhật tồn Kho Tổng.
-                    </p>
-                    <div class="flex gap-2">
+                    <div class="flex justify-end gap-2">
                         <Button
                             type="button"
                             variant="outline"
-                            @click="showGrnForm = false"
+                            @click="closeConfirm"
                             >Hủy</Button
                         ><Button
                             type="submit"
                             class="gap-1.5 bg-orange-600 text-white hover:bg-orange-700"
-                            :disabled="isSubmittingGrn"
-                            ><ClipboardCheck class="size-4" />
+                            :disabled="isProcessing === confirming.id"
+                            ><CheckCircle2 class="size-4" />
                             {{
-                                isSubmittingGrn
-                                    ? 'Đang lưu...'
-                                    : 'Tạo phiếu nhập nguyên liệu'
+                                isProcessing === confirming.id
+                                    ? 'Đang hạch toán...'
+                                    : 'Xác minh & nhập kho'
                             }}</Button
                         >
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
-    </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div
+            v-if="rejecting"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+            @click.self="closeReject"
+        >
+            <div
+                class="w-full max-w-xl rounded-3xl border border-red-400/25 bg-background p-6 shadow-2xl"
+            >
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-red-400 uppercase"
+                        >
+                            Từ chối phiếu nhập
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            {{ rejecting.voucher_code }}
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Phiếu bị từ chối sẽ không tạo giao dịch, lô hàng
+                            hoặc cộng tồn kho.
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeReject"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-4" @submit.prevent="rejectVoucher">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Lý do từ chối / yêu cầu bổ sung</Label>
+                        <textarea
+                            v-model="rejectReason"
+                            rows="5"
+                            required
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Thiếu hóa đơn, sai số lô, chênh lệch chưa có biên bản..."
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeReject"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="bg-red-600 text-white hover:bg-red-700"
+                            :disabled="isRejecting"
+                            >{{
+                                isRejecting ? 'Đang lưu...' : 'Từ chối phiếu'
+                            }}</Button
+                        >
+                    </div>
+                </form>
+            </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div
+            v-if="dispositionVoucher"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+            @click.self="closeDisposition"
+        >
+            <div
+                class="w-full max-w-xl rounded-3xl border border-rose-400/25 bg-background p-6 shadow-2xl"
+            >
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                        >
+                            Xử lý lô không đạt
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            {{ dispositionVoucher.voucher_code }}
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Lô này chưa được cộng vào tồn kho.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        @click="closeDisposition"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-4" @submit.prevent="disposeReceiving">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Hướng xử lý</Label>
+                        <select
+                            v-model="dispositionKind"
+                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                            <option value="return_supplier">
+                                Trả nhà cung cấp
+                            </option>
+                            <option value="destroy">Tiêu hủy</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Lý do / biên bản</Label>
+                        <textarea
+                            v-model="dispositionReason"
+                            rows="4"
+                            required
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Nêu rõ lý do, số biên bản, người bàn giao..."
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            >Bằng chứng
+                            {{
+                                dispositionKind === 'destroy'
+                                    ? '(bắt buộc)'
+                                    : '(khuyến nghị)'
+                            }}</Label
+                        >
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*,.pdf"
+                            class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs"
+                            @change="handleDispositionEvidence"
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeDisposition"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="submit"
+                            class="bg-rose-600 text-white hover:bg-rose-700"
+                            :disabled="isDisposing"
+                            >Ghi nhận xử lý</Button
+                        >
+                    </div>
+                </form>
+            </div>
+        </div>
+    </Teleport>
+
+    <Teleport to="body">
+        <div
+            v-if="showGrnForm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5"
+            @click.self="showGrnForm = false"
+        >
+            <div
+                class="max-h-[95vh] w-full max-w-[1400px] overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-7"
+            >
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
+                        >
+                            Phiếu nhập nguyên liệu mới
+                        </p>
+                        <h2 class="mt-1 text-2xl font-black">
+                            Tạo GRN và ghi nhận hàng thực nhận
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Mỗi dòng cần số lượng thực nhận, lô/HSD nếu có và vị
+                            trí cất hàng. Chênh lệch phải có lý do.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        @click="showGrnForm = false"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-5" @submit.prevent="submitGrn">
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Thời điểm nhận</Label
+                            ><Input
+                                v-model="grnForm.received_at"
+                                type="datetime-local"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5 md:col-span-2">
+                            <Label>Đối chiếu đơn mua hàng (khuyến nghị)</Label
+                            ><select
+                                v-model="grnForm.purchase_order_id"
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                @change="onPurchaseOrderChange"
+                            >
+                                <option :value="null">Không gắn PO</option>
+                                <option
+                                    v-for="order in purchaseOrders"
+                                    :key="order.id"
+                                    :value="order.id"
+                                >
+                                    {{ order.po_number }} · {{ order.status }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ký hiệu / mẫu số hóa đơn</Label>
+                            <Input
+                                v-model="grnForm.invoice_series"
+                                placeholder="01GTKT0/001"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ngày hóa đơn</Label>
+                            <Input v-model="grnForm.invoice_date" type="date" />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Tổng tiền hóa đơn (đ)</Label>
+                            <Input
+                                v-model="grnForm.invoice_total_amount"
+                                type="number"
+                                min="0"
+                                step="1"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Thuế GTGT (đ)</Label>
+                            <Input
+                                v-model="grnForm.vat_amount"
+                                type="number"
+                                min="0"
+                                step="1"
+                            />
+                        </div>
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Đơn vị vận chuyển</Label>
+                            <Input
+                                v-model="grnForm.carrier_name"
+                                placeholder="Tên đơn vị / tài xế"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Cửa / khu tiếp nhận</Label>
+                            <Input
+                                v-model="grnForm.receiving_dock"
+                                placeholder="Cửa nhập số 1"
+                            />
+                        </div>
+                        <div class="flex items-end md:col-span-2">
+                            <p
+                                class="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3 text-[11px] text-muted-foreground"
+                            >
+                                Phiếu sẽ được gửi thẳng vào hàng đợi duyệt. Tồn
+                                kho chỉ tăng sau khi Trưởng kho hoặc người có
+                                thẩm quyền xác minh.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số phiếu giao hàng</Label
+                            ><Input
+                                v-model="grnForm.delivery_note_number"
+                                placeholder="DN-..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Số hóa đơn</Label
+                            ><Input
+                                v-model="grnForm.invoice_number"
+                                placeholder="INV-..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Biển số xe</Label
+                            ><Input
+                                v-model="grnForm.vehicle_number"
+                                placeholder="51A-..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Mã niêm phong</Label
+                            ><Input
+                                v-model="grnForm.seal_code"
+                                placeholder="SEAL-..."
+                            />
+                        </div>
+                    </div>
+                    <div class="grid gap-3 md:grid-cols-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nhiệt độ thấp nhất (°C)</Label>
+                            <Input
+                                v-model="grnForm.temperature_min_c"
+                                type="number"
+                                step="0.1"
+                                placeholder="Ví dụ 2"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nhiệt độ cao nhất (°C)</Label>
+                            <Input
+                                v-model="grnForm.temperature_max_c"
+                                type="number"
+                                step="0.1"
+                                placeholder="Ví dụ 6"
+                            />
+                        </div>
+                        <div class="flex items-end md:col-span-2">
+                            <p
+                                class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground"
+                            >
+                                Hàng tươi/kho lạnh sẽ không được xác minh nếu
+                                thiếu nhiệt độ nhận hàng.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-border">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/20 p-4"
+                        >
+                            <div>
+                                <p
+                                    class="flex items-center gap-2 text-sm font-bold"
+                                >
+                                    <PackageCheck
+                                        class="size-4 text-orange-300"
+                                    />
+                                    Dòng hàng thực nhận
+                                </p>
+                                <p
+                                    class="mt-1 text-[11px] text-muted-foreground"
+                                >
+                                    Nếu giao thiếu/thừa, nhập số thực tế và lý
+                                    do ngay trên dòng.
+                                </p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="gap-1.5"
+                                @click="addGrnLine"
+                                ><Plus class="size-3.5" /> Thêm dòng</Button
+                            >
+                        </div>
+                        <div class="overflow-x-auto p-3">
+                            <table class="w-full min-w-[1250px] text-xs">
+                                <thead
+                                    class="text-[10px] text-muted-foreground"
+                                >
+                                    <tr>
+                                        <th class="p-2 text-left">
+                                            Nguyên liệu
+                                        </th>
+                                        <th class="w-28 p-2 text-right">
+                                            Dự kiến
+                                        </th>
+                                        <th class="w-28 p-2 text-right">
+                                            Thực nhận
+                                        </th>
+                                        <th class="w-32 p-2 text-right">
+                                            Đơn giá
+                                        </th>
+                                        <th class="w-36 p-2">Số lô</th>
+                                        <th class="w-36 p-2">NSX</th>
+                                        <th class="w-36 p-2">HSD</th>
+                                        <th class="w-52 p-2">Vị trí cất</th>
+                                        <th class="w-56 p-2">
+                                            Lý do chênh lệch
+                                        </th>
+                                        <th class="w-12 p-2"></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr
+                                        v-for="(line, index) in grnForm.items"
+                                        :key="index"
+                                    >
+                                        <td class="p-2">
+                                            <select
+                                                v-model="line.ingredient_id"
+                                                class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                                @change="
+                                                    onIngredientChange(line)
+                                                "
+                                            >
+                                                <option :value="null">
+                                                    Chọn nguyên liệu
+                                                </option>
+                                                <option
+                                                    v-for="ingredient in ingredients"
+                                                    :key="ingredient.id"
+                                                    :value="ingredient.id"
+                                                >
+                                                    {{ ingredient.name
+                                                    }}{{
+                                                        ingredient.sku
+                                                            ? ` · ${ingredient.sku}`
+                                                            : ''
+                                                    }}
+                                                </option></select
+                                            ><span
+                                                class="mt-1 block text-[10px] text-muted-foreground"
+                                                >Đơn vị:
+                                                {{
+                                                    ingredientUnit(
+                                                        line.ingredient_id,
+                                                    )
+                                                }}</span
+                                            >
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.expected_qty"
+                                                type="number"
+                                                min="0"
+                                                step="0.001"
+                                                class="h-9 text-right text-xs"
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.actual_qty"
+                                                type="number"
+                                                min="0"
+                                                step="0.001"
+                                                class="h-9 text-right text-xs"
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.unit_cost"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                class="h-9 text-right text-xs"
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.lot_number"
+                                                class="h-9 text-xs"
+                                                placeholder="LOT-..."
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.manufactured_date"
+                                                type="date"
+                                                class="h-9 text-xs"
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="line.expiry_date"
+                                                type="date"
+                                                class="h-9 text-xs"
+                                            />
+                                        </td>
+                                        <td class="p-2">
+                                            <select
+                                                v-model="line.location_id"
+                                                class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                            >
+                                                <option :value="null">
+                                                    Chọn vị trí
+                                                </option>
+                                                <option
+                                                    v-for="location in warehouseLocations"
+                                                    :key="location.id"
+                                                    :value="location.id"
+                                                >
+                                                    {{ location.location_code }}
+                                                    · {{ location.zone
+                                                    }}{{
+                                                        location.is_quarantine
+                                                            ? ' · Cách ly'
+                                                            : ''
+                                                    }}
+                                                </option>
+                                            </select>
+                                        </td>
+                                        <td class="p-2">
+                                            <Input
+                                                v-model="
+                                                    line.discrepancy_reason
+                                                "
+                                                class="h-9 text-xs"
+                                                placeholder="Bắt buộc nếu lệch"
+                                            />
+                                        </td>
+                                        <td class="p-2 text-right">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                class="size-8 text-rose-300"
+                                                title="Xóa dòng"
+                                                @click="removeGrnLine(index)"
+                                                ><X class="size-4"
+                                            /></Button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ghi chú phiếu</Label
+                            ><textarea
+                                v-model="grnForm.notes"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Tình trạng xe, niêm phong, nhiệt độ, biên bản giao nhận..."
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Hóa đơn / ảnh giao nhận</Label
+                            ><input
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf"
+                                class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs"
+                                @change="handleGrnFiles"
+                            />
+                            <select
+                                v-model="grnDocumentType"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs"
+                            >
+                                <option value="invoice">Hóa đơn</option>
+                                <option value="delivery_note">
+                                    Phiếu giao hàng
+                                </option>
+                                <option value="qc">Biên bản QC</option>
+                                <option value="receiving_photo">
+                                    Ảnh giao nhận
+                                </option>
+                                <option value="other">Chứng từ khác</option>
+                            </select>
+                            <div
+                                v-if="grnFiles.length"
+                                class="mt-1 flex flex-wrap gap-1.5"
+                            >
+                                <span
+                                    v-for="(file, index) in grnFiles"
+                                    :key="`${file.name}-${index}`"
+                                    class="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] text-foreground"
+                                    ><span class="max-w-[220px] truncate">{{
+                                        file.name
+                                    }}</span
+                                    ><button
+                                        type="button"
+                                        class="text-rose-300"
+                                        @click="removeGrnFile(index)"
+                                    >
+                                        <X class="size-3" /></button
+                                ></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        v-if="grnErrors.length"
+                        class="rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs text-rose-200"
+                    >
+                        <p class="mb-2 flex items-center gap-2 font-bold">
+                            <AlertTriangle class="size-4" /> Chưa thể tạo phiếu
+                        </p>
+                        <ul class="list-disc space-y-1 pl-5">
+                            <li v-for="error in grnErrors" :key="error">
+                                {{ error }}
+                            </li>
+                        </ul>
+                    </div>
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+                    >
+                        <p class="max-w-xl text-[11px] text-muted-foreground">
+                            Phiếu có chênh lệch sẽ ở trạng thái chờ xác minh,
+                            chưa cộng vào tồn kho. Sau khi được xác minh, hệ
+                            thống sẽ tạo giao dịch nhập, lô hàng và cập nhật tồn
+                            Kho Tổng.
+                        </p>
+                        <div class="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showGrnForm = false"
+                                >Hủy</Button
+                            ><Button
+                                type="submit"
+                                class="gap-1.5 bg-orange-600 text-white hover:bg-orange-700"
+                                :disabled="isSubmittingGrn"
+                                ><ClipboardCheck class="size-4" />
+                                {{
+                                    isSubmittingGrn
+                                        ? 'Đang lưu...'
+                                        : 'Tạo phiếu nhập nguyên liệu'
+                                }}</Button
+                            >
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
     </Teleport>
 </template>

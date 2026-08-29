@@ -81,8 +81,8 @@ const completeRecall = async (recall: any) => {
     );
 
     if (notes === null) {
-return;
-}
+        return;
+    }
 
     isProcessing.value = true;
 
@@ -106,10 +106,12 @@ return;
     <Head title="Thu hồi Lô Khẩn cấp" />
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <div
-            class="flex flex-col justify-between gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-red-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white backdrop-blur-md md:flex-row md:items-center"
+            class="flex flex-col justify-between gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-red-50/60 p-4 text-slate-900 shadow-xs backdrop-blur-md sm:p-5 md:flex-row md:items-center dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white"
         >
             <div class="flex items-center gap-3.5">
-                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300 backdrop-blur-md">
+                <div
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 backdrop-blur-md dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300"
+                >
                     <ShieldAlert class="size-5" />
                 </div>
                 <div>
@@ -118,18 +120,30 @@ return;
                     >
                         An toàn nguyên vật liệu
                     </span>
-                    <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">Thu hồi Lô Khẩn cấp</h1>
-                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
-                        Khóa lô lỗi, truy vết ảnh hưởng và ghi nhận xử lý trên toàn
-                        chuỗi nhà hàng.
+                    <h1
+                        class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
+                    >
+                        Thu hồi Lô Khẩn cấp
+                    </h1>
+                    <p
+                        class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400"
+                    >
+                        Khóa lô lỗi, truy vết ảnh hưởng và ghi nhận xử lý trên
+                        toàn chuỗi nhà hàng.
                     </p>
                 </div>
             </div>
             <div
-                class="rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50 shrink-0"
+                class="shrink-0 rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50"
             >
-                <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Lệnh thu hồi</div>
-                <div class="font-extrabold text-slate-900 dark:text-white text-base">
+                <div
+                    class="text-[9px] font-bold tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                >
+                    Lệnh thu hồi
+                </div>
+                <div
+                    class="text-base font-extrabold text-slate-900 dark:text-white"
+                >
                     {{ recallOrders.length }}
                 </div>
             </div>

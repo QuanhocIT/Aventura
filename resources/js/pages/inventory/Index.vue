@@ -822,8 +822,6 @@ const handleAutoPo = () => {
     );
 };
 
-
-
 // ── Reconcile State ────────────────────────────────────────────────────────────
 const reconcileSearch = ref('');
 const reconcileNotes = ref('');
@@ -1040,10 +1038,6 @@ const zeroCostIngredients = computed(() =>
     ),
 );
 
-
-
-
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const page = usePage();
 const vnd = (v: number) => new Intl.NumberFormat('vi-VN').format(v) + 'đ';
@@ -1186,10 +1180,6 @@ const submitRecipe = () => {
         onError: () => toast.error('Có lỗi khi lưu công thức.'),
     });
 };
-
-
-
-
 
 // ── Khóa lô / thu hồi ──────────────────────────────────────────────────────────
 const isOwnerRole = computed(() => {
@@ -2735,12 +2725,18 @@ const recallBatch = (batchId: number) => {
                                         ).slice(0, 6)"
                                         :key="suggestion.ingredient_id"
                                         type="button"
-                                        :disabled="(getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0"
+                                        :disabled="
+                                            (getCentralIngredient(
+                                                suggestion.ingredient_id,
+                                            )?.stock ?? 0) <= 0
+                                        "
                                         :class="[
                                             'flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition',
-                                            (getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0
-                                                ? 'border-slate-200 bg-slate-100/60 opacity-50 grayscale cursor-not-allowed dark:border-slate-800 dark:bg-slate-900/30'
-                                                : 'border-border bg-background/60 hover:border-violet-400 hover:bg-violet-500/10'
+                                            (getCentralIngredient(
+                                                suggestion.ingredient_id,
+                                            )?.stock ?? 0) <= 0
+                                                ? 'cursor-not-allowed border-slate-200 bg-slate-100/60 opacity-50 grayscale dark:border-slate-800 dark:bg-slate-900/30'
+                                                : 'border-border bg-background/60 hover:border-violet-400 hover:bg-violet-500/10',
                                         ]"
                                         @click="
                                             addSuggestedIngredient(suggestion)
@@ -2765,7 +2761,14 @@ const recallBatch = (batchId: number) => {
                                                 }}</span
                                             >
                                         </span>
-                                        <span v-if="(getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0" class="shrink-0 text-[10px] font-bold text-rose-500">
+                                        <span
+                                            v-if="
+                                                (getCentralIngredient(
+                                                    suggestion.ingredient_id,
+                                                )?.stock ?? 0) <= 0
+                                            "
+                                            class="shrink-0 text-[10px] font-bold text-rose-500"
+                                        >
                                             Hết
                                         </span>
                                         <Plus
@@ -2847,7 +2850,7 @@ const recallBatch = (batchId: number) => {
                                             'group relative rounded-2xl border p-3 text-left transition',
                                             ingredient.stock <= 0
                                                 ? 'border-slate-200 bg-slate-100/60 opacity-50 grayscale dark:border-slate-800 dark:bg-slate-900/30'
-                                                : 'border-border bg-background/40 hover:border-emerald-500/50 hover:bg-emerald-500/5'
+                                                : 'border-border bg-background/40 hover:border-emerald-500/50 hover:bg-emerald-500/5',
                                         ]"
                                     >
                                         <button
@@ -2868,7 +2871,7 @@ const recallBatch = (batchId: number) => {
                                                     'mb-3 flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold',
                                                     ingredient.stock <= 0
                                                         ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                                        : 'bg-emerald-500/10 text-emerald-600'
+                                                        : 'bg-emerald-500/10 text-emerald-600',
                                                 ]"
                                                 >{{
                                                     ingredient.name
@@ -2897,7 +2900,7 @@ const recallBatch = (batchId: number) => {
                                                     'mt-2 block text-xs font-semibold',
                                                     ingredient.stock <= 0
                                                         ? 'font-bold text-rose-600 dark:text-rose-400'
-                                                        : 'text-emerald-600 dark:text-emerald-400'
+                                                        : 'text-emerald-600 dark:text-emerald-400',
                                                 ]"
                                                 >Tồn Kho Tổng:
                                                 {{
@@ -2968,7 +2971,9 @@ const recallBatch = (batchId: number) => {
                             </div>
 
                             <div v-else class="space-y-3">
-                                <div class="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                                <div
+                                    class="max-h-[360px] space-y-2 overflow-y-auto pr-1"
+                                >
                                     <div
                                         v-for="line in centralRequestForm.items"
                                         :key="line.ingredient_id"
@@ -3016,7 +3021,9 @@ const recallBatch = (batchId: number) => {
                                                 <Trash2 class="size-3.5" />
                                             </button>
                                         </div>
-                                        <div class="mt-2 flex items-center gap-2">
+                                        <div
+                                            class="mt-2 flex items-center gap-2"
+                                        >
                                             <Minus
                                                 class="size-3.5 text-muted-foreground"
                                             />
@@ -3045,7 +3052,9 @@ const recallBatch = (batchId: number) => {
                                     </div>
                                 </div>
 
-                                <div class="flex items-center justify-between gap-2 border-t border-border pt-4">
+                                <div
+                                    class="flex items-center justify-between gap-2 border-t border-border pt-4"
+                                >
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -3062,7 +3071,9 @@ const recallBatch = (batchId: number) => {
                                         @click="confirmCentralSelection"
                                     >
                                         <Send class="mr-1.5 size-3.5" />
-                                        Xác nhận gửi yêu cầu ({{ centralRequestForm.items.length }})
+                                        Xác nhận gửi yêu cầu ({{
+                                            centralRequestForm.items.length
+                                        }})
                                     </Button>
                                 </div>
                             </div>
@@ -3273,7 +3284,6 @@ const recallBatch = (batchId: number) => {
                 </Card>
             </template>
         </template>
-
 
         <!-- ══ TAB: KIỂM KÊ & ĐỐI SOÁT KHO ══════════════════════════════════════ -->
         <template v-if="activeTab === 'reconcile'">

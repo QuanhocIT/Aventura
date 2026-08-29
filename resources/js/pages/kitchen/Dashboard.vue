@@ -122,11 +122,15 @@ const submitKitchenWaste = () => {
             ingredient_id: wasteForm.value.ingredient_id,
             quantity: wasteForm.value.quantity,
             waste_category: wasteForm.value.waste_category,
-            notes: wasteForm.value.notes ? `[Báo cáo từ Bếp] ${wasteForm.value.notes}` : '[Báo cáo từ Bếp]',
+            notes: wasteForm.value.notes
+                ? `[Báo cáo từ Bếp] ${wasteForm.value.notes}`
+                : '[Báo cáo từ Bếp]',
         },
         {
             onSuccess: () => {
-                toast.success('Đã gửi báo cáo cho Quản lý chi nhánh và Chủ quán! Sau khi được phê duyệt, hệ thống sẽ tự động trừ kho và tính chi phí.');
+                toast.success(
+                    'Đã gửi báo cáo cho Quản lý chi nhánh và Chủ quán! Sau khi được phê duyệt, hệ thống sẽ tự động trừ kho và tính chi phí.',
+                );
                 showWasteModal.value = false;
                 wasteForm.value = {
                     ingredient_id: '',
@@ -136,7 +140,9 @@ const submitKitchenWaste = () => {
                 };
             },
             onError: (errors: Record<string, any>) => {
-                const msg = Object.values(errors)[0] || 'Lỗi khi gửi báo cáo nguyên liệu hỏng.';
+                const msg =
+                    Object.values(errors)[0] ||
+                    'Lỗi khi gửi báo cáo nguyên liệu hỏng.';
                 toast.error(String(msg));
             },
             onFinish: () => {
@@ -171,7 +177,10 @@ const countPendingItemsForSelected = computed(() => {
 
     return activePendingItems.value
         .filter((i) => i.product_name === name)
-        .reduce((total, item) => total + Math.max(0, Math.floor(item.quantity)), 0);
+        .reduce(
+            (total, item) => total + Math.max(0, Math.floor(item.quantity)),
+            0,
+        );
 });
 
 const submitCancelItem = () => {
@@ -182,7 +191,8 @@ const submitCancelItem = () => {
     if (
         cancelScope.value === 'single' &&
         (cancelQuantity.value < 1 ||
-            cancelQuantity.value > Math.floor(selectedCancelItem.value.quantity))
+            cancelQuantity.value >
+                Math.floor(selectedCancelItem.value.quantity))
     ) {
         toast.error(
             `Số phần hủy phải từ 1 đến ${Math.floor(selectedCancelItem.value.quantity)}.`,
@@ -263,7 +273,8 @@ const handleResumeProduct = (productId: number) => {
 
 // ── Tạm ngưng món theo RIÊNG chi nhánh + duyệt mở lại ──────────────────────────
 const isOwnerOrManager = computed(() => {
-    const roles = ((usePage().props.auth as any)?.user?.roles ?? []) as string[];
+    const roles = ((usePage().props.auth as any)?.user?.roles ??
+        []) as string[];
 
     return roles.some((r) => ['owner', 'super_admin', 'manager'].includes(r));
 });
@@ -272,7 +283,10 @@ const isOwnerOrManager = computed(() => {
 const pauseBranch = (product: Product, minutes?: number, reason?: string) => {
     const finalReason =
         reason ??
-        window.prompt(`Lý do tạm ngưng món "${product.name}" tại chi nhánh này:`, '') ??
+        window.prompt(
+            `Lý do tạm ngưng món "${product.name}" tại chi nhánh này:`,
+            '',
+        ) ??
         '';
 
     if (finalReason.trim().length < 3) {
@@ -416,7 +430,9 @@ watch(
             );
         optimisticStartedPreparingItemIds.value =
             optimisticStartedPreparingItemIds.value.filter((id) => {
-                const item = newVal.find((pendingItem) => pendingItem.id === id);
+                const item = newVal.find(
+                    (pendingItem) => pendingItem.id === id,
+                );
 
                 return Boolean(item && !item.started_preparing_at);
             });
@@ -573,9 +589,13 @@ async function triggerCallWaiter(item: any) {
         await axios.post(`/orders/${item.order_id}/call-waiter`, {
             item_name: item.product_name || item.name || '',
         });
-        toast.success(`🛎️ Đã réo phục vụ ra lấy món "${item.product_name || item.name}" (Bàn ${item.table_name})!`);
+        toast.success(
+            `🛎️ Đã réo phục vụ ra lấy món "${item.product_name || item.name}" (Bàn ${item.table_name})!`,
+        );
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Không thể gửi tín hiệu gọi phục vụ.');
+        toast.error(
+            e.response?.data?.message || 'Không thể gửi tín hiệu gọi phục vụ.',
+        );
     } finally {
         callingWaiter.value[item.id] = false;
     }
@@ -931,7 +951,7 @@ onMounted(() => {
             }, delay - timeSinceLastReload);
         }
     };
-void throttledReload;
+    void throttledReload;
 
     const kitchenEventBatcher = createEventBatcher((events) => {
         console.log(
@@ -1378,24 +1398,27 @@ onUnmounted(() => {
                                 <div class="flex items-center justify-between">
                                     <div class="min-w-0">
                                         <CardTitle
-                                        class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
-                                    >
-                                        <span
-                                            class="inline-block h-2.5 w-2.5 rounded-full"
-                                            :class="{
-                                                'animate-ping bg-red-500':
-                                                    tableUrgency[tableName] ===
-                                                    'critical',
-                                                'bg-amber-500':
-                                                    tableUrgency[tableName] ===
-                                                    'warn',
-                                                'bg-emerald-500':
-                                                    tableUrgency[tableName] ===
-                                                    'ok',
-                                            }"
+                                            class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
                                         >
-                                        </span>
-                                        Bàn: {{ tableName }}
+                                            <span
+                                                class="inline-block h-2.5 w-2.5 rounded-full"
+                                                :class="{
+                                                    'animate-ping bg-red-500':
+                                                        tableUrgency[
+                                                            tableName
+                                                        ] === 'critical',
+                                                    'bg-amber-500':
+                                                        tableUrgency[
+                                                            tableName
+                                                        ] === 'warn',
+                                                    'bg-emerald-500':
+                                                        tableUrgency[
+                                                            tableName
+                                                        ] === 'ok',
+                                                }"
+                                            >
+                                            </span>
+                                            Bàn: {{ tableName }}
                                         </CardTitle>
                                     </div>
 
@@ -1496,7 +1519,11 @@ onUnmounted(() => {
                                                         : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                                                 "
                                             >
-                                                {{ item.status === 'preparing' ? 'Đang chế biến' : 'Chờ chế biến' }}
+                                                {{
+                                                    item.status === 'preparing'
+                                                        ? 'Đang chế biến'
+                                                        : 'Chờ chế biến'
+                                                }}
                                             </Badge>
                                         </div>
 
@@ -1564,7 +1591,9 @@ onUnmounted(() => {
                                     </div>
 
                                     <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
-                                    <div class="flex items-center gap-2 shrink-0">
+                                    <div
+                                        class="flex shrink-0 items-center gap-2"
+                                    >
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -1704,7 +1733,9 @@ onUnmounted(() => {
                                     }"
                                 >
                                     <div class="min-w-0 flex-1">
-                                        <div class="flex flex-col items-start gap-0.5">
+                                        <div
+                                            class="flex flex-col items-start gap-0.5"
+                                        >
                                             <span
                                                 class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
                                             >
@@ -1781,7 +1812,9 @@ onUnmounted(() => {
                                     </div>
 
                                     <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
-                                    <div class="flex items-center gap-2 shrink-0">
+                                    <div
+                                        class="flex shrink-0 items-center gap-2"
+                                    >
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -1934,9 +1967,9 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Nút hoàn thành phục vụ & Réo phục vụ -->
-                        <div class="flex items-center gap-1.5 shrink-0">
+                        <div class="flex shrink-0 items-center gap-1.5">
                             <Button
-                                class="h-10 px-2.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-sm transition-all hover:bg-amber-600 flex items-center gap-1"
+                                class="flex h-10 items-center gap-1 rounded-xl bg-amber-500 px-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-amber-600"
                                 :disabled="callingWaiter[item.id]"
                                 @click="triggerCallWaiter(item)"
                                 title="Bật âm báo réo phục vụ ra lấy món"
@@ -2085,7 +2118,11 @@ onUnmounted(() => {
                                         <div
                                             class="flex items-center justify-between text-[11px] font-bold text-slate-500"
                                         >
-                                            <span>{{ p.branch_paused ? 'Tạm ngưng (chi nhánh này):' : 'Mở bán lại sau:' }}</span>
+                                            <span>{{
+                                                p.branch_paused
+                                                    ? 'Tạm ngưng (chi nhánh này):'
+                                                    : 'Mở bán lại sau:'
+                                            }}</span>
                                             <span
                                                 v-if="!p.branch_paused"
                                                 class="flex animate-pulse items-center gap-1 font-black text-indigo-600 dark:text-indigo-400"
@@ -2100,23 +2137,32 @@ onUnmounted(() => {
                                             </span>
                                         </div>
                                         <p
-                                            v-if="p.branch_paused && p.pause_reason"
+                                            v-if="
+                                                p.branch_paused &&
+                                                p.pause_reason
+                                            "
                                             class="text-[10px] text-slate-400"
-                                        >{{ p.pause_reason }}</p>
+                                        >
+                                            {{ p.pause_reason }}
+                                        </p>
 
                                         <!-- Tạm ngưng riêng chi nhánh: mở lại phải DUYỆT -->
                                         <template v-if="p.branch_paused">
                                             <div
                                                 v-if="p.reopen_requested"
                                                 class="rounded-lg bg-amber-50 px-2 py-1 text-center text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                                            >⏳ Đã đề nghị mở lại — chờ Quản lý/Chủ duyệt</div>
+                                            >
+                                                ⏳ Đã đề nghị mở lại — chờ Quản
+                                                lý/Chủ duyệt
+                                            </div>
                                             <Button
                                                 v-if="isOwnerOrManager"
                                                 size="sm"
                                                 class="flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
                                                 @click="approveReopen(p.id)"
                                             >
-                                                <RotateCcw class="size-3" /> Duyệt mở lại
+                                                <RotateCcw class="size-3" />
+                                                Duyệt mở lại
                                             </Button>
                                             <Button
                                                 v-else-if="!p.reopen_requested"
@@ -2177,8 +2223,11 @@ onUnmounted(() => {
                                                     >...</Button
                                                 >
                                             </div>
-                                            <p class="text-[9px] text-slate-400">
-                                                Chỉ tạm ngưng ở chi nhánh này · cần lý do
+                                            <p
+                                                class="text-[9px] text-slate-400"
+                                            >
+                                                Chỉ tạm ngưng ở chi nhánh này ·
+                                                cần lý do
                                             </p>
                                         </div>
 
@@ -2257,122 +2306,164 @@ onUnmounted(() => {
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
-        
-        <div
-            v-if="showWasteModal"
-            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
-            @click.self="showWasteModal = false"
-        >
-            <div class="flex min-h-full items-center justify-center">
-                <div class="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
-                    <div class="flex items-center justify-between border-b border-border pb-4">
-                        <div class="flex items-center gap-2.5">
-                            <div class="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
-                                <AlertTriangle class="size-5" />
-                            </div>
-                            <div>
-                                <h3 class="text-base font-bold text-foreground">Báo Cáo Nguyên Liệu Hỏng / Thất Thoát</h3>
-                                <p class="text-xs text-muted-foreground">Gửi Quản lý chi nhánh và Chủ quán phê duyệt để trừ kho và tính toán lãng phí</p>
-                            </div>
-                        </div>
-                        <button
-                            @click="showWasteModal = false"
-                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+            <div
+                v-if="showWasteModal"
+                class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+                @click.self="showWasteModal = false"
+            >
+                <div class="flex min-h-full items-center justify-center">
+                    <div
+                        class="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl"
+                    >
+                        <div
+                            class="flex items-center justify-between border-b border-border pb-4"
                         >
-                            ✕
-                        </button>
-                    </div>
-
-                    <div class="mt-4 space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-foreground mb-1.5">
-                                Nguyên liệu gặp sự cố <span class="text-rose-500">*</span>
-                            </label>
-                            <select
-                                v-model="wasteForm.ingredient_id"
-                                class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                            >
-                                <option value="" disabled>-- Chọn nguyên liệu từ danh sách kho --</option>
-                                <option
-                                    v-for="ing in (ingredients || [])"
-                                    :key="ing.id"
-                                    :value="ing.id"
+                            <div class="flex items-center gap-2.5">
+                                <div
+                                    class="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500"
                                 >
-                                    {{ ing.name }} {{ ing.unit_symbol ? '(' + ing.unit_symbol + ')' : '' }}
-                                </option>
-                            </select>
+                                    <AlertTriangle class="size-5" />
+                                </div>
+                                <div>
+                                    <h3
+                                        class="text-base font-bold text-foreground"
+                                    >
+                                        Báo Cáo Nguyên Liệu Hỏng / Thất Thoát
+                                    </h3>
+                                    <p class="text-xs text-muted-foreground">
+                                        Gửi Quản lý chi nhánh và Chủ quán phê
+                                        duyệt để trừ kho và tính toán lãng phí
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                @click="showWasteModal = false"
+                                class="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                            >
+                                ✕
+                            </button>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="mt-4 space-y-4">
                             <div>
-                                <label class="block text-xs font-bold text-foreground mb-1.5">
-                                    Số lượng bị hỏng/thất thoát <span class="text-rose-500">*</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    step="any"
-                                    min="0.001"
-                                    v-model="wasteForm.quantity"
-                                    placeholder="Ví dụ: 0.5"
-                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-foreground mb-1.5">
-                                    Loại sự cố / Nguyên nhân
+                                <label
+                                    class="mb-1.5 block text-xs font-bold text-foreground"
+                                >
+                                    Nguyên liệu gặp sự cố
+                                    <span class="text-rose-500">*</span>
                                 </label>
                                 <select
-                                    v-model="wasteForm.waste_category"
-                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                    v-model="wasteForm.ingredient_id"
+                                    class="h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
                                 >
-                                    <option value="spoilage">🥬 Nguyên liệu hỏng / Ôi thiu</option>
-                                    <option value="cooking_loss">🍳 Hao hụt / Vỡ đổ chế biến</option>
-                                    <option value="expired">⏳ Hết hạn sử dụng</option>
-                                    <option value="damaged">📦 Hư hỏng / Dụng cụ vỡ</option>
-                                    <option value="other">❓ Khác</option>
+                                    <option value="" disabled>
+                                        -- Chọn nguyên liệu từ danh sách kho --
+                                    </option>
+                                    <option
+                                        v-for="ing in ingredients || []"
+                                        :key="ing.id"
+                                        :value="ing.id"
+                                    >
+                                        {{ ing.name }}
+                                        {{
+                                            ing.unit_symbol
+                                                ? '(' + ing.unit_symbol + ')'
+                                                : ''
+                                        }}
+                                    </option>
                                 </select>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="mb-1.5 block text-xs font-bold text-foreground"
+                                    >
+                                        Số lượng bị hỏng/thất thoát
+                                        <span class="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        min="0.001"
+                                        v-model="wasteForm.quantity"
+                                        placeholder="Ví dụ: 0.5"
+                                        class="h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        class="mb-1.5 block text-xs font-bold text-foreground"
+                                    >
+                                        Loại sự cố / Nguyên nhân
+                                    </label>
+                                    <select
+                                        v-model="wasteForm.waste_category"
+                                        class="h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                    >
+                                        <option value="spoilage">
+                                            🥬 Nguyên liệu hỏng / Ôi thiu
+                                        </option>
+                                        <option value="cooking_loss">
+                                            🍳 Hao hụt / Vỡ đổ chế biến
+                                        </option>
+                                        <option value="expired">
+                                            ⏳ Hết hạn sử dụng
+                                        </option>
+                                        <option value="damaged">
+                                            📦 Hư hỏng / Dụng cụ vỡ
+                                        </option>
+                                        <option value="other">❓ Khác</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="mb-1.5 block text-xs font-bold text-foreground"
+                                >
+                                    Mô tả sự cố chi tiết cho Quản lý và Chủ quán
+                                </label>
+                                <textarea
+                                    v-model="wasteForm.notes"
+                                    rows="3"
+                                    placeholder="Ví dụ: Sơ chế thái thịt bị rơi xuống đất 500g, nguyên liệu hỏng không thể dùng..."
+                                    class="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                ></textarea>
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-foreground mb-1.5">
-                                Mô tả sự cố chi tiết cho Quản lý và Chủ quán
-                            </label>
-                            <textarea
-                                v-model="wasteForm.notes"
-                                rows="3"
-                                placeholder="Ví dụ: Sơ chế thái thịt bị rơi xuống đất 500g, nguyên liệu hỏng không thể dùng..."
-                                class="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                            ></textarea>
+                        <div
+                            class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4"
+                        >
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="h-9 rounded-xl text-xs font-bold"
+                                @click="showWasteModal = false"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                size="sm"
+                                class="h-9 rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                :disabled="isSubmittingWaste"
+                                @click="submitKitchenWaste"
+                            >
+                                {{
+                                    isSubmittingWaste
+                                        ? 'Đang gửi...'
+                                        : 'Gửi Báo Cáo Cho Quản Lý & Chủ Quán'
+                                }}
+                            </Button>
                         </div>
-                    </div>
-
-                    <div class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            class="h-9 rounded-xl text-xs font-bold"
-                            @click="showWasteModal = false"
-                        >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            size="sm"
-                            class="h-9 rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            :disabled="isSubmittingWaste"
-                            @click="submitKitchenWaste"
-                        >
-                            {{ isSubmittingWaste ? 'Đang gửi...' : 'Gửi Báo Cáo Cho Quản Lý & Chủ Quán' }}
-                        </Button>
                     </div>
                 </div>
             </div>
-        </div>
-        
         </Transition>
 
-    <!-- ── MODAL HỦY MÓN BẾP CHÍNH GIỮA MÀN HÌNH ── -->
+        <!-- ── MODAL HỦY MÓN BẾP CHÍNH GIỮA MÀN HÌNH ── -->
         <Transition
             enter-active-class="transition duration-200 ease-out"
             enter-from-class="opacity-0 scale-95"
@@ -2381,156 +2472,231 @@ onUnmounted(() => {
             leave-from-class="opacity-100 scale-100"
             leave-to-class="opacity-0 scale-95"
         >
-        
-        <div
-            v-if="showCancelItemModal && selectedCancelItem"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-        >
             <div
-                class="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                v-if="showCancelItemModal && selectedCancelItem"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
             >
-                <!-- Modal Header -->
-                <div class="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
-                    <div class="flex items-center gap-3">
-                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
-                            <XCircle class="size-6" />
+                <div
+                    class="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <!-- Modal Header -->
+                    <div
+                        class="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800"
+                    >
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
+                            >
+                                <XCircle class="size-6" />
+                            </div>
+                            <div>
+                                <h3
+                                    class="text-base font-black text-slate-900 dark:text-white"
+                                >
+                                    Xác Nhận Hủy Món Chế Biến
+                                </h3>
+                                <p
+                                    class="mt-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400"
+                                >
+                                    {{ selectedCancelItem.product_name }} • Bàn:
+                                    {{ selectedCancelItem.table_name }}
+                                </p>
+                            </div>
                         </div>
+                        <button
+                            type="button"
+                            class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                            @click="showCancelItemModal = false"
+                        >
+                            <X class="size-5" />
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="mt-4 space-y-4">
                         <div>
-                            <h3 class="text-base font-black text-slate-900 dark:text-white">
-                                Xác Nhận Hủy Món Chế Biến
-                            </h3>
-                            <p class="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
-                                {{ selectedCancelItem.product_name }} • Bàn: {{ selectedCancelItem.table_name }}
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-                        @click="showCancelItemModal = false"
-                    >
-                        <X class="size-5" />
-                    </button>
-                </div>
-
-                <!-- Modal Body -->
-                <div class="mt-4 space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                            Phạm vi hủy món:
-                        </label>
-                        <div class="space-y-2.5">
-                            <!-- Option 1: Single item -->
                             <label
-                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
-                                :class="
-                                    cancelScope === 'single'
-                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
-                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
-                                "
+                                class="mb-2 block text-xs font-bold text-slate-700 dark:text-slate-300"
                             >
-                                <input
-                                    type="radio"
-                                    name="cancel_scope"
-                                    value="single"
-                                    v-model="cancelScope"
-                                    class="mt-1 size-4 accent-rose-600"
-                                />
-                                <div>
-                                    <p class="text-xs font-bold text-slate-900 dark:text-white">
-                                        Chỉ hủy món này ở Bàn {{ selectedCancelItem.table_name }}
-                                    </p>
-                                    <p class="text-[11px] text-muted-foreground mt-0.5">
-                                        Có {{ Math.floor(selectedCancelItem.quantity) }} phần "{{ selectedCancelItem.product_name }}" trong đơn hiện tại.
-                                    </p>
-                                    <div class="mt-3 flex items-center gap-3">
-                                        <label class="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                                            Số phần cần hủy
-                                        </label>
-                                        <input
-                                            v-model.number="cancelQuantity"
-                                            type="number"
-                                            min="1"
-                                            :max="Math.floor(selectedCancelItem.quantity)"
-                                            :disabled="cancelScope !== 'single'"
-                                            class="h-9 w-20 rounded-lg border border-rose-200 bg-white px-2 text-center text-sm font-black text-rose-600 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/50 dark:bg-slate-950"
-                                        />
-                                        <span class="text-[11px] text-muted-foreground">
-                                            Còn lại {{ Math.max(0, Math.floor(selectedCancelItem.quantity) - cancelQuantity) }} phần
-                                        </span>
+                                Phạm vi hủy món:
+                            </label>
+                            <div class="space-y-2.5">
+                                <!-- Option 1: Single item -->
+                                <label
+                                    class="flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition-all"
+                                    :class="
+                                        cancelScope === 'single'
+                                            ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                            : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cancel_scope"
+                                        value="single"
+                                        v-model="cancelScope"
+                                        class="mt-1 size-4 accent-rose-600"
+                                    />
+                                    <div>
+                                        <p
+                                            class="text-xs font-bold text-slate-900 dark:text-white"
+                                        >
+                                            Chỉ hủy món này ở Bàn
+                                            {{ selectedCancelItem.table_name }}
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[11px] text-muted-foreground"
+                                        >
+                                            Có
+                                            {{
+                                                Math.floor(
+                                                    selectedCancelItem.quantity,
+                                                )
+                                            }}
+                                            phần "{{
+                                                selectedCancelItem.product_name
+                                            }}" trong đơn hiện tại.
+                                        </p>
+                                        <div
+                                            class="mt-3 flex items-center gap-3"
+                                        >
+                                            <label
+                                                class="text-[11px] font-bold text-slate-600 dark:text-slate-300"
+                                            >
+                                                Số phần cần hủy
+                                            </label>
+                                            <input
+                                                v-model.number="cancelQuantity"
+                                                type="number"
+                                                min="1"
+                                                :max="
+                                                    Math.floor(
+                                                        selectedCancelItem.quantity,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    cancelScope !== 'single'
+                                                "
+                                                class="h-9 w-20 rounded-lg border border-rose-200 bg-white px-2 text-center text-sm font-black text-rose-600 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/50 dark:bg-slate-950"
+                                            />
+                                            <span
+                                                class="text-[11px] text-muted-foreground"
+                                            >
+                                                Còn lại
+                                                {{
+                                                    Math.max(
+                                                        0,
+                                                        Math.floor(
+                                                            selectedCancelItem.quantity,
+                                                        ) - cancelQuantity,
+                                                    )
+                                                }}
+                                                phần
+                                            </span>
+                                        </div>
                                     </div>
-                                </div>
-                            </label>
+                                </label>
 
-                            <!-- Option 2: All pending items -->
+                                <!-- Option 2: All pending items -->
+                                <label
+                                    class="flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition-all"
+                                    :class="
+                                        cancelScope === 'all_pending'
+                                            ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                            : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cancel_scope"
+                                        value="all_pending"
+                                        v-model="cancelScope"
+                                        class="mt-1 size-4 accent-rose-600"
+                                    />
+                                    <div>
+                                        <p
+                                            class="text-xs font-bold text-rose-600 dark:text-rose-400"
+                                        >
+                                            Hủy TOÀN BỘ món "{{
+                                                selectedCancelItem.product_name
+                                            }}" ở tất cả đơn chờ
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-[11px] text-muted-foreground"
+                                        >
+                                            Hủy tất cả
+                                            {{ countPendingItemsForSelected }}
+                                            phần món này trên toàn bộ màn hình
+                                            điều phối bếp.
+                                        </p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
                             <label
-                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
-                                :class="
-                                    cancelScope === 'all_pending'
-                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
-                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
-                                "
+                                class="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300"
                             >
-                                <input
-                                    type="radio"
-                                    name="cancel_scope"
-                                    value="all_pending"
-                                    v-model="cancelScope"
-                                    class="mt-1 size-4 accent-rose-600"
-                                />
-                                <div>
-                                    <p class="text-xs font-bold text-rose-600 dark:text-rose-400">
-                                        Hủy TOÀN BỘ món "{{ selectedCancelItem.product_name }}" ở tất cả đơn chờ
-                                    </p>
-                                    <p class="text-[11px] text-muted-foreground mt-0.5">
-                                        Hủy tất cả {{ countPendingItemsForSelected }} phần món này trên toàn bộ màn hình điều phối bếp.
-                                    </p>
-                                </div>
+                                Lý do hủy món
+                                <span
+                                    class="text-xs font-normal text-muted-foreground"
+                                    >(Ghi rõ để báo Thu ngân & Order)</span
+                                >:
                             </label>
+                            <textarea
+                                v-model="cancelReason"
+                                rows="3"
+                                placeholder="Ví dụ: Hết nguyên liệu, món bị hỏng, bếp quá tải không kịp chế biến, khách báo đổi món..."
+                                class="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                            ></textarea>
+                        </div>
+
+                        <div
+                            class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-[11px] font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                        >
+                            🔔 <strong>Lưu ý:</strong> Khi bạn bấm xác nhận, hệ
+                            thống sẽ lập tức phát
+                            <strong
+                                >chuông báo động & thông báo khẩn cấp</strong
+                            >
+                            đến Thu ngân, Nhân viên Order và Chủ cửa hàng để báo
+                            khách đổi món.
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                            Lý do hủy món <span class="text-xs text-muted-foreground font-normal">(Ghi rõ để báo Thu ngân & Order)</span>:
-                        </label>
-                        <textarea
-                            v-model="cancelReason"
-                            rows="3"
-                            placeholder="Ví dụ: Hết nguyên liệu, món bị hỏng, bếp quá tải không kịp chế biến, khách báo đổi món..."
-                            class="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
-                        ></textarea>
-                    </div>
-
-                    <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-[11px] font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
-                        🔔 <strong>Lưu ý:</strong> Khi bạn bấm xác nhận, hệ thống sẽ lập tức phát <strong>chuông báo động & thông báo khẩn cấp</strong> đến Thu ngân, Nhân viên Order và Chủ cửa hàng để báo khách đổi món.
-                    </div>
-                </div>
-
-                <!-- Modal Footer -->
-                <div class="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        class="h-10 rounded-xl px-4 text-xs font-bold"
-                        @click="showCancelItemModal = false"
+                    <!-- Modal Footer -->
+                    <div
+                        class="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800"
                     >
-                        Trở lại / Hủy
-                    </Button>
-                    <Button
-                        type="button"
-                        size="sm"
-                        class="h-10 rounded-xl bg-rose-600 px-4 font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
-                        :disabled="isSubmittingCancel || cancelReason.trim().length < 3"
-                        @click="submitCancelItem"
-                    >
-                        {{ isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Món' }}
-                    </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="h-10 rounded-xl px-4 text-xs font-bold"
+                            @click="showCancelItemModal = false"
+                        >
+                            Trở lại / Hủy
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="h-10 rounded-xl bg-rose-600 px-4 font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                            :disabled="
+                                isSubmittingCancel ||
+                                cancelReason.trim().length < 3
+                            "
+                            @click="submitCancelItem"
+                        >
+                            {{
+                                isSubmittingCancel
+                                    ? 'Đang xử lý...'
+                                    : 'Xác Nhận Hủy Món'
+                            }}
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
-        
         </Transition>
     </Teleport>
 </template>

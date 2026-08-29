@@ -64,7 +64,9 @@ const resolutionForm = ref({
 
 const eligibleEmployees = computed(() => {
     const type = resolutionForm.value.responsible_type;
-    const branchId = Number(selectedDispute.value?.supply_request?.to_branch_id ?? 0);
+    const branchId = Number(
+        selectedDispute.value?.supply_request?.to_branch_id ?? 0,
+    );
 
     if (type === 'transporter' || type === 'unknown') {
         return [];
@@ -74,11 +76,18 @@ const eligibleEmployees = computed(() => {
         const roleNames = (employee.roles ?? []).map((role: any) => role.name);
 
         if (type === 'warehouse_staff') {
-            return roleNames.includes('warehouse_staff') && employee.warehouse_staff_status !== 'inactive';
+            return (
+                roleNames.includes('warehouse_staff') &&
+                employee.warehouse_staff_status !== 'inactive'
+            );
         }
 
-        return roleNames.some((role: string) => ['branch_staff', 'staff', 'manager'].includes(role))
-            && (!branchId || Number(employee.branch_id) === branchId);
+        return (
+            roleNames.some((role: string) =>
+                ['branch_staff', 'staff', 'manager'].includes(role),
+            ) &&
+            (!branchId || Number(employee.branch_id) === branchId)
+        );
     });
 });
 
@@ -104,7 +113,12 @@ const getStatusLabel = (status: string) => {
 watch(
     () => resolutionForm.value.responsible_type,
     () => {
-        if (!eligibleEmployees.value.some((employee) => employee.id === resolutionForm.value.responsible_user_id)) {
+        if (
+            !eligibleEmployees.value.some(
+                (employee) =>
+                    employee.id === resolutionForm.value.responsible_user_id,
+            )
+        ) {
             resolutionForm.value.responsible_user_id = null;
         }
     },
@@ -211,26 +225,30 @@ const getResponsibleLabel = (type: string) => {
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <!-- Header -->
         <div
-            class="flex flex-col gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white backdrop-blur-md md:flex-row md:items-center md:justify-between"
+            class="flex flex-col gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs backdrop-blur-md sm:p-5 md:flex-row md:items-center md:justify-between dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white"
         >
             <div class="flex items-center gap-3.5">
                 <div
-                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300 backdrop-blur-md"
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 backdrop-blur-md dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300"
                 >
                     <ShieldAlert class="size-5" />
                 </div>
                 <div>
-                    <h1 class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
+                    <h1
+                        class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
+                    >
                         Quản Trị Siết Chặt Kho & Quy Trách Nhiệm
                     </h1>
-                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
+                    <p
+                        class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400"
+                    >
                         Bộ quy tắc siết chặt tài chính, xử lý bất đồng giao nhận
                         & bồi thường thất thoát
                     </p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="flex shrink-0 items-center gap-2">
                 <span
                     class="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100/80 px-2.5 py-0.5 text-[9px] font-extrabold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
                 >
@@ -433,7 +451,10 @@ const getResponsibleLabel = (type: string) => {
                                 </td>
                                 <td class="p-3">
                                     <span
-                                        v-if="disp.status === 'open' || disp.status === 'investigating'"
+                                        v-if="
+                                            disp.status === 'open' ||
+                                            disp.status === 'investigating'
+                                        "
                                         class="rounded-full border border-rose-300 bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
                                     >
                                         Chờ Xử Lý
@@ -462,7 +483,11 @@ const getResponsibleLabel = (type: string) => {
                                         <Gavel class="h-3.5 w-3.5" /> Quy Trách
                                         Nhiệm
                                     </Button>
-                                    <span v-else class="text-[11px] text-muted-foreground">Đã khóa xử lý</span>
+                                    <span
+                                        v-else
+                                        class="text-[11px] text-muted-foreground"
+                                        >Đã khóa xử lý</span
+                                    >
                                 </td>
                             </tr>
                         </tbody>
@@ -609,144 +634,152 @@ const getResponsibleLabel = (type: string) => {
 
         <!-- Resolve Dispute Modal -->
         <Teleport to="body">
-        <div
-            v-if="isResolveModalOpen && selectedDispute"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-        >
             <div
-                class="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+                v-if="isResolveModalOpen && selectedDispute"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="flex items-center justify-between border-b border-border bg-slate-950 p-5 text-white"
+                    class="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
                 >
-                    <div class="flex items-center gap-2">
-                        <Gavel class="h-6 w-6 text-rose-400" />
-                        <div>
-                            <h3 class="text-base font-bold">
-                                Xử Lý Biên Bản Bất Đồng Giao Nhận
-                            </h3>
-                            <p class="text-xs text-slate-300">
-                                Mã biên bản:
-                                <span
-                                    class="font-mono font-bold text-rose-300"
-                                    >{{ selectedDispute.dispute_code }}</span
-                                >
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        @click="isResolveModalOpen = false"
-                        class="rounded-lg p-1 text-slate-400 hover:text-white"
-                    >
-                        <X class="h-6 w-6" />
-                    </button>
-                </div>
-
-                <div class="space-y-5 p-6 text-xs">
                     <div
-                        class="space-y-1 rounded-xl border border-rose-900/50 bg-rose-950/20 p-3 text-rose-200"
+                        class="flex items-center justify-between border-b border-border bg-slate-950 p-5 text-white"
                     >
-                        <div>
-                            <strong>Nguyên liệu:</strong>
-                            {{ selectedDispute.ingredient?.name }}
+                        <div class="flex items-center gap-2">
+                            <Gavel class="h-6 w-6 text-rose-400" />
+                            <div>
+                                <h3 class="text-base font-bold">
+                                    Xử Lý Biên Bản Bất Đồng Giao Nhận
+                                </h3>
+                                <p class="text-xs text-slate-300">
+                                    Mã biên bản:
+                                    <span
+                                        class="font-mono font-bold text-rose-300"
+                                        >{{
+                                            selectedDispute.dispute_code
+                                        }}</span
+                                    >
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <strong>Số lượng chênh lệch:</strong> Thiếu
-                            {{ selectedDispute.discrepancy_quantity }} (Xuất
-                            {{ selectedDispute.dispatched_quantity }} - Nhận
-                            {{ selectedDispute.received_quantity }})
+                        <button
+                            @click="isResolveModalOpen = false"
+                            class="rounded-lg p-1 text-slate-400 hover:text-white"
+                        >
+                            <X class="h-6 w-6" />
+                        </button>
+                    </div>
+
+                    <div class="space-y-5 p-6 text-xs">
+                        <div
+                            class="space-y-1 rounded-xl border border-rose-900/50 bg-rose-950/20 p-3 text-rose-200"
+                        >
+                            <div>
+                                <strong>Nguyên liệu:</strong>
+                                {{ selectedDispute.ingredient?.name }}
+                            </div>
+                            <div>
+                                <strong>Số lượng chênh lệch:</strong> Thiếu
+                                {{ selectedDispute.discrepancy_quantity }} (Xuất
+                                {{ selectedDispute.dispatched_quantity }} - Nhận
+                                {{ selectedDispute.received_quantity }})
+                            </div>
+                            <div>
+                                <strong>Giá trị thiệt hại:</strong>
+                                <strong
+                                    class="ml-1 text-sm font-bold text-rose-100"
+                                    >{{
+                                        formatCurrency(
+                                            selectedDispute.financial_loss_amount,
+                                        )
+                                    }}</strong
+                                >
+                            </div>
                         </div>
+
                         <div>
-                            <strong>Giá trị thiệt hại:</strong>
-                            <strong
-                                class="ml-1 text-sm font-bold text-rose-100"
-                                >{{
-                                    formatCurrency(
-                                        selectedDispute.financial_loss_amount,
-                                    )
-                                }}</strong
+                            <label
+                                class="mb-1 block font-medium text-foreground"
+                                >Xác định Bên Chịu Trách Nhiệm</label
                             >
+                            <select
+                                v-model="resolutionForm.responsible_type"
+                                class="w-full rounded-lg border border-input bg-background p-2 font-medium text-foreground focus:outline-none"
+                            >
+                                <option value="transporter">
+                                    Đơn vị Vận chuyển / Tài xế giao hàng
+                                </option>
+                                <option value="warehouse_staff">
+                                    Nhân viên xuất Kho Tổng (Sai sót khi đóng
+                                    gói)
+                                </option>
+                                <option value="branch_staff">
+                                    Nhân viên nhận Kho Chi nhánh (Khai báo sai)
+                                </option>
+                                <option value="unknown">
+                                    Hao hụt rủi ro bất khả kháng
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block font-medium text-foreground"
+                                >Chọn Cá Nhân Bồi Thường Thiệt Hại (Nếu
+                                có)</label
+                            >
+                            <select
+                                v-model="resolutionForm.responsible_user_id"
+                                class="w-full rounded-lg border border-input bg-background p-2 font-medium text-foreground focus:outline-none"
+                            >
+                                <option :value="null">
+                                    -- Không gán cá nhân cụ thể --
+                                </option>
+                                <option
+                                    v-for="emp in eligibleEmployees"
+                                    :key="emp.id"
+                                    :value="emp.id"
+                                >
+                                    {{ emp.name }} ({{ emp.email }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1 block font-medium text-foreground"
+                                >Kết luận Điều tra & Biện Pháp Xử Lý (*)</label
+                            >
+                            <textarea
+                                v-model="resolutionForm.resolution_notes"
+                                rows="3"
+                                placeholder="Nhập nội dung kết luận xử lý, lý do bồi thường hoặc biên bản làm việc..."
+                                class="w-full rounded-lg border border-input bg-background p-2 text-xs text-foreground focus:outline-none"
+                            ></textarea>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="mb-1 block font-medium text-foreground"
-                            >Xác định Bên Chịu Trách Nhiệm</label
-                        >
-                        <select
-                            v-model="resolutionForm.responsible_type"
-                            class="w-full rounded-lg border border-input bg-background p-2 font-medium text-foreground focus:outline-none"
-                        >
-                            <option value="transporter">
-                                Đơn vị Vận chuyển / Tài xế giao hàng
-                            </option>
-                            <option value="warehouse_staff">
-                                Nhân viên xuất Kho Tổng (Sai sót khi đóng gói)
-                            </option>
-                            <option value="branch_staff">
-                                Nhân viên nhận Kho Chi nhánh (Khai báo sai)
-                            </option>
-                            <option value="unknown">
-                                Hao hụt rủi ro bất khả kháng
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="mb-1 block font-medium text-foreground"
-                            >Chọn Cá Nhân Bồi Thường Thiệt Hại (Nếu có)</label
-                        >
-                        <select
-                            v-model="resolutionForm.responsible_user_id"
-                            class="w-full rounded-lg border border-input bg-background p-2 font-medium text-foreground focus:outline-none"
-                        >
-                            <option :value="null">
-                                -- Không gán cá nhân cụ thể --
-                            </option>
-                            <option
-                                v-for="emp in eligibleEmployees"
-                                :key="emp.id"
-                                :value="emp.id"
-                            >
-                                {{ emp.name }} ({{ emp.email }})
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="mb-1 block font-medium text-foreground"
-                            >Kết luận Điều tra & Biện Pháp Xử Lý (*)</label
-                        >
-                        <textarea
-                            v-model="resolutionForm.resolution_notes"
-                            rows="3"
-                            placeholder="Nhập nội dung kết luận xử lý, lý do bồi thường hoặc biên bản làm việc..."
-                            class="w-full rounded-lg border border-input bg-background p-2 text-xs text-foreground focus:outline-none"
-                        ></textarea>
-                    </div>
-                </div>
-
-                <div
-                    class="flex items-center justify-between border-t border-border bg-muted/20 p-4"
-                >
-                    <Button
-                        @click="isResolveModalOpen = false"
-                        variant="ghost"
-                        size="sm"
-                        class="text-xs"
-                        >Hủy</Button
+                    <div
+                        class="flex items-center justify-between border-t border-border bg-muted/20 p-4"
                     >
-                    <Button
-                        @click="submitResolution"
-                        size="sm"
-                        :disabled="isProcessing"
-                        class="gap-1.5 bg-rose-600 text-xs font-semibold text-white hover:bg-rose-700"
-                    >
-                        <UserCheck class="h-4 w-4" /> Xác Nhận Quyết Định Xử Lý
-                    </Button>
+                        <Button
+                            @click="isResolveModalOpen = false"
+                            variant="ghost"
+                            size="sm"
+                            class="text-xs"
+                            >Hủy</Button
+                        >
+                        <Button
+                            @click="submitResolution"
+                            size="sm"
+                            :disabled="isProcessing"
+                            class="gap-1.5 bg-rose-600 text-xs font-semibold text-white hover:bg-rose-700"
+                        >
+                            <UserCheck class="h-4 w-4" /> Xác Nhận Quyết Định Xử
+                            Lý
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>
