@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, Plus, Pencil, Trash2, X, QrCode, Users, MapPin, Clock, AlertCircle, Move } from 'lucide-vue-next';
+import {
+    LayoutGrid,
+    Plus,
+    Pencil,
+    Trash2,
+    X,
+    QrCode,
+    Users,
+    MapPin,
+    Clock,
+    AlertCircle,
+    Move,
+} from 'lucide-vue-next';
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
@@ -263,8 +275,13 @@ const submitDelete = () => {
         return;
     }
 
-    if (deletingTable.value.status === 'occupied' || deletingTable.value.active_order) {
-        toast.error(`Không thể xóa bàn ${deletingTable.value.name} vì bàn đang có đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.`);
+    if (
+        deletingTable.value.status === 'occupied' ||
+        deletingTable.value.active_order
+    ) {
+        toast.error(
+            `Không thể xóa bàn ${deletingTable.value.name} vì bàn đang có đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.`,
+        );
         deletingTable.value = null;
 
         return;
@@ -276,7 +293,9 @@ const submitDelete = () => {
             toast.success('Đã xóa bàn thành công.');
         },
         onError: (errs: any) => {
-            toast.error(String(Object.values(errs)[0] ?? 'Có lỗi khi xóa bàn.'));
+            toast.error(
+                String(Object.values(errs)[0] ?? 'Có lỗi khi xóa bàn.'),
+            );
         },
     });
 };
@@ -451,7 +470,7 @@ const onDragStart = (table: Table, event: MouseEvent) => {
     const cardEl = event.currentTarget as HTMLElement;
     const parentEl = cardEl.parentElement as HTMLElement;
     const parentRect = parentEl.getBoundingClientRect();
-void parentRect;
+    void parentRect;
 
     // Drag offsets relative to percentage
     dragOffset.value = {
@@ -657,92 +676,99 @@ const vnd = (value: number) => {
 
         <!-- Add Area Modal -->
         <Teleport to="body">
-        <div
-            v-if="showAddArea"
-            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
-        >
-            <div class="flex min-h-full items-center justify-center">
-                <Card
-                    class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
-                >
-                    <CardHeader>
-                        <div class="flex items-center justify-between">
-                            <CardTitle class="text-base"
-                                >Tạo khu vực mới</CardTitle
-                            >
-                            <button
-                                @click="showAddArea = false"
-                                class="text-muted-foreground hover:text-foreground"
-                            >
-                                <X class="size-4" />
-                            </button>
-                        </div>
-                        <CardDescription
-                            >Ví dụ: Tầng trệt, Phòng VIP 1, Ban
-                            công...</CardDescription
-                        >
-                    </CardHeader>
-                    <CardContent>
-                        <form @submit.prevent="submitArea" class="space-y-4">
-                            <div class="grid gap-1.5">
-                                <Label
-                                    >Tên khu vực
-                                    <span class="text-rose-500">*</span></Label
+            <div
+                v-if="showAddArea"
+                class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
+            >
+                <div class="flex min-h-full items-center justify-center">
+                    <Card
+                        class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
+                    >
+                        <CardHeader>
+                            <div class="flex items-center justify-between">
+                                <CardTitle class="text-base"
+                                    >Tạo khu vực mới</CardTitle
                                 >
-                                <Input
-                                    v-model="areaForm.name"
-                                    placeholder="VD: Phòng VIP"
-                                    required
-                                    autofocus
-                                />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label
-                                    >Chi nhánh
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <select
-                                    v-model="areaForm.branch_id"
-                                    required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
-                                >
-                                    <option
-                                        v-for="branch in branches"
-                                        :key="branch.id"
-                                        :value="branch.id"
-                                    >
-                                        {{ branch.name }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="flex justify-end gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
+                                <button
                                     @click="showAddArea = false"
-                                    >Hủy</Button
+                                    class="text-muted-foreground hover:text-foreground"
                                 >
-                                <Button
-                                    type="submit"
-                                    class="bg-teal-650 text-white"
-                                    :disabled="areaForm.processing"
-                                >
-                                    {{
-                                        areaForm.processing
-                                            ? 'Đang tạo...'
-                                            : 'Tạo khu vực'
-                                    }}
-                                </Button>
+                                    <X class="size-4" />
+                                </button>
                             </div>
-                        </form>
-                    </CardContent>
-                </Card>
+                            <CardDescription
+                                >Ví dụ: Tầng trệt, Phòng VIP 1, Ban
+                                công...</CardDescription
+                            >
+                        </CardHeader>
+                        <CardContent>
+                            <form
+                                @submit.prevent="submitArea"
+                                class="space-y-4"
+                            >
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        >Tên khu vực
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        v-model="areaForm.name"
+                                        placeholder="VD: Phòng VIP"
+                                        required
+                                        autofocus
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        >Chi nhánh
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <select
+                                        v-model="areaForm.branch_id"
+                                        required
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                    >
+                                        <option
+                                            v-for="branch in branches"
+                                            :key="branch.id"
+                                            :value="branch.id"
+                                        >
+                                            {{ branch.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="flex justify-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        @click="showAddArea = false"
+                                        >Hủy</Button
+                                    >
+                                    <Button
+                                        type="submit"
+                                        class="bg-teal-650 text-white"
+                                        :disabled="areaForm.processing"
+                                    >
+                                        {{
+                                            areaForm.processing
+                                                ? 'Đang tạo...'
+                                                : 'Tạo khu vực'
+                                        }}
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
-        </div>
         </Teleport>
 
         <!-- Add Table Modal -->
-        
+
         <div
             v-if="showAddTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -855,10 +881,9 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
-        
 
         <!-- Edit Table Modal -->
-        
+
         <div
             v-if="editingTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -954,10 +979,9 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
-        
 
         <!-- Delete Confirm -->
-        
+
         <div
             v-if="deletingTable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -992,10 +1016,9 @@ const vnd = (value: number) => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <!-- QR Code Modal -->
-        
+
         <div
             v-if="selectedQrTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -1085,7 +1108,6 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
-        
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
             <!-- Left: Area list selection -->
@@ -1447,8 +1469,9 @@ const vnd = (value: number) => {
                                     :key="t.id"
                                     class="group relative cursor-pointer rounded-2xl border p-4 transition-all hover:shadow-md"
                                     :class="[
-                                        t.is_payment_requested || t.active_order?.is_payment_requested
-                                            ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40 shadow-md shadow-amber-500/10 dark:bg-amber-950/30'
+                                        t.is_payment_requested ||
+                                        t.active_order?.is_payment_requested
+                                            ? 'border-amber-500 bg-amber-50/60 shadow-md ring-2 shadow-amber-500/10 ring-amber-500/40 dark:bg-amber-950/30'
                                             : editingTable?.id === t.id
                                               ? 'border-teal-500 bg-teal-50/20 ring-2 ring-teal-500/30'
                                               : 'border-slate-100 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900',
@@ -1464,9 +1487,12 @@ const vnd = (value: number) => {
                                         <span
                                             class="mt-1 size-2 shrink-0 rounded-full"
                                             :class="
-                                                t.is_payment_requested || t.active_order?.is_payment_requested
-                                                    ? 'bg-amber-500 animate-ping'
-                                                    : statusConfig[t.status]?.dot
+                                                t.is_payment_requested ||
+                                                t.active_order
+                                                    ?.is_payment_requested
+                                                    ? 'animate-ping bg-amber-500'
+                                                    : statusConfig[t.status]
+                                                          ?.dot
                                             "
                                         />
                                     </div>
@@ -1484,15 +1510,21 @@ const vnd = (value: number) => {
                                         <span
                                             class="rounded-full px-2 py-0.5 text-[9px] font-semibold"
                                             :class="
-                                                t.is_payment_requested || t.active_order?.is_payment_requested
-                                                    ? 'bg-amber-500 text-white font-black animate-pulse shadow-xs shadow-amber-500/40'
-                                                    : statusConfig[t.status]?.color
+                                                t.is_payment_requested ||
+                                                t.active_order
+                                                    ?.is_payment_requested
+                                                    ? 'animate-pulse bg-amber-500 font-black text-white shadow-xs shadow-amber-500/40'
+                                                    : statusConfig[t.status]
+                                                          ?.color
                                             "
                                         >
                                             {{
-                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                t.is_payment_requested ||
+                                                t.active_order
+                                                    ?.is_payment_requested
                                                     ? '💳 Chờ thanh toán'
-                                                    : statusConfig[t.status]?.label
+                                                    : statusConfig[t.status]
+                                                          ?.label
                                             }}
                                         </span>
                                         <span

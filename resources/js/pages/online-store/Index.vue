@@ -38,8 +38,8 @@ const props = defineProps<{
 const branches = props.branches ?? [];
 const paymentMethods = props.paymentMethods ?? [];
 const paymentMethodKeys = paymentMethods.map((method) => method.key);
-const acceptedPayments = (props.config.accepted_payments ?? []).filter((key: string) =>
-    paymentMethodKeys.includes(key),
+const acceptedPayments = (props.config.accepted_payments ?? []).filter(
+    (key: string) => paymentMethodKeys.includes(key),
 );
 
 const page = usePage();
@@ -443,16 +443,22 @@ function submit() {
                 <!-- ── Right Column: Status Toggle & Shipping Rules (1/3 width) ── -->
                 <div class="space-y-6 lg:col-span-1">
                     <!-- Chi nhánh phục vụ -->
-                    <Card v-if="branches.length" class="overflow-hidden shadow-sm">
+                    <Card
+                        v-if="branches.length"
+                        class="overflow-hidden shadow-sm"
+                    >
                         <div
                             class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
                         >
-                            <h3 class="flex items-center gap-2 text-sm font-bold text-foreground">
+                            <h3
+                                class="flex items-center gap-2 text-sm font-bold text-foreground"
+                            >
                                 <Building2 class="size-4.5 text-blue-500" />
                                 Chi nhánh phục vụ
                             </h3>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                Đơn online sẽ trừ tồn kho và chuyển về chi nhánh này.
+                                Đơn online sẽ trừ tồn kho và chuyển về chi nhánh
+                                này.
                             </p>
                         </div>
                         <CardContent class="p-6">
@@ -465,10 +471,16 @@ function submit() {
                                     :key="branch.id"
                                     :value="branch.id"
                                 >
-                                    {{ branch.name }}{{ branch.code ? ` (${branch.code})` : '' }}
+                                    {{ branch.name
+                                    }}{{
+                                        branch.code ? ` (${branch.code})` : ''
+                                    }}
                                 </option>
                             </select>
-                            <p v-if="form.errors.branch_id" class="mt-2 text-xs text-rose-500">
+                            <p
+                                v-if="form.errors.branch_id"
+                                class="mt-2 text-xs text-rose-500"
+                            >
                                 {{ form.errors.branch_id }}
                             </p>
                         </CardContent>
@@ -479,12 +491,15 @@ function submit() {
                         <div
                             class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
                         >
-                            <h3 class="flex items-center gap-2 text-sm font-bold text-foreground">
+                            <h3
+                                class="flex items-center gap-2 text-sm font-bold text-foreground"
+                            >
                                 <CreditCard class="size-4.5 text-violet-500" />
                                 Phương thức thanh toán
                             </h3>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                Chỉ các phương thức được chọn mới xuất hiện khi khách đặt hàng.
+                                Chỉ các phương thức được chọn mới xuất hiện khi
+                                khách đặt hàng.
                             </p>
                         </div>
                         <CardContent class="space-y-2 p-6">
@@ -501,7 +516,10 @@ function submit() {
                                 />
                                 {{ method.name }}
                             </label>
-                            <p v-if="form.errors.accepted_payments" class="text-xs text-rose-500">
+                            <p
+                                v-if="form.errors.accepted_payments"
+                                class="text-xs text-rose-500"
+                            >
                                 {{ form.errors.accepted_payments }}
                             </p>
                         </CardContent>

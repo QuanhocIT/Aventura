@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { Search, Sparkles, ShoppingBag, Plus, Minus, Trash2, ChefHat, RefreshCw, AlertCircle, Lightbulb } from 'lucide-vue-next';
+import {
+    Search,
+    Sparkles,
+    ShoppingBag,
+    Plus,
+    Minus,
+    Trash2,
+    ChefHat,
+    RefreshCw,
+    AlertCircle,
+    Lightbulb,
+} from 'lucide-vue-next';
 import { ref, computed, watch, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
 import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -378,7 +384,8 @@ onMounted(() => {
                             @click="addToCart(product)"
                             :class="[
                                 'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-card transition-all duration-300 select-none dark:border-slate-800',
-                                product.is_out_of_stock || product.available_portions === 0
+                                product.is_out_of_stock ||
+                                product.available_portions === 0
                                     ? 'cursor-not-allowed opacity-50'
                                     : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:translate-y-0',
                             ]"
@@ -413,10 +420,17 @@ onMounted(() => {
                                     {{ formatCurrency(product.price) }}
                                 </span>
                                 <span
-                                    v-if="product.available_portions !== null && product.available_portions !== undefined"
+                                    v-if="
+                                        product.available_portions !== null &&
+                                        product.available_portions !== undefined
+                                    "
                                     class="text-[10px] font-semibold text-emerald-600"
                                 >
-                                    {{ product.available_portions > 0 ? `Còn ${product.available_portions} suất` : 'Hết món' }}
+                                    {{
+                                        product.available_portions > 0
+                                            ? `Còn ${product.available_portions} suất`
+                                            : 'Hết món'
+                                    }}
                                 </span>
                                 <div
                                     class="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600 transition-colors group-hover:bg-violet-600 group-hover:text-white dark:bg-violet-950/50 dark:text-violet-400 dark:group-hover:bg-violet-500"

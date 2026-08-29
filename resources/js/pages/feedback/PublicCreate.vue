@@ -9,6 +9,7 @@ import {
     Heart,
 } from 'lucide-vue-next';
 import { ref, onMounted } from 'vue';
+import { Label } from '@/components/ui/label';
 
 interface OrderContext {
     order_id: number;

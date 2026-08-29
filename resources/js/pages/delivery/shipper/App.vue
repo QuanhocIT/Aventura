@@ -425,7 +425,10 @@ onMounted(() => {
     startGps();
     // Flush offline queue every 25 seconds
     flushTimer = setInterval(flushQueue, 25_000) as unknown as number;
-    refreshTimer = setInterval(refreshCurrentBatch, 15_000) as unknown as number;
+    refreshTimer = setInterval(
+        refreshCurrentBatch,
+        15_000,
+    ) as unknown as number;
     // Flush any pending pings from previous session
     flushQueue();
 });
@@ -514,7 +517,8 @@ onUnmounted(() => {
                         <div>
                             <p class="font-semibold">Bạn có chuyến giao mới</p>
                             <p class="text-sm text-muted-foreground">
-                                Kiểm tra hàng và nhận chuyến trước khi bắt đầu giao.
+                                Kiểm tra hàng và nhận chuyến trước khi bắt đầu
+                                giao.
                             </p>
                         </div>
                         <Button class="w-full" @click="acceptBatch">
@@ -594,7 +598,10 @@ onUnmounted(() => {
                                 Chỉ đường
                             </Button>
                             <Button
-                                v-if="batchAccepted && nextStop.status === 'pending'"
+                                v-if="
+                                    batchAccepted &&
+                                    nextStop.status === 'pending'
+                                "
                                 size="sm"
                                 class="flex-1"
                                 :disabled="updatingId === nextStop.id"
@@ -604,7 +611,10 @@ onUnmounted(() => {
                                 Đã lấy hàng
                             </Button>
                             <Button
-                                v-if="batchAccepted && nextStop.status === 'picked_up'"
+                                v-if="
+                                    batchAccepted &&
+                                    nextStop.status === 'picked_up'
+                                "
                                 size="sm"
                                 variant="default"
                                 class="flex-1 bg-green-600 hover:bg-green-700"

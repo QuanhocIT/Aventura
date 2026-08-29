@@ -1,6 +1,20 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Users, Plus, Search, Printer, Pencil, Mail, Phone, Clock, X, UserCheck, AlertCircle, Gift, ArrowUpDown } from 'lucide-vue-next';
+import {
+    Users,
+    Plus,
+    Search,
+    Printer,
+    Pencil,
+    Mail,
+    Phone,
+    Clock,
+    X,
+    UserCheck,
+    AlertCircle,
+    Gift,
+    ArrowUpDown,
+} from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Pagination } from '@/components/super-admin';
@@ -863,8 +877,8 @@ const genderColors = {
                                 Đăng Ký Khách Hàng CRM Mới
                             </CardTitle>
                             <CardDescription
-                                >Khai báo hồ sơ khách hàng để tích lũy điểm thưởng
-                                và phục vụ remarketing.</CardDescription
+                                >Khai báo hồ sơ khách hàng để tích lũy điểm
+                                thưởng và phục vụ remarketing.</CardDescription
                             >
                         </div>
                         <button
@@ -894,7 +908,9 @@ const genderColors = {
                                 <div class="grid gap-1.5">
                                     <Label for="cust-phone"
                                         >Số điện thoại liên lạc
-                                        <span class="text-rose-500">*</span></Label
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
                                     >
                                     <Input
                                         id="cust-phone"
@@ -904,7 +920,9 @@ const genderColors = {
                                     />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label for="cust-email">Địa chỉ Email</Label>
+                                    <Label for="cust-email"
+                                        >Địa chỉ Email</Label
+                                    >
                                     <Input
                                         id="cust-email"
                                         type="email"
@@ -999,8 +1017,8 @@ const genderColors = {
                                 Chỉnh Sửa Hồ Sơ Khách Hàng
                             </CardTitle>
                             <CardDescription
-                                >Cập nhật lại thông tin cá nhân của khách hàng trên
-                                hệ thống CRM.</CardDescription
+                                >Cập nhật lại thông tin cá nhân của khách hàng
+                                trên hệ thống CRM.</CardDescription
                             >
                         </div>
                         <button
@@ -1025,13 +1043,18 @@ const genderColors = {
                                 <div class="grid gap-1.5">
                                     <Label
                                         >Số điện thoại liên lạc
-                                        <span class="text-rose-500">*</span></Label
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
                                     >
                                     <Input v-model="editForm.phone" required />
                                 </div>
                                 <div class="grid gap-1.5">
                                     <Label>Địa chỉ Email</Label>
-                                    <Input type="email" v-model="editForm.email" />
+                                    <Input
+                                        type="email"
+                                        v-model="editForm.email"
+                                    />
                                 </div>
                             </div>
 
@@ -1057,7 +1080,9 @@ const genderColors = {
                             </div>
 
                             <div class="grid gap-1.5">
-                                <Label>Ghi chú sở thích/thói quen ăn uống</Label>
+                                <Label
+                                    >Ghi chú sở thích/thói quen ăn uống</Label
+                                >
                                 <textarea
                                     v-model="editForm.notes"
                                     rows="3"
@@ -1072,10 +1097,11 @@ const genderColors = {
                                     class="mt-0.5 size-4 shrink-0 text-amber-600"
                                 />
                                 <p>
-                                    <strong>Lưu ý bảo mật:</strong> Mọi chỉnh sửa dữ
-                                    liệu khách hàng sẽ được ghi nhận và lưu vết đầy
-                                    đủ trong lịch sử hoạt động để phòng chống rủi ro
-                                    giả mạo thông tin điểm thưởng.
+                                    <strong>Lưu ý bảo mật:</strong> Mọi chỉnh
+                                    sửa dữ liệu khách hàng sẽ được ghi nhận và
+                                    lưu vết đầy đủ trong lịch sử hoạt động để
+                                    phòng chống rủi ro giả mạo thông tin điểm
+                                    thưởng.
                                 </p>
                             </div>
 

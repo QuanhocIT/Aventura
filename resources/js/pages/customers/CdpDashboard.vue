@@ -365,7 +365,9 @@ const triggerAutoVoucherCode = () => {
 <template>
     <Head title="Nền tảng CDP & Phân tích RFM" />
 
-    <div class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
+    <div
+        class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-6 p-6"
+    >
         <!-- HEADER -->
         <div
             class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
@@ -1419,11 +1421,12 @@ const triggerAutoVoucherCode = () => {
                             ✓
                         </div>
                         <CardTitle class="text-base text-emerald-600"
-                            >Chiến dịch Tiếp thị đã Khởi chạy thành công!</CardTitle
+                            >Chiến dịch Tiếp thị đã Khởi chạy thành
+                            công!</CardTitle
                         >
                         <CardDescription
-                            >Hệ thống CDP & SMS Gateway đã tiếp nhận kịch bản gửi
-                            hàng loạt.</CardDescription
+                            >Hệ thống CDP & SMS Gateway đã tiếp nhận kịch bản
+                            gửi hàng loạt.</CardDescription
                         >
                     </CardHeader>
                     <CardContent class="space-y-4 pt-4 text-left text-xs">
@@ -1431,7 +1434,9 @@ const triggerAutoVoucherCode = () => {
                             class="space-y-2.5 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:bg-slate-950"
                         >
                             <div class="flex justify-between">
-                                <span class="text-slate-500">Đối tượng nhận:</span>
+                                <span class="text-slate-500"
+                                    >Đối tượng nhận:</span
+                                >
                                 <span
                                     class="font-bold text-slate-800 dark:text-slate-200"
                                     >{{

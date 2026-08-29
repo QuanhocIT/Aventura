@@ -1150,161 +1150,168 @@ async function submitOrder() {
                 leave-to-class="opacity-0"
             >
                 <Teleport to="body">
-                <div
-                    v-if="showCart"
-                    class="fixed inset-0 z-50 flex items-end justify-center"
-                >
                     <div
-                        class="absolute inset-0"
-                        style="
-                            background: rgba(0, 0, 0, 0.55);
-                            backdrop-filter: blur(4px);
-                        "
-                        @click="showCart = false"
-                    ></div>
-                    <div
-                        class="relative w-full max-w-lg overflow-hidden"
-                        style="
-                            background: #fff;
-                            border-radius: 28px 28px 0 0;
-                            max-height: 82vh;
-                        "
+                        v-if="showCart"
+                        class="fixed inset-0 z-50 flex items-end justify-center"
                     >
-                        <div class="flex justify-center pt-3 pb-2">
-                            <div
-                                class="h-1 w-10 rounded-full"
-                                style="background: #e5e7eb"
-                            ></div>
-                        </div>
                         <div
-                            class="overflow-y-auto"
-                            style="max-height: calc(82vh - 20px)"
+                            class="absolute inset-0"
+                            style="
+                                background: rgba(0, 0, 0, 0.55);
+                                backdrop-filter: blur(4px);
+                            "
+                            @click="showCart = false"
+                        ></div>
+                        <div
+                            class="relative w-full max-w-lg overflow-hidden"
+                            style="
+                                background: #fff;
+                                border-radius: 28px 28px 0 0;
+                                max-height: 82vh;
+                            "
                         >
-                            <div
-                                class="sticky top-0 flex items-center justify-between border-b px-5 pt-2 pb-4"
-                                style="
-                                    background: #fff;
-                                    z-index: 1;
-                                    border-color: #f3f4f6;
-                                "
-                            >
-                                <div>
-                                    <h2
-                                        class="text-lg font-black text-slate-800"
-                                    >
-                                        Giỏ hàng của bạn
-                                    </h2>
-                                    <p class="text-xs text-slate-400">
-                                        {{ cartCount }} món đã chọn
-                                    </p>
-                                </div>
-                                <button
-                                    @click="showCart = false"
-                                    class="flex h-9 w-9 items-center justify-center rounded-full"
-                                    style="background: #f3f4f6"
-                                >
-                                    <X class="size-4 text-slate-500" />
-                                </button>
-                            </div>
-                            <div class="space-y-1 px-5 py-3">
+                            <div class="flex justify-center pt-3 pb-2">
                                 <div
-                                    v-for="item in cartItems"
-                                    :key="item.id"
-                                    class="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-slate-50"
+                                    class="h-1 w-10 rounded-full"
+                                    style="background: #e5e7eb"
+                                ></div>
+                            </div>
+                            <div
+                                class="overflow-y-auto"
+                                style="max-height: calc(82vh - 20px)"
+                            >
+                                <div
+                                    class="sticky top-0 flex items-center justify-between border-b px-5 pt-2 pb-4"
+                                    style="
+                                        background: #fff;
+                                        z-index: 1;
+                                        border-color: #f3f4f6;
+                                    "
                                 >
-                                    <div class="min-w-0 flex-1">
-                                        <p
-                                            class="truncate text-sm font-bold text-slate-800"
+                                    <div>
+                                        <h2
+                                            class="text-lg font-black text-slate-800"
                                         >
-                                            {{ item.name }}
+                                            Giỏ hàng của bạn
+                                        </h2>
+                                        <p class="text-xs text-slate-400">
+                                            {{ cartCount }} món đã chọn
                                         </p>
-                                        <p
-                                            class="text-xs font-semibold"
-                                            style="color: #6366f1"
-                                        >
-                                            {{
-                                                (
-                                                    item.price * item.quantity
-                                                ).toLocaleString()
-                                            }}đ
-                                        </p>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <button
-                                            @click="updateQuantity(item.id, -1)"
-                                            class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all active:scale-90"
-                                            style="
-                                                border-color: #e0e7ff;
-                                                color: #6366f1;
-                                            "
-                                        >
-                                            <Minus class="size-3.5" />
-                                        </button>
-                                        <span
-                                            class="w-6 text-center text-sm font-black text-slate-800"
-                                            >{{ item.quantity }}</span
-                                        >
-                                        <button
-                                            @click="updateQuantity(item.id, 1)"
-                                            class="flex h-8 w-8 items-center justify-center rounded-full text-white transition-all active:scale-90"
-                                            style="
-                                                background: linear-gradient(
-                                                    135deg,
-                                                    #6366f1,
-                                                    #8b5cf6
-                                                );
-                                            "
-                                        >
-                                            <Plus class="size-3.5" />
-                                        </button>
                                     </div>
                                     <button
-                                        @click="removeFromCart(item.id)"
-                                        class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-red-50"
+                                        @click="showCart = false"
+                                        class="flex h-9 w-9 items-center justify-center rounded-full"
+                                        style="background: #f3f4f6"
                                     >
-                                        <X class="size-3.5 text-red-400" />
+                                        <X class="size-4 text-slate-500" />
+                                    </button>
+                                </div>
+                                <div class="space-y-1 px-5 py-3">
+                                    <div
+                                        v-for="item in cartItems"
+                                        :key="item.id"
+                                        class="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-slate-50"
+                                    >
+                                        <div class="min-w-0 flex-1">
+                                            <p
+                                                class="truncate text-sm font-bold text-slate-800"
+                                            >
+                                                {{ item.name }}
+                                            </p>
+                                            <p
+                                                class="text-xs font-semibold"
+                                                style="color: #6366f1"
+                                            >
+                                                {{
+                                                    (
+                                                        item.price *
+                                                        item.quantity
+                                                    ).toLocaleString()
+                                                }}đ
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button
+                                                @click="
+                                                    updateQuantity(item.id, -1)
+                                                "
+                                                class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all active:scale-90"
+                                                style="
+                                                    border-color: #e0e7ff;
+                                                    color: #6366f1;
+                                                "
+                                            >
+                                                <Minus class="size-3.5" />
+                                            </button>
+                                            <span
+                                                class="w-6 text-center text-sm font-black text-slate-800"
+                                                >{{ item.quantity }}</span
+                                            >
+                                            <button
+                                                @click="
+                                                    updateQuantity(item.id, 1)
+                                                "
+                                                class="flex h-8 w-8 items-center justify-center rounded-full text-white transition-all active:scale-90"
+                                                style="
+                                                    background: linear-gradient(
+                                                        135deg,
+                                                        #6366f1,
+                                                        #8b5cf6
+                                                    );
+                                                "
+                                            >
+                                                <Plus class="size-3.5" />
+                                            </button>
+                                        </div>
+                                        <button
+                                            @click="removeFromCart(item.id)"
+                                            class="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-red-50"
+                                        >
+                                            <X class="size-3.5 text-red-400" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div
+                                    class="border-t px-5 pt-4 pb-8"
+                                    style="border-color: #f3f4f6"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <span
+                                            class="text-sm font-semibold text-slate-500"
+                                            >Tạm tính</span
+                                        >
+                                        <span
+                                            class="text-xl font-black text-slate-800"
+                                            >{{
+                                                subtotal.toLocaleString()
+                                            }}đ</span
+                                        >
+                                    </div>
+                                    <button
+                                        @click="
+                                            showCart = false;
+                                            showCheckout = true;
+                                        "
+                                        class="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black text-white transition-all active:scale-[0.98]"
+                                        style="
+                                            background: linear-gradient(
+                                                135deg,
+                                                #6366f1,
+                                                #8b5cf6
+                                            );
+                                            box-shadow: 0 8px 24px
+                                                rgba(99, 102, 241, 0.4);
+                                        "
+                                    >
+                                        Tiến hành đặt hàng
+                                        <ChevronRight class="size-4" />
                                     </button>
                                 </div>
                             </div>
-                            <div
-                                class="border-t px-5 pt-4 pb-8"
-                                style="border-color: #f3f4f6"
-                            >
-                                <div
-                                    class="mb-4 flex items-center justify-between"
-                                >
-                                    <span
-                                        class="text-sm font-semibold text-slate-500"
-                                        >Tạm tính</span
-                                    >
-                                    <span
-                                        class="text-xl font-black text-slate-800"
-                                        >{{ subtotal.toLocaleString() }}đ</span
-                                    >
-                                </div>
-                                <button
-                                    @click="
-                                        showCart = false;
-                                        showCheckout = true;
-                                    "
-                                    class="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black text-white transition-all active:scale-[0.98]"
-                                    style="
-                                        background: linear-gradient(
-                                            135deg,
-                                            #6366f1,
-                                            #8b5cf6
-                                        );
-                                        box-shadow: 0 8px 24px
-                                            rgba(99, 102, 241, 0.4);
-                                    "
-                                >
-                                    Tiến hành đặt hàng
-                                    <ChevronRight class="size-4" />
-                                </button>
-                            </div>
                         </div>
                     </div>
-                </div>
                 </Teleport>
             </Transition>
 
@@ -1318,500 +1325,513 @@ async function submitOrder() {
                 leave-to-class="opacity-0"
             >
                 <Teleport to="body">
-                <div
-                    v-if="showCheckout"
-                    class="fixed inset-0 z-50 flex items-end justify-center"
-                >
                     <div
-                        class="absolute inset-0"
-                        style="
-                            background: rgba(0, 0, 0, 0.55);
-                            backdrop-filter: blur(4px);
-                        "
-                        @click="showCheckout = false"
-                    ></div>
-                    <div
-                        class="relative w-full max-w-lg overflow-hidden"
-                        style="
-                            background: #fff;
-                            border-radius: 28px 28px 0 0;
-                            max-height: 90vh;
-                        "
+                        v-if="showCheckout"
+                        class="fixed inset-0 z-50 flex items-end justify-center"
                     >
-                        <div class="flex justify-center pt-3 pb-2">
-                            <div
-                                class="h-1 w-10 rounded-full"
-                                style="background: #e5e7eb"
-                            ></div>
-                        </div>
                         <div
-                            class="overflow-y-auto"
-                            style="max-height: calc(90vh - 20px)"
+                            class="absolute inset-0"
+                            style="
+                                background: rgba(0, 0, 0, 0.55);
+                                backdrop-filter: blur(4px);
+                            "
+                            @click="showCheckout = false"
+                        ></div>
+                        <div
+                            class="relative w-full max-w-lg overflow-hidden"
+                            style="
+                                background: #fff;
+                                border-radius: 28px 28px 0 0;
+                                max-height: 90vh;
+                            "
                         >
-                            <div
-                                class="sticky top-0 flex items-center justify-between border-b px-5 pt-2 pb-4"
-                                style="
-                                    background: #fff;
-                                    z-index: 1;
-                                    border-color: #f3f4f6;
-                                "
-                            >
-                                <div>
-                                    <h2
-                                        class="text-lg font-black text-slate-800"
-                                    >
-                                        Thông tin đặt hàng
-                                    </h2>
-                                    <p class="text-xs text-slate-400">
-                                        Điền thông tin để hoàn tất đơn hàng
-                                    </p>
-                                </div>
-                                <button
-                                    @click="showCheckout = false"
-                                    class="flex h-9 w-9 items-center justify-center rounded-full"
-                                    style="background: #f3f4f6"
-                                >
-                                    <X class="size-4 text-slate-500" />
-                                </button>
+                            <div class="flex justify-center pt-3 pb-2">
+                                <div
+                                    class="h-1 w-10 rounded-full"
+                                    style="background: #e5e7eb"
+                                ></div>
                             </div>
-
-                            <div class="space-y-5 px-5 py-4 pb-8">
-                                <!-- Order type -->
-                                <div>
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Hình thức nhận hàng
-                                    </p>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button
-                                            v-if="config.enable_takeaway"
-                                            @click="channel = 'takeaway'"
-                                            class="flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-all"
-                                            :style="
-                                                channel === 'takeaway'
-                                                    ? 'border-color:#6366f1;background:#eef2ff;color:#6366f1;'
-                                                    : 'border-color:#e5e7eb;color:#6b7280;'
-                                            "
+                            <div
+                                class="overflow-y-auto"
+                                style="max-height: calc(90vh - 20px)"
+                            >
+                                <div
+                                    class="sticky top-0 flex items-center justify-between border-b px-5 pt-2 pb-4"
+                                    style="
+                                        background: #fff;
+                                        z-index: 1;
+                                        border-color: #f3f4f6;
+                                    "
+                                >
+                                    <div>
+                                        <h2
+                                            class="text-lg font-black text-slate-800"
                                         >
-                                            <ShoppingBag class="size-4" /> Mang
-                                            về
-                                        </button>
-                                        <button
-                                            v-if="config.enable_delivery"
-                                            @click="
-                                                channel = 'delivery';
-                                                getLocation();
-                                            "
-                                            class="flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-all"
-                                            :style="
-                                                channel === 'delivery'
-                                                    ? 'border-color:#6366f1;background:#eef2ff;color:#6366f1;'
-                                                    : 'border-color:#e5e7eb;color:#6b7280;'
-                                            "
-                                        >
-                                            <Truck class="size-4" /> Giao hàng
-                                        </button>
+                                            Thông tin đặt hàng
+                                        </h2>
+                                        <p class="text-xs text-slate-400">
+                                            Điền thông tin để hoàn tất đơn hàng
+                                        </p>
                                     </div>
+                                    <button
+                                        @click="showCheckout = false"
+                                        class="flex h-9 w-9 items-center justify-center rounded-full"
+                                        style="background: #f3f4f6"
+                                    >
+                                        <X class="size-4 text-slate-500" />
+                                    </button>
                                 </div>
 
-                                <!-- Customer info -->
-                                <div>
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Thông tin khách hàng
-                                    </p>
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label
-                                                class="mb-1 block text-xs font-semibold text-slate-600"
-                                                >Họ và tên *</label
-                                            >
-                                            <input
-                                                v-model="customerName"
-                                                placeholder="Nguyễn Văn A"
-                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                <div class="space-y-5 px-5 py-4 pb-8">
+                                    <!-- Order type -->
+                                    <div>
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
+                                        >
+                                            Hình thức nhận hàng
+                                        </p>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <button
+                                                v-if="config.enable_takeaway"
+                                                @click="channel = 'takeaway'"
+                                                class="flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-all"
                                                 :style="
-                                                    customerName
-                                                        ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
-                                                        : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                    channel === 'takeaway'
+                                                        ? 'border-color:#6366f1;background:#eef2ff;color:#6366f1;'
+                                                        : 'border-color:#e5e7eb;color:#6b7280;'
                                                 "
-                                            />
+                                            >
+                                                <ShoppingBag class="size-4" />
+                                                Mang về
+                                            </button>
+                                            <button
+                                                v-if="config.enable_delivery"
+                                                @click="
+                                                    channel = 'delivery';
+                                                    getLocation();
+                                                "
+                                                class="flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-all"
+                                                :style="
+                                                    channel === 'delivery'
+                                                        ? 'border-color:#6366f1;background:#eef2ff;color:#6366f1;'
+                                                        : 'border-color:#e5e7eb;color:#6b7280;'
+                                                "
+                                            >
+                                                <Truck class="size-4" /> Giao
+                                                hàng
+                                            </button>
                                         </div>
-                                        <div>
-                                            <label
-                                                class="mb-1 block text-xs font-semibold text-slate-600"
-                                                >Số điện thoại *</label
-                                            >
-                                            <input
-                                                v-model="phone"
-                                                placeholder="0912 345 678"
-                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
-                                                :style="
-                                                    phone
-                                                        ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
-                                                        : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
-                                                "
+                                    </div>
+
+                                    <!-- Customer info -->
+                                    <div>
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
+                                        >
+                                            Thông tin khách hàng
+                                        </p>
+                                        <div class="space-y-3">
+                                            <div>
+                                                <label
+                                                    class="mb-1 block text-xs font-semibold text-slate-600"
+                                                    >Họ và tên *</label
+                                                >
+                                                <input
+                                                    v-model="customerName"
+                                                    placeholder="Nguyễn Văn A"
+                                                    class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                                    :style="
+                                                        customerName
+                                                            ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
+                                                            : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                    "
                                                 />
-                                        </div>
-                                        <div>
-                                            <label
-                                                class="mb-1 block text-xs font-semibold text-slate-600"
-                                                >Email nhận thông báo (tuỳ chọn)</label
-                                            >
-                                            <input
-                                                v-model="customerEmail"
-                                                type="email"
-                                                placeholder="ban@example.com"
-                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
-                                                :style="
-                                                    customerEmail
-                                                        ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
-                                                        : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
-                                                "
-                                            />
+                                            </div>
+                                            <div>
+                                                <label
+                                                    class="mb-1 block text-xs font-semibold text-slate-600"
+                                                    >Số điện thoại *</label
+                                                >
+                                                <input
+                                                    v-model="phone"
+                                                    placeholder="0912 345 678"
+                                                    class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                                    :style="
+                                                        phone
+                                                            ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
+                                                            : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                    "
+                                                />
+                                            </div>
+                                            <div>
+                                                <label
+                                                    class="mb-1 block text-xs font-semibold text-slate-600"
+                                                    >Email nhận thông báo (tuỳ
+                                                    chọn)</label
+                                                >
+                                                <input
+                                                    v-model="customerEmail"
+                                                    type="email"
+                                                    placeholder="ban@example.com"
+                                                    class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                                    :style="
+                                                        customerEmail
+                                                            ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
+                                                            : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                    "
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- Delivery address -->
-                                <div v-if="channel === 'delivery'">
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Địa chỉ giao hàng
-                                    </p>
-                                    <div class="space-y-2">
+                                    <!-- Delivery address -->
+                                    <div v-if="channel === 'delivery'">
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
+                                        >
+                                            Địa chỉ giao hàng
+                                        </p>
+                                        <div class="space-y-2">
+                                            <input
+                                                v-model="address"
+                                                placeholder="Số nhà, đường, quận, thành phố..."
+                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+                                                style="
+                                                    background: #f8f9fa;
+                                                    box-shadow: 0 0 0 1px
+                                                        #e5e7eb;
+                                                "
+                                            />
+                                            <button
+                                                @click="getLocation"
+                                                :disabled="calculatingFee"
+                                                class="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold transition-all"
+                                                style="
+                                                    background: #eef2ff;
+                                                    color: #6366f1;
+                                                    border: 1px dashed #a5b4fc;
+                                                "
+                                            >
+                                                <MapPin class="size-3.5" />
+                                                {{
+                                                    calculatingFee
+                                                        ? 'Đang tính phí ship...'
+                                                        : 'Lấy vị trí & tính phí giao hàng'
+                                                }}
+                                            </button>
+                                            <div
+                                                v-if="deliveryFee > 0"
+                                                class="flex items-center justify-between rounded-xl px-4 py-2.5 text-sm"
+                                                style="background: #f0fdf4"
+                                            >
+                                                <span
+                                                    class="font-semibold text-green-700"
+                                                    >Phí giao hàng</span
+                                                >
+                                                <span
+                                                    class="font-black text-green-700"
+                                                    >{{
+                                                        deliveryFee.toLocaleString()
+                                                    }}đ</span
+                                                >
+                                            </div>
+                                            <p
+                                                v-if="deliveryError"
+                                                class="rounded-xl px-3 py-2 text-xs font-medium text-red-600"
+                                                style="background: #fff1f2"
+                                            >
+                                                {{ deliveryError }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Pre-order -->
+                                    <div v-if="config.enable_preorder">
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
+                                        >
+                                            Đặt trước (tuỳ chọn)
+                                        </p>
                                         <input
-                                            v-model="address"
-                                            placeholder="Số nhà, đường, quận, thành phố..."
+                                            type="datetime-local"
+                                            v-model="scheduledAt"
                                             class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none"
                                             style="
                                                 background: #f8f9fa;
                                                 box-shadow: 0 0 0 1px #e5e7eb;
                                             "
                                         />
-                                        <button
-                                            @click="getLocation"
-                                            :disabled="calculatingFee"
-                                            class="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold transition-all"
-                                            style="
-                                                background: #eef2ff;
-                                                color: #6366f1;
-                                                border: 1px dashed #a5b4fc;
-                                            "
-                                        >
-                                            <MapPin class="size-3.5" />
-                                            {{
-                                                calculatingFee
-                                                    ? 'Đang tính phí ship...'
-                                                    : 'Lấy vị trí & tính phí giao hàng'
-                                            }}
-                                        </button>
-                                        <div
-                                            v-if="deliveryFee > 0"
-                                            class="flex items-center justify-between rounded-xl px-4 py-2.5 text-sm"
-                                            style="background: #f0fdf4"
-                                        >
-                                            <span
-                                                class="font-semibold text-green-700"
-                                                >Phí giao hàng</span
-                                            >
-                                            <span
-                                                class="font-black text-green-700"
-                                                >{{
-                                                    deliveryFee.toLocaleString()
-                                                }}đ</span
-                                            >
-                                        </div>
-                                        <p
-                                            v-if="deliveryError"
-                                            class="rounded-xl px-3 py-2 text-xs font-medium text-red-600"
-                                            style="background: #fff1f2"
-                                        >
-                                            {{ deliveryError }}
-                                        </p>
                                     </div>
-                                </div>
 
-                                <!-- Pre-order -->
-                                <div v-if="config.enable_preorder">
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Đặt trước (tuỳ chọn)
-                                    </p>
-                                    <input
-                                        type="datetime-local"
-                                        v-model="scheduledAt"
-                                        class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none"
-                                        style="
-                                            background: #f8f9fa;
-                                            box-shadow: 0 0 0 1px #e5e7eb;
-                                        "
-                                    />
-                                </div>
-
-                                <!-- Payment -->
-                                <div>
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Phương thức thanh toán
-                                    </p>
-                                    <div class="space-y-2">
-                                        <label
-                                            v-for="gw in gateways"
-                                            :key="gw.key"
-                                            class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
-                                            :style="
-                                                paymentMethod === gw.key
-                                                    ? 'border-color:#6366f1;background:#eef2ff;'
-                                                    : 'border-color:#f0f0f5;background:#fafafa;'
-                                            "
+                                    <!-- Payment -->
+                                    <div>
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
                                         >
-                                            <input
-                                                type="radio"
-                                                :value="gw.key"
-                                                v-model="paymentMethod"
-                                                class="sr-only"
-                                            />
-                                            <div
-                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2"
+                                            Phương thức thanh toán
+                                        </p>
+                                        <div class="space-y-2">
+                                            <label
+                                                v-for="gw in gateways"
+                                                :key="gw.key"
+                                                class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
                                                 :style="
                                                     paymentMethod === gw.key
-                                                        ? 'border-color:#6366f1;'
-                                                        : 'border-color:#d1d5db;'
+                                                        ? 'border-color:#6366f1;background:#eef2ff;'
+                                                        : 'border-color:#f0f0f5;background:#fafafa;'
                                                 "
                                             >
+                                                <input
+                                                    type="radio"
+                                                    :value="gw.key"
+                                                    v-model="paymentMethod"
+                                                    class="sr-only"
+                                                />
                                                 <div
-                                                    v-if="
+                                                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2"
+                                                    :style="
                                                         paymentMethod === gw.key
+                                                            ? 'border-color:#6366f1;'
+                                                            : 'border-color:#d1d5db;'
                                                     "
-                                                    class="h-2.5 w-2.5 rounded-full"
-                                                    style="background: #6366f1"
-                                                ></div>
-                                            </div>
-                                            <span
-                                                class="text-sm font-semibold text-slate-700"
-                                                >{{ gw.name }}</span
-                                            >
-                                        </label>
-                                        <label
-                                            v-if="codEnabled"
-                                            class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
-                                            :style="
-                                                paymentMethod === 'cod'
-                                                    ? 'border-color:#6366f1;background:#eef2ff;'
-                                                    : 'border-color:#f0f0f5;background:#fafafa;'
-                                            "
-                                        >
-                                            <input
-                                                type="radio"
-                                                value="cod"
-                                                v-model="paymentMethod"
-                                                class="sr-only"
-                                            />
-                                            <div
-                                                class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2"
+                                                >
+                                                    <div
+                                                        v-if="
+                                                            paymentMethod ===
+                                                            gw.key
+                                                        "
+                                                        class="h-2.5 w-2.5 rounded-full"
+                                                        style="
+                                                            background: #6366f1;
+                                                        "
+                                                    ></div>
+                                                </div>
+                                                <span
+                                                    class="text-sm font-semibold text-slate-700"
+                                                    >{{ gw.name }}</span
+                                                >
+                                            </label>
+                                            <label
+                                                v-if="codEnabled"
+                                                class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
                                                 :style="
                                                     paymentMethod === 'cod'
-                                                        ? 'border-color:#6366f1;'
-                                                        : 'border-color:#d1d5db;'
+                                                        ? 'border-color:#6366f1;background:#eef2ff;'
+                                                        : 'border-color:#f0f0f5;background:#fafafa;'
                                                 "
                                             >
+                                                <input
+                                                    type="radio"
+                                                    value="cod"
+                                                    v-model="paymentMethod"
+                                                    class="sr-only"
+                                                />
                                                 <div
-                                                    v-if="
+                                                    class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2"
+                                                    :style="
                                                         paymentMethod === 'cod'
+                                                            ? 'border-color:#6366f1;'
+                                                            : 'border-color:#d1d5db;'
                                                     "
-                                                    class="h-2.5 w-2.5 rounded-full"
-                                                    style="background: #6366f1"
-                                                ></div>
-                                            </div>
-                                            <span
-                                                class="text-sm font-semibold text-slate-700"
-                                                >Thanh toán khi nhận hàng
-                                                (COD)</span
-                                            >
-                                        </label>
+                                                >
+                                                    <div
+                                                        v-if="
+                                                            paymentMethod ===
+                                                            'cod'
+                                                        "
+                                                        class="h-2.5 w-2.5 rounded-full"
+                                                        style="
+                                                            background: #6366f1;
+                                                        "
+                                                    ></div>
+                                                </div>
+                                                <span
+                                                    class="text-sm font-semibold text-slate-700"
+                                                    >Thanh toán khi nhận hàng
+                                                    (COD)</span
+                                                >
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <!-- Notes -->
-                                <div>
-                                    <p
-                                        class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Ghi chú thêm
-                                    </p>
-                                    <input
-                                        v-model="note"
-                                        placeholder="Ví dụ: Ít đá, không hành, không cay..."
-                                        class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none"
-                                        style="
-                                            background: #f8f9fa;
-                                            box-shadow: 0 0 0 1px #e5e7eb;
-                                        "
-                                    />
-                                </div>
-
-                                <!-- CAPTCHA / Turnstile -->
-                                <div
-                                    v-if="turnstileSiteKey || captchaQuestion"
-                                    class="rounded-2xl border border-dashed p-4"
-                                    style="
-                                        border-color: #a5b4fc;
-                                        background: #f5f3ff;
-                                    "
-                                >
-                                    <p
-                                        class="mb-2 flex items-center gap-1.5 text-xs font-bold text-indigo-600"
-                                    >
-                                        <svg
-                                            class="size-3.5"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2.5"
+                                    <!-- Notes -->
+                                    <div>
+                                        <p
+                                            class="mb-2 text-xs font-bold tracking-widest text-slate-400 uppercase"
                                         >
-                                            <path
-                                                d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
-                                            />
-                                        </svg>
-                                        Xác minh bảo mật
-                                    </p>
-                                    <div v-if="turnstileSiteKey">
-                                        <div
-                                            id="turnstile-container-storefront"
-                                            class="my-1.5 flex justify-center"
-                                        ></div>
-                                        <input
-                                            type="hidden"
-                                            name="cf-turnstile-response"
-                                            :value="turnstileToken"
-                                        />
-                                    </div>
-                                    <div
-                                        v-else-if="captchaQuestion"
-                                        class="space-y-2"
-                                    >
-                                        <p class="text-xs text-slate-600">
-                                            Vui lòng nhập kết quả:
-                                            <strong
-                                                class="ml-1 rounded-lg border border-indigo-200 bg-indigo-100 px-2 py-0.5 font-mono text-indigo-700"
-                                                >{{ captchaQuestion }}</strong
-                                            >
+                                            Ghi chú thêm
                                         </p>
                                         <input
-                                            type="hidden"
-                                            name="captcha_token"
-                                            :value="captchaToken"
-                                        />
-                                        <Input
-                                            id="captcha_answer"
-                                            type="number"
-                                            v-model="captchaAnswer"
-                                            required
-                                            placeholder="Nhập kết quả"
-                                        />
-                                    </div>
-                                </div>
-
-                                <!-- Order summary -->
-                                <div
-                                    class="rounded-2xl p-4"
-                                    style="background: #f8f9fa"
-                                >
-                                    <p
-                                        class="mb-3 text-xs font-bold tracking-widest text-slate-400 uppercase"
-                                    >
-                                        Tóm tắt đơn hàng
-                                    </p>
-                                    <div class="space-y-2 text-sm">
-                                        <div
-                                            class="flex justify-between text-slate-600"
-                                        >
-                                            <span
-                                                >Tạm tính ({{
-                                                    cartCount
-                                                }}
-                                                món)</span
-                                            >
-                                            <span class="font-semibold"
-                                                >{{
-                                                    subtotal.toLocaleString()
-                                                }}đ</span
-                                            >
-                                        </div>
-                                        <div
-                                            v-if="
-                                                channel === 'delivery' &&
-                                                deliveryFee > 0
+                                            v-model="note"
+                                            placeholder="Ví dụ: Ít đá, không hành, không cay..."
+                                            class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 outline-none"
+                                            style="
+                                                background: #f8f9fa;
+                                                box-shadow: 0 0 0 1px #e5e7eb;
                                             "
-                                            class="flex justify-between text-slate-600"
+                                        />
+                                    </div>
+
+                                    <!-- CAPTCHA / Turnstile -->
+                                    <div
+                                        v-if="
+                                            turnstileSiteKey || captchaQuestion
+                                        "
+                                        class="rounded-2xl border border-dashed p-4"
+                                        style="
+                                            border-color: #a5b4fc;
+                                            background: #f5f3ff;
+                                        "
+                                    >
+                                        <p
+                                            class="mb-2 flex items-center gap-1.5 text-xs font-bold text-indigo-600"
                                         >
-                                            <span>Phí giao hàng</span>
-                                            <span class="font-semibold"
-                                                >{{
-                                                    deliveryFee.toLocaleString()
-                                                }}đ</span
+                                            <svg
+                                                class="size-3.5"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2.5"
                                             >
+                                                <path
+                                                    d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                                                />
+                                            </svg>
+                                            Xác minh bảo mật
+                                        </p>
+                                        <div v-if="turnstileSiteKey">
+                                            <div
+                                                id="turnstile-container-storefront"
+                                                class="my-1.5 flex justify-center"
+                                            ></div>
+                                            <input
+                                                type="hidden"
+                                                name="cf-turnstile-response"
+                                                :value="turnstileToken"
+                                            />
                                         </div>
                                         <div
-                                            class="flex justify-between border-t pt-2 text-base"
-                                            style="border-color: #e5e7eb"
+                                            v-else-if="captchaQuestion"
+                                            class="space-y-2"
                                         >
-                                            <span
-                                                class="font-bold text-slate-800"
-                                                >Tổng cộng</span
-                                            >
-                                            <span
-                                                class="font-black"
-                                                style="color: #6366f1"
-                                                >{{
-                                                    total.toLocaleString()
-                                                }}đ</span
-                                            >
+                                            <p class="text-xs text-slate-600">
+                                                Vui lòng nhập kết quả:
+                                                <strong
+                                                    class="ml-1 rounded-lg border border-indigo-200 bg-indigo-100 px-2 py-0.5 font-mono text-indigo-700"
+                                                    >{{
+                                                        captchaQuestion
+                                                    }}</strong
+                                                >
+                                            </p>
+                                            <input
+                                                type="hidden"
+                                                name="captcha_token"
+                                                :value="captchaToken"
+                                            />
+                                            <Input
+                                                id="captcha_answer"
+                                                type="number"
+                                                v-model="captchaAnswer"
+                                                required
+                                                placeholder="Nhập kết quả"
+                                            />
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- Submit -->
-                                <button
-                                    :disabled="
-                                        submitting ||
-                                        !customerName ||
-                                        !phone ||
-                                        cartCount === 0
-                                    "
-                                    @click="submitOrder"
-                                    class="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black text-white transition-all active:scale-[0.98] disabled:opacity-50"
-                                    style="
-                                        background: linear-gradient(
-                                            135deg,
-                                            #6366f1,
-                                            #8b5cf6
-                                        );
-                                        box-shadow: 0 8px 24px
-                                            rgba(99, 102, 241, 0.4);
-                                    "
-                                >
-                                    <Loader2
-                                        v-if="submitting"
-                                        class="size-5 animate-spin"
-                                    />
-                                    {{
-                                        submitting
-                                            ? 'Đang đặt hàng...'
-                                            : 'Xác nhận đặt hàng 🎉'
-                                    }}
-                                </button>
+                                    <!-- Order summary -->
+                                    <div
+                                        class="rounded-2xl p-4"
+                                        style="background: #f8f9fa"
+                                    >
+                                        <p
+                                            class="mb-3 text-xs font-bold tracking-widest text-slate-400 uppercase"
+                                        >
+                                            Tóm tắt đơn hàng
+                                        </p>
+                                        <div class="space-y-2 text-sm">
+                                            <div
+                                                class="flex justify-between text-slate-600"
+                                            >
+                                                <span
+                                                    >Tạm tính ({{
+                                                        cartCount
+                                                    }}
+                                                    món)</span
+                                                >
+                                                <span class="font-semibold"
+                                                    >{{
+                                                        subtotal.toLocaleString()
+                                                    }}đ</span
+                                                >
+                                            </div>
+                                            <div
+                                                v-if="
+                                                    channel === 'delivery' &&
+                                                    deliveryFee > 0
+                                                "
+                                                class="flex justify-between text-slate-600"
+                                            >
+                                                <span>Phí giao hàng</span>
+                                                <span class="font-semibold"
+                                                    >{{
+                                                        deliveryFee.toLocaleString()
+                                                    }}đ</span
+                                                >
+                                            </div>
+                                            <div
+                                                class="flex justify-between border-t pt-2 text-base"
+                                                style="border-color: #e5e7eb"
+                                            >
+                                                <span
+                                                    class="font-bold text-slate-800"
+                                                    >Tổng cộng</span
+                                                >
+                                                <span
+                                                    class="font-black"
+                                                    style="color: #6366f1"
+                                                    >{{
+                                                        total.toLocaleString()
+                                                    }}đ</span
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Submit -->
+                                    <button
+                                        :disabled="
+                                            submitting ||
+                                            !customerName ||
+                                            !phone ||
+                                            cartCount === 0
+                                        "
+                                        @click="submitOrder"
+                                        class="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black text-white transition-all active:scale-[0.98] disabled:opacity-50"
+                                        style="
+                                            background: linear-gradient(
+                                                135deg,
+                                                #6366f1,
+                                                #8b5cf6
+                                            );
+                                            box-shadow: 0 8px 24px
+                                                rgba(99, 102, 241, 0.4);
+                                        "
+                                    >
+                                        <Loader2
+                                            v-if="submitting"
+                                            class="size-5 animate-spin"
+                                        />
+                                        {{
+                                            submitting
+                                                ? 'Đang đặt hàng...'
+                                                : 'Xác nhận đặt hàng 🎉'
+                                        }}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
                 </Teleport>
             </Transition>
         </div>

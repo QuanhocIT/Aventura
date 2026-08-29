@@ -17,6 +17,7 @@ import {
     Utensils,
     Loader2,
     RotateCcw,
+    Activity,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -483,9 +484,11 @@ const computedPartialRefundAmount = computed(() => {
 
     return refundOrderTarget.value.items.reduce((sum, item) => {
         const qty = refundItemQuantities.value[item.id] || 0;
-        const unitPrice = item.unit_price ?? (item.quantity > 0 ? item.line_total / item.quantity : 0);
+        const unitPrice =
+            item.unit_price ??
+            (item.quantity > 0 ? item.line_total / item.quantity : 0);
 
-        return sum + (unitPrice * qty);
+        return sum + unitPrice * qty;
     }, 0);
 });
 
@@ -507,7 +510,8 @@ const submitRefund = () => {
         return;
     }
 
-    const selectedItems: Array<{ order_item_id: number; quantity: number }> = [];
+    const selectedItems: Array<{ order_item_id: number; quantity: number }> =
+        [];
 
     if (refundType.value === 'partial' && refundOrderTarget.value.items) {
         for (const item of refundOrderTarget.value.items) {
@@ -2706,25 +2710,36 @@ onUnmounted(() => {
     <Dialog :open="showRefundModal" @update:open="showRefundModal = $event">
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-base font-bold">
+                <DialogTitle
+                    class="flex items-center gap-2 text-base font-bold"
+                >
                     <RotateCcw class="size-4 text-rose-600" />
                     Hoàn tiền đơn hàng — {{ refundOrderTarget?.order_number }}
                 </DialogTitle>
                 <DialogDescription class="text-xs">
-                    Xác định loại lý do & chọn món hoàn để hệ thống tự động hạch toán tồn kho và báo cáo tới Chủ doanh nghiệp.
+                    Xác định loại lý do & chọn món hoàn để hệ thống tự động hạch
+                    toán tồn kho và báo cáo tới Chủ doanh nghiệp.
                 </DialogDescription>
             </DialogHeader>
 
             <div class="space-y-4 py-2 text-xs">
                 <!-- 1. PHÂN LOẠI LÝ DO HOÀN TIỀN -->
                 <div>
-                    <label class="mb-1.5 block font-bold text-slate-800 dark:text-slate-200">
-                        1. Loại lý do hoàn tiền (<span class="text-rose-500">* Bắt buộc chọn</span>):
+                    <label
+                        class="mb-1.5 block font-bold text-slate-800 dark:text-slate-200"
+                    >
+                        1. Loại lý do hoàn tiền (<span class="text-rose-500"
+                            >* Bắt buộc chọn</span
+                        >):
                     </label>
                     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         <label
                             class="flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition"
-                            :class="refundCategory === 'compensation' ? 'border-amber-500/80 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'"
+                            :class="
+                                refundCategory === 'compensation'
+                                    ? 'border-amber-500/80 bg-amber-500/10 font-bold text-amber-900 dark:text-amber-200'
+                                    : 'border-slate-200 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5'
+                            "
                         >
                             <input
                                 type="radio"
@@ -2733,16 +2748,27 @@ onUnmounted(() => {
                                 class="mt-0.5"
                             />
                             <div>
-                                <span class="block text-xs font-bold">Bồi thường khách hàng</span>
-                                <span class="mt-0.5 block text-[10px] font-normal leading-4 opacity-80">
-                                    Sự cố món ăn, phục vụ kém... — <strong>Nguyên liệu trừ tồn bình thường</strong>.
+                                <span class="block text-xs font-bold"
+                                    >Bồi thường khách hàng</span
+                                >
+                                <span
+                                    class="mt-0.5 block text-[10px] leading-4 font-normal opacity-80"
+                                >
+                                    Sự cố món ăn, phục vụ kém... —
+                                    <strong
+                                        >Nguyên liệu trừ tồn bình thường</strong
+                                    >.
                                 </span>
                             </div>
                         </label>
 
                         <label
                             class="flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition"
-                            :class="refundCategory === 'mistake' ? 'border-sky-500/80 bg-sky-500/10 text-sky-900 dark:text-sky-200 font-bold' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'"
+                            :class="
+                                refundCategory === 'mistake'
+                                    ? 'border-sky-500/80 bg-sky-500/10 font-bold text-sky-900 dark:text-sky-200'
+                                    : 'border-slate-200 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5'
+                            "
                         >
                             <input
                                 type="radio"
@@ -2751,9 +2777,15 @@ onUnmounted(() => {
                                 class="mt-0.5"
                             />
                             <div>
-                                <span class="block text-xs font-bold">Nhầm lẫn / Lỗi nhập liệu</span>
-                                <span class="mt-0.5 block text-[10px] font-normal leading-4 opacity-80">
-                                    Nhập nhầm đơn, ghi sai món... — <strong>Không trừ / Hoàn trả tồn kho</strong>.
+                                <span class="block text-xs font-bold"
+                                    >Nhầm lẫn / Lỗi nhập liệu</span
+                                >
+                                <span
+                                    class="mt-0.5 block text-[10px] leading-4 font-normal opacity-80"
+                                >
+                                    Nhập nhầm đơn, ghi sai món... —
+                                    <strong>Không trừ / Hoàn trả tồn kho</strong
+                                    >.
                                 </span>
                             </div>
                         </label>
@@ -2762,19 +2794,29 @@ onUnmounted(() => {
 
                 <!-- 2. HÌNH THỨC HOÀN TIỀN -->
                 <div>
-                    <label class="mb-1.5 block font-bold text-slate-800 dark:text-slate-200">
+                    <label
+                        class="mb-1.5 block font-bold text-slate-800 dark:text-slate-200"
+                    >
                         2. Hình thức hoàn tiền:
                     </label>
                     <div class="flex gap-4">
-                        <label class="flex cursor-pointer items-center gap-1.5 font-medium">
+                        <label
+                            class="flex cursor-pointer items-center gap-1.5 font-medium"
+                        >
                             <input
                                 type="radio"
                                 v-model="refundType"
                                 value="full"
                             />
-                            <span>Hoàn toàn bộ phần còn lại ({{ formatCurrency(remainingRefundAmount) }})</span>
+                            <span
+                                >Hoàn toàn bộ phần còn lại ({{
+                                    formatCurrency(remainingRefundAmount)
+                                }})</span
+                            >
                         </label>
-                        <label class="flex cursor-pointer items-center gap-1.5 font-medium">
+                        <label
+                            class="flex cursor-pointer items-center gap-1.5 font-medium"
+                        >
                             <input
                                 type="radio"
                                 v-model="refundType"
@@ -2786,41 +2828,84 @@ onUnmounted(() => {
                 </div>
 
                 <!-- 3. CHỌN MÓN HOÀN KHI CHỌN HOÀN 1 PHẦN -->
-                <div v-if="refundType === 'partial'" class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3 dark:border-white/10 dark:bg-white/5">
-                    <label class="block font-bold text-slate-800 dark:text-slate-200">
+                <div
+                    v-if="refundType === 'partial'"
+                    class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3 dark:border-white/10 dark:bg-white/5"
+                >
+                    <label
+                        class="block font-bold text-slate-800 dark:text-slate-200"
+                    >
                         Chọn các món cần hoàn tiền:
                     </label>
-                    <div v-if="refundOrderTarget?.items?.length" class="max-h-48 overflow-y-auto pr-1 space-y-2">
+                    <div
+                        v-if="refundOrderTarget?.items?.length"
+                        class="max-h-48 space-y-2 overflow-y-auto pr-1"
+                    >
                         <div
                             v-for="item in refundOrderTarget.items"
                             :key="item.id"
-                            class="flex items-center justify-between gap-2 rounded-lg border bg-white p-2.5 dark:bg-slate-900 dark:border-white/10"
+                            class="flex items-center justify-between gap-2 rounded-lg border bg-white p-2.5 dark:border-white/10 dark:bg-slate-900"
                         >
                             <div class="min-w-0 flex-1">
-                                <p class="truncate text-xs font-bold text-slate-800 dark:text-slate-200">
+                                <p
+                                    class="truncate text-xs font-bold text-slate-800 dark:text-slate-200"
+                                >
                                     {{ item.name }}
                                 </p>
-                                <p class="text-[10px] text-slate-500 dark:text-slate-400">
-                                    Đã đặt: {{ item.quantity }} x {{ formatCurrency(item.unit_price ?? (item.quantity > 0 ? item.line_total / item.quantity : 0)) }}
+                                <p
+                                    class="text-[10px] text-slate-500 dark:text-slate-400"
+                                >
+                                    Đã đặt: {{ item.quantity }} x
+                                    {{
+                                        formatCurrency(
+                                            item.unit_price ??
+                                                (item.quantity > 0
+                                                    ? item.line_total /
+                                                      item.quantity
+                                                    : 0),
+                                        )
+                                    }}
                                 </p>
                             </div>
-                            <div class="flex items-center gap-1.5 shrink-0">
+                            <div class="flex shrink-0 items-center gap-1.5">
                                 <button
                                     type="button"
-                                    class="flex size-6 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:opacity-30"
-                                    :disabled="(refundItemQuantities[item.id] || 0) <= 0"
-                                    @click="refundItemQuantities[item.id] = Math.max(0, (refundItemQuantities[item.id] || 0) - 1)"
+                                    class="flex size-6 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    :disabled="
+                                        (refundItemQuantities[item.id] || 0) <=
+                                        0
+                                    "
+                                    @click="
+                                        refundItemQuantities[item.id] =
+                                            Math.max(
+                                                0,
+                                                (refundItemQuantities[
+                                                    item.id
+                                                ] || 0) - 1,
+                                            )
+                                    "
                                 >
                                     -
                                 </button>
-                                <span class="w-7 text-center font-bold text-xs">
+                                <span class="w-7 text-center text-xs font-bold">
                                     {{ refundItemQuantities[item.id] || 0 }}
                                 </span>
                                 <button
                                     type="button"
-                                    class="flex size-6 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:opacity-30"
-                                    :disabled="(refundItemQuantities[item.id] || 0) >= item.quantity"
-                                    @click="refundItemQuantities[item.id] = Math.min(item.quantity, (refundItemQuantities[item.id] || 0) + 1)"
+                                    class="flex size-6 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    :disabled="
+                                        (refundItemQuantities[item.id] || 0) >=
+                                        item.quantity
+                                    "
+                                    @click="
+                                        refundItemQuantities[item.id] =
+                                            Math.min(
+                                                item.quantity,
+                                                (refundItemQuantities[
+                                                    item.id
+                                                ] || 0) + 1,
+                                            )
+                                    "
                                 >
                                     +
                                 </button>
@@ -2828,9 +2913,16 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <div class="mt-2 flex items-center justify-between border-t border-slate-200/80 pt-2 dark:border-white/10">
-                        <span class="font-bold text-slate-700 dark:text-slate-300">Tổng tiền hoàn chọn được:</span>
-                        <span class="text-sm font-extrabold text-rose-600 dark:text-rose-400">
+                    <div
+                        class="mt-2 flex items-center justify-between border-t border-slate-200/80 pt-2 dark:border-white/10"
+                    >
+                        <span
+                            class="font-bold text-slate-700 dark:text-slate-300"
+                            >Tổng tiền hoàn chọn được:</span
+                        >
+                        <span
+                            class="text-sm font-extrabold text-rose-600 dark:text-rose-400"
+                        >
                             {{ formatCurrency(computedPartialRefundAmount) }}
                         </span>
                     </div>
@@ -2838,8 +2930,12 @@ onUnmounted(() => {
 
                 <!-- 4. GHI CHÚ LÝ DO CHI TIẾT -->
                 <div>
-                    <label class="mb-1 block font-bold text-slate-800 dark:text-slate-200">
-                        3. Ghi chú chi tiết lý do (<span class="text-rose-500">* tối thiểu 5 ký tự</span>):
+                    <label
+                        class="mb-1 block font-bold text-slate-800 dark:text-slate-200"
+                    >
+                        3. Ghi chú chi tiết lý do (<span class="text-rose-500"
+                            >* tối thiểu 5 ký tự</span
+                        >):
                     </label>
                     <textarea
                         v-model="refundReason"
@@ -2852,7 +2948,9 @@ onUnmounted(() => {
                 <p
                     class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
                 >
-                    Yêu cầu hoàn tiền nhạy cảm sẽ được ghi nhật ký kiểm toán và gửi thông báo cảnh báo trực tiếp đến Chủ doanh nghiệp phê duyệt.
+                    Yêu cầu hoàn tiền nhạy cảm sẽ được ghi nhật ký kiểm toán và
+                    gửi thông báo cảnh báo trực tiếp đến Chủ doanh nghiệp phê
+                    duyệt.
                 </p>
             </div>
 
@@ -2882,7 +2980,9 @@ onUnmounted(() => {
                         class="mr-1 size-3.5 animate-spin"
                     />
                     {{
-                        isOwner ? `Xác nhận hoàn ${formatCurrency(effectiveRefundAmount)}` : `Gửi yêu cầu hoàn ${formatCurrency(effectiveRefundAmount)}`
+                        isOwner
+                            ? `Xác nhận hoàn ${formatCurrency(effectiveRefundAmount)}`
+                            : `Gửi yêu cầu hoàn ${formatCurrency(effectiveRefundAmount)}`
                     }}
                 </Button>
             </DialogFooter>

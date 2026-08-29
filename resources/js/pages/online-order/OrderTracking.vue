@@ -84,7 +84,9 @@ onMounted(() => {
         if (trackingToken) {
             echoChannel = echo.channel(`order.${trackingToken}`);
             echoChannel.listen('.order.updated', () => fetchTracking());
-            echoChannel.listen('.delivery.status.updated', () => fetchTracking());
+            echoChannel.listen('.delivery.status.updated', () =>
+                fetchTracking(),
+            );
         }
     } catch {}
 });

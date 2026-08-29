@@ -155,9 +155,7 @@ const numberFormat = (value: number) =>
                                     class="mt-1 block text-[11px] text-slate-500"
                                 >
                                     {{ table.active_order?.order_number }} ·
-                                    {{
-                                        table.active_order?.items.length || 0
-                                    }}
+                                    {{ table.active_order?.items.length || 0 }}
                                     món ·
                                     {{
                                         numberFormat(

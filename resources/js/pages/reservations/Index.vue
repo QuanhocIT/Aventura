@@ -1557,7 +1557,6 @@ async function copyPhone(phone: string) {
             </div>
         </div>
 
-        
         <div
             v-if="showConfirmModal && selected"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
@@ -1654,9 +1653,7 @@ async function copyPhone(phone: string) {
                 </div>
             </div>
         </div>
-        
 
-        
         <div
             v-if="showCancelModal && selected"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
@@ -1720,6 +1717,5 @@ async function copyPhone(phone: string) {
                 </div>
             </div>
         </div>
-        
     </Teleport>
 </template>

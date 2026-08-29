@@ -706,7 +706,6 @@ async function submitFeedback() {
         } else {
             toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
         }
-
     } catch {
         toast.error('Có lỗi xảy ra khi gửi đánh giá.');
     } finally {
@@ -724,8 +723,8 @@ const cancellingOrderId = ref<number | null>(null);
 
 async function confirmRevision(order: ActiveOrder) {
     if (confirmingRevisionId.value) {
-return;
-}
+        return;
+    }
 
     confirmingRevisionId.value = order.id;
 
@@ -736,7 +735,9 @@ return;
         toast.success(response.data.message || 'Đã xác nhận thay đổi đơn.');
         refetchActiveOrders();
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Không thể xác nhận thay đổi đơn.');
+        toast.error(
+            error.response?.data?.message || 'Không thể xác nhận thay đổi đơn.',
+        );
     } finally {
         confirmingRevisionId.value = null;
     }
@@ -773,7 +774,9 @@ async function cancelOrder(order: ActiveOrder) {
         toast.success(response.data.message || 'Đã hủy yêu cầu gọi món.');
         refetchActiveOrders();
     } catch (error: any) {
-        toast.error(error.response?.data?.message || 'Không thể hủy yêu cầu gọi món.');
+        toast.error(
+            error.response?.data?.message || 'Không thể hủy yêu cầu gọi món.',
+        );
     } finally {
         cancellingOrderId.value = null;
     }
@@ -881,17 +884,17 @@ onMounted(() => {
                 if (order || e.table_id === props.table.id) {
                     refetchActiveOrders();
 
-                      if (e.status === 'confirmed') {
-                          toast.success(
-                              'Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp!',
-                          );
-                      } else if (e.awaiting_customer_confirmation) {
-                          toast.warning(
-                              e.revision_note
-                                  ? `Nhân viên đã chỉnh đơn: ${e.revision_note}`
-                                  : 'Nhân viên đã chỉnh đơn. Vui lòng kiểm tra và xác nhận lại.',
-                          );
-                      } else if (e.status === 'cancelled') {
+                    if (e.status === 'confirmed') {
+                        toast.success(
+                            'Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp!',
+                        );
+                    } else if (e.awaiting_customer_confirmation) {
+                        toast.warning(
+                            e.revision_note
+                                ? `Nhân viên đã chỉnh đơn: ${e.revision_note}`
+                                : 'Nhân viên đã chỉnh đơn. Vui lòng kiểm tra và xác nhận lại.',
+                        );
+                    } else if (e.status === 'cancelled') {
                         toast.error(
                             'Đơn hàng của bạn đã bị từ chối/hủy. Vui lòng liên hệ nhân viên.',
                         );
@@ -911,29 +914,32 @@ onMounted(() => {
             },
         );
 
-        window.Echo.channel(`table.${props.table.qr_token}`).listen('.kitchen.item_cancelled', (e: any) => {
-            const affectedOrderIds = [
-                ...(Array.isArray(e.order_ids) ? e.order_ids : []),
-                e.order_id,
-            ]
-                .filter((id) => id !== null && id !== undefined)
-                .map((id) => Number(id));
+        window.Echo.channel(`table.${props.table.qr_token}`).listen(
+            '.kitchen.item_cancelled',
+            (e: any) => {
+                const affectedOrderIds = [
+                    ...(Array.isArray(e.order_ids) ? e.order_ids : []),
+                    e.order_id,
+                ]
+                    .filter((id) => id !== null && id !== undefined)
+                    .map((id) => Number(id));
 
-            const affectedOrder = props.activeTempOrders.find(
-                (order) =>
-                    order.order_id !== null &&
-                    affectedOrderIds.includes(Number(order.order_id)),
-            );
+                const affectedOrder = props.activeTempOrders.find(
+                    (order) =>
+                        order.order_id !== null &&
+                        affectedOrderIds.includes(Number(order.order_id)),
+                );
 
-            if (!affectedOrder) {
-                return;
-            }
+                if (!affectedOrder) {
+                    return;
+                }
 
-            refetchActiveOrders();
-            toast.error(
-                `Bếp vừa hủy ${e.product_name || 'món ăn'} trong đơn của bạn${e.reason ? `: ${e.reason}` : '.'}`,
-            );
-        });
+                refetchActiveOrders();
+                toast.error(
+                    `Bếp vừa hủy ${e.product_name || 'món ăn'} trong đơn của bạn${e.reason ? `: ${e.reason}` : '.'}`,
+                );
+            },
+        );
     }
 });
 
@@ -1174,7 +1180,9 @@ onUnmounted(() => {
                             <template v-if="order.order_number">
                                 Đơn #{{ order.order_number }}
                             </template>
-                            <template v-else>Đơn của bạn #{{ order.id }}</template>
+                            <template v-else
+                                >Đơn của bạn #{{ order.id }}</template
+                            >
                         </span>
 
                         <span
@@ -1213,11 +1221,16 @@ onUnmounted(() => {
                         v-if="order.awaiting_customer_confirmation"
                         class="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-3 text-orange-800"
                     >
-                        <div class="text-[11px] font-black uppercase tracking-wide">
+                        <div
+                            class="text-[11px] font-black tracking-wide uppercase"
+                        >
                             Nhân viên đề xuất chỉnh sửa đơn
                         </div>
                         <p class="mt-1 text-xs leading-relaxed">
-                            {{ order.revision_note || 'Vui lòng kiểm tra lại các món trước khi xác nhận.' }}
+                            {{
+                                order.revision_note ||
+                                'Vui lòng kiểm tra lại các món trước khi xác nhận.'
+                            }}
                         </p>
                         <button
                             class="mt-3 w-full rounded-xl bg-orange-500 px-3 py-2 text-[11px] font-black text-white transition hover:bg-orange-600 disabled:opacity-60"
@@ -1243,7 +1256,9 @@ onUnmounted(() => {
                         "
                         class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-rose-800"
                     >
-                        <div class="text-[11px] font-black uppercase tracking-wide">
+                        <div
+                            class="text-[11px] font-black tracking-wide uppercase"
+                        >
                             Đơn/món đã bị bếp hủy
                         </div>
                         <p class="mt-1 text-xs leading-relaxed">
@@ -1256,7 +1271,11 @@ onUnmounted(() => {
                     </div>
 
                     <button
-                        v-if="['waiting_verification', 'escalated'].includes(order.status)"
+                        v-if="
+                            ['waiting_verification', 'escalated'].includes(
+                                order.status,
+                            )
+                        "
                         class="mb-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
                         :disabled="cancellingOrderId === order.id"
                         @click="cancelOrder(order)"
@@ -1386,7 +1405,10 @@ onUnmounted(() => {
                                     {{ item.name }}
                                 </span>
                                 <div
-                                    v-if="item.status === 'cancelled' && item.notes"
+                                    v-if="
+                                        item.status === 'cancelled' &&
+                                        item.notes
+                                    "
                                     class="mt-1 text-[9px] font-semibold text-rose-500"
                                 >
                                     {{ item.notes }}
@@ -1398,20 +1420,20 @@ onUnmounted(() => {
                                     item.status === 'cancelled'
                                         ? 'border-rose-200 bg-rose-50 text-rose-600'
                                         : item.status === 'served'
-                                        ? 'border-emerald-250 bg-emerald-50 text-emerald-600'
-                                        : item.status === 'preparing'
-                                          ? 'border-amber-250 animate-pulse bg-amber-50 text-amber-600'
-                                          : 'border-slate-200 bg-slate-100 text-slate-400',
+                                          ? 'border-emerald-250 bg-emerald-50 text-emerald-600'
+                                          : item.status === 'preparing'
+                                            ? 'border-amber-250 animate-pulse bg-amber-50 text-amber-600'
+                                            : 'border-slate-200 bg-slate-100 text-slate-400',
                                 ]"
                             >
                                 {{
                                     item.status === 'cancelled'
                                         ? 'Đã hủy'
                                         : item.status === 'served'
-                                        ? 'Đã lên món'
-                                        : item.status === 'preparing'
-                                          ? 'Đang nấu'
-                                          : 'Chờ nấu'
+                                          ? 'Đã lên món'
+                                          : item.status === 'preparing'
+                                            ? 'Đang nấu'
+                                            : 'Chờ nấu'
                                 }}
                             </span>
                         </div>
@@ -1674,7 +1696,11 @@ onUnmounted(() => {
                                     v-if="product.available_portions !== null"
                                     class="text-[10px] font-bold text-emerald-600"
                                 >
-                                    {{ product.available_portions > 0 ? `Còn ${product.available_portions} suất` : 'Hết món' }}
+                                    {{
+                                        product.available_portions > 0
+                                            ? `Còn ${product.available_portions} suất`
+                                            : 'Hết món'
+                                    }}
                                 </span>
 
                                 <button
@@ -1723,399 +1749,409 @@ onUnmounted(() => {
 
         <!-- ── Cart Drawer Slide Up ────────────────────────────────────────── -->
         <Teleport to="body">
-        <div
-            v-if="isCartOpen"
-            class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm"
-        >
-            <!-- Overlay click closer -->
-            <div class="absolute inset-0" @click="isCartOpen = false"></div>
-
             <div
-                class="animate-slide-up relative z-10 flex max-h-[85vh] w-full max-w-md flex-col rounded-t-[30px] border-t border-slate-200 bg-white shadow-2xl"
+                v-if="isCartOpen"
+                class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm"
             >
-                <header
-                    class="flex items-center justify-between border-b border-slate-100 p-5"
+                <!-- Overlay click closer -->
+                <div class="absolute inset-0" @click="isCartOpen = false"></div>
+
+                <div
+                    class="animate-slide-up relative z-10 flex max-h-[85vh] w-full max-w-md flex-col rounded-t-[30px] border-t border-slate-200 bg-white shadow-2xl"
                 >
-                    <div class="flex items-center gap-2">
-                        <ShoppingCart class="size-4.5 text-slate-800" />
-                        <h2
-                            class="text-xs font-black tracking-wider text-slate-800 uppercase"
-                        >
-                            Giỏ hàng của bạn
-                        </h2>
-                    </div>
-                    <button
-                        @click="isCartOpen = false"
-                        class="cursor-pointer rounded-xl bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+                    <header
+                        class="flex items-center justify-between border-b border-slate-100 p-5"
                     >
-                        <X class="size-4" />
-                    </button>
-                </header>
-
-                <!-- Cart items list -->
-                <div class="flex-1 space-y-4 overflow-y-auto p-5">
-                    <div
-                        v-for="item in cart"
-                        :key="item.product.id"
-                        class="flex gap-4.5 border-b border-slate-100 pb-4"
-                    >
-                        <div
-                            class="size-13 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
-                        >
-                            <img
-                                v-if="item.product.image_url"
-                                :src="item.product.image_url"
-                                :alt="item.product.name"
-                                class="size-full object-cover"
-                            />
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-start justify-between">
-                                <h4
-                                    class="line-clamp-1 text-xs font-black text-slate-800"
-                                >
-                                    {{ item.product.name }}
-                                </h4>
-                                <span
-                                    class="text-xs font-black tracking-wide text-amber-600"
-                                    >{{
-                                        formatCurrency(
-                                            item.product.price * item.quantity,
-                                        )
-                                    }}</span
-                                >
-                            </div>
-                            <p
-                                v-if="item.notes"
-                                class="text-xxs mt-1 line-clamp-1 w-max rounded-lg border border-slate-100 bg-slate-50 px-2 py-0.5 text-slate-500 italic"
+                        <div class="flex items-center gap-2">
+                            <ShoppingCart class="size-4.5 text-slate-800" />
+                            <h2
+                                class="text-xs font-black tracking-wider text-slate-800 uppercase"
                             >
-                                Ghi chú: {{ item.notes }}
-                            </p>
-
-                            <div
-                                class="mt-2.5 flex items-center justify-between"
-                            >
-                                <span
-                                    class="text-[10px] font-bold text-slate-400"
-                                    >{{ formatCurrency(item.product.price) }} /
-                                    món</span
-                                >
-
-                                <div
-                                    class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5"
-                                >
-                                    <button
-                                        @click="
-                                            updateCartQuantity(
-                                                item.product.id,
-                                                -1,
-                                            )
-                                        "
-                                        class="cursor-pointer p-1 text-slate-500 hover:text-amber-500"
-                                    >
-                                        <Minus class="size-3" />
-                                    </button>
-                                    <span
-                                        class="w-4 text-center text-xs font-black text-slate-800"
-                                        >{{ item.quantity }}</span
-                                    >
-                                    <button
-                                        @click="
-                                            updateCartQuantity(
-                                                item.product.id,
-                                                1,
-                                            )
-                                        "
-                                        class="cursor-pointer p-1 text-slate-500 hover:text-amber-500"
-                                    >
-                                        <Plus class="size-3" />
-                                    </button>
-                                </div>
-                            </div>
+                                Giỏ hàng của bạn
+                            </h2>
                         </div>
-                    </div>
-
-                    <!-- Smart Cross-selling Recommendations -->
-                    <div
-                        v-if="crossSellProducts.length > 0"
-                        class="border-t border-slate-100 pt-4 text-left"
-                    >
-                        <h3
-                            class="mb-2 text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                        <button
+                            @click="isCartOpen = false"
+                            class="cursor-pointer rounded-xl bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
                         >
-                            💡 Gợi ý mua kèm (Ngon hơn khi dùng chung)
-                        </h3>
+                            <X class="size-4" />
+                        </button>
+                    </header>
+
+                    <!-- Cart items list -->
+                    <div class="flex-1 space-y-4 overflow-y-auto p-5">
                         <div
-                            class="flex scrollbar-none gap-3 overflow-x-auto pb-2"
+                            v-for="item in cart"
+                            :key="item.product.id"
+                            class="flex gap-4.5 border-b border-slate-100 pb-4"
                         >
                             <div
-                                v-for="p in crossSellProducts"
-                                :key="p.id"
-                                class="border-slate-150 flex w-44 shrink-0 cursor-pointer items-center gap-2 rounded-xl border bg-slate-50/50 p-2 text-left transition-all hover:bg-slate-50 active:scale-95"
-                                @click="addCrossSellItem(p)"
+                                class="size-13 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
                             >
-                                <div
-                                    class="size-9 shrink-0 overflow-hidden rounded-lg border bg-slate-100"
-                                >
-                                    <img
-                                        v-if="p.image_url"
-                                        :src="p.image_url"
-                                        :alt="p.name"
-                                        class="size-full object-cover"
-                                    />
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <p
-                                        class="truncate text-[10px] font-bold text-slate-800"
-                                    >
-                                        {{ p.name }}
-                                    </p>
-                                    <p
-                                        class="font-mono text-[10px] font-black text-amber-600"
-                                    >
-                                        {{ formatCurrency(p.price) }}
-                                    </p>
-                                </div>
-                                <span
-                                    class="shrink-0 text-xs font-extrabold text-slate-400 hover:text-indigo-600"
-                                    >+</span
-                                >
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Customer Information Form -->
-                    <div class="space-y-4 border-t border-slate-100 pt-4">
-                        <h3
-                            class="text-slate-650 text-xs font-black tracking-wide uppercase"
-                        >
-                            Thông tin gọi món
-                        </h3>
-
-                        <div class="space-y-3">
-                            <div>
-                                <label
-                                    class="mb-1.5 block text-[9px] font-black tracking-wider text-slate-400 uppercase"
-                                    >Tên của bạn (Tùy chọn)</label
-                                >
-                                <input
-                                    v-model="customerName"
-                                    type="text"
-                                    placeholder="Ví dụ: Anh Quân"
-                                    class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-xs text-slate-800 shadow-inner transition-all focus:border-slate-800 focus:outline-none"
+                                <img
+                                    v-if="item.product.image_url"
+                                    :src="item.product.image_url"
+                                    :alt="item.product.name"
+                                    class="size-full object-cover"
                                 />
                             </div>
-                            <div>
-                                <label
-                                    class="mb-1.5 block text-[9px] font-black tracking-wider text-slate-400 uppercase"
-                                    >Số điện thoại (Tùy chọn)</label
-                                >
-                                <input
-                                    v-model="customerPhone"
-                                    type="text"
-                                    placeholder="Để tích điểm hoặc liên hệ"
-                                    class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-xs text-slate-800 shadow-inner transition-all focus:border-slate-800 focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Customer Loyalty Display Card -->
-                        <div
-                            v-if="customerLoyalty"
-                            class="text-xxs mt-2.5 animate-in space-y-2 rounded-2xl border border-amber-200 bg-slate-50 p-4 text-left text-slate-500 shadow-sm duration-200 fade-in"
-                        >
-                            <p
-                                class="flex items-center gap-1.5 text-xs font-black text-slate-800"
-                            >
-                                ✨ Hội viên: {{ customerLoyalty.full_name }}
-                            </p>
-                            <div
-                                class="mt-1.5 flex items-center justify-between border-t border-slate-200 pt-2"
-                            >
-                                <span>Hạng thẻ:</span>
-                                <span
-                                    v-if="
-                                        customerLoyalty.membership_level ===
-                                        'diamond'
-                                    "
-                                    class="font-black text-indigo-600"
-                                    >💎 Kim Cương (Giảm 10%)</span
-                                >
-                                <span
-                                    v-else-if="
-                                        customerLoyalty.membership_level ===
-                                        'gold'
-                                    "
-                                    class="font-black text-amber-600"
-                                    >⭐ Vàng (Giảm 5%)</span
-                                >
-                                <span v-else class="text-slate-550 font-bold"
-                                    >🥈 Bạc (Tích điểm)</span
-                                >
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span>Điểm tích lũy:</span>
-                                <span class="font-extrabold text-amber-600"
-                                    >{{
-                                        customerLoyalty.loyalty_points
-                                    }}
-                                    pt</span
-                                >
-                            </div>
-
-                            <!-- Progress milestone gauge -->
-                            <div class="mt-2.5 space-y-1">
-                                <div
-                                    class="flex items-center justify-between text-[9px] font-bold text-slate-400"
-                                >
-                                    <span>Tiến trình thăng hạng:</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-start justify-between">
+                                    <h4
+                                        class="line-clamp-1 text-xs font-black text-slate-800"
+                                    >
+                                        {{ item.product.name }}
+                                    </h4>
                                     <span
-                                        >{{ customerLoyalty.loyalty_points }} /
-                                        {{
-                                            customerLoyalty.membership_level ===
-                                            'silver'
-                                                ? '100 pt'
-                                                : customerLoyalty.membership_level ===
-                                                    'gold'
-                                                  ? '500 pt'
-                                                  : 'Cực Đại'
+                                        class="text-xs font-black tracking-wide text-amber-600"
+                                        >{{
+                                            formatCurrency(
+                                                item.product.price *
+                                                    item.quantity,
+                                            )
                                         }}</span
                                     >
                                 </div>
+                                <p
+                                    v-if="item.notes"
+                                    class="text-xxs mt-1 line-clamp-1 w-max rounded-lg border border-slate-100 bg-slate-50 px-2 py-0.5 text-slate-500 italic"
+                                >
+                                    Ghi chú: {{ item.notes }}
+                                </p>
+
                                 <div
-                                    class="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+                                    class="mt-2.5 flex items-center justify-between"
+                                >
+                                    <span
+                                        class="text-[10px] font-bold text-slate-400"
+                                        >{{
+                                            formatCurrency(item.product.price)
+                                        }}
+                                        / món</span
+                                    >
+
+                                    <div
+                                        class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5"
+                                    >
+                                        <button
+                                            @click="
+                                                updateCartQuantity(
+                                                    item.product.id,
+                                                    -1,
+                                                )
+                                            "
+                                            class="cursor-pointer p-1 text-slate-500 hover:text-amber-500"
+                                        >
+                                            <Minus class="size-3" />
+                                        </button>
+                                        <span
+                                            class="w-4 text-center text-xs font-black text-slate-800"
+                                            >{{ item.quantity }}</span
+                                        >
+                                        <button
+                                            @click="
+                                                updateCartQuantity(
+                                                    item.product.id,
+                                                    1,
+                                                )
+                                            "
+                                            class="cursor-pointer p-1 text-slate-500 hover:text-amber-500"
+                                        >
+                                            <Plus class="size-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Smart Cross-selling Recommendations -->
+                        <div
+                            v-if="crossSellProducts.length > 0"
+                            class="border-t border-slate-100 pt-4 text-left"
+                        >
+                            <h3
+                                class="mb-2 text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                            >
+                                💡 Gợi ý mua kèm (Ngon hơn khi dùng chung)
+                            </h3>
+                            <div
+                                class="flex scrollbar-none gap-3 overflow-x-auto pb-2"
+                            >
+                                <div
+                                    v-for="p in crossSellProducts"
+                                    :key="p.id"
+                                    class="border-slate-150 flex w-44 shrink-0 cursor-pointer items-center gap-2 rounded-xl border bg-slate-50/50 p-2 text-left transition-all hover:bg-slate-50 active:scale-95"
+                                    @click="addCrossSellItem(p)"
                                 >
                                     <div
-                                        class="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all"
-                                        :style="{
-                                            width:
+                                        class="size-9 shrink-0 overflow-hidden rounded-lg border bg-slate-100"
+                                    >
+                                        <img
+                                            v-if="p.image_url"
+                                            :src="p.image_url"
+                                            :alt="p.name"
+                                            class="size-full object-cover"
+                                        />
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p
+                                            class="truncate text-[10px] font-bold text-slate-800"
+                                        >
+                                            {{ p.name }}
+                                        </p>
+                                        <p
+                                            class="font-mono text-[10px] font-black text-amber-600"
+                                        >
+                                            {{ formatCurrency(p.price) }}
+                                        </p>
+                                    </div>
+                                    <span
+                                        class="shrink-0 text-xs font-extrabold text-slate-400 hover:text-indigo-600"
+                                        >+</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Information Form -->
+                        <div class="space-y-4 border-t border-slate-100 pt-4">
+                            <h3
+                                class="text-slate-650 text-xs font-black tracking-wide uppercase"
+                            >
+                                Thông tin gọi món
+                            </h3>
+
+                            <div class="space-y-3">
+                                <div>
+                                    <label
+                                        class="mb-1.5 block text-[9px] font-black tracking-wider text-slate-400 uppercase"
+                                        >Tên của bạn (Tùy chọn)</label
+                                    >
+                                    <input
+                                        v-model="customerName"
+                                        type="text"
+                                        placeholder="Ví dụ: Anh Quân"
+                                        class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-xs text-slate-800 shadow-inner transition-all focus:border-slate-800 focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        class="mb-1.5 block text-[9px] font-black tracking-wider text-slate-400 uppercase"
+                                        >Số điện thoại (Tùy chọn)</label
+                                    >
+                                    <input
+                                        v-model="customerPhone"
+                                        type="text"
+                                        placeholder="Để tích điểm hoặc liên hệ"
+                                        class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-xs text-slate-800 shadow-inner transition-all focus:border-slate-800 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Customer Loyalty Display Card -->
+                            <div
+                                v-if="customerLoyalty"
+                                class="text-xxs mt-2.5 animate-in space-y-2 rounded-2xl border border-amber-200 bg-slate-50 p-4 text-left text-slate-500 shadow-sm duration-200 fade-in"
+                            >
+                                <p
+                                    class="flex items-center gap-1.5 text-xs font-black text-slate-800"
+                                >
+                                    ✨ Hội viên: {{ customerLoyalty.full_name }}
+                                </p>
+                                <div
+                                    class="mt-1.5 flex items-center justify-between border-t border-slate-200 pt-2"
+                                >
+                                    <span>Hạng thẻ:</span>
+                                    <span
+                                        v-if="
+                                            customerLoyalty.membership_level ===
+                                            'diamond'
+                                        "
+                                        class="font-black text-indigo-600"
+                                        >💎 Kim Cương (Giảm 10%)</span
+                                    >
+                                    <span
+                                        v-else-if="
+                                            customerLoyalty.membership_level ===
+                                            'gold'
+                                        "
+                                        class="font-black text-amber-600"
+                                        >⭐ Vàng (Giảm 5%)</span
+                                    >
+                                    <span
+                                        v-else
+                                        class="text-slate-550 font-bold"
+                                        >🥈 Bạc (Tích điểm)</span
+                                    >
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Điểm tích lũy:</span>
+                                    <span class="font-extrabold text-amber-600"
+                                        >{{
+                                            customerLoyalty.loyalty_points
+                                        }}
+                                        pt</span
+                                    >
+                                </div>
+
+                                <!-- Progress milestone gauge -->
+                                <div class="mt-2.5 space-y-1">
+                                    <div
+                                        class="flex items-center justify-between text-[9px] font-bold text-slate-400"
+                                    >
+                                        <span>Tiến trình thăng hạng:</span>
+                                        <span
+                                            >{{
+                                                customerLoyalty.loyalty_points
+                                            }}
+                                            /
+                                            {{
                                                 customerLoyalty.membership_level ===
                                                 'silver'
-                                                    ? Math.min(
-                                                          100,
-                                                          (customerLoyalty.loyalty_points /
-                                                              100) *
-                                                              100,
-                                                      ) + '%'
+                                                    ? '100 pt'
                                                     : customerLoyalty.membership_level ===
                                                         'gold'
-                                                      ? Math.min(
-                                                            100,
-                                                            (customerLoyalty.loyalty_points /
-                                                                500) *
+                                                      ? '500 pt'
+                                                      : 'Cực Đại'
+                                            }}</span
+                                        >
+                                    </div>
+                                    <div
+                                        class="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+                                    >
+                                        <div
+                                            class="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all"
+                                            :style="{
+                                                width:
+                                                    customerLoyalty.membership_level ===
+                                                    'silver'
+                                                        ? Math.min(
+                                                              100,
+                                                              (customerLoyalty.loyalty_points /
+                                                                  100) *
+                                                                  100,
+                                                          ) + '%'
+                                                        : customerLoyalty.membership_level ===
+                                                            'gold'
+                                                          ? Math.min(
                                                                 100,
-                                                        ) + '%'
-                                                      : '100%',
-                                        }"
-                                    ></div>
+                                                                (customerLoyalty.loyalty_points /
+                                                                    500) *
+                                                                    100,
+                                                            ) + '%'
+                                                          : '100%',
+                                            }"
+                                        ></div>
+                                    </div>
+                                    <p
+                                        class="mt-0.5 text-[9px] leading-normal text-muted-foreground"
+                                    >
+                                        {{
+                                            customerLoyalty.membership_level ===
+                                            'silver'
+                                                ? `Tích lũy thêm ${Math.max(0, 100 - customerLoyalty.loyalty_points)} điểm để thăng hạng Vàng (Hưởng giảm giá 5% hóa đơn).`
+                                                : customerLoyalty.membership_level ===
+                                                    'gold'
+                                                  ? `Tích lũy thêm ${Math.max(0, 500 - customerLoyalty.loyalty_points)} điểm để thăng hạng Kim Cương (Hưởng giảm giá 10% hóa đơn).`
+                                                  : 'Bạn đã đạt cấp độ thành viên cao nhất! Xin cảm ơn quý khách.'
+                                        }}
+                                    </p>
                                 </div>
-                                <p
-                                    class="mt-0.5 text-[9px] leading-normal text-muted-foreground"
+
+                                <!-- Point redemption checkbox option -->
+                                <div
+                                    v-if="customerLoyalty.loyalty_points >= 10"
+                                    class="flex items-center justify-between border-t border-slate-200 pt-2"
                                 >
+                                    <label
+                                        class="flex cursor-pointer items-center gap-2"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            v-model="usePoints"
+                                            class="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                        />
+                                        <span class="font-bold text-slate-700"
+                                            >Dùng điểm tích lũy</span
+                                        >
+                                    </label>
+                                    <span
+                                        v-if="usePoints"
+                                        class="text-emerald-650 font-mono font-black"
+                                        >-{{
+                                            formatCurrency(pointsDiscount)
+                                        }}
+                                        (dùng {{ pointsToRedeem }} pt)</span
+                                    >
+                                    <span v-else class="text-slate-400"
+                                        >10 pt = 1,000đ</span
+                                    >
+                                </div>
+
+                                <p
+                                    v-if="
+                                        customerLoyalty.membership_level !==
+                                        'silver'
+                                    "
+                                    class="mt-1 rounded-lg border border-emerald-100 bg-emerald-50 py-1.5 text-center text-[10px] font-bold text-emerald-600 italic"
+                                >
+                                    * Tự động giảm giá
                                     {{
                                         customerLoyalty.membership_level ===
-                                        'silver'
-                                            ? `Tích lũy thêm ${Math.max(0, 100 - customerLoyalty.loyalty_points)} điểm để thăng hạng Vàng (Hưởng giảm giá 5% hóa đơn).`
-                                            : customerLoyalty.membership_level ===
-                                                'gold'
-                                              ? `Tích lũy thêm ${Math.max(0, 500 - customerLoyalty.loyalty_points)} điểm để thăng hạng Kim Cương (Hưởng giảm giá 10% hóa đơn).`
-                                              : 'Bạn đã đạt cấp độ thành viên cao nhất! Xin cảm ơn quý khách.'
+                                        'diamond'
+                                            ? '10%'
+                                            : '5%'
                                     }}
+                                    khi đơn hàng được duyệt!
                                 </p>
                             </div>
-
-                            <!-- Point redemption checkbox option -->
-                            <div
-                                v-if="customerLoyalty.loyalty_points >= 10"
-                                class="flex items-center justify-between border-t border-slate-200 pt-2"
-                            >
-                                <label
-                                    class="flex cursor-pointer items-center gap-2"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        v-model="usePoints"
-                                        class="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                                    />
-                                    <span class="font-bold text-slate-700"
-                                        >Dùng điểm tích lũy</span
-                                    >
-                                </label>
-                                <span
-                                    v-if="usePoints"
-                                    class="text-emerald-650 font-mono font-black"
-                                    >-{{ formatCurrency(pointsDiscount) }} (dùng
-                                    {{ pointsToRedeem }} pt)</span
-                                >
-                                <span v-else class="text-slate-400"
-                                    >10 pt = 1,000đ</span
-                                >
-                            </div>
-
-                            <p
-                                v-if="
-                                    customerLoyalty.membership_level !==
-                                    'silver'
-                                "
-                                class="mt-1 rounded-lg border border-emerald-100 bg-emerald-50 py-1.5 text-center text-[10px] font-bold text-emerald-600 italic"
-                            >
-                                * Tự động giảm giá
-                                {{
-                                    customerLoyalty.membership_level ===
-                                    'diamond'
-                                        ? '10%'
-                                        : '5%'
-                                }}
-                                khi đơn hàng được duyệt!
-                            </p>
                         </div>
                     </div>
+
+                    <footer class="border-t border-slate-100 bg-slate-50 p-5">
+                        <div
+                            v-if="pointsDiscount > 0"
+                            class="text-xxs mb-2 flex items-center justify-between text-slate-500"
+                        >
+                            <span>Giảm giá từ điểm:</span>
+                            <span class="text-emerald-650 font-bold"
+                                >-{{ formatCurrency(pointsDiscount) }}</span
+                            >
+                        </div>
+                        <div
+                            class="text-slate-650 mb-4 flex items-center justify-between"
+                        >
+                            <span class="text-xs">Tổng cộng:</span>
+                            <span
+                                class="text-base font-black tracking-wide text-amber-600"
+                                >{{ formatCurrency(finalCartPrice) }}</span
+                            >
+                        </div>
+
+                        <button
+                            @click="submitOrder"
+                            :disabled="isOrdering || cart.length === 0"
+                            class="hover:bg-slate-850 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 text-xs font-black text-white shadow-sm transition-all active:scale-98 disabled:bg-slate-200 disabled:text-slate-400"
+                        >
+                            <Loader2
+                                v-if="isOrdering"
+                                class="size-4 animate-spin"
+                            />
+                            <span v-else class="tracking-wider uppercase"
+                                >Xác nhận gọi món</span
+                            >
+                        </button>
+                        <p class="text-slate-450 mt-3 text-center text-[9px]">
+                            * Hệ thống ghi nhận đơn đệm để nhân viên xác thực
+                            tại bàn.
+                        </p>
+                    </footer>
                 </div>
-
-                <footer class="border-t border-slate-100 bg-slate-50 p-5">
-                    <div
-                        v-if="pointsDiscount > 0"
-                        class="text-xxs mb-2 flex items-center justify-between text-slate-500"
-                    >
-                        <span>Giảm giá từ điểm:</span>
-                        <span class="text-emerald-650 font-bold"
-                            >-{{ formatCurrency(pointsDiscount) }}</span
-                        >
-                    </div>
-                    <div
-                        class="text-slate-650 mb-4 flex items-center justify-between"
-                    >
-                        <span class="text-xs">Tổng cộng:</span>
-                        <span
-                            class="text-base font-black tracking-wide text-amber-600"
-                            >{{ formatCurrency(finalCartPrice) }}</span
-                        >
-                    </div>
-
-                    <button
-                        @click="submitOrder"
-                        :disabled="isOrdering || cart.length === 0"
-                        class="hover:bg-slate-850 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 text-xs font-black text-white shadow-sm transition-all active:scale-98 disabled:bg-slate-200 disabled:text-slate-400"
-                    >
-                        <Loader2
-                            v-if="isOrdering"
-                            class="size-4 animate-spin"
-                        />
-                        <span v-else class="tracking-wider uppercase"
-                            >Xác nhận gọi món</span
-                        >
-                    </button>
-                    <p class="text-slate-450 mt-3 text-center text-[9px]">
-                        * Hệ thống ghi nhận đơn đệm để nhân viên xác thực tại
-                        bàn.
-                    </p>
-                </footer>
             </div>
-        </div>
         </Teleport>
 
         <!-- ── Product Detail / Customize Notes Modal (Enhanced Details View) ── -->
-        
+
         <div
             v-if="isItemModalOpen && modalProduct"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5 backdrop-blur-sm"
@@ -2286,8 +2322,21 @@ onUnmounted(() => {
                                     >{{ modalQuantity }}</span
                                 >
                                 <button
-                                    @click="modalQuantity = Math.min(modalQuantity + 1, modalProduct?.available_portions ?? modalQuantity + 1)"
-                                    :disabled="modalProduct?.available_portions !== null && modalProduct?.available_portions !== undefined && modalQuantity >= modalProduct.available_portions"
+                                    @click="
+                                        modalQuantity = Math.min(
+                                            modalQuantity + 1,
+                                            modalProduct?.available_portions ??
+                                                modalQuantity + 1,
+                                        )
+                                    "
+                                    :disabled="
+                                        modalProduct?.available_portions !==
+                                            null &&
+                                        modalProduct?.available_portions !==
+                                            undefined &&
+                                        modalQuantity >=
+                                            modalProduct.available_portions
+                                    "
                                     class="cursor-pointer p-1 text-slate-400 hover:text-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                     <Plus class="size-3.5" />
@@ -2329,10 +2378,9 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
-        
 
         <!-- ── Detailed Feedback Modal ─────────────────────────────────────── -->
-        
+
         <div
             v-if="showFeedbackSection"
             class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm"
@@ -2617,60 +2665,61 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
-        
 
         <!-- ── Call Staff Hub Modal ────────────────────────────────────────── -->
         <Teleport to="body">
-        <div
-            v-if="isCallStaffHubOpen"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm duration-200 fade-in"
-            @click.self="isCallStaffHubOpen = false"
-        >
             <div
-                class="w-full max-w-sm animate-in overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl duration-200 zoom-in-95"
+                v-if="isCallStaffHubOpen"
+                class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm duration-200 fade-in"
+                @click.self="isCallStaffHubOpen = false"
             >
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                    class="w-full max-w-sm animate-in overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl duration-200 zoom-in-95"
                 >
-                    <div class="flex items-center gap-2">
-                        <Bell class="text-indigo-650 size-4.5 animate-bounce" />
-                        <h3
-                            class="text-xs font-black tracking-wide text-slate-800 uppercase"
-                        >
-                            Gọi nhân viên phục vụ
-                        </h3>
-                    </div>
-                    <button
-                        @click="isCallStaffHubOpen = false"
-                        class="cursor-pointer rounded-xl bg-slate-100 p-1 text-slate-500 hover:bg-slate-200"
+                    <div
+                        class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
                     >
-                        <X class="size-4" />
-                    </button>
-                </div>
-
-                <div class="space-y-3 p-5">
-                    <p
-                        class="text-xxs text-left font-bold text-slate-400 uppercase"
-                    >
-                        Chọn yêu cầu cụ thể tại bàn {{ table.name }}:
-                    </p>
-
-                    <div class="grid grid-cols-1 gap-2.5">
+                        <div class="flex items-center gap-2">
+                            <Bell
+                                class="text-indigo-650 size-4.5 animate-bounce"
+                            />
+                            <h3
+                                class="text-xs font-black tracking-wide text-slate-800 uppercase"
+                            >
+                                Gọi nhân viên phục vụ
+                            </h3>
+                        </div>
                         <button
-                            v-for="preset in staffCallPresets"
-                            :key="preset.label"
-                            type="button"
-                            @click="callStaffWithMessage(preset.message)"
-                            :disabled="isCallingStaffCustom"
-                            class="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-slate-200 p-3.5 text-left text-xs font-black text-slate-700 transition-all hover:bg-slate-50 active:scale-98 disabled:opacity-50"
+                            @click="isCallStaffHubOpen = false"
+                            class="cursor-pointer rounded-xl bg-slate-100 p-1 text-slate-500 hover:bg-slate-200"
                         >
-                            <span>{{ preset.label }}</span>
-                            <span class="text-slate-350">➔</span>
+                            <X class="size-4" />
                         </button>
+                    </div>
+
+                    <div class="space-y-3 p-5">
+                        <p
+                            class="text-xxs text-left font-bold text-slate-400 uppercase"
+                        >
+                            Chọn yêu cầu cụ thể tại bàn {{ table.name }}:
+                        </p>
+
+                        <div class="grid grid-cols-1 gap-2.5">
+                            <button
+                                v-for="preset in staffCallPresets"
+                                :key="preset.label"
+                                type="button"
+                                @click="callStaffWithMessage(preset.message)"
+                                :disabled="isCallingStaffCustom"
+                                class="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-slate-200 p-3.5 text-left text-xs font-black text-slate-700 transition-all hover:bg-slate-50 active:scale-98 disabled:opacity-50"
+                            >
+                                <span>{{ preset.label }}</span>
+                                <span class="text-slate-350">➔</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

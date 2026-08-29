@@ -22,6 +22,7 @@ import {
     ArrowUpDown,
     Zap,
     Activity,
+    Bot,
     Radio,
     CheckCheck,
     TrendingUp,
@@ -29,7 +30,8 @@ import {
     BookOpen,
     Sparkles,
 } from 'lucide-vue-next';
-import { ref, computed, onMounted, onUnmounted } from 'vue';import { toast } from 'vue-sonner';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { toast } from 'vue-sonner';
 import DeliveryMap from '@/components/delivery/DeliveryMap.vue';
 import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
 import { Badge } from '@/components/ui/badge';

@@ -110,9 +110,7 @@ const numberFormat = (val: number) =>
                                     </span>
                                     <span class="text-[10px] text-slate-400">
                                         Đơn gốc:
-                                        {{
-                                            item.max_quantity ?? item.quantity
-                                        }}
+                                        {{ item.max_quantity ?? item.quantity }}
                                         món
                                     </span>
                                 </div>

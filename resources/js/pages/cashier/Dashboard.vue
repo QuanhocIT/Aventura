@@ -3,6 +3,7 @@ import { Head, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Utensils, Sparkles, Clock, CheckIcon, XCircle } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { Button } from '@/components/ui/button';
 
 // TypeScript Types
 

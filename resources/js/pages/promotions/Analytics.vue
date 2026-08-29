@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { AlertTriangle, ArrowUpRight, BarChart3, CheckCircle2, DollarSign, Lightbulb, RotateCcw, ShoppingCart, TrendingUp, UserPlus } from 'lucide-vue-next';
+import {
+    AlertTriangle,
+    ArrowUpRight,
+    BarChart3,
+    CheckCircle2,
+    DollarSign,
+    Lightbulb,
+    RotateCcw,
+    ShoppingCart,
+    TrendingUp,
+    UserPlus,
+} from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import BackButton from '@/components/BackButton.vue';
@@ -125,7 +136,9 @@ function formatVND(val: number) {
 }
 
 const maxRevenue = Math.max(
-    ...((props.metrics?.daily ?? []).map((d: PromotionDailyStat) => d.revenue) || [1]),
+    ...((props.metrics?.daily ?? []).map(
+        (d: PromotionDailyStat) => d.revenue,
+    ) || [1]),
     1,
 );
 </script>
@@ -136,38 +149,62 @@ const maxRevenue = Math.max(
     <div class="flex flex-col gap-6 px-6 py-5">
         <!-- Hero Header Banner -->
         <section
-            class="relative overflow-hidden rounded-2xl border border-violet-100/90 bg-gradient-to-r from-violet-50/90 via-slate-50 to-purple-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0d0b14] dark:via-black dark:to-[#0b0d14] dark:text-white dark:shadow-md backdrop-blur-md"
+            class="relative overflow-hidden rounded-2xl border border-violet-100/90 bg-gradient-to-r from-violet-50/90 via-slate-50 to-purple-50/60 p-4 text-slate-900 shadow-xs backdrop-blur-md sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0d0b14] dark:via-black dark:to-[#0b0d14] dark:text-white dark:shadow-md"
         >
             <!-- Ambient glow blobs -->
-            <div class="pointer-events-none absolute -top-24 right-8 size-48 rounded-full bg-violet-500/10 blur-3xl" />
-            <div class="pointer-events-none absolute -bottom-28 left-1/3 size-48 rounded-full bg-purple-500/10 blur-3xl" />
+            <div
+                class="pointer-events-none absolute -top-24 right-8 size-48 rounded-full bg-violet-500/10 blur-3xl"
+            />
+            <div
+                class="pointer-events-none absolute -bottom-28 left-1/3 size-48 rounded-full bg-purple-500/10 blur-3xl"
+            />
 
-            <div class="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div
+                class="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-center"
+            >
                 <!-- Left: Title & breadcrumb -->
                 <div class="flex items-center gap-3.5">
-                    <BackButton fallback-href="/promotions" label="Khuyến mãi" />
-                    <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-600/20 dark:border dark:border-violet-500/30 dark:bg-violet-600/25 dark:text-violet-400 backdrop-blur-md">
+                    <BackButton
+                        fallback-href="/promotions"
+                        label="Khuyến mãi"
+                    />
+                    <div
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-600/20 backdrop-blur-md dark:border dark:border-violet-500/30 dark:bg-violet-600/25 dark:text-violet-400"
+                    >
                         <BarChart3 class="size-5" />
                     </div>
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-violet-700 uppercase dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300">
-                                <TrendingUp class="size-2.5 text-violet-600 dark:text-violet-400" />
+                            <span
+                                class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-violet-700 uppercase dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300"
+                            >
+                                <TrendingUp
+                                    class="size-2.5 text-violet-600 dark:text-violet-400"
+                                />
                                 Phân tích Khuyến mãi
                             </span>
                         </div>
-                        <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
+                        <h1
+                            class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
+                        >
                             Hiệu quả Khuyến mãi
                         </h1>
-                        <p class="mt-0.5 max-w-xl text-xs leading-normal text-slate-600 dark:text-slate-400">
-                            Đo lường ROI, Basket Lift, chi phí chiết khấu & tỷ lệ đổi mã.
+                        <p
+                            class="mt-0.5 max-w-xl text-xs leading-normal text-slate-600 dark:text-slate-400"
+                        >
+                            Đo lường ROI, Basket Lift, chi phí chiết khấu & tỷ
+                            lệ đổi mã.
                         </p>
                     </div>
                 </div>
 
                 <!-- Right: Filters & Actions -->
-                <div class="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    <div class="flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/90 p-1 shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50">
+                <div
+                    class="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center"
+                >
+                    <div
+                        class="flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/90 p-1 shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50"
+                    >
                         <button
                             type="button"
                             @click="setQuickPreset(7)"
@@ -183,10 +220,26 @@ const maxRevenue = Math.max(
                             30 ngày
                         </button>
                     </div>
-                    <Input v-model="startDate" type="date" class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50" />
-                    <span class="hidden text-xs text-slate-500 dark:text-slate-400 sm:inline">→</span>
-                    <Input v-model="endDate" type="date" class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50" />
-                    <Button variant="outline" size="sm" @click="applyFilter" class="font-semibold">
+                    <Input
+                        v-model="startDate"
+                        type="date"
+                        class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50"
+                    />
+                    <span
+                        class="hidden text-xs text-slate-500 sm:inline dark:text-slate-400"
+                        >→</span
+                    >
+                    <Input
+                        v-model="endDate"
+                        type="date"
+                        class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50"
+                    />
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="applyFilter"
+                        class="font-semibold"
+                    >
                         Lọc
                     </Button>
                     <Button
@@ -196,7 +249,12 @@ const maxRevenue = Math.max(
                         :disabled="isRecalculating"
                         class="gap-1.5 font-semibold"
                     >
-                        <RotateCcw :class="['size-3.5', isRecalculating && 'animate-spin']" />
+                        <RotateCcw
+                            :class="[
+                                'size-3.5',
+                                isRecalculating && 'animate-spin',
+                            ]"
+                        />
                         Tính lại
                     </Button>
                 </div>
@@ -204,120 +262,212 @@ const maxRevenue = Math.max(
         </section>
 
         <!-- AI Insights & Advisor Cards -->
-        <div v-if="metrics.insights?.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+            v-if="metrics.insights?.length"
+            class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
             <div
                 v-for="(insight, idx) in metrics.insights"
                 :key="idx"
                 :class="[
                     'flex items-start gap-3 rounded-2xl border p-4 shadow-sm transition-all',
-                    insight.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-950 dark:text-emerald-200' :
-                    insight.type === 'warning' ? 'border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200' :
-                    'border-primary/30 bg-primary/5 text-foreground'
+                    insight.type === 'success'
+                        ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-950 dark:text-emerald-200'
+                        : insight.type === 'warning'
+                          ? 'border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200'
+                          : 'border-primary/30 bg-primary/5 text-foreground',
                 ]"
             >
                 <div
                     :class="[
-                        'rounded-xl p-2 shrink-0',
-                        insight.type === 'success' ? 'bg-emerald-500/10 text-emerald-600' :
-                        insight.type === 'warning' ? 'bg-amber-500/10 text-amber-600' :
-                        'bg-primary/10 text-primary'
+                        'shrink-0 rounded-xl p-2',
+                        insight.type === 'success'
+                            ? 'bg-emerald-500/10 text-emerald-600'
+                            : insight.type === 'warning'
+                              ? 'bg-amber-500/10 text-amber-600'
+                              : 'bg-primary/10 text-primary',
                     ]"
                 >
                     <Lightbulb v-if="insight.type === 'info'" class="size-5" />
-                    <CheckCircle2 v-else-if="insight.type === 'success'" class="size-5" />
+                    <CheckCircle2
+                        v-else-if="insight.type === 'success'"
+                        class="size-5"
+                    />
                     <AlertTriangle v-else class="size-5" />
                 </div>
                 <div>
                     <h4 class="text-xs font-bold">{{ insight.title }}</h4>
-                    <p class="mt-0.5 text-[11px] opacity-90 leading-relaxed">{{ insight.message }}</p>
+                    <p class="mt-0.5 text-[11px] leading-relaxed opacity-90">
+                        {{ insight.message }}
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- Metric KPI Summary Grid -->
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card class="border-rose-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-rose-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-rose-500/10 p-2.5 text-rose-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-rose-500/10 p-2.5 text-rose-600"
+                    >
                         <DollarSign class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Chi phí chiết khấu</p>
-                        <p class="text-xl font-bold text-rose-600 truncate" :title="`${formatVND(metrics.total_discount)}₫`">
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Chi phí chiết khấu
+                        </p>
+                        <p
+                            class="truncate text-xl font-bold text-rose-600"
+                            :title="`${formatVND(metrics.total_discount)}₫`"
+                        >
                             {{ formatVND(metrics.total_discount) }}₫
                         </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="border-emerald-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-emerald-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-emerald-500/10 p-2.5 text-emerald-600"
+                    >
                         <TrendingUp class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Doanh thu từ KM</p>
-                        <p class="text-xl font-bold text-emerald-600 truncate" :title="`${formatVND(metrics.total_revenue)}₫`">
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Doanh thu từ KM
+                        </p>
+                        <p
+                            class="truncate text-xl font-bold text-emerald-600"
+                            :title="`${formatVND(metrics.total_revenue)}₫`"
+                        >
                             {{ formatVND(metrics.total_revenue) }}₫
                         </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="border-violet-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-violet-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-violet-500/10 p-2.5 text-violet-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-violet-500/10 p-2.5 text-violet-600"
+                    >
                         <BarChart3 class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Hiệu quả ROI</p>
-                        <p :class="['text-xl font-bold truncate', metrics.roi_percent >= 100 ? 'text-emerald-600' : 'text-rose-600']">
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Hiệu quả ROI
+                        </p>
+                        <p
+                            :class="[
+                                'truncate text-xl font-bold',
+                                metrics.roi_percent >= 100
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600',
+                            ]"
+                        >
                             {{ metrics.roi_percent }}%
                         </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="border-sky-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-sky-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-sky-500/10 p-2.5 text-sky-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-sky-500/10 p-2.5 text-sky-600"
+                    >
                         <ShoppingCart class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Lần áp mã thành công</p>
-                        <p class="text-xl font-bold text-foreground truncate">
-                            {{ metrics.total_uses }} <span class="text-xs font-normal text-muted-foreground">lượt</span>
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Lần áp mã thành công
+                        </p>
+                        <p class="truncate text-xl font-bold text-foreground">
+                            {{ metrics.total_uses }}
+                            <span
+                                class="text-xs font-normal text-muted-foreground"
+                                >lượt</span
+                            >
                         </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="border-indigo-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-indigo-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-indigo-500/10 p-2.5 text-indigo-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-indigo-500/10 p-2.5 text-indigo-600"
+                    >
                         <ArrowUpRight class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Tăng trưởng giỏ hàng (Basket Lift)</p>
-                        <p :class="['text-xl font-bold truncate', (metrics.basket_lift_percent ?? 0) >= 0 ? 'text-emerald-600' : 'text-rose-600']">
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Tăng trưởng giỏ hàng (Basket Lift)
+                        </p>
+                        <p
+                            :class="[
+                                'truncate text-xl font-bold',
+                                (metrics.basket_lift_percent ?? 0) >= 0
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600',
+                            ]"
+                        >
                             +{{ metrics.basket_lift_percent ?? 0 }}%
                         </p>
-                        <p class="text-[10px] text-muted-foreground truncate" :title="`TB: ${formatVND(metrics.aov_with_promo ?? 0)}₫/đơn KM`">
-                            TB: {{ formatVND(metrics.aov_with_promo ?? 0) }}₫/đơn KM
+                        <p
+                            class="truncate text-[10px] text-muted-foreground"
+                            :title="`TB: ${formatVND(metrics.aov_with_promo ?? 0)}₫/đơn KM`"
+                        >
+                            TB:
+                            {{ formatVND(metrics.aov_with_promo ?? 0) }}₫/đơn KM
                         </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card class="border-amber-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md">
+            <Card
+                class="border-amber-500/20 bg-card/40 shadow-xs backdrop-blur-md transition-all hover:shadow-md"
+            >
                 <CardContent class="flex items-center gap-4 p-4">
-                    <div class="rounded-xl bg-amber-500/10 p-2.5 text-amber-600 shrink-0">
+                    <div
+                        class="shrink-0 rounded-xl bg-amber-500/10 p-2.5 text-amber-600"
+                    >
                         <UserPlus class="size-5" />
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase truncate">Khách mới nhờ KM</p>
-                        <p class="text-xl font-bold text-amber-600 truncate">
-                            {{ metrics.new_customers_acquired }} <span class="text-xs font-normal text-muted-foreground">khách</span>
+                        <p
+                            class="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Khách mới nhờ KM
+                        </p>
+                        <p class="truncate text-xl font-bold text-amber-600">
+                            {{ metrics.new_customers_acquired }}
+                            <span
+                                class="text-xs font-normal text-muted-foreground"
+                                >khách</span
+                            >
                         </p>
                     </div>
                 </CardContent>
@@ -327,17 +477,24 @@ const maxRevenue = Math.max(
         <!-- Daily Trend Bar Chart -->
         <Card>
             <CardHeader class="pb-3">
-                <CardTitle class="text-sm font-bold">Doanh thu tác động theo ngày</CardTitle>
+                <CardTitle class="text-sm font-bold"
+                    >Doanh thu tác động theo ngày</CardTitle
+                >
             </CardHeader>
             <CardContent>
                 <div v-if="metrics.daily?.length" class="space-y-2">
                     <div
-                        v-for="day in (metrics.daily ?? [])"
+                        v-for="day in metrics.daily ?? []"
                         :key="day.date"
                         class="flex items-center gap-3"
                     >
-                        <span class="w-12 shrink-0 font-mono text-[10px] text-muted-foreground">{{ day.date }}</span>
-                        <div class="h-4 flex-1 overflow-hidden rounded-full bg-muted/40">
+                        <span
+                            class="w-12 shrink-0 font-mono text-[10px] text-muted-foreground"
+                            >{{ day.date }}</span
+                        >
+                        <div
+                            class="h-4 flex-1 overflow-hidden rounded-full bg-muted/40"
+                        >
                             <div
                                 class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
                                 :style="{
@@ -345,12 +502,22 @@ const maxRevenue = Math.max(
                                 }"
                             />
                         </div>
-                        <span class="w-24 shrink-0 text-right font-mono text-[10px] font-bold text-foreground tabular-nums">{{ formatVND(day.revenue) }}₫</span>
-                        <span class="w-10 shrink-0 text-right font-mono text-[10px] text-muted-foreground">{{ day.uses }}x</span>
+                        <span
+                            class="w-24 shrink-0 text-right font-mono text-[10px] font-bold text-foreground tabular-nums"
+                            >{{ formatVND(day.revenue) }}₫</span
+                        >
+                        <span
+                            class="w-10 shrink-0 text-right font-mono text-[10px] text-muted-foreground"
+                            >{{ day.uses }}x</span
+                        >
                     </div>
                 </div>
-                <p v-else class="py-10 text-center text-xs text-muted-foreground">
-                    Chưa có dữ liệu trong khoảng thời gian này. Bấm "Tính lại" để cập nhật dữ liệu mới nhất.
+                <p
+                    v-else
+                    class="py-10 text-center text-xs text-muted-foreground"
+                >
+                    Chưa có dữ liệu trong khoảng thời gian này. Bấm "Tính lại"
+                    để cập nhật dữ liệu mới nhất.
                 </p>
             </CardContent>
         </Card>
@@ -358,53 +525,114 @@ const maxRevenue = Math.max(
         <!-- Per Promotion Breakdown Table -->
         <Card>
             <CardHeader class="pb-3">
-                <CardTitle class="text-sm font-bold">Hiệu quả chi tiết theo từng chương trình</CardTitle>
+                <CardTitle class="text-sm font-bold"
+                    >Hiệu quả chi tiết theo từng chương trình</CardTitle
+                >
             </CardHeader>
             <CardContent class="p-0">
-                <div v-if="metrics.per_promotion?.length" class="overflow-x-auto">
+                <div
+                    v-if="metrics.per_promotion?.length"
+                    class="overflow-x-auto"
+                >
                     <table class="w-full border-collapse text-left text-xs">
                         <thead>
-                            <tr class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                            <tr
+                                class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <th class="p-3">Chương trình</th>
                                 <th class="p-3">Mã Code</th>
                                 <th class="p-3 text-right">Lượt dùng</th>
                                 <th class="p-3 text-right">Khách hàng</th>
-                                <th class="p-3 text-right">Chi phí chiết khấu</th>
-                                <th class="p-3 text-right">Doanh thu tác động</th>
-                                <th class="p-3 text-right">Giá trị đơn TB (AOV)</th>
+                                <th class="p-3 text-right">
+                                    Chi phí chiết khấu
+                                </th>
+                                <th class="p-3 text-right">
+                                    Doanh thu tác động
+                                </th>
+                                <th class="p-3 text-right">
+                                    Giá trị đơn TB (AOV)
+                                </th>
                                 <th class="p-3 text-right">ROI</th>
                                 <th class="p-3 text-center">Mã vượt quyền</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y border-border/70">
-                            <tr v-for="row in (metrics.per_promotion ?? [])" :key="row.promotion_id" class="transition-colors hover:bg-muted/20">
-                                <td class="p-3 font-bold text-foreground">{{ row.name }}</td>
+                            <tr
+                                v-for="row in metrics.per_promotion ?? []"
+                                :key="row.promotion_id"
+                                class="transition-colors hover:bg-muted/20"
+                            >
+                                <td class="p-3 font-bold text-foreground">
+                                    {{ row.name }}
+                                </td>
                                 <td class="p-3">
-                                    <span v-if="row.code" class="rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                    <span
+                                        v-if="row.code"
+                                        class="rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                                    >
                                         {{ row.code }}
                                     </span>
-                                    <span v-else class="text-muted-foreground">—</span>
+                                    <span v-else class="text-muted-foreground"
+                                        >—</span
+                                    >
                                 </td>
-                                <td class="p-3 text-right font-mono font-bold text-foreground tabular-nums">{{ row.uses }}</td>
-                                <td class="p-3 text-right font-mono text-muted-foreground tabular-nums">{{ row.unique_customers }}</td>
-                                <td class="p-3 text-right font-mono font-bold text-rose-600 tabular-nums">-{{ formatVND(row.discount_given) }}₫</td>
-                                <td class="p-3 text-right font-mono font-bold text-emerald-600 tabular-nums">{{ formatVND(row.revenue_influenced) }}₫</td>
-                                <td class="p-3 text-right font-mono text-muted-foreground tabular-nums">{{ formatVND(row.avg_order_value) }}₫</td>
-                                <td :class="['p-3 text-right font-mono font-bold tabular-nums', row.roi_percent >= 100 ? 'text-emerald-600' : 'text-amber-600']">
+                                <td
+                                    class="p-3 text-right font-mono font-bold text-foreground tabular-nums"
+                                >
+                                    {{ row.uses }}
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-muted-foreground tabular-nums"
+                                >
+                                    {{ row.unique_customers }}
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono font-bold text-rose-600 tabular-nums"
+                                >
+                                    -{{ formatVND(row.discount_given) }}₫
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono font-bold text-emerald-600 tabular-nums"
+                                >
+                                    {{ formatVND(row.revenue_influenced) }}₫
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-muted-foreground tabular-nums"
+                                >
+                                    {{ formatVND(row.avg_order_value) }}₫
+                                </td>
+                                <td
+                                    :class="[
+                                        'p-3 text-right font-mono font-bold tabular-nums',
+                                        row.roi_percent >= 100
+                                            ? 'text-emerald-600'
+                                            : 'text-amber-600',
+                                    ]"
+                                >
                                     {{ row.roi_percent }}%
                                 </td>
                                 <td class="p-3 text-center">
-                                    <span v-if="row.bypass_count > 0" class="rounded bg-rose-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-rose-600 dark:text-rose-400" title="Lượt dùng mã phê duyệt vượt quyền">
+                                    <span
+                                        v-if="row.bypass_count > 0"
+                                        class="rounded bg-rose-500/10 px-2 py-0.5 font-mono text-[10px] font-bold text-rose-600 dark:text-rose-400"
+                                        title="Lượt dùng mã phê duyệt vượt quyền"
+                                    >
                                         {{ row.bypass_count }} lượt
                                     </span>
-                                    <span v-else class="text-muted-foreground">—</span>
+                                    <span v-else class="text-muted-foreground"
+                                        >—</span
+                                    >
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <div v-else class="p-10 text-center text-xs text-muted-foreground">
-                    Chưa ghi nhận lượt sử dụng mã khuyến mãi nào trong khoảng thời gian này.
+                <div
+                    v-else
+                    class="p-10 text-center text-xs text-muted-foreground"
+                >
+                    Chưa ghi nhận lượt sử dụng mã khuyến mãi nào trong khoảng
+                    thời gian này.
                 </div>
             </CardContent>
         </Card>
