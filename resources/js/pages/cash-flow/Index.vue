@@ -299,15 +299,21 @@ function handleReconcileOpening() {
         return;
     }
 
-    reconcileForm.post(`/cash-flow/registers/${reconcileForm.register_id}/reconcile-opening`, {
-        onSuccess: () => {
-            showReconcileModal.value = false;
-            toast.success('Đã đối soát số dư đầu ca');
+    reconcileForm.post(
+        `/cash-flow/registers/${reconcileForm.register_id}/reconcile-opening`,
+        {
+            onSuccess: () => {
+                showReconcileModal.value = false;
+                toast.success('Đã đối soát số dư đầu ca');
+            },
+            onError: (err: any) => {
+                toast.error(
+                    (Object.values(err)[0] as string) ||
+                        'Không thể đối soát két',
+                );
+            },
         },
-        onError: (err: any) => {
-            toast.error((Object.values(err)[0] as string) || 'Không thể đối soát két');
-        },
-    });
+    );
 }
 
 function openTxModal(type: 'in' | 'out') {
@@ -401,12 +407,20 @@ const chartMaxVal = computed(() => {
                         <h1
                             class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 bg-clip-text text-2xl font-black tracking-tight text-transparent dark:from-slate-100 dark:via-slate-200 dark:to-indigo-300"
                         >
-                            {{ isManager !== false ? 'Quỹ Tiền Mặt & Dòng Tiền' : 'Két Tiền Ca Trực' }}
+                            {{
+                                isManager !== false
+                                    ? 'Quỹ Tiền Mặt & Dòng Tiền'
+                                    : 'Két Tiền Ca Trực'
+                            }}
                         </h1>
                         <p
                             class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400"
                         >
-                            {{ isManager !== false ? 'Quản lý két tiền ca, kiểm soát thu chi tại quầy, dự báo dòng tiền an toàn.' : 'Mở két đầu ca và theo dõi két tiền mặt trực tiếp tại quầy trong ca.' }}
+                            {{
+                                isManager !== false
+                                    ? 'Quản lý két tiền ca, kiểm soát thu chi tại quầy, dự báo dòng tiền an toàn.'
+                                    : 'Mở két đầu ca và theo dõi két tiền mặt trực tiếp tại quầy trong ca.'
+                            }}
                         </p>
                     </div>
                 </div>
@@ -418,7 +432,11 @@ const chartMaxVal = computed(() => {
                         class="h-10 cursor-pointer rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-600/30 active:scale-95"
                     >
                         <PlusCircle class="mr-2 size-4" />
-                        {{ activeRegister ? 'Mở thêm két / khu vực' : 'Mở két đầu ca' }}
+                        {{
+                            activeRegister
+                                ? 'Mở thêm két / khu vực'
+                                : 'Mở két đầu ca'
+                        }}
                     </Button>
                 </div>
             </div>
@@ -495,12 +513,16 @@ const chartMaxVal = computed(() => {
                             Có két tự động mở do nhân viên chưa mở ca
                         </p>
                         <p class="mt-1 text-[11px] font-medium">
-                            Doanh thu tiền mặt vẫn được ghi nhận, nhưng các khoản chi và chốt ca đang khóa cho đến khi quản lý xác nhận số dư đầu ca.
+                            Doanh thu tiền mặt vẫn được ghi nhận, nhưng các
+                            khoản chi và chốt ca đang khóa cho đến khi quản lý
+                            xác nhận số dư đầu ca.
                         </p>
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2">
                         <Button
-                            v-for="row in activeRegisters.filter((item) => item.requires_opening_reconciliation)"
+                            v-for="row in activeRegisters.filter(
+                                (item) => item.requires_opening_reconciliation,
+                            )"
                             :key="row.id"
                             type="button"
                             variant="outline"
@@ -904,12 +926,17 @@ const chartMaxVal = computed(() => {
                                                     Chi nhánh:
                                                     <strong
                                                         class="text-slate-500"
-                                                    >{{
+                                                        >{{
                                                             tx.branch_name
                                                         }}</strong
                                                     >
                                                     · Khu vực:
-                                                    <strong class="text-slate-500">{{ tx.area_name }}</strong>
+                                                    <strong
+                                                        class="text-slate-500"
+                                                        >{{
+                                                            tx.area_name
+                                                        }}</strong
+                                                    >
                                                     · Nhân viên:
                                                     <strong
                                                         class="text-slate-500"
@@ -1075,7 +1102,9 @@ const chartMaxVal = computed(() => {
                                     </span>
                                 </td>
                                 <td class="p-3.5">
-                                    <span class="rounded bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
+                                    <span
+                                        class="rounded bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                                    >
                                         {{ r.area_name }}
                                     </span>
                                 </td>
@@ -1521,381 +1550,445 @@ const chartMaxVal = computed(() => {
 
         <!-- MODAL: Open Register -->
         <Teleport to="body">
-        <div
-            v-if="showOpenModal"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
-        >
-            <Card
-                class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
+            <div
+                v-if="showOpenModal"
+                class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
             >
-                <CardHeader
-                    class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                <Card
+                    class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
                 >
-                    <CardTitle
-                        class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                    <CardHeader
+                        class="border-b border-slate-100 pb-3 dark:border-slate-800"
                     >
-                        <Wallet
-                            class="size-5 text-indigo-600 dark:text-indigo-400"
-                        />
-                        Mở Két Tiền Mặt Đầu Ca
-                    </CardTitle>
-                    <CardDescription class="text-xs">
-                        Khai báo số dư két tiền ban đầu để cashier thực hiện
-                        thanh toán & đối soát.
-                    </CardDescription>
-                </CardHeader>
-                <form @submit.prevent="handleOpenRegister">
-                    <CardContent class="space-y-4.5 p-5">
-                        <!-- Cashier area -->
-                        <div v-if="areas.length" class="space-y-1.5">
-                            <Label
-                                for="open-area"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Khu vực thu ngân<span v-if="areas.length > 1" class="text-rose-500"> *</span>:
-                            </Label>
-                            <select
-                                id="open-area"
-                                v-model="openForm.area_id"
-                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-                            >
-                                <option value="" :disabled="areas.length > 1">
-                                    {{ areas.length > 1 ? '-- Chọn khu vực --' : '-- Khu vực mặc định --' }}
-                                </option>
-                                <option v-for="area in areas" :key="area.id" :value="area.id">
-                                    {{ area.name }} ({{ area.code }})
-                                </option>
-                            </select>
-                        </div>
-                        <!-- Shift select -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="open-shift"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Chọn ca làm việc:
-                            </Label>
-                            <select
-                                id="open-shift"
-                                v-model="openForm.shift_id"
-                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-                            >
-                                <option value="" disabled>
-                                    -- Chọn ca trực --
-                                </option>
-                                <option
-                                    v-for="s in shifts"
-                                    :key="s.id"
-                                    :value="s.id"
+                        <CardTitle
+                            class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                        >
+                            <Wallet
+                                class="size-5 text-indigo-600 dark:text-indigo-400"
+                            />
+                            Mở Két Tiền Mặt Đầu Ca
+                        </CardTitle>
+                        <CardDescription class="text-xs">
+                            Khai báo số dư két tiền ban đầu để cashier thực hiện
+                            thanh toán & đối soát.
+                        </CardDescription>
+                    </CardHeader>
+                    <form @submit.prevent="handleOpenRegister">
+                        <CardContent class="space-y-4.5 p-5">
+                            <!-- Cashier area -->
+                            <div v-if="areas.length" class="space-y-1.5">
+                                <Label
+                                    for="open-area"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
                                 >
-                                    {{ s.name }} ({{ s.code }})
-                                </option>
-                            </select>
-                        </div>
+                                    Khu vực thu ngân<span
+                                        v-if="areas.length > 1"
+                                        class="text-rose-500"
+                                    >
+                                        *</span
+                                    >:
+                                </Label>
+                                <select
+                                    id="open-area"
+                                    v-model="openForm.area_id"
+                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                >
+                                    <option
+                                        value=""
+                                        :disabled="areas.length > 1"
+                                    >
+                                        {{
+                                            areas.length > 1
+                                                ? '-- Chọn khu vực --'
+                                                : '-- Khu vực mặc định --'
+                                        }}
+                                    </option>
+                                    <option
+                                        v-for="area in areas"
+                                        :key="area.id"
+                                        :value="area.id"
+                                    >
+                                        {{ area.name }} ({{ area.code }})
+                                    </option>
+                                </select>
+                            </div>
+                            <!-- Shift select -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="open-shift"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Chọn ca làm việc:
+                                </Label>
+                                <select
+                                    id="open-shift"
+                                    v-model="openForm.shift_id"
+                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                >
+                                    <option value="" disabled>
+                                        -- Chọn ca trực --
+                                    </option>
+                                    <option
+                                        v-for="s in shifts"
+                                        :key="s.id"
+                                        :value="s.id"
+                                    >
+                                        {{ s.name }} ({{ s.code }})
+                                    </option>
+                                </select>
+                            </div>
 
-                        <!-- Opening Balance -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="open-balance"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Số dư tiền mặt mở ca (VND):
-                            </Label>
-                            <Input
-                                id="open-balance"
-                                v-model.number="openForm.opening_balance"
-                                type="number"
-                                min="0"
-                                step="1"
-                                placeholder="Ví dụ: 2000000"
-                                class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
-                            />
-                        </div>
+                            <!-- Opening Balance -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="open-balance"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Số dư tiền mặt mở ca (VND):
+                                </Label>
+                                <Input
+                                    id="open-balance"
+                                    v-model.number="openForm.opening_balance"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="Ví dụ: 2000000"
+                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                />
+                            </div>
 
-                        <!-- Expense Budget -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="open-budget"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Hạn mức chi ngoài két (VND - Tùy chọn):
-                            </Label>
-                            <Input
-                                id="open-budget"
-                                v-model.number="openForm.expense_budget"
-                                type="number"
-                                min="0"
-                                step="1"
-                                placeholder="Ví dụ: 1000000"
-                                class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
-                            />
-                            <p
-                                class="text-[10px] font-medium text-slate-400/90"
-                            >
-                                Cảnh báo thâm hụt khi chi tiền mua gas, đá viên
-                                đi chợ gấp trong ca.
-                            </p>
-                        </div>
+                            <!-- Expense Budget -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="open-budget"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Hạn mức chi ngoài két (VND - Tùy chọn):
+                                </Label>
+                                <Input
+                                    id="open-budget"
+                                    v-model.number="openForm.expense_budget"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="Ví dụ: 1000000"
+                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                />
+                                <p
+                                    class="text-[10px] font-medium text-slate-400/90"
+                                >
+                                    Cảnh báo thâm hụt khi chi tiền mua gas, đá
+                                    viên đi chợ gấp trong ca.
+                                </p>
+                            </div>
 
-                        <!-- Notes -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="open-notes"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Ghi chú mở đầu ca:
-                            </Label>
-                            <Input
-                                id="open-notes"
-                                v-model="openForm.notes"
-                                type="text"
-                                placeholder="Ghi chú số dư bàn giao (nếu có)..."
-                                class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
-                            />
-                        </div>
-                    </CardContent>
-                    <div
-                        class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showOpenModal = false"
-                            class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                            <!-- Notes -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="open-notes"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Ghi chú mở đầu ca:
+                                </Label>
+                                <Input
+                                    id="open-notes"
+                                    v-model="openForm.notes"
+                                    type="text"
+                                    placeholder="Ghi chú số dư bàn giao (nếu có)..."
+                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                />
+                            </div>
+                        </CardContent>
+                        <div
+                            class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
                         >
-                            Hủy
-                        </Button>
-                        <Button
-                            type="submit"
-                            class="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-indigo-600 px-5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-                            :disabled="openForm.processing"
-                        >
-                            <Loader2
-                                v-if="openForm.processing"
-                                class="size-4 animate-spin"
-                            />
-                            Xác nhận mở két
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showOpenModal = false"
+                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                class="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-indigo-600 px-5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                :disabled="openForm.processing"
+                            >
+                                <Loader2
+                                    v-if="openForm.processing"
+                                    class="size-4 animate-spin"
+                                />
+                                Xác nhận mở két
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
 
         <!-- MODAL: Add Cash Transaction (In/Out) -->
         <Teleport to="body">
-        <div
-            v-if="showTransactionModal"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
-        >
-            <Card
-                class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
+            <div
+                v-if="showTransactionModal"
+                class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
             >
-                <CardHeader
-                    class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                <Card
+                    class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
                 >
-                    <CardTitle
-                        class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                    <CardHeader
+                        class="border-b border-slate-100 pb-3 dark:border-slate-800"
                     >
-                        <component
-                            :is="
-                                transactionModalType === 'in'
-                                    ? PlusCircle
-                                    : MinusCircle
-                            "
-                            :class="
-                                transactionModalType === 'in'
-                                    ? 'text-emerald-500'
-                                    : 'text-rose-500'
-                            "
-                            class="size-5"
-                        />
-                        {{
-                            transactionModalType === 'in'
-                                ? 'Ghi Nhận Khoản Thu Tiền Mặt'
-                                : 'Ghi Nhận Khoản Chi Ngoài Két'
-                        }}
-                    </CardTitle>
-                    <CardDescription class="text-xs">
-                        {{
-                            transactionModalType === 'in'
-                                ? 'Ghi nhận nguồn nạp tiền mặt khác ngoài doanh thu bàn ăn.'
-                                : 'Ghi nhận chi phí mua sắm lặt vặt trực tiếp bằng tiền mặt két.'
-                        }}
-                    </CardDescription>
-                </CardHeader>
-                <form @submit.prevent="handleAddTransaction">
-                    <CardContent class="space-y-4.5 p-5">
-                        <!-- Cashier area -->
-                        <div v-if="areas.length" class="space-y-1.5">
-                            <Label
-                                for="tx-area"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Khu vực nhận giao dịch<span v-if="areas.length > 1" class="text-rose-500"> *</span>:
-                            </Label>
-                            <select
-                                id="tx-area"
-                                v-model="txForm.area_id"
-                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-                            >
-                                <option value="" :disabled="areas.length > 1">
-                                    {{ areas.length > 1 ? '-- Chọn khu vực --' : '-- Khu vực mặc định --' }}
-                                </option>
-                                <option v-for="area in areas" :key="area.id" :value="area.id">
-                                    {{ area.name }} ({{ area.code }})
-                                </option>
-                            </select>
-                        </div>
-                        <!-- Amount -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="tx-amount"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
-                            >
-                                Số tiền giao dịch (VND):
-                            </Label>
-                            <Input
-                                id="tx-amount"
-                                v-model.number="txForm.amount"
-                                type="number"
-                                min="1"
-                                step="1"
-                                placeholder="Nhập số tiền..."
-                                class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                        <CardTitle
+                            class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                        >
+                            <component
+                                :is="
+                                    transactionModalType === 'in'
+                                        ? PlusCircle
+                                        : MinusCircle
+                                "
+                                :class="
+                                    transactionModalType === 'in'
+                                        ? 'text-emerald-500'
+                                        : 'text-rose-500'
+                                "
+                                class="size-5"
                             />
-                        </div>
+                            {{
+                                transactionModalType === 'in'
+                                    ? 'Ghi Nhận Khoản Thu Tiền Mặt'
+                                    : 'Ghi Nhận Khoản Chi Ngoài Két'
+                            }}
+                        </CardTitle>
+                        <CardDescription class="text-xs">
+                            {{
+                                transactionModalType === 'in'
+                                    ? 'Ghi nhận nguồn nạp tiền mặt khác ngoài doanh thu bàn ăn.'
+                                    : 'Ghi nhận chi phí mua sắm lặt vặt trực tiếp bằng tiền mặt két.'
+                            }}
+                        </CardDescription>
+                    </CardHeader>
+                    <form @submit.prevent="handleAddTransaction">
+                        <CardContent class="space-y-4.5 p-5">
+                            <!-- Cashier area -->
+                            <div v-if="areas.length" class="space-y-1.5">
+                                <Label
+                                    for="tx-area"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Khu vực nhận giao dịch<span
+                                        v-if="areas.length > 1"
+                                        class="text-rose-500"
+                                    >
+                                        *</span
+                                    >:
+                                </Label>
+                                <select
+                                    id="tx-area"
+                                    v-model="txForm.area_id"
+                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                >
+                                    <option
+                                        value=""
+                                        :disabled="areas.length > 1"
+                                    >
+                                        {{
+                                            areas.length > 1
+                                                ? '-- Chọn khu vực --'
+                                                : '-- Khu vực mặc định --'
+                                        }}
+                                    </option>
+                                    <option
+                                        v-for="area in areas"
+                                        :key="area.id"
+                                        :value="area.id"
+                                    >
+                                        {{ area.name }} ({{ area.code }})
+                                    </option>
+                                </select>
+                            </div>
+                            <!-- Amount -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="tx-amount"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Số tiền giao dịch (VND):
+                                </Label>
+                                <Input
+                                    id="tx-amount"
+                                    v-model.number="txForm.amount"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    placeholder="Nhập số tiền..."
+                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                />
+                            </div>
 
-                        <!-- Supporting document -->
+                            <!-- Supporting document -->
+                            <div
+                                v-if="transactionModalType === 'out'"
+                                class="space-y-1.5"
+                            >
+                                <Label
+                                    for="tx-voucher-code"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Mã chứng từ / hóa đơn
+                                    <span class="text-rose-500">*</span>
+                                </Label>
+                                <Input
+                                    id="tx-voucher-code"
+                                    v-model="txForm.voucher_code"
+                                    type="text"
+                                    required
+                                    maxlength="100"
+                                    placeholder="Ví dụ: HD-2026-001"
+                                    class="h-11 w-full rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500/10"
+                                />
+                                <p
+                                    class="text-[10px] font-medium text-slate-400/90"
+                                >
+                                    Mỗi mã chỉ được dùng một lần; giao dịch đã
+                                    ghi không thể sửa hoặc xóa.
+                                </p>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="tx-notes"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Nội dung/Lý do chi tiết:
+                                </Label>
+                                <textarea
+                                    id="tx-notes"
+                                    v-model="txForm.notes"
+                                    rows="3"
+                                    placeholder="Ví dụ: Chi tiền mua rau thơm đi chợ, Khách trả nợ tiền mặt..."
+                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                ></textarea>
+                            </div>
+                        </CardContent>
                         <div
-                            v-if="transactionModalType === 'out'"
-                            class="space-y-1.5"
+                            class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
                         >
-                            <Label
-                                for="tx-voucher-code"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showTransactionModal = false"
+                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
                             >
-                                Mã chứng từ / hóa đơn <span class="text-rose-500">*</span>
-                            </Label>
-                            <Input
-                                id="tx-voucher-code"
-                                v-model="txForm.voucher_code"
-                                type="text"
-                                required
-                                maxlength="100"
-                                placeholder="Ví dụ: HD-2026-001"
-                                class="h-11 w-full rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500/10"
-                            />
-                            <p class="text-[10px] font-medium text-slate-400/90">
-                                Mỗi mã chỉ được dùng một lần; giao dịch đã ghi không thể sửa hoặc xóa.
-                            </p>
-                        </div>
-
-                        <!-- Notes -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="tx-notes"
-                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                :class="[
+                                    'flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-5 text-xs font-bold text-white disabled:opacity-50',
+                                    transactionModalType === 'in'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                                        : 'bg-rose-600 hover:bg-rose-700',
+                                ]"
+                                :disabled="txForm.processing"
                             >
-                                Nội dung/Lý do chi tiết:
-                            </Label>
-                            <textarea
-                                id="tx-notes"
-                                v-model="txForm.notes"
-                                rows="3"
-                                placeholder="Ví dụ: Chi tiền mua rau thơm đi chợ, Khách trả nợ tiền mặt..."
-                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-                            ></textarea>
+                                <Loader2
+                                    v-if="txForm.processing"
+                                    class="size-4 animate-spin"
+                                />
+                                Ghi nhận giao dịch
+                            </Button>
                         </div>
-                    </CardContent>
-                    <div
-                        class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showTransactionModal = false"
-                            class="h-10 cursor-pointer rounded-xl text-xs font-bold"
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            type="submit"
-                            :class="[
-                                'flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-5 text-xs font-bold text-white disabled:opacity-50',
-                                transactionModalType === 'in'
-                                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                                    : 'bg-rose-600 hover:bg-rose-700',
-                            ]"
-                            :disabled="txForm.processing"
-                        >
-                            <Loader2
-                                v-if="txForm.processing"
-                                class="size-4 animate-spin"
-                            />
-                            Ghi nhận giao dịch
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
 
         <!-- MODAL: Reconcile auto-opened register -->
         <Teleport to="body">
-        <div
-            v-if="showReconcileModal"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
-        >
-            <Card class="w-full max-w-md animate-in border-amber-200 shadow-2xl duration-200 zoom-in-95 dark:border-amber-900/50">
-                <CardHeader class="border-b border-amber-100 pb-3 dark:border-amber-900/30">
-                    <CardTitle class="flex items-center gap-2 text-sm font-black text-amber-700 uppercase dark:text-amber-300">
-                        <ShieldAlert class="size-5" />
-                        Đối soát số dư đầu ca
-                    </CardTitle>
-                    <CardDescription class="text-xs">
-                        Xác nhận số tiền thực tế có trong két tại thời điểm bắt đầu ca. Thao tác được ghi audit và không thể sửa lại bằng giao diện thu ngân.
-                    </CardDescription>
-                </CardHeader>
-                <form @submit.prevent="handleReconcileOpening">
-                    <CardContent class="space-y-4.5 p-5">
-                        <div class="space-y-1.5">
-                            <Label for="reconcile-opening" class="text-xs font-bold tracking-wider text-slate-400 uppercase">
-                                Số dư đầu ca thực tế (VND)
-                            </Label>
-                            <Input
-                                id="reconcile-opening"
-                                v-model.number="reconcileForm.opening_balance"
-                                type="number"
-                                min="0"
-                                step="1"
-                                class="h-11 w-full rounded-xl text-xs font-bold"
-                            />
+            <div
+                v-if="showReconcileModal"
+                class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
+            >
+                <Card
+                    class="w-full max-w-md animate-in border-amber-200 shadow-2xl duration-200 zoom-in-95 dark:border-amber-900/50"
+                >
+                    <CardHeader
+                        class="border-b border-amber-100 pb-3 dark:border-amber-900/30"
+                    >
+                        <CardTitle
+                            class="flex items-center gap-2 text-sm font-black text-amber-700 uppercase dark:text-amber-300"
+                        >
+                            <ShieldAlert class="size-5" />
+                            Đối soát số dư đầu ca
+                        </CardTitle>
+                        <CardDescription class="text-xs">
+                            Xác nhận số tiền thực tế có trong két tại thời điểm
+                            bắt đầu ca. Thao tác được ghi audit và không thể sửa
+                            lại bằng giao diện thu ngân.
+                        </CardDescription>
+                    </CardHeader>
+                    <form @submit.prevent="handleReconcileOpening">
+                        <CardContent class="space-y-4.5 p-5">
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="reconcile-opening"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Số dư đầu ca thực tế (VND)
+                                </Label>
+                                <Input
+                                    id="reconcile-opening"
+                                    v-model.number="
+                                        reconcileForm.opening_balance
+                                    "
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    class="h-11 w-full rounded-xl text-xs font-bold"
+                                />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="reconcile-notes"
+                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                >
+                                    Biên bản / lý do xác nhận
+                                    <span class="text-rose-500">*</span>
+                                </Label>
+                                <textarea
+                                    id="reconcile-notes"
+                                    v-model="reconcileForm.notes"
+                                    rows="3"
+                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    placeholder="Ví dụ: Đã kiểm đếm cùng thu ngân Nguyễn Văn A..."
+                                ></textarea>
+                            </div>
+                        </CardContent>
+                        <div
+                            class="flex justify-end gap-2 border-t border-amber-100 bg-amber-50/40 p-4 dark:border-amber-900/30 dark:bg-amber-950/10"
+                        >
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showReconcileModal = false"
+                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="reconcileForm.processing"
+                                class="h-10 cursor-pointer rounded-xl bg-amber-600 px-5 text-xs font-bold text-white hover:bg-amber-700"
+                            >
+                                Xác nhận đối soát
+                            </Button>
                         </div>
-                        <div class="space-y-1.5">
-                            <Label for="reconcile-notes" class="text-xs font-bold tracking-wider text-slate-400 uppercase">
-                                Biên bản / lý do xác nhận <span class="text-rose-500">*</span>
-                            </Label>
-                            <textarea
-                                id="reconcile-notes"
-                                v-model="reconcileForm.notes"
-                                rows="3"
-                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
-                                placeholder="Ví dụ: Đã kiểm đếm cùng thu ngân Nguyễn Văn A..."
-                            ></textarea>
-                        </div>
-                    </CardContent>
-                    <div class="flex justify-end gap-2 border-t border-amber-100 bg-amber-50/40 p-4 dark:border-amber-900/30 dark:bg-amber-950/10">
-                        <Button type="button" variant="outline" @click="showReconcileModal = false" class="h-10 cursor-pointer rounded-xl text-xs font-bold">
-                            Hủy
-                        </Button>
-                        <Button type="submit" :disabled="reconcileForm.processing" class="h-10 cursor-pointer rounded-xl bg-amber-600 px-5 text-xs font-bold text-white hover:bg-amber-700">
-                            Xác nhận đối soát
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
     </div>
 </template>

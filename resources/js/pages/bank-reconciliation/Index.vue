@@ -371,15 +371,35 @@ function matchLine(line: StatementLine, candidate: MatchCandidate) {
 }
 
 function unmatchLine(line: StatementLine) {
-    if (!confirm('Bỏ đối soát dòng sao kê này?')) return;
-    router.patch(`/bank-reconciliation/lines/${line.id}/unmatch`, {}, { preserveScroll: true });
+    if (!confirm('Bỏ đối soát dòng sao kê này?')) {
+        return;
+    }
+
+    router.patch(
+        `/bank-reconciliation/lines/${line.id}/unmatch`,
+        {},
+        { preserveScroll: true },
+    );
 }
 
 function adjustLine(line: StatementLine) {
-    const offsetAccount = window.prompt('Mã tài khoản đối ứng (ví dụ 6351 hoặc 8111):');
+    const offsetAccount = window.prompt(
+        'Mã tài khoản đối ứng (ví dụ 6351 hoặc 8111):',
+    );
     const description = window.prompt('Nội dung điều chỉnh:');
-    if (!offsetAccount?.trim() || !description?.trim()) return;
-    router.post(`/bank-reconciliation/lines/${line.id}/adjustment`, { offset_account: offsetAccount.trim(), description: description.trim() }, { preserveScroll: true });
+
+    if (!offsetAccount?.trim() || !description?.trim()) {
+        return;
+    }
+
+    router.post(
+        `/bank-reconciliation/lines/${line.id}/adjustment`,
+        {
+            offset_account: offsetAccount.trim(),
+            description: description.trim(),
+        },
+        { preserveScroll: true },
+    );
 }
 
 function executeBatchReconcile() {
@@ -709,8 +729,22 @@ function executeBatchReconcile() {
                                 </td>
                                 <td class="py-2.5">
                                     <div class="flex flex-wrap gap-1">
-                                        <Button v-if="line.status === 'matched'" variant="outline" size="xs" class="text-[11px]" @click="unmatchLine(line)">Bỏ khớp</Button>
-                                        <Button v-if="line.status === 'unmatched'" variant="outline" size="xs" class="text-[11px]" @click="adjustLine(line)">Tạo điều chỉnh</Button>
+                                        <Button
+                                            v-if="line.status === 'matched'"
+                                            variant="outline"
+                                            size="xs"
+                                            class="text-[11px]"
+                                            @click="unmatchLine(line)"
+                                            >Bỏ khớp</Button
+                                        >
+                                        <Button
+                                            v-if="line.status === 'unmatched'"
+                                            variant="outline"
+                                            size="xs"
+                                            class="text-[11px]"
+                                            @click="adjustLine(line)"
+                                            >Tạo điều chỉnh</Button
+                                        >
                                     </div>
                                     <Button
                                         v-if="
@@ -1238,9 +1272,7 @@ function executeBatchReconcile() {
             >
                 <div class="text-muted-foreground">
                     Hiển thị từ
-                    {{
-                        (payments.current_page - 1) * payments.per_page + 1
-                    }}
+                    {{ (payments.current_page - 1) * payments.per_page + 1 }}
                     đến
                     {{
                         Math.min(

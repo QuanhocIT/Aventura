@@ -246,7 +246,8 @@ function openNewExpenseModal() {
 function openEditExpenseModal(expense: OperatingExpense) {
     editingExpense.value = expense;
     expenseForm.category_id = expense.category_id?.toString() || '';
-    expenseForm.financial_account_code = expense.financial_account_code || '6271';
+    expenseForm.financial_account_code =
+        expense.financial_account_code || '6271';
     expenseForm.amount = expense.amount;
     expenseForm.expense_date = expense.expense_date;
     expenseForm.description = expense.description || '';
@@ -330,45 +331,66 @@ async function deleteExpense(expense: OperatingExpense) {
 }
 
 function expenseStatusLabel(status: string) {
-    return {
-        draft: 'Chờ duyệt',
-        approved: 'Đã duyệt',
-        rejected: 'Từ chối',
-        paid: 'Đã thanh toán',
-    }[status] || status;
+    return (
+        {
+            draft: 'Chờ duyệt',
+            approved: 'Đã duyệt',
+            rejected: 'Từ chối',
+            paid: 'Đã thanh toán',
+        }[status] || status
+    );
 }
 
 function expenseStatusClass(status: string) {
-    return {
-        draft: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400',
-        approved: 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400',
-        rejected: 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400',
-        paid: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400',
-    }[status] || 'bg-slate-100 text-slate-600';
+    return (
+        {
+            draft: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400',
+            approved:
+                'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400',
+            rejected:
+                'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400',
+            paid: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400',
+        }[status] || 'bg-slate-100 text-slate-600'
+    );
 }
 
 function approveExpense(expense: OperatingExpense) {
-    router.patch('/expenses/' + expense.id + '/approve', {}, { preserveScroll: true });
+    router.patch(
+        '/expenses/' + expense.id + '/approve',
+        {},
+        { preserveScroll: true },
+    );
 }
 
 function rejectExpense(expense: OperatingExpense) {
     const reason = window.prompt('Lý do từ chối chứng từ chi phí:');
 
     if (!reason?.trim()) {
-return;
-}
+        return;
+    }
 
-    router.patch('/expenses/' + expense.id + '/reject', { reason }, { preserveScroll: true });
+    router.patch(
+        '/expenses/' + expense.id + '/reject',
+        { reason },
+        { preserveScroll: true },
+    );
 }
 
 function payExpense(expense: OperatingExpense) {
-    const method = window.prompt('Phương thức thanh toán: cash hoặc bank_transfer', 'bank_transfer');
+    const method = window.prompt(
+        'Phương thức thanh toán: cash hoặc bank_transfer',
+        'bank_transfer',
+    );
 
     if (!method || !['cash', 'bank_transfer'].includes(method)) {
-return;
-}
+        return;
+    }
 
-    router.patch('/expenses/' + expense.id + '/pay', { payment_method: method }, { preserveScroll: true });
+    router.patch(
+        '/expenses/' + expense.id + '/pay',
+        { payment_method: method },
+        { preserveScroll: true },
+    );
 }
 
 // --- RECURRING FORM ---
@@ -625,14 +647,18 @@ const chartMaxVal = computed(() => {
                             >Bắt buộc hoá đơn</span
                         >
                     </div>
-                    <div class="text-sm font-black text-slate-800 dark:text-slate-100">
+                    <div
+                        class="text-sm font-black text-slate-800 dark:text-slate-100"
+                    >
                         Đã chi {{ vnd(props.expenseBudget.committed) }} /
                         {{ vnd(props.expenseBudget.budget_amount ?? 0) }}
                     </div>
                 </div>
             </div>
             <div class="text-right">
-                <div class="text-[11px] font-semibold text-slate-500">Còn lại</div>
+                <div class="text-[11px] font-semibold text-slate-500">
+                    Còn lại
+                </div>
                 <div
                     :class="[
                         'text-lg font-black',
@@ -648,11 +674,15 @@ const chartMaxVal = computed(() => {
 
         <!-- Chủ: quản lý hạn mức các chi nhánh -->
         <div
-            v-if="props.canManageBudget && (props.branchBudgets?.length ?? 0) > 0"
+            v-if="
+                props.canManageBudget && (props.branchBudgets?.length ?? 0) > 0
+            "
             class="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
         >
             <div class="mb-3 flex items-center justify-between">
-                <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+                <div
+                    class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200"
+                >
                     <Wallet class="size-4" /> Hạn mức chi tiêu theo chi nhánh
                 </div>
             </div>
@@ -674,13 +704,19 @@ const chartMaxVal = computed(() => {
                             :key="b.branch_id"
                             class="border-t border-slate-100 dark:border-slate-800"
                         >
-                            <td class="py-2 font-semibold text-slate-700 dark:text-slate-200">
+                            <td
+                                class="py-2 font-semibold text-slate-700 dark:text-slate-200"
+                            >
                                 {{ b.branch_name }}
                             </td>
                             <td class="py-2 text-right">
-                                {{ b.budget_amount ? vnd(b.budget_amount) : '—' }}
+                                {{
+                                    b.budget_amount ? vnd(b.budget_amount) : '—'
+                                }}
                             </td>
-                            <td class="py-2 text-right text-slate-500">{{ vnd(b.committed) }}</td>
+                            <td class="py-2 text-right text-slate-500">
+                                {{ vnd(b.committed) }}
+                            </td>
                             <td
                                 :class="[
                                     'py-2 text-right font-bold',
@@ -691,10 +727,18 @@ const chartMaxVal = computed(() => {
                                           : 'text-emerald-600',
                                 ]"
                             >
-                                {{ b.remaining === null ? 'Chưa đặt' : vnd(b.remaining) }}
+                                {{
+                                    b.remaining === null
+                                        ? 'Chưa đặt'
+                                        : vnd(b.remaining)
+                                }}
                             </td>
                             <td class="py-2 text-center">
-                                <span v-if="b.require_receipt" class="text-emerald-600">✓</span>
+                                <span
+                                    v-if="b.require_receipt"
+                                    class="text-emerald-600"
+                                    >✓</span
+                                >
                                 <span v-else class="text-slate-300">—</span>
                             </td>
                             <td class="py-2 text-right">
@@ -704,7 +748,9 @@ const chartMaxVal = computed(() => {
                                     @click="openBudgetFor(b)"
                                     class="h-7 rounded-lg text-[11px]"
                                 >
-                                    {{ b.budget_amount ? 'Sửa' : 'Đặt hạn mức' }}
+                                    {{
+                                        b.budget_amount ? 'Sửa' : 'Đặt hạn mức'
+                                    }}
                                 </Button>
                             </td>
                         </tr>
@@ -1173,7 +1219,12 @@ const chartMaxVal = computed(() => {
                                     <span v-else class="text-slate-400">—</span>
                                 </td>
                                 <td class="p-3 text-center">
-                                    <span :class="['rounded-full px-2 py-0.5 text-[9px] font-bold', expenseStatusClass(e.status)]">
+                                    <span
+                                        :class="[
+                                            'rounded-full px-2 py-0.5 text-[9px] font-bold',
+                                            expenseStatusClass(e.status),
+                                        ]"
+                                    >
                                         {{ expenseStatusLabel(e.status) }}
                                     </span>
                                 </td>
@@ -1187,23 +1238,42 @@ const chartMaxVal = computed(() => {
                                         class="flex items-center justify-center gap-1.5"
                                     >
                                         <button
-                                            v-if="props.canApproveExpenses && ['draft', 'rejected'].includes(e.status)"
+                                            v-if="
+                                                props.canApproveExpenses &&
+                                                ['draft', 'rejected'].includes(
+                                                    e.status,
+                                                )
+                                            "
                                             @click="approveExpense(e)"
                                             class="rounded-sm p-1 text-emerald-600 hover:bg-emerald-50"
                                             title="Duyệt chứng từ"
-                                        >Duyệt</button>
+                                        >
+                                            Duyệt
+                                        </button>
                                         <button
-                                            v-if="props.canApproveExpenses && ['draft', 'approved'].includes(e.status)"
+                                            v-if="
+                                                props.canApproveExpenses &&
+                                                ['draft', 'approved'].includes(
+                                                    e.status,
+                                                )
+                                            "
                                             @click="rejectExpense(e)"
                                             class="rounded-sm p-1 text-rose-600 hover:bg-rose-50"
                                             title="Từ chối chứng từ"
-                                        >Từ chối</button>
+                                        >
+                                            Từ chối
+                                        </button>
                                         <button
-                                            v-if="props.canApproveExpenses && e.status === 'approved'"
+                                            v-if="
+                                                props.canApproveExpenses &&
+                                                e.status === 'approved'
+                                            "
                                             @click="payExpense(e)"
                                             class="rounded-sm p-1 text-blue-600 hover:bg-blue-50"
                                             title="Ghi nhận thanh toán"
-                                        >Trả</button>
+                                        >
+                                            Trả
+                                        </button>
                                         <button
                                             v-if="props.canManageExpenses"
                                             @click="openEditExpenseModal(e)"
@@ -1503,205 +1573,205 @@ const chartMaxVal = computed(() => {
 
         <!-- ── MODAL: CREATE/EDIT OPERATING EXPENSE ── -->
         <Teleport to="body">
-        <div
-            v-if="showExpenseModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-lg animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+            <div
+                v-if="showExpenseModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader class="border-b pb-3">
-                    <CardTitle
-                        class="flex items-center gap-1.5 text-sm font-bold"
-                    >
-                        <Receipt class="size-5 text-amber-600" />
-                        {{
-                            editingExpense
-                                ? 'Sửa Chi Phí Vận Hành'
-                                : 'Ghi Nhận Khoản Chi Phí Vận Hành'
-                        }}
-                    </CardTitle>
-                    <CardDescription class="text-xs"
-                        >Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu
-                        COGS và lương nhân viên).</CardDescription
-                    >
-                </CardHeader>
-                <form @submit.prevent="saveExpense">
-                    <CardContent class="space-y-4 p-5 text-xs">
-                        <!-- Category field -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="expense-cat"
-                                class="text-xs font-bold text-slate-500"
-                                >Danh mục chi phí:</Label
-                            >
-                            <select
-                                id="expense-cat"
-                                v-model="expenseForm.category_id"
-                                class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
-                            >
-                                <option
-                                    v-for="c in categories"
-                                    :key="c.id"
-                                    :value="c.id"
-                                >
-                                    {{ c.name }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="space-y-1.5">
-                            <Label
-                                for="expense-account"
-                                class="text-xs font-bold text-slate-500"
-                                >Tài khoản chi phí:</Label
-                            >
-                            <select
-                                id="expense-account"
-                                v-model="expenseForm.financial_account_code"
-                                class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
-                            >
-                                <option
-                                    v-for="account in financialAccounts"
-                                    :key="account.code"
-                                    :value="account.code"
-                                >
-                                    {{ account.code }} — {{ account.name }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <!-- Amount -->
-                            <div class="space-y-1.5">
-                                <Label
-                                    for="expense-amount"
-                                    class="text-xs font-bold text-slate-500"
-                                    >Số tiền chi tiêu (VND):</Label
-                                >
-                                <Input
-                                    id="expense-amount"
-                                    v-model.number="expenseForm.amount"
-                                    type="number"
-                                    placeholder="Nhập số tiền..."
-                                    class="w-full text-xs"
-                                />
-                            </div>
-
-                            <!-- Date -->
-                            <div class="space-y-1.5">
-                                <Label
-                                    for="expense-date"
-                                    class="text-xs font-bold text-slate-500"
-                                    >Ngày ghi nhận:</Label
-                                >
-                                <Input
-                                    id="expense-date"
-                                    v-model="expenseForm.expense_date"
-                                    type="date"
-                                    class="w-full text-xs"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Description -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="expense-desc"
-                                class="text-xs font-bold text-slate-500"
-                                >Ghi chú chi tiết:</Label
-                            >
-                            <textarea
-                                id="expense-desc"
-                                v-model="expenseForm.description"
-                                rows="3"
-                                placeholder="Mô tả lý do chi, thông tin nhà cung cấp dịch vụ..."
-                                class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
-                            ></textarea>
-                        </div>
-
-                        <!-- Invoice Proof Upload -->
-                        <div class="space-y-2">
-                            <Label
-                                class="block text-xs font-bold text-slate-500"
-                                >Tải lên bill / hóa đơn chứng minh (Ảnh hoặc
-                                PDF):</Label
-                            >
-                            <div class="flex items-center gap-3">
-                                <label
-                                    class="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 px-4 py-3 text-center text-xs font-bold text-amber-600 transition-all select-none hover:bg-amber-50/20 dark:border-amber-900/50"
-                                >
-                                    <FileUp class="size-4" />
-                                    {{
-                                        expenseForm.invoice
-                                            ? 'Đã chọn: ' +
-                                              expenseForm.invoice.name
-                                            : 'Chọn File/Chụp Ảnh Hóa Đơn...'
-                                    }}
-                                    <input
-                                        type="file"
-                                        accept="image/*,application/pdf"
-                                        class="hidden"
-                                        @change="handleExpenseFileChange"
-                                    />
-                                </label>
-                            </div>
-                            <p class="mt-1 text-[10px] text-slate-400">
-                                Dung lượng tối đa 5MB. Định dạng: JPG, PNG, WEBP
-                                hoặc PDF.
-                            </p>
-                            <div
-                                v-if="
-                                    editingExpense &&
-                                    editingExpense.invoice_path &&
-                                    !expenseForm.invoice
-                                "
-                                class="flex items-center gap-1 rounded-lg bg-muted p-2 text-[10px] text-slate-500"
-                            >
-                                <FileText class="size-3.5 text-amber-600" />
-                                Hóa đơn hiện có:
-                                <a
-                                    :href="editingExpense.invoice_path"
-                                    target="_blank"
-                                    class="font-bold text-amber-600 hover:underline"
-                                    >Xem hóa đơn hiện tại</a
-                                >
-                            </div>
-                        </div>
-                    </CardContent>
-                    <div
-                        class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showExpenseModal = false"
-                            class="h-9 text-xs font-semibold"
-                            >Hủy</Button
+                <Card
+                    class="w-full max-w-lg animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+                >
+                    <CardHeader class="border-b pb-3">
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-sm font-bold"
                         >
-                        <Button
-                            type="submit"
-                            class="flex h-9 items-center gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
-                            :disabled="expenseForm.processing"
-                        >
-                            <span
-                                v-if="expenseForm.processing"
-                                class="mr-1 size-3 animate-spin rounded-full border-2 border-white border-t-transparent"
-                            ></span>
+                            <Receipt class="size-5 text-amber-600" />
                             {{
                                 editingExpense
-                                    ? 'Lưu cập nhật'
-                                    : 'Ghi nhận chi phí'
+                                    ? 'Sửa Chi Phí Vận Hành'
+                                    : 'Ghi Nhận Khoản Chi Phí Vận Hành'
                             }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                        </CardTitle>
+                        <CardDescription class="text-xs"
+                            >Nhập hóa đơn chi phí (không bao gồm nguyên vật liệu
+                            COGS và lương nhân viên).</CardDescription
+                        >
+                    </CardHeader>
+                    <form @submit.prevent="saveExpense">
+                        <CardContent class="space-y-4 p-5 text-xs">
+                            <!-- Category field -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="expense-cat"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Danh mục chi phí:</Label
+                                >
+                                <select
+                                    id="expense-cat"
+                                    v-model="expenseForm.category_id"
+                                    class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                                >
+                                    <option
+                                        v-for="c in categories"
+                                        :key="c.id"
+                                        :value="c.id"
+                                    >
+                                        {{ c.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="expense-account"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Tài khoản chi phí:</Label
+                                >
+                                <select
+                                    id="expense-account"
+                                    v-model="expenseForm.financial_account_code"
+                                    class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                                >
+                                    <option
+                                        v-for="account in financialAccounts"
+                                        :key="account.code"
+                                        :value="account.code"
+                                    >
+                                        {{ account.code }} — {{ account.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <!-- Amount -->
+                                <div class="space-y-1.5">
+                                    <Label
+                                        for="expense-amount"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Số tiền chi tiêu (VND):</Label
+                                    >
+                                    <Input
+                                        id="expense-amount"
+                                        v-model.number="expenseForm.amount"
+                                        type="number"
+                                        placeholder="Nhập số tiền..."
+                                        class="w-full text-xs"
+                                    />
+                                </div>
+
+                                <!-- Date -->
+                                <div class="space-y-1.5">
+                                    <Label
+                                        for="expense-date"
+                                        class="text-xs font-bold text-slate-500"
+                                        >Ngày ghi nhận:</Label
+                                    >
+                                    <Input
+                                        id="expense-date"
+                                        v-model="expenseForm.expense_date"
+                                        type="date"
+                                        class="w-full text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="expense-desc"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Ghi chú chi tiết:</Label
+                                >
+                                <textarea
+                                    id="expense-desc"
+                                    v-model="expenseForm.description"
+                                    rows="3"
+                                    placeholder="Mô tả lý do chi, thông tin nhà cung cấp dịch vụ..."
+                                    class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                                ></textarea>
+                            </div>
+
+                            <!-- Invoice Proof Upload -->
+                            <div class="space-y-2">
+                                <Label
+                                    class="block text-xs font-bold text-slate-500"
+                                    >Tải lên bill / hóa đơn chứng minh (Ảnh hoặc
+                                    PDF):</Label
+                                >
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-amber-300 px-4 py-3 text-center text-xs font-bold text-amber-600 transition-all select-none hover:bg-amber-50/20 dark:border-amber-900/50"
+                                    >
+                                        <FileUp class="size-4" />
+                                        {{
+                                            expenseForm.invoice
+                                                ? 'Đã chọn: ' +
+                                                  expenseForm.invoice.name
+                                                : 'Chọn File/Chụp Ảnh Hóa Đơn...'
+                                        }}
+                                        <input
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            class="hidden"
+                                            @change="handleExpenseFileChange"
+                                        />
+                                    </label>
+                                </div>
+                                <p class="mt-1 text-[10px] text-slate-400">
+                                    Dung lượng tối đa 5MB. Định dạng: JPG, PNG,
+                                    WEBP hoặc PDF.
+                                </p>
+                                <div
+                                    v-if="
+                                        editingExpense &&
+                                        editingExpense.invoice_path &&
+                                        !expenseForm.invoice
+                                    "
+                                    class="flex items-center gap-1 rounded-lg bg-muted p-2 text-[10px] text-slate-500"
+                                >
+                                    <FileText class="size-3.5 text-amber-600" />
+                                    Hóa đơn hiện có:
+                                    <a
+                                        :href="editingExpense.invoice_path"
+                                        target="_blank"
+                                        class="font-bold text-amber-600 hover:underline"
+                                        >Xem hóa đơn hiện tại</a
+                                    >
+                                </div>
+                            </div>
+                        </CardContent>
+                        <div
+                            class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
+                        >
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showExpenseModal = false"
+                                class="h-9 text-xs font-semibold"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                class="flex h-9 items-center gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                                :disabled="expenseForm.processing"
+                            >
+                                <span
+                                    v-if="expenseForm.processing"
+                                    class="mr-1 size-3 animate-spin rounded-full border-2 border-white border-t-transparent"
+                                ></span>
+                                {{
+                                    editingExpense
+                                        ? 'Lưu cập nhật'
+                                        : 'Ghi nhận chi phí'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
 
         <!-- ── MODAL: CREATE/EDIT RECURRING EXPENSE ── -->
-        
+
         <div
             v-if="showRecurringModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1879,10 +1949,9 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
-        
 
         <!-- ── MODAL: CREATE CUSTOM CATEGORY ── -->
-        
+
         <div
             v-if="showCategoryModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1958,10 +2027,9 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
-        
 
         <!-- ── MODAL: DOCUMENT PREVIEW ── -->
-        
+
         <div
             v-if="invoicePreviewUrl"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -2031,66 +2099,94 @@ const chartMaxVal = computed(() => {
                 </div>
             </Card>
         </div>
-        
 
         <!-- MODAL: ĐẶT HẠN MỨC CHI TIÊU CHI NHÁNH -->
         <Teleport to="body">
-        <div
-            v-if="showBudgetPanel"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-        >
-            <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-                <div class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-slate-700 uppercase dark:text-slate-200">
-                    <Wallet class="size-4.5" /> Đặt hạn mức chi tiêu tháng
-                </div>
-                <form @submit.prevent="submitBudget" class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Chi nhánh</label>
-                        <select
-                            v-model="budgetForm.branch_id"
-                            required
-                            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option
-                                v-for="b in props.branchBudgets"
-                                :key="b.branch_id"
-                                :value="b.branch_id"
+            <div
+                v-if="showBudgetPanel"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            >
+                <div
+                    class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <div
+                        class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-slate-700 uppercase dark:text-slate-200"
+                    >
+                        <Wallet class="size-4.5" /> Đặt hạn mức chi tiêu tháng
+                    </div>
+                    <form
+                        @submit.prevent="submitBudget"
+                        class="flex flex-col gap-4"
+                    >
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Chi nhánh</label
                             >
-                                {{ b.branch_name }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Hạn mức tháng (VNĐ)</label>
-                        <input
-                            v-model="budgetForm.budget_amount"
-                            type="number"
-                            min="0"
-                            step="100000"
-                            required
-                            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                        />
-                        <p v-if="budgetForm.errors.budget_amount" class="text-[11px] font-semibold text-rose-500">
-                            {{ budgetForm.errors.budget_amount }}
-                        </p>
-                    </div>
-                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                        <input v-model="budgetForm.require_receipt" type="checkbox" class="rounded" />
-                        Bắt buộc đính kèm hoá đơn cho mọi khoản chi (do Quản lý ghi)
-                    </label>
-                    <div class="flex justify-end gap-2 border-t pt-3">
-                        <Button type="button" variant="outline" @click="showBudgetPanel = false" class="rounded-xl text-xs">Hủy</Button>
-                        <Button
-                            type="submit"
-                            :disabled="budgetForm.processing"
-                            class="rounded-xl border-0 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-900"
+                            <select
+                                v-model="budgetForm.branch_id"
+                                required
+                                class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option
+                                    v-for="b in props.branchBudgets"
+                                    :key="b.branch_id"
+                                    :value="b.branch_id"
+                                >
+                                    {{ b.branch_name }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Hạn mức tháng (VNĐ)</label
+                            >
+                            <input
+                                v-model="budgetForm.budget_amount"
+                                type="number"
+                                min="0"
+                                step="100000"
+                                required
+                                class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            />
+                            <p
+                                v-if="budgetForm.errors.budget_amount"
+                                class="text-[11px] font-semibold text-rose-500"
+                            >
+                                {{ budgetForm.errors.budget_amount }}
+                            </p>
+                        </div>
+                        <label
+                            class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
                         >
-                            Lưu hạn mức
-                        </Button>
-                    </div>
-                </form>
+                            <input
+                                v-model="budgetForm.require_receipt"
+                                type="checkbox"
+                                class="rounded"
+                            />
+                            Bắt buộc đính kèm hoá đơn cho mọi khoản chi (do Quản
+                            lý ghi)
+                        </label>
+                        <div class="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showBudgetPanel = false"
+                                class="rounded-xl text-xs"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="budgetForm.processing"
+                                class="rounded-xl border-0 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-900"
+                            >
+                                Lưu hạn mức
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

@@ -238,14 +238,30 @@ function openCollectModal(r: AccountReceivable) {
 
 function writeOffPayable(p: AccountPayable) {
     const reason = window.prompt('Lý do xóa nợ phải trả:');
-    if (!reason?.trim()) return;
-    router.post(`/debts/payables/${p.id}/write-off`, { reason }, { preserveScroll: true });
+
+    if (!reason?.trim()) {
+        return;
+    }
+
+    router.post(
+        `/debts/payables/${p.id}/write-off`,
+        { reason },
+        { preserveScroll: true },
+    );
 }
 
 function writeOffReceivable(r: AccountReceivable) {
     const reason = window.prompt('Lý do xóa nợ phải thu:');
-    if (!reason?.trim()) return;
-    router.post(`/debts/receivables/${r.id}/write-off`, { reason }, { preserveScroll: true });
+
+    if (!reason?.trim()) {
+        return;
+    }
+
+    router.post(
+        `/debts/receivables/${r.id}/write-off`,
+        { reason },
+        { preserveScroll: true },
+    );
 }
 
 function submitCollect() {
@@ -770,12 +786,21 @@ function getPercentage(value: number, total: number) {
                                         v-else
                                         class="rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-rose-600 uppercase dark:bg-rose-950/30"
                                     >
-                                        {{ p.status === 'written_off' ? 'Đã xóa nợ' : 'Chưa thanh toán' }}
+                                        {{
+                                            p.status === 'written_off'
+                                                ? 'Đã xóa nợ'
+                                                : 'Chưa thanh toán'
+                                        }}
                                     </span>
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="canManageDebt && !['paid', 'written_off'].includes(p.status)"
+                                        v-if="
+                                            canManageDebt &&
+                                            !['paid', 'written_off'].includes(
+                                                p.status,
+                                            )
+                                        "
                                         @click="openPayModal(p)"
                                         size="sm"
                                         class="h-7 rounded-md bg-indigo-600 px-2.5 text-[10px] font-bold text-white hover:bg-indigo-700"
@@ -783,7 +808,12 @@ function getPercentage(value: number, total: number) {
                                         Trả nợ
                                     </Button>
                                     <Button
-                                        v-if="canManageDebt && !['paid', 'written_off'].includes(p.status)"
+                                        v-if="
+                                            canManageDebt &&
+                                            !['paid', 'written_off'].includes(
+                                                p.status,
+                                            )
+                                        "
                                         @click="writeOffPayable(p)"
                                         size="sm"
                                         variant="outline"
@@ -792,7 +822,12 @@ function getPercentage(value: number, total: number) {
                                         Xóa nợ
                                     </Button>
                                     <span
-                                        v-if="!canManageDebt || ['paid', 'written_off'].includes(p.status)"
+                                        v-if="
+                                            !canManageDebt ||
+                                            ['paid', 'written_off'].includes(
+                                                p.status,
+                                            )
+                                        "
                                         class="font-bold text-slate-400"
                                         >—</span
                                     >
@@ -955,12 +990,21 @@ function getPercentage(value: number, total: number) {
                                         v-else
                                         class="rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-rose-600 uppercase dark:bg-rose-950/30"
                                     >
-                                        {{ r.status === 'written_off' ? 'Đã xóa nợ' : 'Chưa thu hồi' }}
+                                        {{
+                                            r.status === 'written_off'
+                                                ? 'Đã xóa nợ'
+                                                : 'Chưa thu hồi'
+                                        }}
                                     </span>
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="canManageDebt && !['paid', 'written_off'].includes(r.status)"
+                                        v-if="
+                                            canManageDebt &&
+                                            !['paid', 'written_off'].includes(
+                                                r.status,
+                                            )
+                                        "
                                         @click="openCollectModal(r)"
                                         size="sm"
                                         class="h-7 rounded-md bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700"
@@ -968,7 +1012,12 @@ function getPercentage(value: number, total: number) {
                                         Thu nợ
                                     </Button>
                                     <Button
-                                        v-if="canManageDebt && !['paid', 'written_off'].includes(r.status)"
+                                        v-if="
+                                            canManageDebt &&
+                                            !['paid', 'written_off'].includes(
+                                                r.status,
+                                            )
+                                        "
                                         @click="writeOffReceivable(r)"
                                         size="sm"
                                         variant="outline"
@@ -977,7 +1026,12 @@ function getPercentage(value: number, total: number) {
                                         Xóa nợ
                                     </Button>
                                     <span
-                                        v-if="!canManageDebt || ['paid', 'written_off'].includes(r.status)"
+                                        v-if="
+                                            !canManageDebt ||
+                                            ['paid', 'written_off'].includes(
+                                                r.status,
+                                            )
+                                        "
                                         class="font-bold text-slate-400"
                                         >—</span
                                     >
@@ -1149,119 +1203,119 @@ function getPercentage(value: number, total: number) {
 
         <!-- Pay Supplier Modal -->
         <Teleport to="body">
-        <div
-            v-if="showPayModal && selectedPayable"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
             <div
-                class="animate-fade-in flex w-full max-w-sm flex-col gap-5 overflow-hidden rounded-3xl border bg-white p-6 text-left shadow-2xl dark:bg-slate-900"
+                v-if="showPayModal && selectedPayable"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <div class="flex items-center justify-between">
-                    <h3
-                        class="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"
-                    >
-                        💳 Ghi nhận trả nợ nhà cung cấp
-                    </h3>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        class="h-7 w-7 rounded-xl"
-                        @click="showPayModal = false"
-                    >
-                        <X class="size-4" />
-                    </Button>
-                </div>
+                <div
+                    class="animate-fade-in flex w-full max-w-sm flex-col gap-5 overflow-hidden rounded-3xl border bg-white p-6 text-left shadow-2xl dark:bg-slate-900"
+                >
+                    <div class="flex items-center justify-between">
+                        <h3
+                            class="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"
+                        >
+                            💳 Ghi nhận trả nợ nhà cung cấp
+                        </h3>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-7 w-7 rounded-xl"
+                            @click="showPayModal = false"
+                        >
+                            <X class="size-4" />
+                        </Button>
+                    </div>
 
-                <div class="space-y-4">
-                    <div
-                        class="space-y-1.5 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/40 dark:text-slate-300"
-                    >
-                        <div>
-                            Nhà cung cấp:
-                            <strong>{{
-                                selectedPayable.supplier?.name
-                            }}</strong>
-                        </div>
-                        <div>
-                            Đơn hàng:
-                            <code>{{
-                                selectedPayable.purchase_order?.po_number
-                            }}</code>
-                        </div>
+                    <div class="space-y-4">
                         <div
-                            class="flex justify-between border-t pt-1.5 font-bold"
+                            class="space-y-1.5 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/40 dark:text-slate-300"
                         >
-                            <span>Còn nợ lại:</span>
-                            <span class="text-rose-500">{{
-                                vnd(
-                                    selectedPayable.amount -
-                                        selectedPayable.paid_amount,
-                                )
-                            }}</span>
+                            <div>
+                                Nhà cung cấp:
+                                <strong>{{
+                                    selectedPayable.supplier?.name
+                                }}</strong>
+                            </div>
+                            <div>
+                                Đơn hàng:
+                                <code>{{
+                                    selectedPayable.purchase_order?.po_number
+                                }}</code>
+                            </div>
+                            <div
+                                class="flex justify-between border-t pt-1.5 font-bold"
+                            >
+                                <span>Còn nợ lại:</span>
+                                <span class="text-rose-500">{{
+                                    vnd(
+                                        selectedPayable.amount -
+                                            selectedPayable.paid_amount,
+                                    )
+                                }}</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label class="text-[11px] font-bold text-slate-400"
+                                >Số tiền thanh toán (đ):</Label
+                            >
+                            <Input
+                                type="number"
+                                v-model="payForm.amount"
+                                class="h-9 font-mono text-xs"
+                            />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label class="text-[11px] font-bold text-slate-400"
+                                >Hình thức trả:</Label
+                            >
+                            <select
+                                v-model="payForm.payment_method"
+                                class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-indigo-500/25"
+                            >
+                                <option value="bank_transfer">
+                                    Chuyển khoản ngân hàng
+                                </option>
+                                <option value="cash">
+                                    Tiền mặt (Trích quỹ két)
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label class="text-[11px] font-bold text-slate-400"
+                                >Ghi chú giao dịch:</Label
+                            >
+                            <Input
+                                v-model="payForm.notes"
+                                placeholder="VD: Trả nợ đợt 1..."
+                                class="h-9 text-xs"
+                            />
                         </div>
                     </div>
 
-                    <div class="space-y-1.5">
-                        <Label class="text-[11px] font-bold text-slate-400"
-                            >Số tiền thanh toán (đ):</Label
+                    <div class="flex gap-2">
+                        <Button
+                            variant="outline"
+                            class="flex-1 rounded-xl text-xs"
+                            @click="showPayModal = false"
                         >
-                        <Input
-                            type="number"
-                            v-model="payForm.amount"
-                            class="h-9 font-mono text-xs"
-                        />
+                            Hủy
+                        </Button>
+                        <Button
+                            class="flex-1 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                            @click="submitPay"
+                        >
+                            Xác nhận thanh toán
+                        </Button>
                     </div>
-
-                    <div class="space-y-1.5">
-                        <Label class="text-[11px] font-bold text-slate-400"
-                            >Hình thức trả:</Label
-                        >
-                        <select
-                            v-model="payForm.payment_method"
-                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-indigo-500/25"
-                        >
-                            <option value="bank_transfer">
-                                Chuyển khoản ngân hàng
-                            </option>
-                            <option value="cash">
-                                Tiền mặt (Trích quỹ két)
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <Label class="text-[11px] font-bold text-slate-400"
-                            >Ghi chú giao dịch:</Label
-                        >
-                        <Input
-                            v-model="payForm.notes"
-                            placeholder="VD: Trả nợ đợt 1..."
-                            class="h-9 text-xs"
-                        />
-                    </div>
-                </div>
-
-                <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        class="flex-1 rounded-xl text-xs"
-                        @click="showPayModal = false"
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        class="flex-1 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
-                        @click="submitPay"
-                    >
-                        Xác nhận thanh toán
-                    </Button>
                 </div>
             </div>
-        </div>
         </Teleport>
 
         <!-- Collect Customer Modal -->
-        
+
         <div
             v-if="showCollectModal && selectedReceivable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1369,106 +1423,107 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
-        
 
         <!-- Edit Customer Credit Limit Modal -->
         <Teleport to="body">
-        <div
-            v-if="showCreditModal && selectedCustomer"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
             <div
-                class="animate-fade-in flex w-full max-w-sm flex-col gap-5 overflow-hidden rounded-3xl border bg-white p-6 text-left shadow-2xl dark:bg-slate-900"
+                v-if="showCreditModal && selectedCustomer"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <div class="flex items-center justify-between">
-                    <h3
-                        class="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"
-                    >
-                        ⚙️ Cấu hình hạn mức nợ CRM
-                    </h3>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        class="h-7 w-7 rounded-xl"
-                        @click="showCreditModal = false"
-                    >
-                        <X class="size-4" />
-                    </Button>
-                </div>
-
-                <div class="space-y-4">
-                    <div
-                        class="space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/40 dark:text-slate-300"
-                    >
-                        <div>
-                            Tên khách hàng:
-                            <strong>{{ selectedCustomer.full_name }}</strong>
-                        </div>
-                        <div>
-                            Số điện thoại:
-                            <strong>{{ selectedCustomer.phone }}</strong>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-6 py-2">
-                        <div class="flex items-center gap-1.5">
-                            <input
-                                type="checkbox"
-                                id="is_vip"
-                                v-model="creditForm.is_vip"
-                                class="h-4 w-4 rounded-md border-border text-indigo-600 outline-hidden"
-                            />
-                            <Label
-                                for="is_vip"
-                                class="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300"
-                                >Khách VIP</Label
-                            >
-                        </div>
-
-                        <div class="flex items-center gap-1.5">
-                            <input
-                                type="checkbox"
-                                id="is_b2b"
-                                v-model="creditForm.is_b2b"
-                                class="h-4 w-4 rounded-md border-border text-indigo-600 outline-hidden"
-                            />
-                            <Label
-                                for="is_b2b"
-                                class="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300"
-                                >Khách B2B</Label
-                            >
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <Label class="text-[11px] font-bold text-slate-400"
-                            >Hạn mức ghi nợ tối đa (đ):</Label
+                <div
+                    class="animate-fade-in flex w-full max-w-sm flex-col gap-5 overflow-hidden rounded-3xl border bg-white p-6 text-left shadow-2xl dark:bg-slate-900"
+                >
+                    <div class="flex items-center justify-between">
+                        <h3
+                            class="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"
                         >
-                        <Input
-                            type="number"
-                            v-model="creditForm.credit_limit"
-                            class="h-9 font-mono text-xs"
-                        />
+                            ⚙️ Cấu hình hạn mức nợ CRM
+                        </h3>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-7 w-7 rounded-xl"
+                            @click="showCreditModal = false"
+                        >
+                            <X class="size-4" />
+                        </Button>
                     </div>
-                </div>
 
-                <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        class="flex-1 rounded-xl text-xs"
-                        @click="showCreditModal = false"
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        class="flex-1 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
-                        @click="submitCredit"
-                    >
-                        Lưu cấu hình
-                    </Button>
+                    <div class="space-y-4">
+                        <div
+                            class="space-y-1 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/40 dark:text-slate-300"
+                        >
+                            <div>
+                                Tên khách hàng:
+                                <strong>{{
+                                    selectedCustomer.full_name
+                                }}</strong>
+                            </div>
+                            <div>
+                                Số điện thoại:
+                                <strong>{{ selectedCustomer.phone }}</strong>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-6 py-2">
+                            <div class="flex items-center gap-1.5">
+                                <input
+                                    type="checkbox"
+                                    id="is_vip"
+                                    v-model="creditForm.is_vip"
+                                    class="h-4 w-4 rounded-md border-border text-indigo-600 outline-hidden"
+                                />
+                                <Label
+                                    for="is_vip"
+                                    class="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300"
+                                    >Khách VIP</Label
+                                >
+                            </div>
+
+                            <div class="flex items-center gap-1.5">
+                                <input
+                                    type="checkbox"
+                                    id="is_b2b"
+                                    v-model="creditForm.is_b2b"
+                                    class="h-4 w-4 rounded-md border-border text-indigo-600 outline-hidden"
+                                />
+                                <Label
+                                    for="is_b2b"
+                                    class="cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300"
+                                    >Khách B2B</Label
+                                >
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label class="text-[11px] font-bold text-slate-400"
+                                >Hạn mức ghi nợ tối đa (đ):</Label
+                            >
+                            <Input
+                                type="number"
+                                v-model="creditForm.credit_limit"
+                                class="h-9 font-mono text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <Button
+                            variant="outline"
+                            class="flex-1 rounded-xl text-xs"
+                            @click="showCreditModal = false"
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            class="flex-1 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                            @click="submitCredit"
+                        >
+                            Lưu cấu hình
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>
