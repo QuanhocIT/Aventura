@@ -2,10 +2,8 @@
 import { Head, useForm } from '@inertiajs/vue3';
 import { AlertTriangle, CheckCircle2, Crown, Landmark } from 'lucide-vue-next';
 import { ref } from 'vue';
-import {
-    PageHeader,
-    Pagination,
-} from '@/components/super-admin';
+import InputError from '@/components/InputError.vue';
+import { PageHeader, Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,

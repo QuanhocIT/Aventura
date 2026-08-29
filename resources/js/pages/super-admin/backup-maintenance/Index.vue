@@ -1,12 +1,24 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { Database, Trash2, RefreshCw, Download, AlertCircle, ChevronLeft, ChevronRight, Play, Clock, Activity, CheckCircle2, XCircle, FileArchive, History } from 'lucide-vue-next';
+import {
+    Database,
+    Trash2,
+    RefreshCw,
+    Download,
+    AlertCircle,
+    ChevronLeft,
+    ChevronRight,
+    Play,
+    Clock,
+    Activity,
+    CheckCircle2,
+    XCircle,
+    FileArchive,
+    History,
+} from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    LedIndicator,
-} from '@/components/super-admin';
+import { PageHeader, LedIndicator } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,

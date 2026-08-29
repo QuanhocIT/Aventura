@@ -1797,7 +1797,6 @@ const pct = (v: number) => v.toFixed(1) + '%';
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
-            
             <div
                 v-if="violationTarget"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -1932,7 +1931,6 @@ const pct = (v: number) => v.toFixed(1) + '%';
                     </div>
                 </div>
             </div>
-            
         </Transition>
     </Teleport>
 </template>

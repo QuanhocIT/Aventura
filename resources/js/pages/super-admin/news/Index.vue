@@ -11,12 +11,14 @@ import {
     Trash2,
     Upload,
     X,
+    Percent,
+    Clock,
+    TrendingUp,
+    CheckCircle,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import {
-    PageHeader,
-    Pagination,
-} from '@/components/super-admin';import { Button } from '@/components/ui/button';
+import { PageHeader, Pagination } from '@/components/super-admin';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1020,315 +1022,327 @@ const hasFilters = computed(
         leave-to-class="opacity-0"
     >
         <Teleport to="body">
-        <div
-            v-if="showDialog"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-xs"
-        >
             <div
-                class="mb-10 flex w-full max-w-2xl flex-col gap-5 rounded-2xl border border-border/40 bg-card/90 p-6 shadow-2xl backdrop-blur-md"
+                v-if="showDialog"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-xs"
             >
                 <div
-                    class="flex items-center justify-between border-b border-border/40 pb-3"
+                    class="mb-10 flex w-full max-w-2xl flex-col gap-5 rounded-2xl border border-border/40 bg-card/90 p-6 shadow-2xl backdrop-blur-md"
                 >
-                    <div class="flex flex-col gap-0.5">
-                        <h2
-                            class="text-sm font-black tracking-wide text-slate-800 dark:text-slate-100"
-                        >
-                            {{
-                                editingPost
-                                    ? 'Chỉnh sửa bài viết'
-                                    : 'Viết bài mới'
-                            }}
-                        </h2>
-                        <p
-                            class="text-[10px] font-semibold text-muted-foreground"
-                        >
-                            Tạo hoặc sửa đổi tin tức, khuyến mãi trên hệ thống
-                        </p>
+                    <div
+                        class="flex items-center justify-between border-b border-border/40 pb-3"
+                    >
+                        <div class="flex flex-col gap-0.5">
+                            <h2
+                                class="text-sm font-black tracking-wide text-slate-800 dark:text-slate-100"
+                            >
+                                {{
+                                    editingPost
+                                        ? 'Chỉnh sửa bài viết'
+                                        : 'Viết bài mới'
+                                }}
+                            </h2>
+                            <p
+                                class="text-[10px] font-semibold text-muted-foreground"
+                            >
+                                Tạo hoặc sửa đổi tin tức, khuyến mãi trên hệ
+                                thống
+                            </p>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            class="size-7 cursor-pointer rounded-lg text-muted-foreground hover:text-foreground"
+                            @click="closeDialog"
+                            ><X class="size-4"
+                        /></Button>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        class="size-7 cursor-pointer rounded-lg text-muted-foreground hover:text-foreground"
-                        @click="closeDialog"
-                        ><X class="size-4"
-                    /></Button>
-                </div>
 
-                <form @submit.prevent="submitForm" class="flex flex-col gap-4">
-                    <!-- Top section: image upload & categories / checks -->
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <!-- Image upload -->
+                    <form
+                        @submit.prevent="submitForm"
+                        class="flex flex-col gap-4"
+                    >
+                        <!-- Top section: image upload & categories / checks -->
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <!-- Image upload -->
+                            <div class="flex flex-col gap-1.5">
+                                <Label
+                                    class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                    >Ảnh đại diện</Label
+                                >
+                                <label
+                                    for="image-upload"
+                                    class="group relative flex h-[120px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-border bg-muted/10 p-3 transition-all hover:border-orange-500/50"
+                                >
+                                    <input
+                                        type="file"
+                                        id="image-upload"
+                                        accept="image/jpg,image/jpeg,image/png,image/webp"
+                                        class="hidden"
+                                        @change="onImageChange"
+                                    />
+                                    <img
+                                        v-if="imagePreview"
+                                        :src="imagePreview"
+                                        class="absolute inset-0 h-full w-full rounded-xl object-cover"
+                                    />
+                                    <div
+                                        v-if="imagePreview"
+                                        class="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-all group-hover:opacity-100"
+                                    >
+                                        <Upload class="size-5 text-white" />
+                                    </div>
+                                    <template v-else>
+                                        <Upload
+                                            class="size-5 text-muted-foreground/60 transition-colors group-hover:text-orange-500"
+                                        />
+                                        <span
+                                            class="text-[10px] font-black text-muted-foreground transition-colors group-hover:text-foreground"
+                                            >Tải ảnh lên</span
+                                        >
+                                        <span
+                                            class="text-[9px] text-muted-foreground/60"
+                                            >JPG, PNG, WebP · Max 5MB</span
+                                        >
+                                    </template>
+                                </label>
+                            </div>
+
+                            <!-- Category + Featured -->
+                            <div class="flex flex-col justify-between gap-3">
+                                <div class="space-y-1.5">
+                                    <Label
+                                        class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                        >Danh mục
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Select v-model="form.category">
+                                        <SelectTrigger
+                                            class="h-9 rounded-xl border border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20"
+                                            ><SelectValue
+                                        /></SelectTrigger>
+                                        <SelectContent class="rounded-xl">
+                                            <SelectItem
+                                                v-for="opt in categoryOptions"
+                                                :key="opt.value"
+                                                :value="opt.value"
+                                                class="cursor-pointer text-xs font-semibold"
+                                            >
+                                                <div
+                                                    class="flex items-center gap-2"
+                                                >
+                                                    <span
+                                                        class="size-2 rounded-full"
+                                                        :class="
+                                                            opt.value ===
+                                                            'tin-tuc'
+                                                                ? 'bg-blue-500'
+                                                                : opt.value ===
+                                                                    'khuyen-mai'
+                                                                  ? 'bg-emerald-500'
+                                                                  : opt.value ===
+                                                                      'thanh-cong'
+                                                                    ? 'bg-purple-500'
+                                                                    : opt.value ===
+                                                                        'cap-nhat'
+                                                                      ? 'bg-amber-500'
+                                                                      : 'bg-red-500'
+                                                        "
+                                                    ></span>
+                                                    {{ opt.label }}
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div
+                                    class="space-y-1 rounded-xl border border-border/20 bg-muted/15 p-2"
+                                >
+                                    <!-- Published iOS switch -->
+                                    <div
+                                        class="flex items-center justify-between rounded-lg p-2 transition duration-150 hover:bg-muted/30"
+                                    >
+                                        <div class="flex flex-col">
+                                            <span
+                                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                                >Đăng bài viết ngay</span
+                                            >
+                                            <span
+                                                class="text-[9px] font-semibold text-muted-foreground"
+                                                >Hiện trên bảng tin</span
+                                            >
+                                        </div>
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.is_published =
+                                                    !form.is_published
+                                            "
+                                            :class="
+                                                form.is_published
+                                                    ? 'bg-orange-500'
+                                                    : 'bg-slate-300 dark:bg-slate-700'
+                                            "
+                                            class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                        >
+                                            <span
+                                                :class="
+                                                    form.is_published
+                                                        ? 'translate-x-4'
+                                                        : 'translate-x-0'
+                                                "
+                                                class="pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
+                                            ></span>
+                                        </button>
+                                    </div>
+                                    <!-- Featured iOS switch -->
+                                    <div
+                                        class="flex items-center justify-between rounded-lg p-2 transition duration-150 hover:bg-muted/30"
+                                    >
+                                        <div class="flex flex-col">
+                                            <span
+                                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                                >Ghim nổi bật</span
+                                            >
+                                            <span
+                                                class="text-[9px] font-semibold text-muted-foreground"
+                                                >Đầu danh sách tin</span
+                                            >
+                                        </div>
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.is_featured =
+                                                    !form.is_featured
+                                            "
+                                            :class="
+                                                form.is_featured
+                                                    ? 'bg-orange-500'
+                                                    : 'bg-slate-300 dark:bg-slate-700'
+                                            "
+                                            class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                                        >
+                                            <span
+                                                :class="
+                                                    form.is_featured
+                                                        ? 'translate-x-4'
+                                                        : 'translate-x-0'
+                                                "
+                                                class="pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
+                                            ></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Title -->
                         <div class="flex flex-col gap-1.5">
                             <Label
                                 class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                >Ảnh đại diện</Label
+                                >Tiêu đề bài viết
+                                <span class="text-rose-500">*</span></Label
                             >
-                            <label
-                                for="image-upload"
-                                class="group relative flex h-[120px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-border bg-muted/10 p-3 transition-all hover:border-orange-500/50"
+                            <Input
+                                v-model="form.title"
+                                placeholder="Nhập tiêu đề bài viết..."
+                                class="h-9 rounded-xl border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
+                            <p
+                                v-if="form.errors.title"
+                                class="text-xs text-red-500"
                             >
-                                <input
-                                    type="file"
-                                    id="image-upload"
-                                    accept="image/jpg,image/jpeg,image/png,image/webp"
-                                    class="hidden"
-                                    @change="onImageChange"
-                                />
-                                <img
-                                    v-if="imagePreview"
-                                    :src="imagePreview"
-                                    class="absolute inset-0 h-full w-full rounded-xl object-cover"
-                                />
-                                <div
-                                    v-if="imagePreview"
-                                    class="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-all group-hover:opacity-100"
-                                >
-                                    <Upload class="size-5 text-white" />
-                                </div>
-                                <template v-else>
-                                    <Upload
-                                        class="size-5 text-muted-foreground/60 transition-colors group-hover:text-orange-500"
-                                    />
-                                    <span
-                                        class="text-[10px] font-black text-muted-foreground transition-colors group-hover:text-foreground"
-                                        >Tải ảnh lên</span
-                                    >
-                                    <span
-                                        class="text-[9px] text-muted-foreground/60"
-                                        >JPG, PNG, WebP · Max 5MB</span
-                                    >
-                                </template>
-                            </label>
+                                {{ form.errors.title }}
+                            </p>
                         </div>
 
-                        <!-- Category + Featured -->
-                        <div class="flex flex-col justify-between gap-3">
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                    >Danh mục
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Select v-model="form.category">
-                                    <SelectTrigger
-                                        class="h-9 rounded-xl border border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20"
-                                        ><SelectValue
-                                    /></SelectTrigger>
-                                    <SelectContent class="rounded-xl">
-                                        <SelectItem
-                                            v-for="opt in categoryOptions"
-                                            :key="opt.value"
-                                            :value="opt.value"
-                                            class="cursor-pointer text-xs font-semibold"
-                                        >
-                                            <div
-                                                class="flex items-center gap-2"
-                                            >
-                                                <span
-                                                    class="size-2 rounded-full"
-                                                    :class="
-                                                        opt.value === 'tin-tuc'
-                                                            ? 'bg-blue-500'
-                                                            : opt.value ===
-                                                                'khuyen-mai'
-                                                              ? 'bg-emerald-500'
-                                                              : opt.value ===
-                                                                  'thanh-cong'
-                                                                ? 'bg-purple-500'
-                                                                : opt.value ===
-                                                                    'cap-nhat'
-                                                                  ? 'bg-amber-500'
-                                                                  : 'bg-red-500'
-                                                    "
-                                                ></span>
-                                                {{ opt.label }}
-                                            </div>
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div
-                                class="space-y-1 rounded-xl border border-border/20 bg-muted/15 p-2"
+                        <!-- Excerpt -->
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >Tóm tắt ngắn
+                                <span class="text-[10px] text-muted-foreground"
+                                    >(Hiển thị trên danh sách)</span
+                                ></Label
                             >
-                                <!-- Published iOS switch -->
-                                <div
-                                    class="flex items-center justify-between rounded-lg p-2 transition duration-150 hover:bg-muted/30"
-                                >
-                                    <div class="flex flex-col">
-                                        <span
-                                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                            >Đăng bài viết ngay</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-semibold text-muted-foreground"
-                                            >Hiện trên bảng tin</span
-                                        >
-                                    </div>
-                                    <button
-                                        type="button"
-                                        @click="
-                                            form.is_published =
-                                                !form.is_published
-                                        "
-                                        :class="
-                                            form.is_published
-                                                ? 'bg-orange-500'
-                                                : 'bg-slate-300 dark:bg-slate-700'
-                                        "
-                                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                                    >
-                                        <span
-                                            :class="
-                                                form.is_published
-                                                    ? 'translate-x-4'
-                                                    : 'translate-x-0'
-                                            "
-                                            class="pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
-                                        ></span>
-                                    </button>
-                                </div>
-                                <!-- Featured iOS switch -->
-                                <div
-                                    class="flex items-center justify-between rounded-lg p-2 transition duration-150 hover:bg-muted/30"
-                                >
-                                    <div class="flex flex-col">
-                                        <span
-                                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                            >Ghim nổi bật</span
-                                        >
-                                        <span
-                                            class="text-[9px] font-semibold text-muted-foreground"
-                                            >Đầu danh sách tin</span
-                                        >
-                                    </div>
-                                    <button
-                                        type="button"
-                                        @click="
-                                            form.is_featured = !form.is_featured
-                                        "
-                                        :class="
-                                            form.is_featured
-                                                ? 'bg-orange-500'
-                                                : 'bg-slate-300 dark:bg-slate-700'
-                                        "
-                                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                                    >
-                                        <span
-                                            :class="
-                                                form.is_featured
-                                                    ? 'translate-x-4'
-                                                    : 'translate-x-0'
-                                            "
-                                            class="pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out"
-                                        ></span>
-                                    </button>
-                                </div>
-                            </div>
+                            <textarea
+                                v-model="form.excerpt"
+                                rows="2"
+                                placeholder="Mô tả ngắn gọn về nội dung bài viết..."
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
+                            />
                         </div>
-                    </div>
 
-                    <!-- Title -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >Tiêu đề bài viết
-                            <span class="text-rose-500">*</span></Label
-                        >
-                        <Input
-                            v-model="form.title"
-                            placeholder="Nhập tiêu đề bài viết..."
-                            class="h-9 rounded-xl border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                        />
-                        <p
-                            v-if="form.errors.title"
-                            class="text-xs text-red-500"
-                        >
-                            {{ form.errors.title }}
-                        </p>
-                    </div>
+                        <!-- Content -->
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >Nội dung chi tiết
+                                <span class="text-rose-500">*</span></Label
+                            >
+                            <textarea
+                                v-model="form.content"
+                                rows="5"
+                                placeholder="Nội dung bài viết... Hỗ trợ định dạng in đậm bằng cú pháp **in đậm** và xuống dòng bằng phím Enter"
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
+                            />
+                            <p
+                                v-if="form.errors.content"
+                                class="text-xs text-red-500"
+                            >
+                                {{ form.errors.content }}
+                            </p>
+                            <p
+                                class="text-[10px] leading-normal font-semibold text-muted-foreground"
+                            >
+                                Mẹo soạn thảo: Sử dụng **nội dung** để in đậm
+                                chữ, gõ Enter để xuống dòng tự nhiên.
+                            </p>
+                        </div>
 
-                    <!-- Excerpt -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >Tóm tắt ngắn
-                            <span class="text-[10px] text-muted-foreground"
-                                >(Hiển thị trên danh sách)</span
-                            ></Label
-                        >
-                        <textarea
-                            v-model="form.excerpt"
-                            rows="2"
-                            placeholder="Mô tả ngắn gọn về nội dung bài viết..."
-                            class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
-                        />
-                    </div>
+                        <!-- Tags -->
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >Từ khóa Tags
+                                <span class="text-[10px] text-muted-foreground"
+                                    >(phân cách các thẻ bằng dấu phẩy)</span
+                                ></Label
+                            >
+                            <Input
+                                v-model="tagsText"
+                                placeholder="Ví dụ: khuyến mãi, tính năng, cập nhật"
+                                class="h-9 rounded-xl border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
+                        </div>
 
-                    <!-- Content -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >Nội dung chi tiết
-                            <span class="text-rose-500">*</span></Label
+                        <div
+                            class="flex justify-end gap-2 border-t border-border/40 pt-3"
                         >
-                        <textarea
-                            v-model="form.content"
-                            rows="5"
-                            placeholder="Nội dung bài viết... Hỗ trợ định dạng in đậm bằng cú pháp **in đậm** và xuống dòng bằng phím Enter"
-                            class="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs font-semibold text-foreground placeholder:text-muted-foreground focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 focus:outline-none"
-                        />
-                        <p
-                            v-if="form.errors.content"
-                            class="text-xs text-red-500"
-                        >
-                            {{ form.errors.content }}
-                        </p>
-                        <p
-                            class="text-[10px] leading-normal font-semibold text-muted-foreground"
-                        >
-                            Mẹo soạn thảo: Sử dụng **nội dung** để in đậm chữ,
-                            gõ Enter để xuống dòng tự nhiên.
-                        </p>
-                    </div>
-
-                    <!-- Tags -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >Từ khóa Tags
-                            <span class="text-[10px] text-muted-foreground"
-                                >(phân cách các thẻ bằng dấu phẩy)</span
-                            ></Label
-                        >
-                        <Input
-                            v-model="tagsText"
-                            placeholder="Ví dụ: khuyến mãi, tính năng, cập nhật"
-                            class="h-9 rounded-xl border-border bg-background text-xs font-semibold focus:border-orange-500 focus:ring-orange-500/20 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                        />
-                    </div>
-
-                    <div
-                        class="flex justify-end gap-2 border-t border-border/40 pt-3"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="closeDialog"
-                            class="h-9 cursor-pointer rounded-xl border-border text-xs font-bold hover:bg-muted"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="submit"
-                            :disabled="form.processing"
-                            class="h-9 cursor-pointer rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-bold text-white shadow-xs transition-colors hover:from-orange-600 hover:to-amber-600"
-                        >
-                            {{ editingPost ? 'Lưu bài viết' : 'Đăng bài viết' }}
-                        </Button>
-                    </div>
-                </form>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeDialog"
+                                class="h-9 cursor-pointer rounded-xl border-border text-xs font-bold hover:bg-muted"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="form.processing"
+                                class="h-9 cursor-pointer rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-bold text-white shadow-xs transition-colors hover:from-orange-600 hover:to-amber-600"
+                            >
+                                {{
+                                    editingPost
+                                        ? 'Lưu bài viết'
+                                        : 'Đăng bài viết'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
         </Teleport>
     </Transition>
 </template>

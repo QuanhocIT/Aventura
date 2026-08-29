@@ -727,7 +727,7 @@ function getTableStatusInfo(status: string) {
                         />
                     </Deferred>
                 </div>
-                <div class="lg:sticky lg:top-20 self-start">
+                <div class="self-start lg:sticky lg:top-20">
                     <DashboardSidebar
                         :onboarding-complete="props.onboardingComplete"
                         :recent-orders="props.recentOrders"
@@ -1465,7 +1465,7 @@ function getTableStatusInfo(status: string) {
                         :shift-revenue="props.shiftRevenue"
                     />
                 </div>
-                <div class="lg:sticky lg:top-20 self-start">
+                <div class="self-start lg:sticky lg:top-20">
                     <DashboardSidebar
                         :onboarding-complete="props.onboardingComplete"
                         :recent-orders="props.recentOrders"
@@ -1837,7 +1837,7 @@ function getTableStatusInfo(status: string) {
                         </CardContent>
                     </Card>
                 </div>
-                <div class="space-y-6 lg:sticky lg:top-20 self-start">
+                <div class="space-y-6 self-start lg:sticky lg:top-20">
                     <CashFlowWidget
                         :cash-flow-summary="props.cashFlowSummary"
                     />
@@ -2297,7 +2297,7 @@ function getTableStatusInfo(status: string) {
                         </CardContent>
                     </Card>
                 </div>
-                <div class="space-y-6 lg:sticky lg:top-20 self-start">
+                <div class="space-y-6 self-start lg:sticky lg:top-20">
                     <CashFlowWidget
                         :cash-flow-summary="props.cashFlowSummary"
                     />

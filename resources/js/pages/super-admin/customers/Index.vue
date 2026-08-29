@@ -19,6 +19,7 @@ import {
     Pagination,
 } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
     Select,

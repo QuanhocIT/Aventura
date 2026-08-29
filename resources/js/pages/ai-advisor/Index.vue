@@ -354,8 +354,8 @@ async function sendMessage() {
             content:
                 data.service_available === false
                     ? `⚠️ ${data.answer ?? 'Chatbot Service hiện không khả dụng.'}`
-                    : data.answer ??
-                      'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.',
+                    : (data.answer ??
+                      'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.'),
             timestamp: new Date().toISOString(),
         });
     } catch {
@@ -434,7 +434,7 @@ function renderMarkdown(text: string): string {
                     </CardDescription>
                 </CardHeader>
                 <CardContent
-                    class="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto pr-1 pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    class="no-scrollbar flex flex-1 [scrollbar-width:none] flex-col gap-2.5 overflow-y-auto pr-1 pb-6 [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                 >
                     <button
                         v-for="s in suggestions"
@@ -611,4 +611,3 @@ function renderMarkdown(text: string): string {
     display: none; /* Chrome, Safari and Opera */
 }
 </style>
-

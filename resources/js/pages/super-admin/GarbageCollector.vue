@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { Database, HardDrive, Trash2, FileQuestion, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-vue-next';
+import {
+    Database,
+    HardDrive,
+    Trash2,
+    FileQuestion,
+    ChevronLeft,
+    ChevronRight,
+    RefreshCw,
+    AlertCircle,
+    CheckCircle2,
+    AlertTriangle,
+} from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';

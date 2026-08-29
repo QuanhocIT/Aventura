@@ -18,6 +18,7 @@ import {
     Trash2,
     Flame,
     ArchiveRestore,
+    Plus,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import {

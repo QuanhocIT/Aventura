@@ -940,7 +940,9 @@ const statusClasses: Record<string, string> = {
                                 >
                                     {{ formatNumber(be.total_orders) }}
                                 </p>
-                                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                <p
+                                    class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                                >
                                     đơn thực tế trong kỳ
                                 </p>
                             </div>

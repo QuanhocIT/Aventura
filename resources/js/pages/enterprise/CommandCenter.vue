@@ -72,7 +72,6 @@ const summaryCards = computed(() => [
         tone: 'amber',
     },
 ]);
-
 </script>
 
 <template>
@@ -207,8 +206,12 @@ const summaryCards = computed(() => [
                 </div>
 
                 <template #footer>
-                    <span v-if="scorecards.length > 10" class="text-xs text-muted-foreground">
-                        Đang hiển thị 10/{{ scorecards.length }} chi nhánh. Cuộn để xem danh sách đầy đủ.
+                    <span
+                        v-if="scorecards.length > 10"
+                        class="text-xs text-muted-foreground"
+                    >
+                        Đang hiển thị 10/{{ scorecards.length }} chi nhánh. Cuộn
+                        để xem danh sách đầy đủ.
                     </span>
                 </template>
             </DashboardListCard>
@@ -222,19 +225,25 @@ const summaryCards = computed(() => [
                 <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
                     <div class="rounded-xl bg-muted/50 p-3">
                         <p class="dashboard-card-label">Doanh thu tháng này</p>
-                        <p class="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-300">
+                        <p
+                            class="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-300"
+                        >
                             {{ currency.format(summary.total_revenue) }}
                         </p>
                     </div>
                     <div class="rounded-xl bg-muted/50 p-3">
                         <p class="dashboard-card-label">Vi phạm đang mở</p>
-                        <p class="mt-1 text-lg font-black text-rose-600 dark:text-rose-300">
+                        <p
+                            class="mt-1 text-lg font-black text-rose-600 dark:text-rose-300"
+                        >
                             {{ summary.total_open_infringements }} hồ sơ
                         </p>
                     </div>
                     <div class="rounded-xl bg-muted/50 p-3">
                         <p class="dashboard-card-label">Mặt hàng cần bổ sung</p>
-                        <p class="mt-1 text-lg font-black text-amber-600 dark:text-amber-300">
+                        <p
+                            class="mt-1 text-lg font-black text-amber-600 dark:text-amber-300"
+                        >
                             {{ summary.total_low_stock }} mặt hàng
                         </p>
                     </div>

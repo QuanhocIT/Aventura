@@ -425,35 +425,39 @@ const colHeaderClass: Record<string, string> = {
 
         <!-- Pause Dialog -->
         <Teleport to="body">
-        <div
-            v-if="pauseSubId !== null"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-            @click.self="closePause"
-        >
             <div
-                class="w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
+                v-if="pauseSubId !== null"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                @click.self="closePause"
             >
-                <h2 class="mb-1 text-lg font-bold">⏸ Tạm dừng nhắc nợ</h2>
-                <p class="mb-4 text-sm text-muted-foreground">
-                    Tạm dừng nhắc nhở cho <strong>{{ pauseSubName }}</strong
-                    >.
-                </p>
-                <div class="space-y-2">
-                    <Label>Số ngày tạm dừng</Label>
-                    <Input
-                        v-model.number="pauseDays"
-                        type="number"
-                        min="1"
-                        max="30"
-                    />
-                    <p class="text-xs text-muted-foreground">Tối đa 30 ngày</p>
-                </div>
-                <div class="mt-4 flex justify-end gap-3">
-                    <Button variant="outline" @click="closePause">Hủy</Button>
-                    <Button @click="submitPause">Xác nhận Pause</Button>
+                <div
+                    class="w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
+                >
+                    <h2 class="mb-1 text-lg font-bold">⏸ Tạm dừng nhắc nợ</h2>
+                    <p class="mb-4 text-sm text-muted-foreground">
+                        Tạm dừng nhắc nhở cho <strong>{{ pauseSubName }}</strong
+                        >.
+                    </p>
+                    <div class="space-y-2">
+                        <Label>Số ngày tạm dừng</Label>
+                        <Input
+                            v-model.number="pauseDays"
+                            type="number"
+                            min="1"
+                            max="30"
+                        />
+                        <p class="text-xs text-muted-foreground">
+                            Tối đa 30 ngày
+                        </p>
+                    </div>
+                    <div class="mt-4 flex justify-end gap-3">
+                        <Button variant="outline" @click="closePause"
+                            >Hủy</Button
+                        >
+                        <Button @click="submitPause">Xác nhận Pause</Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

@@ -13,6 +13,7 @@ import {
     Key,
     Plus,
     Loader2,
+    Activity,
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';

@@ -284,13 +284,17 @@ const formatUserAgent = (ua?: string) => {
     <div class="space-y-6 p-6">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex items-center gap-3">
-                <BackButton fallback-href="/super-admin/firewall" label="Tường lửa" />
+                <BackButton
+                    fallback-href="/super-admin/firewall"
+                    label="Tường lửa"
+                />
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">
                         Trung tâm bảo mật
                     </h1>
                     <p class="text-muted-foreground">
-                        Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo mật.
+                        Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo
+                        mật.
                     </p>
                 </div>
             </div>

@@ -14,10 +14,7 @@ import {
     Calendar,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
-import {
-    PageHeader,
-    Pagination,
-} from '@/components/super-admin';
+import { PageHeader, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

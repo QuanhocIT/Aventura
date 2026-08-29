@@ -14,10 +14,7 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatCard,
-} from '@/components/super-admin';
+import { PageHeader, StatCard } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

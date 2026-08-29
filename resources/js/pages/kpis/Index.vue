@@ -1146,193 +1146,198 @@ const getRoleText = (role: string | null) => {
 
         <!-- MODAL: KPI Details (Slide-over / Pop-up) -->
         <Teleport to="body">
-        <div
-            v-if="activeEmployeeKpi"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+            <div
+                v-if="activeEmployeeKpi"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="border-slate-150 dark:border-slate-850 flex flex-row items-center justify-between border-b pb-4"
+                <Card
+                    class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                 >
-                    <div>
-                        <CardTitle
-                            class="text-lg font-bold text-slate-900 dark:text-white"
-                            >Bảng KPI Chi Tiết -
-                            {{ activeEmployeeKpi.full_name }}</CardTitle
-                        >
-                        <CardDescription
-                            class="text-xs text-slate-500 dark:text-slate-400"
-                            >{{ activeEmployeeKpi.job_title }} | Kỳ:
-                            {{ period }}</CardDescription
-                        >
-                    </div>
-                    <Button
-                        @click="activeEmployeeKpi = null"
-                        variant="ghost"
-                        class="hover:text-slate-650 p-2 text-slate-400 dark:hover:text-white"
+                    <CardHeader
+                        class="border-slate-150 dark:border-slate-850 flex flex-row items-center justify-between border-b pb-4"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-                <CardContent class="space-y-6 p-6">
-                    <!-- Overall KPI Summary -->
-                    <div
-                        class="border-slate-150 dark:border-slate-850 grid grid-cols-3 rounded-xl border bg-slate-50 p-4 text-center dark:bg-slate-950/60"
-                    >
-                        <div
-                            class="border-r border-slate-200 dark:border-slate-800"
-                        >
-                            <p
-                                class="text-xs text-slate-500 dark:text-slate-400"
-                            >
-                                Tổng điểm KPI
-                            </p>
-                            <p
-                                class="text-2xl font-black text-slate-900 dark:text-white"
-                            >
-                                {{ activeEmployeeKpi.current_kpi?.total_score }}
-                            </p>
-                        </div>
-                        <div
-                            class="border-r border-slate-200 dark:border-slate-800"
-                        >
-                            <p
-                                class="text-xs text-slate-500 dark:text-slate-400"
-                            >
-                                Tiền thưởng đạt
-                            </p>
-                            <p
-                                class="text-lg font-bold text-emerald-600 dark:text-emerald-400"
-                            >
-                                {{
-                                    formatVnd(
-                                        activeEmployeeKpi.current_kpi
-                                            ?.total_bonus ?? 0,
-                                    )
-                                }}
-                            </p>
-                        </div>
                         <div>
-                            <p
+                            <CardTitle
+                                class="text-lg font-bold text-slate-900 dark:text-white"
+                                >Bảng KPI Chi Tiết -
+                                {{ activeEmployeeKpi.full_name }}</CardTitle
+                            >
+                            <CardDescription
                                 class="text-xs text-slate-500 dark:text-slate-400"
+                                >{{ activeEmployeeKpi.job_title }} | Kỳ:
+                                {{ period }}</CardDescription
                             >
-                                Hoa hồng doanh số
-                            </p>
-                            <p
-                                class="text-lg font-bold text-amber-600 dark:text-amber-500"
-                            >
-                                {{
-                                    formatVnd(
-                                        activeEmployeeKpi.current_kpi
-                                            ?.total_commission ?? 0,
-                                    )
-                                }}
-                            </p>
                         </div>
-                    </div>
-
-                    <!-- Metrics Details List -->
-                    <div class="space-y-4">
-                        <h4
-                            class="text-xs font-bold text-slate-500 dark:text-slate-400"
+                        <Button
+                            @click="activeEmployeeKpi = null"
+                            variant="ghost"
+                            class="hover:text-slate-650 p-2 text-slate-400 dark:hover:text-white"
                         >
-                            CHI TIẾT CHỈ TIÊU KPI THỰC TẾ:
-                        </h4>
-
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </CardHeader>
+                    <CardContent class="space-y-6 p-6">
+                        <!-- Overall KPI Summary -->
                         <div
-                            v-for="metric in activeEmployeeKpi.current_kpi
-                                ?.metrics"
-                            :key="metric.id"
-                            class="border-slate-150 space-y-3 rounded-xl border bg-slate-50/50 p-4 dark:border-slate-800/80 dark:bg-slate-950/40"
+                            class="border-slate-150 dark:border-slate-850 grid grid-cols-3 rounded-xl border bg-slate-50 p-4 text-center dark:bg-slate-950/60"
                         >
-                            <div class="flex items-start justify-between">
-                                <div>
-                                    <h5
-                                        class="text-sm font-bold text-slate-900 dark:text-white"
-                                    >
-                                        {{ metric.metric_name }}
-                                    </h5>
-                                    <p
-                                        class="text-slate-550 dark:text-slate-450 text-xs"
-                                    >
-                                        Code: {{ metric.metric_code }}
-                                    </p>
-                                </div>
-                                <span
-                                    class="rounded px-2 py-0.5 text-xs font-semibold"
-                                    :class="
-                                        metric.is_achieved
-                                            ? 'border border-emerald-200/50 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/30 dark:text-emerald-400'
-                                            : 'border border-rose-200/50 bg-rose-50 text-rose-700 dark:border-rose-900/30 dark:bg-rose-950/30 dark:text-rose-400'
-                                    "
+                            <div
+                                class="border-r border-slate-200 dark:border-slate-800"
+                            >
+                                <p
+                                    class="text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    Tổng điểm KPI
+                                </p>
+                                <p
+                                    class="text-2xl font-black text-slate-900 dark:text-white"
                                 >
                                     {{
-                                        metric.is_achieved
-                                            ? 'Đạt chỉ tiêu'
-                                            : 'Chưa đạt'
+                                        activeEmployeeKpi.current_kpi
+                                            ?.total_score
                                     }}
-                                </span>
+                                </p>
                             </div>
-
                             <div
-                                class="border-slate-150 dark:border-slate-855 grid grid-cols-3 gap-2 border-t border-b py-2 text-xs text-slate-500 dark:text-slate-400"
+                                class="border-r border-slate-200 dark:border-slate-800"
                             >
-                                <div>
-                                    Mục tiêu:
-                                    <span
-                                        class="font-bold text-slate-900 dark:text-white"
-                                        >{{ metric.target_value }}</span
-                                    >
-                                </div>
-                                <div>
-                                    Thực tế:
-                                    <span
-                                        class="font-bold text-slate-900 dark:text-white"
-                                        >{{ metric.actual_value }}</span
-                                    >
-                                </div>
-                                <div>
-                                    Chấm điểm:
-                                    <span
-                                        class="text-sm font-black text-slate-900 dark:text-white"
-                                        >{{ metric.score }} / 100</span
-                                    >
-                                </div>
+                                <p
+                                    class="text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    Tiền thưởng đạt
+                                </p>
+                                <p
+                                    class="text-lg font-bold text-emerald-600 dark:text-emerald-400"
+                                >
+                                    {{
+                                        formatVnd(
+                                            activeEmployeeKpi.current_kpi
+                                                ?.total_bonus ?? 0,
+                                        )
+                                    }}
+                                </p>
                             </div>
-
-                            <div
-                                class="flex justify-between text-xs text-slate-500 dark:text-slate-400"
-                            >
-                                <span
-                                    >Thưởng nóng đạt chỉ tiêu:
-                                    <strong
-                                        class="text-emerald-600 dark:text-emerald-400"
-                                        >{{
-                                            formatVnd(metric.bonus_earned)
-                                        }}</strong
-                                    ></span
+                            <div>
+                                <p
+                                    class="text-xs text-slate-500 dark:text-slate-400"
                                 >
-                                <span
-                                    >Hoa hồng nhận:
-                                    <strong
-                                        class="text-amber-600 dark:text-amber-500"
-                                        >{{
-                                            formatVnd(metric.commission_earned)
-                                        }}</strong
-                                    ></span
+                                    Hoa hồng doanh số
+                                </p>
+                                <p
+                                    class="text-lg font-bold text-amber-600 dark:text-amber-500"
                                 >
+                                    {{
+                                        formatVnd(
+                                            activeEmployeeKpi.current_kpi
+                                                ?.total_commission ?? 0,
+                                        )
+                                    }}
+                                </p>
                             </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+
+                        <!-- Metrics Details List -->
+                        <div class="space-y-4">
+                            <h4
+                                class="text-xs font-bold text-slate-500 dark:text-slate-400"
+                            >
+                                CHI TIẾT CHỈ TIÊU KPI THỰC TẾ:
+                            </h4>
+
+                            <div
+                                v-for="metric in activeEmployeeKpi.current_kpi
+                                    ?.metrics"
+                                :key="metric.id"
+                                class="border-slate-150 space-y-3 rounded-xl border bg-slate-50/50 p-4 dark:border-slate-800/80 dark:bg-slate-950/40"
+                            >
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h5
+                                            class="text-sm font-bold text-slate-900 dark:text-white"
+                                        >
+                                            {{ metric.metric_name }}
+                                        </h5>
+                                        <p
+                                            class="text-slate-550 dark:text-slate-450 text-xs"
+                                        >
+                                            Code: {{ metric.metric_code }}
+                                        </p>
+                                    </div>
+                                    <span
+                                        class="rounded px-2 py-0.5 text-xs font-semibold"
+                                        :class="
+                                            metric.is_achieved
+                                                ? 'border border-emerald-200/50 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                                : 'border border-rose-200/50 bg-rose-50 text-rose-700 dark:border-rose-900/30 dark:bg-rose-950/30 dark:text-rose-400'
+                                        "
+                                    >
+                                        {{
+                                            metric.is_achieved
+                                                ? 'Đạt chỉ tiêu'
+                                                : 'Chưa đạt'
+                                        }}
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="border-slate-150 dark:border-slate-855 grid grid-cols-3 gap-2 border-t border-b py-2 text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    <div>
+                                        Mục tiêu:
+                                        <span
+                                            class="font-bold text-slate-900 dark:text-white"
+                                            >{{ metric.target_value }}</span
+                                        >
+                                    </div>
+                                    <div>
+                                        Thực tế:
+                                        <span
+                                            class="font-bold text-slate-900 dark:text-white"
+                                            >{{ metric.actual_value }}</span
+                                        >
+                                    </div>
+                                    <div>
+                                        Chấm điểm:
+                                        <span
+                                            class="text-sm font-black text-slate-900 dark:text-white"
+                                            >{{ metric.score }} / 100</span
+                                        >
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="flex justify-between text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    <span
+                                        >Thưởng nóng đạt chỉ tiêu:
+                                        <strong
+                                            class="text-emerald-600 dark:text-emerald-400"
+                                            >{{
+                                                formatVnd(metric.bonus_earned)
+                                            }}</strong
+                                        ></span
+                                    >
+                                    <span
+                                        >Hoa hồng nhận:
+                                        <strong
+                                            class="text-amber-600 dark:text-amber-500"
+                                            >{{
+                                                formatVnd(
+                                                    metric.commission_earned,
+                                                )
+                                            }}</strong
+                                        ></span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </Teleport>
 
         <!-- MODAL: Edit Metric Config Setup -->
-        
+
         <div
             v-if="activeConfigEdit"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1453,254 +1458,255 @@ const getRoleText = (role: string | null) => {
                 </form>
             </Card>
         </div>
-        
 
         <!-- MODAL: Submit 360-Degree Review Form -->
         <Teleport to="body">
-        <div
-            v-if="isReviewModalOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="max-h-[90vh] w-full max-w-lg overflow-hidden overflow-y-auto rounded-2xl border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+            <div
+                v-if="isReviewModalOpen"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="border-slate-150 dark:border-slate-855 flex flex-row items-center justify-between border-b pb-4"
+                <Card
+                    class="max-h-[90vh] w-full max-w-lg overflow-hidden overflow-y-auto rounded-2xl border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                 >
-                    <div>
-                        <CardTitle
-                            class="text-lg font-bold text-slate-900 dark:text-white"
-                            >Phiếu Đánh Giá Hiệu Suất 360°</CardTitle
-                        >
-                        <CardDescription
-                            class="text-xs text-slate-500 dark:text-slate-400"
-                            >Gửi phiếu tự đánh giá, đánh giá quản lý hoặc đồng
-                            nghiệp.</CardDescription
-                        >
-                    </div>
-                    <Button
-                        @click="isReviewModalOpen = false"
-                        variant="ghost"
-                        class="hover:text-slate-650 p-2 text-slate-400 dark:hover:text-white"
+                    <CardHeader
+                        class="border-slate-150 dark:border-slate-855 flex flex-row items-center justify-between border-b pb-4"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-                <form @submit.prevent="submitReview">
-                    <CardContent class="space-y-4 p-6">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-1.5">
-                                <Label
-                                    for="review_employee"
-                                    class="text-xs font-semibold text-slate-600 dark:text-slate-400"
-                                    >Chọn Nhân Sự Chấm Điểm</Label
-                                >
-                                <select
-                                    id="review_employee"
-                                    v-model="reviewForm.employee_id"
-                                    class="w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                    required
-                                >
-                                    <option value="" disabled>
-                                        -- Chọn nhân viên --
-                                    </option>
-                                    <option
-                                        v-for="emp in employees"
-                                        :key="emp.id"
-                                        :value="emp.id"
-                                    >
-                                        {{ emp.full_name }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <Label
-                                    for="reviewer_type"
-                                    class="text-xs font-semibold text-slate-600 dark:text-slate-400"
-                                    >Mối Quan Hệ Đánh Giá</Label
-                                >
-                                <select
-                                    id="reviewer_type"
-                                    v-model="reviewForm.reviewer_type"
-                                    class="w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                    required
-                                >
-                                    <option value="self">
-                                        Tự đánh giá bản thân
-                                    </option>
-                                    <option value="manager">
-                                        Quản lý đánh giá
-                                    </option>
-                                    <option value="peer">
-                                        Đồng nghiệp đánh giá chéo
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Ratings section -->
-                        <div
-                            class="border-slate-150 dark:border-slate-850 space-y-4 border-t pt-4"
-                        >
-                            <h4
-                                class="dark:text-amber-550 text-xs font-bold tracking-wider text-amber-600"
+                        <div>
+                            <CardTitle
+                                class="text-lg font-bold text-slate-900 dark:text-white"
+                                >Phiếu Đánh Giá Hiệu Suất 360°</CardTitle
                             >
-                                CHẤM ĐIỂM TIÊU CHÍ (Từ 1 đến 5 sao):
-                            </h4>
-
-                            <div class="space-y-3">
-                                <!-- Communication -->
-                                <div
-                                    class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
-                                >
-                                    <div class="pr-2">
-                                        <Label
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                            >Kỹ năng giao tiếp</Label
-                                        >
-                                        <p
-                                            class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
-                                        >
-                                            Khả năng truyền đạt, trao đổi thông
-                                            tin với khách hàng & đồng đội.
-                                        </p>
-                                    </div>
-                                    <input
-                                        type="number"
-                                        v-model.number="
-                                            reviewForm.ratings.communication
-                                        "
-                                        min="1"
-                                        max="5"
-                                        class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                        required
-                                    />
-                                </div>
-
-                                <!-- Teamwork -->
-                                <div
-                                    class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
-                                >
-                                    <div class="pr-2">
-                                        <Label
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                            >Làm việc nhóm</Label
-                                        >
-                                        <p
-                                            class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
-                                        >
-                                            Khả năng phối hợp đồng đội, hỗ trợ
-                                            chạy việc trong ca.
-                                        </p>
-                                    </div>
-                                    <input
-                                        type="number"
-                                        v-model.number="
-                                            reviewForm.ratings.teamwork
-                                        "
-                                        min="1"
-                                        max="5"
-                                        class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                        required
-                                    />
-                                </div>
-
-                                <!-- Reliability -->
-                                <div
-                                    class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
-                                >
-                                    <div class="pr-2">
-                                        <Label
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                            >Độ tin cậy & Đúng giờ</Label
-                                        >
-                                        <p
-                                            class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
-                                        >
-                                            Ý thức giờ giấc đi làm, chấp hành kỷ
-                                            luật.
-                                        </p>
-                                    </div>
-                                    <input
-                                        type="number"
-                                        v-model.number="
-                                            reviewForm.ratings.reliability
-                                        "
-                                        min="1"
-                                        max="5"
-                                        class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                        required
-                                    />
-                                </div>
-
-                                <!-- Skills -->
-                                <div
-                                    class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
-                                >
-                                    <div class="pr-2">
-                                        <Label
-                                            class="text-sm font-bold text-slate-900 dark:text-white"
-                                            >Kỹ năng nghiệp vụ chuyên môn</Label
-                                        >
-                                        <p
-                                            class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
-                                        >
-                                            Trình độ làm bếp, phục vụ hoặc thu
-                                            ngân chuẩn quy trình.
-                                        </p>
-                                    </div>
-                                    <input
-                                        type="number"
-                                        v-model.number="
-                                            reviewForm.ratings.skills
-                                        "
-                                        min="1"
-                                        max="5"
-                                        class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Comments -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="comments"
-                                class="text-xs font-semibold text-slate-600 dark:text-slate-400"
-                                >Ý kiến đánh giá khác / Nhận xét tổng
-                                quan</Label
+                            <CardDescription
+                                class="text-xs text-slate-500 dark:text-slate-400"
+                                >Gửi phiếu tự đánh giá, đánh giá quản lý hoặc
+                                đồng nghiệp.</CardDescription
                             >
-                            <textarea
-                                id="comments"
-                                v-model="reviewForm.comments"
-                                rows="3"
-                                class="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                                placeholder="Nhập ý kiến đóng góp ý kiến xây dựng cho nhân sự tại đây..."
-                            ></textarea>
                         </div>
-                    </CardContent>
-                    <div
-                        class="border-slate-150 dark:border-slate-850 flex justify-end gap-3 border-t bg-slate-50/50 p-6 dark:bg-slate-950/20"
-                    >
                         <Button
-                            type="button"
                             @click="isReviewModalOpen = false"
                             variant="ghost"
-                            class="hover:text-slate-850 font-semibold text-slate-500 dark:text-slate-400 dark:hover:text-white"
+                            class="hover:text-slate-650 p-2 text-slate-400 dark:hover:text-white"
                         >
-                            Hủy
+                            <X class="h-5 w-5" />
                         </Button>
-                        <Button
-                            type="submit"
-                            class="rounded-xl bg-amber-600 font-semibold text-white hover:bg-amber-700"
+                    </CardHeader>
+                    <form @submit.prevent="submitReview">
+                        <CardContent class="space-y-4 p-6">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <Label
+                                        for="review_employee"
+                                        class="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                                        >Chọn Nhân Sự Chấm Điểm</Label
+                                    >
+                                    <select
+                                        id="review_employee"
+                                        v-model="reviewForm.employee_id"
+                                        class="w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                        required
+                                    >
+                                        <option value="" disabled>
+                                            -- Chọn nhân viên --
+                                        </option>
+                                        <option
+                                            v-for="emp in employees"
+                                            :key="emp.id"
+                                            :value="emp.id"
+                                        >
+                                            {{ emp.full_name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label
+                                        for="reviewer_type"
+                                        class="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                                        >Mối Quan Hệ Đánh Giá</Label
+                                    >
+                                    <select
+                                        id="reviewer_type"
+                                        v-model="reviewForm.reviewer_type"
+                                        class="w-full cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                        required
+                                    >
+                                        <option value="self">
+                                            Tự đánh giá bản thân
+                                        </option>
+                                        <option value="manager">
+                                            Quản lý đánh giá
+                                        </option>
+                                        <option value="peer">
+                                            Đồng nghiệp đánh giá chéo
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Ratings section -->
+                            <div
+                                class="border-slate-150 dark:border-slate-850 space-y-4 border-t pt-4"
+                            >
+                                <h4
+                                    class="dark:text-amber-550 text-xs font-bold tracking-wider text-amber-600"
+                                >
+                                    CHẤM ĐIỂM TIÊU CHÍ (Từ 1 đến 5 sao):
+                                </h4>
+
+                                <div class="space-y-3">
+                                    <!-- Communication -->
+                                    <div
+                                        class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="pr-2">
+                                            <Label
+                                                class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >Kỹ năng giao tiếp</Label
+                                            >
+                                            <p
+                                                class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
+                                            >
+                                                Khả năng truyền đạt, trao đổi
+                                                thông tin với khách hàng & đồng
+                                                đội.
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            v-model.number="
+                                                reviewForm.ratings.communication
+                                            "
+                                            min="1"
+                                            max="5"
+                                            class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                            required
+                                        />
+                                    </div>
+
+                                    <!-- Teamwork -->
+                                    <div
+                                        class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="pr-2">
+                                            <Label
+                                                class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >Làm việc nhóm</Label
+                                            >
+                                            <p
+                                                class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
+                                            >
+                                                Khả năng phối hợp đồng đội, hỗ
+                                                trợ chạy việc trong ca.
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            v-model.number="
+                                                reviewForm.ratings.teamwork
+                                            "
+                                            min="1"
+                                            max="5"
+                                            class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                            required
+                                        />
+                                    </div>
+
+                                    <!-- Reliability -->
+                                    <div
+                                        class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="pr-2">
+                                            <Label
+                                                class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >Độ tin cậy & Đúng giờ</Label
+                                            >
+                                            <p
+                                                class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
+                                            >
+                                                Ý thức giờ giấc đi làm, chấp
+                                                hành kỷ luật.
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            v-model.number="
+                                                reviewForm.ratings.reliability
+                                            "
+                                            min="1"
+                                            max="5"
+                                            class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                            required
+                                        />
+                                    </div>
+
+                                    <!-- Skills -->
+                                    <div
+                                        class="border-slate-150 flex items-center justify-between rounded-xl border bg-slate-50/40 p-3 dark:border-slate-800/80 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="pr-2">
+                                            <Label
+                                                class="text-sm font-bold text-slate-900 dark:text-white"
+                                                >Kỹ năng nghiệp vụ chuyên
+                                                môn</Label
+                                            >
+                                            <p
+                                                class="dark:text-slate-450 text-[11px] leading-tight text-slate-500"
+                                            >
+                                                Trình độ làm bếp, phục vụ hoặc
+                                                thu ngân chuẩn quy trình.
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            v-model.number="
+                                                reviewForm.ratings.skills
+                                            "
+                                            min="1"
+                                            max="5"
+                                            class="border-slate-250 w-14 rounded-xl border bg-white px-2 py-1 text-center text-sm font-bold text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Comments -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="comments"
+                                    class="text-xs font-semibold text-slate-600 dark:text-slate-400"
+                                    >Ý kiến đánh giá khác / Nhận xét tổng
+                                    quan</Label
+                                >
+                                <textarea
+                                    id="comments"
+                                    v-model="reviewForm.comments"
+                                    rows="3"
+                                    class="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:ring-1 focus:ring-amber-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                                    placeholder="Nhập ý kiến đóng góp ý kiến xây dựng cho nhân sự tại đây..."
+                                ></textarea>
+                            </div>
+                        </CardContent>
+                        <div
+                            class="border-slate-150 dark:border-slate-850 flex justify-end gap-3 border-t bg-slate-50/50 p-6 dark:bg-slate-950/20"
                         >
-                            Gửi Đánh Giá
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                            <Button
+                                type="button"
+                                @click="isReviewModalOpen = false"
+                                variant="ghost"
+                                class="hover:text-slate-850 font-semibold text-slate-500 dark:text-slate-400 dark:hover:text-white"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                class="rounded-xl bg-amber-600 font-semibold text-white hover:bg-amber-700"
+                            >
+                                Gửi Đánh Giá
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
     </div>
 </template>

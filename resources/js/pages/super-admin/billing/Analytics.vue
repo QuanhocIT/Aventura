@@ -25,11 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatCard,
-    LedIndicator,
-} from '@/components/super-admin';
+import { PageHeader, StatCard, LedIndicator } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

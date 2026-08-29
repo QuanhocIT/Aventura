@@ -318,7 +318,10 @@ onUnmounted(() => {
     </div>
 
     <!-- Main content loaded state -->
-    <div v-else class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
+    <div
+        v-else
+        class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6"
+    >
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <div
             class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"

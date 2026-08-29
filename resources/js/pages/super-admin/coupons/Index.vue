@@ -25,7 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { PageHeader, Pagination } from '@/components/super-admin';
+import { FilterBar, PageHeader, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -872,211 +872,216 @@ const chartAreaPath = computed(() => {
         leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
         <Teleport to="body">
-        <div
-            v-if="showForm"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
-            @click.self="closeForm"
-        >
             <div
-                class="flex w-full max-w-md flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
+                v-if="showForm"
+                class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
+                @click.self="closeForm"
             >
-                <!-- Modal Header -->
                 <div
-                    class="flex items-center justify-between border-b border-border/40 bg-muted/10 p-5"
+                    class="flex w-full max-w-md flex-col justify-between overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
                 >
-                    <h2 class="flex items-center gap-2 text-sm font-bold">
-                        <div
-                            class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-500"
-                        >
-                            <BadgePercent class="size-4" />
-                        </div>
-                        <span>{{
-                            editingCoupon
-                                ? `Chỉnh sửa — ${editingCoupon.code}`
-                                : 'Tạo mã khuyến mãi mới'
-                        }}</span>
-                    </h2>
-                    <button
-                        class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted"
-                        @click="closeForm"
+                    <!-- Modal Header -->
+                    <div
+                        class="flex items-center justify-between border-b border-border/40 bg-muted/10 p-5"
                     >
-                        <X class="size-4" />
-                    </button>
-                </div>
-
-                <!-- Modal Body -->
-                <div class="max-h-[70vh] space-y-4.5 overflow-y-auto p-5">
-                    <!-- Code -->
-                    <div v-if="!editingCoupon" class="grid gap-1.5">
-                        <Label
-                            for="code"
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                        >
-                            <Tag class="size-3.5 text-orange-500" />
-                            Mã khuyến mãi <span class="text-rose-500">*</span>
-                        </Label>
-                        <div class="relative flex items-center">
-                            <span
-                                class="absolute left-3 rounded border border-border/55 bg-muted px-1.5 py-0.5 font-mono text-[10px] font-black text-muted-foreground/80 uppercase"
-                                >CODE</span
+                        <h2 class="flex items-center gap-2 text-sm font-bold">
+                            <div
+                                class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-500"
                             >
-                            <Input
-                                id="code"
-                                v-model="formData.code"
-                                placeholder="VD: SUMMER25"
-                                class="rounded-xl border-border pl-14 font-mono font-bold tracking-wide uppercase focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                            />
-                        </div>
-                        <p
-                            class="text-[10px] font-semibold text-muted-foreground"
+                                <BadgePercent class="size-4" />
+                            </div>
+                            <span>{{
+                                editingCoupon
+                                    ? `Chỉnh sửa — ${editingCoupon.code}`
+                                    : 'Tạo mã khuyến mãi mới'
+                            }}</span>
+                        </h2>
+                        <button
+                            class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted"
+                            @click="closeForm"
                         >
-                            Chỉ dùng chữ, số và gạch ngang. Hệ thống sẽ tự động
-                            đổi sang chữ hoa.
-                        </p>
+                            <X class="size-4" />
+                        </button>
                     </div>
 
-                    <!-- Description -->
-                    <div class="grid gap-1.5">
-                        <Label
-                            for="description"
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                        >
-                            <FileText class="size-3.5 text-orange-500" />
-                            Mô tả (tùy chọn)
-                        </Label>
-                        <Input
-                            id="description"
-                            v-model="formData.description"
-                            placeholder="VD: Giảm giá mùa hè 2025"
-                            class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                        />
-                    </div>
-
-                    <!-- Discount type + value -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="grid gap-1.5">
+                    <!-- Modal Body -->
+                    <div class="max-h-[70vh] space-y-4.5 overflow-y-auto p-5">
+                        <!-- Code -->
+                        <div v-if="!editingCoupon" class="grid gap-1.5">
                             <Label
+                                for="code"
                                 class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
                             >
-                                <BadgePercent
-                                    class="size-3.5 text-orange-500"
-                                />
-                                Loại giảm giá
+                                <Tag class="size-3.5 text-orange-500" />
+                                Mã khuyến mãi
+                                <span class="text-rose-500">*</span>
                             </Label>
-                            <Select v-model="formData.discount_type">
-                                <SelectTrigger
-                                    class="h-9 rounded-xl border-border text-xs focus:border-orange-500 focus:ring-orange-500/20"
+                            <div class="relative flex items-center">
+                                <span
+                                    class="absolute left-3 rounded border border-border/55 bg-muted px-1.5 py-0.5 font-mono text-[10px] font-black text-muted-foreground/80 uppercase"
+                                    >CODE</span
                                 >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent class="rounded-xl">
-                                    <SelectItem value="percent"
-                                        >Phần trăm (%)</SelectItem
-                                    >
-                                    <SelectItem value="fixed"
-                                        >Số tiền cố định (đ)</SelectItem
-                                    >
-                                </SelectContent>
-                            </Select>
+                                <Input
+                                    id="code"
+                                    v-model="formData.code"
+                                    placeholder="VD: SUMMER25"
+                                    class="rounded-xl border-border pl-14 font-mono font-bold tracking-wide uppercase focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                                />
+                            </div>
+                            <p
+                                class="text-[10px] font-semibold text-muted-foreground"
+                            >
+                                Chỉ dùng chữ, số và gạch ngang. Hệ thống sẽ tự
+                                động đổi sang chữ hoa.
+                            </p>
                         </div>
+
+                        <!-- Description -->
                         <div class="grid gap-1.5">
                             <Label
-                                for="discount_value"
+                                for="description"
                                 class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
                             >
-                                <Coins class="size-3.5 text-orange-500" />
-                                Giá trị ({{ discountLabel }})
+                                <FileText class="size-3.5 text-orange-500" />
+                                Mô tả (tùy chọn)
                             </Label>
                             <Input
-                                id="discount_value"
-                                v-model.number="formData.discount_value"
+                                id="description"
+                                v-model="formData.description"
+                                placeholder="VD: Giảm giá mùa hè 2025"
+                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                            />
+                        </div>
+
+                        <!-- Discount type + value -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <BadgePercent
+                                        class="size-3.5 text-orange-500"
+                                    />
+                                    Loại giảm giá
+                                </Label>
+                                <Select v-model="formData.discount_type">
+                                    <SelectTrigger
+                                        class="h-9 rounded-xl border-border text-xs focus:border-orange-500 focus:ring-orange-500/20"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent class="rounded-xl">
+                                        <SelectItem value="percent"
+                                            >Phần trăm (%)</SelectItem
+                                        >
+                                        <SelectItem value="fixed"
+                                            >Số tiền cố định (đ)</SelectItem
+                                        >
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label
+                                    for="discount_value"
+                                    class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Coins class="size-3.5 text-orange-500" />
+                                    Giá trị ({{ discountLabel }})
+                                </Label>
+                                <Input
+                                    id="discount_value"
+                                    v-model.number="formData.discount_value"
+                                    type="number"
+                                    min="0.01"
+                                    :max="
+                                        formData.discount_type === 'percent'
+                                            ? 100
+                                            : undefined
+                                    "
+                                    step="1"
+                                    class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Max uses -->
+                        <div class="grid gap-1.5">
+                            <Label
+                                for="max_uses"
+                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Users class="size-3.5 text-orange-500" />
+                                Giới hạn số lần dùng
+                            </Label>
+                            <Input
+                                id="max_uses"
+                                v-model="formData.max_uses"
                                 type="number"
-                                min="0.01"
-                                :max="
-                                    formData.discount_type === 'percent'
-                                        ? 100
-                                        : undefined
-                                "
-                                step="1"
+                                min="1"
+                                placeholder="Để trống = không giới hạn số lần dùng"
                                 class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
                             />
                         </div>
+
+                        <!-- Date range -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-1.5">
+                                <Label
+                                    for="starts_at"
+                                    class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Calendar
+                                        class="size-3.5 text-orange-500"
+                                    />
+                                    Ngày bắt đầu
+                                </Label>
+                                <Input
+                                    id="starts_at"
+                                    v-model="formData.starts_at"
+                                    type="date"
+                                    class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                                />
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label
+                                    for="expires_at"
+                                    class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Calendar
+                                        class="size-3.5 text-orange-500"
+                                    />
+                                    Ngày hết hạn
+                                </Label>
+                                <Input
+                                    id="expires_at"
+                                    v-model="formData.expires_at"
+                                    type="date"
+                                    class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Max uses -->
-                    <div class="grid gap-1.5">
-                        <Label
-                            for="max_uses"
-                            class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                    <!-- Modal Footer -->
+                    <div
+                        class="flex gap-3 border-t border-border/40 bg-muted/10 p-5"
+                    >
+                        <Button
+                            variant="outline"
+                            class="flex-grow cursor-pointer rounded-xl border-border py-5 text-xs font-bold tracking-wider uppercase"
+                            @click="closeForm"
+                            >Hủy</Button
                         >
-                            <Users class="size-3.5 text-orange-500" />
-                            Giới hạn số lần dùng
-                        </Label>
-                        <Input
-                            id="max_uses"
-                            v-model="formData.max_uses"
-                            type="number"
-                            min="1"
-                            placeholder="Để trống = không giới hạn số lần dùng"
-                            class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                        />
+                        <Button
+                            class="flex-grow cursor-pointer rounded-xl border-none bg-gradient-to-r from-orange-500 to-amber-500 py-5 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all hover:from-orange-600 hover:to-amber-600 hover:shadow-lg"
+                            @click="submitForm"
+                        >
+                            <Check class="mr-1.5 size-4" />
+                            {{ editingCoupon ? 'Cập nhật' : 'Tạo khuyến mãi' }}
+                        </Button>
                     </div>
-
-                    <!-- Date range -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="starts_at"
-                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Calendar class="size-3.5 text-orange-500" />
-                                Ngày bắt đầu
-                            </Label>
-                            <Input
-                                id="starts_at"
-                                v-model="formData.starts_at"
-                                type="date"
-                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="expires_at"
-                                class="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Calendar class="size-3.5 text-orange-500" />
-                                Ngày hết hạn
-                            </Label>
-                            <Input
-                                id="expires_at"
-                                v-model="formData.expires_at"
-                                type="date"
-                                class="rounded-xl border-border focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Modal Footer -->
-                <div
-                    class="flex gap-3 border-t border-border/40 bg-muted/10 p-5"
-                >
-                    <Button
-                        variant="outline"
-                        class="flex-grow cursor-pointer rounded-xl border-border py-5 text-xs font-bold tracking-wider uppercase"
-                        @click="closeForm"
-                        >Hủy</Button
-                    >
-                    <Button
-                        class="flex-grow cursor-pointer rounded-xl border-none bg-gradient-to-r from-orange-500 to-amber-500 py-5 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all hover:from-orange-600 hover:to-amber-600 hover:shadow-lg"
-                        @click="submitForm"
-                    >
-                        <Check class="mr-1.5 size-4" />
-                        {{ editingCoupon ? 'Cập nhật' : 'Tạo khuyến mãi' }}
-                    </Button>
                 </div>
             </div>
-        </div>
         </Teleport>
     </Transition>
 </template>

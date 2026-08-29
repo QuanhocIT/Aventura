@@ -23,10 +23,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    Pagination,
-} from '@/components/super-admin';
+import { PageHeader, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
