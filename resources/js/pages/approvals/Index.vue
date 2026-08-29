@@ -99,24 +99,48 @@ function parseDate(dateStr: string | null | undefined): Date | null {
         return null;
     }
 
-    const matchTimeDate = dateStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const matchTimeDate = dateStr.match(
+        /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+    );
+
     if (matchTimeDate) {
         const [, h, m, s, day, month, year] = matchTimeDate;
-        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s || 0));
+
+        return new Date(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(h),
+            Number(m),
+            Number(s || 0),
+        );
     }
 
-    const matchDateTime = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    const matchDateTime = dateStr.match(
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+    );
+
     if (matchDateTime) {
         const [, day, month, year, h, m, s] = matchDateTime;
-        return new Date(Number(year), Number(month) - 1, Number(day), Number(h || 0), Number(m || 0), Number(s || 0));
+
+        return new Date(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(h || 0),
+            Number(m || 0),
+            Number(s || 0),
+        );
     }
 
     const parsed = new Date(dateStr);
+
     return isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function timeAgo(dateStr: string): string {
     const d = parseDate(dateStr);
+
     if (!d) {
         return 'Vừa xong';
     }
@@ -126,36 +150,54 @@ function timeAgo(dateStr: string): string {
     if (diffMs < 0) {
         const futureH = Math.floor(Math.abs(diffMs) / 3_600_000);
         const futureD = Math.floor(futureH / 24);
-        if (futureD >= 2) return `${futureD} ngày tới`;
-        if (futureD === 1) return 'Ngày mai';
-        if (futureH >= 1) return `${futureH} giờ tới`;
+
+        if (futureD >= 2) {
+            return `${futureD} ngày tới`;
+        }
+
+        if (futureD === 1) {
+            return 'Ngày mai';
+        }
+
+        if (futureH >= 1) {
+            return `${futureH} giờ tới`;
+        }
+
         return 'Sắp tới';
     }
 
     const diffM = Math.floor(diffMs / 60_000);
+
     if (diffM < 1) {
         return 'Vừa xong';
     }
+
     if (diffM < 60) {
         return `${diffM} phút trước`;
     }
 
     const diffH = Math.floor(diffMs / 3_600_000);
+
     if (diffH < 24) {
         return `${diffH} giờ trước`;
     }
 
     const diffD = Math.floor(diffMs / 86_400_000);
+
     if (diffD === 1) {
         return '1 ngày trước';
     }
+
     if (diffD < 30) {
         return `${diffD} ngày trước`;
     }
+
     const diffMonth = Math.floor(diffD / 30);
+
     if (diffMonth < 12) {
         return `${diffMonth} tháng trước`;
     }
+
     return `${Math.floor(diffD / 365)} năm trước`;
 }
 
@@ -165,6 +207,7 @@ function formatExactDateTime(dateStr: string | null | undefined): string {
     }
 
     const d = parseDate(dateStr);
+
     if (!d) {
         return dateStr;
     }
@@ -180,6 +223,7 @@ function formatExactDateTime(dateStr: string | null | undefined): string {
 
 function pendingHours(dateStr: string): number {
     const d = parseDate(dateStr);
+
     if (!d) {
         return 0;
     }
@@ -858,8 +902,14 @@ function submitReject() {
                                             approval.requester_name
                                         }}</span>
                                         <span>·</span>
-                                        <span class="font-mono font-bold text-slate-700 dark:text-slate-300">
-                                            {{ formatExactDateTime(approval.created_at) }}
+                                        <span
+                                            class="font-mono font-bold text-slate-700 dark:text-slate-300"
+                                        >
+                                            {{
+                                                formatExactDateTime(
+                                                    approval.created_at,
+                                                )
+                                            }}
                                         </span>
                                         <span>·</span>
                                         <span
@@ -902,8 +952,12 @@ function submitReject() {
 
                             <!-- Desktop Col 3: SLA / Time -->
                             <div class="hidden flex-col justify-center lg:flex">
-                                <span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    {{ formatExactDateTime(approval.created_at) }}
+                                <span
+                                    class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    {{
+                                        formatExactDateTime(approval.created_at)
+                                    }}
                                 </span>
                                 <div class="mt-0.5 flex items-center gap-1">
                                     <component
@@ -1078,9 +1132,25 @@ function submitReject() {
                                                     class="font-medium text-slate-500 dark:text-slate-400"
                                                     >{{ entry.label }}</span
                                                 >
-                                                <template v-if="entry.key === 'photo_url' || entry.key === 'invoice_file_url'">
-                                                    <a :href="String(entry.display)" target="_blank" class="inline-flex items-center gap-1 text-xs text-indigo-600 underline font-bold hover:text-indigo-800 dark:text-indigo-400">
-                                                        🖼️ Xem ảnh chứng từ / bằng chứng
+                                                <template
+                                                    v-if="
+                                                        entry.key ===
+                                                            'photo_url' ||
+                                                        entry.key ===
+                                                            'invoice_file_url'
+                                                    "
+                                                >
+                                                    <a
+                                                        :href="
+                                                            String(
+                                                                entry.display,
+                                                            )
+                                                        "
+                                                        target="_blank"
+                                                        class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 underline hover:text-indigo-800 dark:text-indigo-400"
+                                                    >
+                                                        🖼️ Xem ảnh chứng từ /
+                                                        bằng chứng
                                                     </a>
                                                 </template>
                                                 <span
@@ -1249,7 +1319,6 @@ function submitReject() {
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
-            
             <div
                 v-if="rejectTarget"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1380,7 +1449,6 @@ function submitReject() {
                     </CardContent>
                 </Card>
             </div>
-            
         </Transition>
     </Teleport>
 </template>

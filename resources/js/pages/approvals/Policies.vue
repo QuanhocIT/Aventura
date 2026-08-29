@@ -465,7 +465,7 @@ function revokeDelegation(delegation: Delegation): void {
 
     <div class="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 sm:p-6">
         <section
-            class="relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm dark:border-indigo-400/20 dark:bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.32),_transparent_48%),linear-gradient(135deg,_#101827,_#080b12_62%)] dark:text-white dark:shadow-2xl sm:p-8"
+            class="relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-indigo-400/20 dark:bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.32),_transparent_48%),linear-gradient(135deg,_#101827,_#080b12_62%)] dark:text-white dark:shadow-2xl"
         >
             <div
                 class="absolute -top-16 -right-12 size-48 rounded-full bg-indigo-500/10 blur-3xl"
@@ -475,7 +475,7 @@ function revokeDelegation(delegation: Delegation): void {
             >
                 <div class="max-w-3xl">
                     <div
-                        class="mb-4 flex items-center gap-3 text-xs font-bold tracking-[0.2em] uppercase text-indigo-700 dark:text-indigo-200/80"
+                        class="mb-4 flex items-center gap-3 text-xs font-bold tracking-[0.2em] text-indigo-700 uppercase dark:text-indigo-200/80"
                     >
                         <span
                             class="rounded-full border border-indigo-300/40 bg-indigo-500/10 px-3 py-1 dark:border-indigo-300/20 dark:bg-indigo-300/10"
@@ -519,7 +519,9 @@ function revokeDelegation(delegation: Delegation): void {
                     >
                         <span>Cấu hình gần nhất</span><History class="size-4" />
                     </div>
-                    <p class="mt-2 text-lg font-bold text-slate-900 dark:text-white">
+                    <p
+                        class="mt-2 text-lg font-bold text-slate-900 dark:text-white"
+                    >
                         {{ formatDate(summary.last_updated_at) }}
                     </p>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">

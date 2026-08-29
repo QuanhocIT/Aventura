@@ -77,7 +77,8 @@ watch(
 
 const completions = ref<Record<string, any>>({ ...props.completions });
 const completing = ref<number | null>(null);
-const { enqueue, pendingCount, failedCount, retryFailed } = useOfflineMutationQueue();
+const { enqueue, pendingCount, failedCount, retryFailed } =
+    useOfflineMutationQueue();
 
 // Inertia keeps this page instance alive when the header scope changes. Reset
 // the local optimistic map whenever the server sends a new branch/date.
@@ -146,7 +147,8 @@ function capturePhoto() {
     const maxDimension = 1280;
     const scale = Math.min(
         1,
-        maxDimension / Math.max(videoRef.value.videoWidth, videoRef.value.videoHeight),
+        maxDimension /
+            Math.max(videoRef.value.videoWidth, videoRef.value.videoHeight),
     );
     canvasRef.value.width = Math.round(videoRef.value.videoWidth * scale);
     canvasRef.value.height = Math.round(videoRef.value.videoHeight * scale);
@@ -181,26 +183,34 @@ async function completeItem(itemId: number, photo: string | null = null) {
     completing.value = itemId;
 
     const payload = {
-            item_id: itemId,
-            photo,
-            date: props.date,
-            notes: null,
-        };
+        item_id: itemId,
+        photo,
+        date: props.date,
+        notes: null,
+    };
 
     try {
-        const { data } = await axios.post('/operations-checklist/complete', payload);
+        const { data } = await axios.post(
+            '/operations-checklist/complete',
+            payload,
+        );
 
         if (data.success) {
             completions.value[itemId] = data.completion;
             toast.success('Đã hoàn thành!');
         }
     } catch (e: any) {
-        if (!e.response || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        if (
+            !e.response ||
+            (typeof navigator !== 'undefined' && !navigator.onLine)
+        ) {
             enqueue('/operations-checklist/complete', payload);
             completions.value[itemId] = { pending_sync: true };
             toast.info('Đã lưu checklist, sẽ tự đồng bộ khi có mạng.');
+
             return;
         }
+
         toast.error(e.response?.data?.message ?? 'Có lỗi xảy ra.');
     } finally {
         completing.value = null;
@@ -448,7 +458,9 @@ const overallPercent = computed(() => {
                     class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
                     @click="retryFailed"
                 >
-                    {{ pendingCount }} mục chờ đồng bộ<span v-if="failedCount"> · {{ failedCount }} lỗi</span>
+                    {{ pendingCount }} mục chờ đồng bộ<span v-if="failedCount">
+                        · {{ failedCount }} lỗi</span
+                    >
                 </button>
                 <Button
                     v-if="props.canManageTemplates"
@@ -647,9 +659,16 @@ const overallPercent = computed(() => {
                             :key="`${template.id}-${branch.branch_id}`"
                             class="grid min-w-[420px] grid-cols-[minmax(0,1fr)_100px_90px] items-center gap-3 px-3 py-2 text-xs"
                         >
-                            <span class="truncate font-semibold text-foreground">{{ branch.branch_name }}</span>
-                            <span class="text-center text-muted-foreground">{{ branch.completed }}/{{ branch.total }}</span>
-                            <span class="text-right font-bold text-indigo-400">{{ branch.percent }}%</span>
+                            <span
+                                class="truncate font-semibold text-foreground"
+                                >{{ branch.branch_name }}</span
+                            >
+                            <span class="text-center text-muted-foreground"
+                                >{{ branch.completed }}/{{ branch.total }}</span
+                            >
+                            <span class="text-right font-bold text-indigo-400"
+                                >{{ branch.percent }}%</span
+                            >
                         </div>
                     </div>
                     <CardContent class="divide-y divide-border/60 p-0 pt-2">
@@ -660,7 +679,10 @@ const overallPercent = computed(() => {
                         >
                             <!-- Checkbox -->
                             <button
-                                v-if="props.branchContext?.scope !== 'all' && !isCompleted(item.id)"
+                                v-if="
+                                    props.branchContext?.scope !== 'all' &&
+                                    !isCompleted(item.id)
+                                "
                                 @click="
                                     item.requires_photo
                                         ? openCamera(item.id)

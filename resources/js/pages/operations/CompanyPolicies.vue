@@ -484,238 +484,243 @@ const getCategoryTone = (category: string) => {
 
         <!-- Create / Edit Policy Modal -->
         <Teleport to="body">
-        <div
-            v-if="isModalOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-        >
             <div
-                class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border bg-background text-foreground shadow-2xl"
+                v-if="isModalOpen"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="flex items-center justify-between border-b border-border bg-muted/30 p-5"
+                    class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border bg-background text-foreground shadow-2xl"
                 >
-                    <div class="flex items-center gap-2">
-                        <div
-                            class="flex size-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"
-                        >
-                            <BookOpen class="size-5" />
-                        </div>
-                        <h3 class="text-sm font-bold">
-                            {{
-                                editingPolicy
-                                    ? 'Cập nhật bộ quy định'
-                                    : 'Ban hành quy định & tiêu chuẩn mới'
-                            }}
-                        </h3>
-                    </div>
-                    <button
-                        @click="isModalOpen = false"
-                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    <div
+                        class="flex items-center justify-between border-b border-border bg-muted/30 p-5"
                     >
-                        <X class="size-5" />
-                    </button>
-                </div>
-
-                <div class="max-h-[75vh] space-y-5 overflow-y-auto p-6 text-xs">
-                    <div>
-                        <label
-                            class="mb-1.5 block font-semibold text-foreground"
-                            >Tên quy định / tiêu chuẩn (*)</label
-                        >
-                        <Input
-                            v-model="form.title"
-                            placeholder="VD: Quy định vệ sinh cá nhân & Tiêu chuẩn phục vụ bàn..."
-                            class="text-xs"
-                        />
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <div class="mb-1.5 flex items-center justify-between gap-2">
-                                <label class="font-semibold text-foreground"
-                                    >Danh mục kiểm soát</label
-                                >
-                                <button
-                                    v-if="canManage"
-                                    type="button"
-                                    @click="openCategoryModal"
-                                    class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-500/10 dark:text-indigo-300"
-                                >
-                                    <Plus class="size-3.5" /> Tạo danh mục
-                                </button>
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="flex size-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"
+                            >
+                                <BookOpen class="size-5" />
                             </div>
-                            <select
-                                v-model="form.category"
-                                class="w-full rounded-xl border border-input bg-background p-2.5 font-medium text-foreground outline-none focus:ring-2 focus:ring-indigo-500/30"
-                            >
-                                <option
-                                    v-for="category in categoryOptions"
-                                    :key="category.id"
-                                    :value="category.code"
-                                >
-                                    {{ category.name }}
-                                </option>
-                            </select>
+                            <h3 class="text-sm font-bold">
+                                {{
+                                    editingPolicy
+                                        ? 'Cập nhật bộ quy định'
+                                        : 'Ban hành quy định & tiêu chuẩn mới'
+                                }}
+                            </h3>
                         </div>
-                        <div>
-                            <label
-                                class="mb-1.5 block font-semibold text-foreground"
-                                >Mức phạt tham chiếu (VNĐ)</label
-                            >
-                            <Input
-                                v-model.number="form.suggested_fine_amount"
-                                type="number"
-                                step="50000"
-                                class="text-xs"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label
-                            class="mb-1.5 block font-semibold text-foreground"
-                            >Nội dung chi tiết điều khoản (*)</label
+                        <button
+                            @click="isModalOpen = false"
+                            class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                         >
-                        <textarea
-                            v-model="form.content"
-                            rows="6"
-                            placeholder="Nhập nội dung tiêu chuẩn vận hành, danh mục các hành vi vi phạm và hình thức xử lý..."
-                            class="min-h-32 w-full rounded-xl border border-input bg-background p-3 text-xs leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-indigo-500/30"
-                        ></textarea>
+                            <X class="size-5" />
+                        </button>
                     </div>
 
                     <div
-                        class="space-y-3 rounded-2xl border border-border bg-muted/20 p-4"
+                        class="max-h-[75vh] space-y-5 overflow-y-auto p-6 text-xs"
                     >
-                        <label class="block font-bold text-foreground"
-                            >Phạm vi áp dụng chi nhánh</label
-                        >
-                        <div class="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                v-model="form.applies_to_all_branches"
-                                class="h-4 w-4 rounded accent-indigo-600"
-                            />
-                            <span class="font-medium text-foreground"
-                                >Áp dụng cho tất cả chi nhánh toàn chuỗi</span
+                        <div>
+                            <label
+                                class="mb-1.5 block font-semibold text-foreground"
+                                >Tên quy định / tiêu chuẩn (*)</label
                             >
+                            <Input
+                                v-model="form.title"
+                                placeholder="VD: Quy định vệ sinh cá nhân & Tiêu chuẩn phục vụ bàn..."
+                                class="text-xs"
+                            />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <div
+                                    class="mb-1.5 flex items-center justify-between gap-2"
+                                >
+                                    <label class="font-semibold text-foreground"
+                                        >Danh mục kiểm soát</label
+                                    >
+                                    <button
+                                        v-if="canManage"
+                                        type="button"
+                                        @click="openCategoryModal"
+                                        class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-500/10 dark:text-indigo-300"
+                                    >
+                                        <Plus class="size-3.5" /> Tạo danh mục
+                                    </button>
+                                </div>
+                                <select
+                                    v-model="form.category"
+                                    class="w-full rounded-xl border border-input bg-background p-2.5 font-medium text-foreground outline-none focus:ring-2 focus:ring-indigo-500/30"
+                                >
+                                    <option
+                                        v-for="category in categoryOptions"
+                                        :key="category.id"
+                                        :value="category.code"
+                                    >
+                                        {{ category.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label
+                                    class="mb-1.5 block font-semibold text-foreground"
+                                    >Mức phạt tham chiếu (VNĐ)</label
+                                >
+                                <Input
+                                    v-model.number="form.suggested_fine_amount"
+                                    type="number"
+                                    step="50000"
+                                    class="text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                class="mb-1.5 block font-semibold text-foreground"
+                                >Nội dung chi tiết điều khoản (*)</label
+                            >
+                            <textarea
+                                v-model="form.content"
+                                rows="6"
+                                placeholder="Nhập nội dung tiêu chuẩn vận hành, danh mục các hành vi vi phạm và hình thức xử lý..."
+                                class="min-h-32 w-full rounded-xl border border-input bg-background p-3 text-xs leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-indigo-500/30"
+                            ></textarea>
                         </div>
 
                         <div
-                            v-if="!form.applies_to_all_branches"
-                            class="space-y-2 border-t border-border pt-3"
+                            class="space-y-3 rounded-2xl border border-border bg-muted/20 p-4"
                         >
-                            <p class="mb-1 text-muted-foreground">
-                                Chọn các chi nhánh áp dụng:
-                            </p>
-                            <div class="grid grid-cols-2 gap-2">
-                                <label
-                                    v-for="b in branches"
-                                    :key="b.id"
-                                    class="flex items-center gap-2 rounded-xl border border-border bg-background p-2"
+                            <label class="block font-bold text-foreground"
+                                >Phạm vi áp dụng chi nhánh</label
+                            >
+                            <div class="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    v-model="form.applies_to_all_branches"
+                                    class="h-4 w-4 rounded accent-indigo-600"
+                                />
+                                <span class="font-medium text-foreground"
+                                    >Áp dụng cho tất cả chi nhánh toàn
+                                    chuỗi</span
                                 >
-                                    <input
-                                        type="checkbox"
-                                        :value="b.id"
-                                        v-model="form.applicable_branch_ids"
-                                        class="accent-indigo-600"
-                                    />
-                                    <span>{{ b.name }}</span>
-                                </label>
+                            </div>
+
+                            <div
+                                v-if="!form.applies_to_all_branches"
+                                class="space-y-2 border-t border-border pt-3"
+                            >
+                                <p class="mb-1 text-muted-foreground">
+                                    Chọn các chi nhánh áp dụng:
+                                </p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label
+                                        v-for="b in branches"
+                                        :key="b.id"
+                                        class="flex items-center gap-2 rounded-xl border border-border bg-background p-2"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            :value="b.id"
+                                            v-model="form.applicable_branch_ids"
+                                            class="accent-indigo-600"
+                                        />
+                                        <span>{{ b.name }}</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div
-                    class="flex items-center justify-between border-t border-border bg-muted/20 p-4"
-                >
-                    <Button
-                        @click="isModalOpen = false"
-                        variant="ghost"
-                        size="sm"
-                        class="text-xs"
-                        >Hủy</Button
+                    <div
+                        class="flex items-center justify-between border-t border-border bg-muted/20 p-4"
                     >
-                    <Button
-                        @click="submitForm"
-                        size="sm"
-                        :disabled="isProcessing"
-                        class="gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
-                    >
-                        <Save class="h-4 w-4" />
-                        {{
-                            editingPolicy
-                                ? 'Cập Nhật Quy Định'
-                                : 'Ban Hành Quy Định'
-                        }}
-                    </Button>
+                        <Button
+                            @click="isModalOpen = false"
+                            variant="ghost"
+                            size="sm"
+                            class="text-xs"
+                            >Hủy</Button
+                        >
+                        <Button
+                            @click="submitForm"
+                            size="sm"
+                            :disabled="isProcessing"
+                            class="gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+                        >
+                            <Save class="h-4 w-4" />
+                            {{
+                                editingPolicy
+                                    ? 'Cập Nhật Quy Định'
+                                    : 'Ban Hành Quy Định'
+                            }}
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
 
         <!-- Create control category modal -->
         <Teleport to="body">
-        <div
-            v-if="isCategoryModalOpen"
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
-        >
             <div
-                class="w-full max-w-md rounded-2xl border border-border bg-background p-5 text-foreground shadow-2xl"
+                v-if="isCategoryModalOpen"
+                class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
             >
-                <div class="flex items-center justify-between gap-3">
-                    <div>
-                        <h3 class="font-bold">Tạo danh mục kiểm soát</h3>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            Danh mục mới sẽ xuất hiện ngay trong form ban hành quy
-                            định.
-                        </p>
+                <div
+                    class="w-full max-w-md rounded-2xl border border-border bg-background p-5 text-foreground shadow-2xl"
+                >
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold">Tạo danh mục kiểm soát</h3>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Danh mục mới sẽ xuất hiện ngay trong form ban
+                                hành quy định.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="isCategoryModalOpen = false"
+                            class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        >
+                            <X class="size-5" />
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        @click="isCategoryModalOpen = false"
-                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                    >
-                        <X class="size-5" />
-                    </button>
-                </div>
 
-                <div class="mt-5">
-                    <label class="mb-1.5 block text-xs font-semibold"
-                        >Tên danh mục (*)</label
-                    >
-                    <Input
-                        v-model="newCategoryName"
-                        autofocus
-                        placeholder="VD: An toàn điện & Phòng cháy chữa cháy"
-                        class="text-xs"
-                        @keyup.enter="submitCategory"
-                    />
-                </div>
+                    <div class="mt-5">
+                        <label class="mb-1.5 block text-xs font-semibold"
+                            >Tên danh mục (*)</label
+                        >
+                        <Input
+                            v-model="newCategoryName"
+                            autofocus
+                            placeholder="VD: An toàn điện & Phòng cháy chữa cháy"
+                            class="text-xs"
+                            @keyup.enter="submitCategory"
+                        />
+                    </div>
 
-                <div class="mt-5 flex justify-end gap-2">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        class="text-xs"
-                        @click="isCategoryModalOpen = false"
-                        >Hủy</Button
-                    >
-                    <Button
-                        type="button"
-                        size="sm"
-                        class="gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
-                        :disabled="isCategoryProcessing"
-                        @click="submitCategory"
-                    >
-                        <Save class="size-3.5" />
-                        Tạo danh mục
-                    </Button>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="text-xs"
+                            @click="isCategoryModalOpen = false"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="button"
+                            size="sm"
+                            class="gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+                            :disabled="isCategoryProcessing"
+                            @click="submitCategory"
+                        >
+                            <Save class="size-3.5" />
+                            Tạo danh mục
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

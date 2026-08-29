@@ -139,7 +139,8 @@ const filters = [
                         Yêu cầu của tôi
                     </h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
-                        Theo dõi trạng thái yêu cầu và người đang xử lý quyết định.
+                        Theo dõi trạng thái yêu cầu và người đang xử lý quyết
+                        định.
                     </p>
                 </div>
             </div>
@@ -187,7 +188,10 @@ const filters = [
                     <div
                         class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800"
                     >
-                        <component :is="tile.icon" :class="['h-4 w-4', tile.cls]" />
+                        <component
+                            :is="tile.icon"
+                            :class="['h-4 w-4', tile.cls]"
+                        />
                     </div>
                     <div>
                         <div
@@ -211,7 +215,9 @@ const filters = [
             >
                 <div>
                     <CardTitle class="flex items-center gap-1.5 text-base">
-                        <ClipboardList class="size-5 text-indigo-600 dark:text-indigo-400" />
+                        <ClipboardList
+                            class="size-5 text-indigo-600 dark:text-indigo-400"
+                        />
                         Lịch sử yêu cầu
                     </CardTitle>
                     <CardDescription
@@ -256,10 +262,20 @@ const filters = [
                         <ClipboardList class="size-7" />
                     </div>
                     <p class="font-bold text-slate-800 dark:text-slate-200">
-                        {{ statusFilter === 'all' ? 'Bạn chưa gửi yêu cầu nào.' : 'Không có yêu cầu phù hợp.' }}
+                        {{
+                            statusFilter === 'all'
+                                ? 'Bạn chưa gửi yêu cầu nào.'
+                                : 'Không có yêu cầu phù hợp.'
+                        }}
                     </p>
-                    <p class="max-w-sm text-xs text-slate-500 dark:text-slate-400">
-                        {{ statusFilter === 'all' ? 'Các yêu cầu cần phê duyệt như tạm ứng, điều chỉnh hoặc nghiệp vụ đặc biệt sẽ hiển thị tại đây.' : 'Hãy thử chuyển sang bộ lọc Tất cả để xem toàn bộ lịch sử.' }}
+                    <p
+                        class="max-w-sm text-xs text-slate-500 dark:text-slate-400"
+                    >
+                        {{
+                            statusFilter === 'all'
+                                ? 'Các yêu cầu cần phê duyệt như tạm ứng, điều chỉnh hoặc nghiệp vụ đặc biệt sẽ hiển thị tại đây.'
+                                : 'Hãy thử chuyển sang bộ lọc Tất cả để xem toàn bộ lịch sử.'
+                        }}
                     </p>
                     <button
                         v-if="statusFilter !== 'all'"
@@ -297,7 +313,11 @@ const filters = [
                                         v-if="req.amount_involved"
                                         class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 tabular-nums dark:bg-slate-800 dark:text-slate-300"
                                     >
-                                        {{ currency.format(req.amount_involved) }}đ
+                                        {{
+                                            currency.format(
+                                                req.amount_involved,
+                                            )
+                                        }}đ
                                     </span>
                                 </div>
 

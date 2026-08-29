@@ -585,7 +585,9 @@ const actionSummary = (incident: Incident) =>
                         >
                             {{ kpi.value }}
                         </div>
-                        <div class="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200">
+                        <div
+                            class="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200"
+                        >
                             {{ kpi.label }}
                         </div>
                         <div
@@ -615,10 +617,14 @@ const actionSummary = (incident: Incident) =>
                     <Zap class="size-4" />
                 </div>
                 <div>
-                    <div class="text-sm font-bold text-rose-900 dark:text-rose-200">
+                    <div
+                        class="text-sm font-bold text-rose-900 dark:text-rose-200"
+                    >
                         Hàng đợi cần ưu tiên
                     </div>
-                    <p class="mt-1 text-xs leading-relaxed text-rose-700 dark:text-rose-200/70">
+                    <p
+                        class="mt-1 text-xs leading-relaxed text-rose-700 dark:text-rose-200/70"
+                    >
                         Có sự cố nghiêm trọng hoặc chưa được phản hồi đúng SLA.
                         Hãy tiếp nhận trước khi xử lý tác vụ thường ngày.
                     </p>
@@ -638,16 +644,17 @@ const actionSummary = (incident: Incident) =>
 
         <section
             v-if="showReportForm"
-            class="rounded-3xl border border-rose-200 bg-white p-5 shadow-xl dark:border-rose-900/50 dark:bg-slate-950 sm:p-6"
+            class="rounded-3xl border border-rose-200 bg-white p-5 shadow-xl sm:p-6 dark:border-rose-900/50 dark:bg-slate-950"
         >
             <div
-                class="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between"
+                class="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
             >
                 <div>
                     <div
                         class="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"
                     >
-                        <Plus class="size-4 text-rose-500 dark:text-rose-400" /> Ghi nhận sự cố mới
+                        <Plus class="size-4 text-rose-500 dark:text-rose-400" />
+                        Ghi nhận sự cố mới
                     </div>
                     <p class="mt-1 text-xs text-slate-500">
                         Ghi nhận ngay cả khi chưa đủ thông tin; quản lý sẽ bổ
@@ -662,7 +669,8 @@ const actionSummary = (incident: Incident) =>
             <form @submit.prevent="submitReport" class="flex flex-col gap-5">
                 <div class="grid gap-4 lg:grid-cols-4">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Loại sự cố</Label
                         ><select
                             v-model="reportForm.type"
@@ -682,7 +690,8 @@ const actionSummary = (incident: Incident) =>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Mức độ rủi ro</Label
                         ><select
                             v-model="reportForm.severity"
@@ -699,7 +708,8 @@ const actionSummary = (incident: Incident) =>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Thời điểm xảy ra</Label
                         ><Input
                             v-model="reportForm.occurred_at"
@@ -708,7 +718,8 @@ const actionSummary = (incident: Incident) =>
                         />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Vị trí</Label
                         ><Input
                             v-model="reportForm.location"
@@ -720,9 +731,12 @@ const actionSummary = (incident: Incident) =>
                 <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                     <div class="flex flex-col gap-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            <Label
+                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                 >Tiêu đề
-                                <span class="text-rose-500 dark:text-rose-400">*</span></Label
+                                <span class="text-rose-500 dark:text-rose-400"
+                                    >*</span
+                                ></Label
                             ><Input
                                 v-model="reportForm.title"
                                 required
@@ -737,9 +751,12 @@ const actionSummary = (incident: Incident) =>
                             </p>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            <Label
+                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                 >Mô tả diễn biến
-                                <span class="text-rose-500 dark:text-rose-400">*</span></Label
+                                <span class="text-rose-500 dark:text-rose-400"
+                                    >*</span
+                                ></Label
                             ><textarea
                                 v-model="reportForm.description"
                                 rows="4"
@@ -766,7 +783,9 @@ const actionSummary = (incident: Incident) =>
                                     class="mt-0.5 size-5 shrink-0 text-sky-600 dark:text-sky-300"
                                 />
                                 <div>
-                                    <div class="text-xs font-bold text-sky-900 dark:text-sky-200">
+                                    <div
+                                        class="text-xs font-bold text-sky-900 dark:text-sky-200"
+                                    >
                                         {{ activeGuidance.title }}
                                     </div>
                                     <p
@@ -779,7 +798,8 @@ const actionSummary = (incident: Incident) =>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1.5">
-                                <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                <Label
+                                    class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                     >Người bị thương</Label
                                 ><Input
                                     v-model="reportForm.injured_count"
@@ -802,7 +822,8 @@ const actionSummary = (incident: Incident) =>
                 </div>
                 <div class="grid gap-4 lg:grid-cols-[1fr_1fr_0.8fr]">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Xử lý ngay tại chỗ</Label
                         ><textarea
                             v-model="reportForm.immediate_action"
@@ -812,7 +833,8 @@ const actionSummary = (incident: Incident) =>
                         ></textarea>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Ảnh hiện trường</Label
                         ><label
                             class="flex min-h-[82px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-xs text-slate-600 transition hover:border-rose-500 hover:text-rose-600 dark:border-white/15 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-rose-300"
@@ -850,9 +872,10 @@ const actionSummary = (incident: Incident) =>
                 <div
                     class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200/80"
                 >
-                    <Info class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300" />Cháy
-                    nổ, ngộ độc, tai nạn, mức Cao/Nghiêm trọng hoặc có người bị
-                    thương sẽ tự động báo Chủ nhà hàng.
+                    <Info
+                        class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300"
+                    />Cháy nổ, ngộ độc, tai nạn, mức Cao/Nghiêm trọng hoặc có
+                    người bị thương sẽ tự động báo Chủ nhà hàng.
                 </div>
             </form>
         </section>
@@ -863,7 +886,9 @@ const actionSummary = (incident: Incident) =>
             <section
                 class="min-w-0 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5 dark:border-white/10 dark:bg-slate-950 dark:shadow-xl"
             >
-                <div class="flex flex-col gap-4 border-b border-slate-200 pb-4 dark:border-white/10">
+                <div
+                    class="flex flex-col gap-4 border-b border-slate-200 pb-4 dark:border-white/10"
+                >
                     <div
                         class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
                     >
@@ -1569,109 +1594,111 @@ const actionSummary = (incident: Incident) =>
     </div>
 
     <Teleport to="body">
-    <div
-        v-if="showResolveModal && selected"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-    >
         <div
-            class="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl sm:p-6"
+            v-if="showResolveModal && selected"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
         >
             <div
-                class="flex items-start justify-between gap-4 border-b border-white/10 pb-4"
+                class="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl sm:p-6"
             >
-                <div>
-                    <div
-                        class="flex items-center gap-2 text-sm font-bold text-white"
-                    >
-                        <CheckCircle2 class="size-5 text-emerald-400" />Đóng sự
-                        cố kèm báo cáo
-                    </div>
-                    <p class="mt-1 text-xs text-slate-500">
-                        {{ selected.code }} · {{ selected.title }}
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    class="rounded-lg p-1.5 text-slate-500 hover:bg-white/5 hover:text-white"
-                    @click="showResolveModal = false"
-                >
-                    <X class="size-4" />
-                </button>
-            </div>
-            <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                <div class="rounded-xl bg-slate-900 p-3">
-                    <div
-                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
-                    >
-                        Mức độ
-                    </div>
-                    <div class="mt-1 text-xs font-bold text-rose-300">
-                        {{ severityConfig[selected.severity]?.label }}
-                    </div>
-                </div>
-                <div class="rounded-xl bg-slate-900 p-3">
-                    <div
-                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
-                    >
-                        Phản hồi
-                    </div>
-                    <div class="mt-1 text-xs font-bold text-slate-200">
-                        {{ formatMinutes(selected.response_time_minutes) }}
-                    </div>
-                </div>
-                <div class="rounded-xl bg-slate-900 p-3">
-                    <div
-                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
-                    >
-                        Người báo
-                    </div>
-                    <div class="mt-1 truncate text-xs font-bold text-slate-200">
-                        {{ selected.reported_by_name }}
-                    </div>
-                </div>
-            </div>
-            <form
-                @submit.prevent="submitResolve"
-                class="mt-5 flex flex-col gap-3"
-            >
-                <div class="flex flex-col gap-1.5">
-                    <Label class="text-xs font-bold text-slate-300"
-                        >Báo cáo xử lý
-                        <span class="text-rose-400">*</span></Label
-                    ><textarea
-                        v-model="resolveForm.resolution_report"
-                        rows="6"
-                        required
-                        minlength="20"
-                        placeholder="Nguyên nhân, biện pháp đã thực hiện, kết quả và cách phòng ngừa tái diễn (tối thiểu 20 ký tự)..."
-                        class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-emerald-500"
-                    ></textarea>
-                    <p
-                        v-if="resolveForm.errors.resolution_report"
-                        class="text-[11px] font-semibold text-rose-400"
-                    >
-                        {{ resolveForm.errors.resolution_report }}
-                    </p>
-                </div>
                 <div
-                    class="flex justify-end gap-2 border-t border-white/10 pt-4"
+                    class="flex items-start justify-between gap-4 border-b border-white/10 pb-4"
                 >
-                    <Button
+                    <div>
+                        <div
+                            class="flex items-center gap-2 text-sm font-bold text-white"
+                        >
+                            <CheckCircle2 class="size-5 text-emerald-400" />Đóng
+                            sự cố kèm báo cáo
+                        </div>
+                        <p class="mt-1 text-xs text-slate-500">
+                            {{ selected.code }} · {{ selected.title }}
+                        </p>
+                    </div>
+                    <button
                         type="button"
-                        variant="outline"
+                        class="rounded-lg p-1.5 text-slate-500 hover:bg-white/5 hover:text-white"
                         @click="showResolveModal = false"
-                        class="rounded-xl border-white/10 bg-transparent text-xs text-slate-300 hover:bg-white/5"
-                        >Hủy</Button
-                    ><Button
-                        type="submit"
-                        :disabled="resolveForm.processing"
-                        class="rounded-xl border-0 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500"
-                        ><CheckCircle2 class="mr-1.5 size-3.5" />Đóng sự
-                        cố</Button
                     >
+                        <X class="size-4" />
+                    </button>
                 </div>
-            </form>
+                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-xl bg-slate-900 p-3">
+                        <div
+                            class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                        >
+                            Mức độ
+                        </div>
+                        <div class="mt-1 text-xs font-bold text-rose-300">
+                            {{ severityConfig[selected.severity]?.label }}
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-slate-900 p-3">
+                        <div
+                            class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                        >
+                            Phản hồi
+                        </div>
+                        <div class="mt-1 text-xs font-bold text-slate-200">
+                            {{ formatMinutes(selected.response_time_minutes) }}
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-slate-900 p-3">
+                        <div
+                            class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                        >
+                            Người báo
+                        </div>
+                        <div
+                            class="mt-1 truncate text-xs font-bold text-slate-200"
+                        >
+                            {{ selected.reported_by_name }}
+                        </div>
+                    </div>
+                </div>
+                <form
+                    @submit.prevent="submitResolve"
+                    class="mt-5 flex flex-col gap-3"
+                >
+                    <div class="flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Báo cáo xử lý
+                            <span class="text-rose-400">*</span></Label
+                        ><textarea
+                            v-model="resolveForm.resolution_report"
+                            rows="6"
+                            required
+                            minlength="20"
+                            placeholder="Nguyên nhân, biện pháp đã thực hiện, kết quả và cách phòng ngừa tái diễn (tối thiểu 20 ký tự)..."
+                            class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-emerald-500"
+                        ></textarea>
+                        <p
+                            v-if="resolveForm.errors.resolution_report"
+                            class="text-[11px] font-semibold text-rose-400"
+                        >
+                            {{ resolveForm.errors.resolution_report }}
+                        </p>
+                    </div>
+                    <div
+                        class="flex justify-end gap-2 border-t border-white/10 pt-4"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showResolveModal = false"
+                            class="rounded-xl border-white/10 bg-transparent text-xs text-slate-300 hover:bg-white/5"
+                            >Hủy</Button
+                        ><Button
+                            type="submit"
+                            :disabled="resolveForm.processing"
+                            class="rounded-xl border-0 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500"
+                            ><CheckCircle2 class="mr-1.5 size-3.5" />Đóng sự
+                            cố</Button
+                        >
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
     </Teleport>
 </template>

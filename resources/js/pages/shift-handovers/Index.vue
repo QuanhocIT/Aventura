@@ -160,7 +160,10 @@ const submitForm = useForm({
 });
 
 const draftHandover = computed(
-    () => props.handovers.data.find((h) => h.status === 'draft' && (h.can_manage ?? true)) ?? null,
+    () =>
+        props.handovers.data.find(
+            (h) => h.status === 'draft' && (h.can_manage ?? true),
+        ) ?? null,
 );
 
 function openSubmit(handover: Handover) {
@@ -698,7 +701,9 @@ function submitDispute() {
                             :model-value="item.notes ?? ''"
                             class="mt-3 h-8 text-xs"
                             placeholder="Ghi chú cho mục này (nếu có)"
-                            @update:model-value="item.notes = String($event ?? '')"
+                            @update:model-value="
+                                item.notes = String($event ?? '')
+                            "
                         />
                     </div>
                 </div>
@@ -1063,183 +1068,199 @@ function submitDispute() {
 
     <!-- Dialog nộp bàn giao -->
     <Teleport to="body">
-    <div
-        v-if="submitTarget"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        @click.self="submitTarget = null"
-    >
         <div
-            class="w-full max-w-2xl rounded-2xl border border-indigo-500/20 bg-white p-5 shadow-2xl sm:p-6 dark:bg-slate-900"
+            v-if="submitTarget"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            @click.self="submitTarget = null"
         >
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h2
-                        class="text-base font-bold text-slate-900 dark:text-slate-100"
-                    >
-                        Nộp bàn giao ca
-                    </h2>
-                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {{ submitTarget.from_user_name }} →
-                        {{
-                            submitTarget.to_user_name || 'Chưa chọn người nhận'
-                        }}
-                        · {{ formatShift(submitTarget.from_shift) }} →
-                        {{ formatShift(submitTarget.to_shift) }}
-                    </p>
-                </div>
-                <span
-                    class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
-                    >Bước 2 / 3</span
-                >
-            </div>
-
             <div
-                class="mt-4 grid gap-3 rounded-xl border border-indigo-500/15 bg-indigo-950/5 p-3 text-xs sm:grid-cols-3 dark:bg-indigo-950/20"
+                class="w-full max-w-2xl rounded-2xl border border-indigo-500/20 bg-white p-5 shadow-2xl sm:p-6 dark:bg-slate-900"
             >
-                <div>
-                    <p class="text-slate-500 dark:text-slate-400">Checklist</p>
-                    <p
-                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                    >
-                        {{ submitTarget.checklist_done }}/{{
-                            submitTarget.checklist_total
-                        }}
-                        mục
-                    </p>
-                </div>
-                <div>
-                    <p class="text-slate-500 dark:text-slate-400">Tiền mặt</p>
-                    <p
-                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                    >
-                        {{ currency.format(submitForm.cash_amount || 0) }}đ
-                    </p>
-                </div>
-                <div>
-                    <p class="text-slate-500 dark:text-slate-400">Ngày</p>
-                    <p
-                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                    >
-                        {{ submitTarget.handover_date }}
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <div>
-                    <Label class="text-xs font-bold text-slate-500 uppercase"
-                        >Người nhận ca
-                        <span class="text-rose-500">*</span></Label
-                    >
-                    <select
-                        v-model="submitForm.to_user_id"
-                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                    >
-                        <option :value="null">— Chọn người nhận —</option>
-                        <option
-                            v-for="c in colleagues"
-                            :key="c.id"
-                            :value="c.id"
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h2
+                            class="text-base font-bold text-slate-900 dark:text-slate-100"
                         >
-                            {{ c.name }}
-                        </option>
-                    </select>
-                </div>
-
-                <div>
-                    <Label class="text-xs font-bold text-slate-500 uppercase"
-                        >Tiền mặt bàn giao</Label
+                            Nộp bàn giao ca
+                        </h2>
+                        <p
+                            class="mt-1 text-xs text-slate-500 dark:text-slate-400"
+                        >
+                            {{ submitTarget.from_user_name }} →
+                            {{
+                                submitTarget.to_user_name ||
+                                'Chưa chọn người nhận'
+                            }}
+                            · {{ formatShift(submitTarget.from_shift) }} →
+                            {{ formatShift(submitTarget.to_shift) }}
+                        </p>
+                    </div>
+                    <span
+                        class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                        >Bước 2 / 3</span
                     >
-                    <Input
-                        v-model.number="submitForm.cash_amount"
-                        type="number"
-                        min="0"
-                        step="1000"
-                        class="mt-1"
-                    />
                 </div>
 
-                <div class="sm:col-span-2">
-                    <Label class="text-xs font-bold text-slate-500 uppercase"
-                        >Thiết bị</Label
-                    >
-                    <textarea
-                        v-model="submitForm.equipment_notes"
-                        rows="2"
-                        placeholder="Máy POS, máy in, tủ mát… có gì bất thường?"
-                        class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                    ></textarea>
-                </div>
-
-                <div class="sm:col-span-2">
-                    <Label class="text-xs font-bold text-slate-500 uppercase"
-                        >Sự cố trong ca</Label
-                    >
-                    <textarea
-                        v-model="submitForm.incident_notes"
-                        rows="2"
-                        class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                    ></textarea>
-                </div>
-
-                <div class="sm:col-span-2">
-                    <Label class="text-xs font-bold text-slate-500 uppercase"
-                        >Công việc còn tồn</Label
-                    >
-                    <textarea
-                        v-model="submitForm.pending_tasks"
-                        rows="2"
-                        class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                    ></textarea>
-                </div>
-            </div>
-
-            <div class="mt-5 flex justify-end gap-2">
-                <Button variant="outline" @click="submitTarget = null"
-                    >Hủy</Button
+                <div
+                    class="mt-4 grid gap-3 rounded-xl border border-indigo-500/15 bg-indigo-950/5 p-3 text-xs sm:grid-cols-3 dark:bg-indigo-950/20"
                 >
-                <Button
-                    :disabled="submitForm.processing || !submitForm.to_user_id"
-                    @click="submitHandover"
-                >
-                    Nộp bàn giao
-                </Button>
+                    <div>
+                        <p class="text-slate-500 dark:text-slate-400">
+                            Checklist
+                        </p>
+                        <p
+                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                        >
+                            {{ submitTarget.checklist_done }}/{{
+                                submitTarget.checklist_total
+                            }}
+                            mục
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-slate-500 dark:text-slate-400">
+                            Tiền mặt
+                        </p>
+                        <p
+                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                        >
+                            {{ currency.format(submitForm.cash_amount || 0) }}đ
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-slate-500 dark:text-slate-400">Ngày</p>
+                        <p
+                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                        >
+                            {{ submitTarget.handover_date }}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                        <Label
+                            class="text-xs font-bold text-slate-500 uppercase"
+                            >Người nhận ca
+                            <span class="text-rose-500">*</span></Label
+                        >
+                        <select
+                            v-model="submitForm.to_user_id"
+                            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                        >
+                            <option :value="null">— Chọn người nhận —</option>
+                            <option
+                                v-for="c in colleagues"
+                                :key="c.id"
+                                :value="c.id"
+                            >
+                                {{ c.name }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <Label
+                            class="text-xs font-bold text-slate-500 uppercase"
+                            >Tiền mặt bàn giao</Label
+                        >
+                        <Input
+                            v-model.number="submitForm.cash_amount"
+                            type="number"
+                            min="0"
+                            step="1000"
+                            class="mt-1"
+                        />
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <Label
+                            class="text-xs font-bold text-slate-500 uppercase"
+                            >Thiết bị</Label
+                        >
+                        <textarea
+                            v-model="submitForm.equipment_notes"
+                            rows="2"
+                            placeholder="Máy POS, máy in, tủ mát… có gì bất thường?"
+                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <Label
+                            class="text-xs font-bold text-slate-500 uppercase"
+                            >Sự cố trong ca</Label
+                        >
+                        <textarea
+                            v-model="submitForm.incident_notes"
+                            rows="2"
+                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <Label
+                            class="text-xs font-bold text-slate-500 uppercase"
+                            >Công việc còn tồn</Label
+                        >
+                        <textarea
+                            v-model="submitForm.pending_tasks"
+                            rows="2"
+                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-2">
+                    <Button variant="outline" @click="submitTarget = null"
+                        >Hủy</Button
+                    >
+                    <Button
+                        :disabled="
+                            submitForm.processing || !submitForm.to_user_id
+                        "
+                        @click="submitHandover"
+                    >
+                        Nộp bàn giao
+                    </Button>
+                </div>
             </div>
         </div>
-    </div>
     </Teleport>
 
     <!-- Dialog báo không khớp -->
     <Teleport to="body">
-    <div
-        v-if="disputeTarget"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        @click.self="disputeTarget = null"
-    >
         <div
-            class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900"
+            v-if="disputeTarget"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            @click.self="disputeTarget = null"
         >
-            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">
-                Bàn giao không khớp
-            </h2>
-            <textarea
-                v-model="disputeForm.dispute_reason"
-                rows="3"
-                placeholder="Nêu rõ thiếu gì, lệch bao nhiêu…"
-                class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-            ></textarea>
-            <div class="mt-4 flex justify-end gap-2">
-                <Button variant="outline" @click="disputeTarget = null"
-                    >Hủy</Button
+            <div
+                class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900"
+            >
+                <h2
+                    class="text-base font-bold text-slate-900 dark:text-slate-100"
                 >
-                <Button
-                    :disabled="disputeForm.processing"
-                    @click="submitDispute"
-                >
-                    Gửi
-                </Button>
+                    Bàn giao không khớp
+                </h2>
+                <textarea
+                    v-model="disputeForm.dispute_reason"
+                    rows="3"
+                    placeholder="Nêu rõ thiếu gì, lệch bao nhiêu…"
+                    class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                ></textarea>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button variant="outline" @click="disputeTarget = null"
+                        >Hủy</Button
+                    >
+                    <Button
+                        :disabled="disputeForm.processing"
+                        @click="submitDispute"
+                    >
+                        Gửi
+                    </Button>
+                </div>
             </div>
         </div>
-    </div>
     </Teleport>
 </template>

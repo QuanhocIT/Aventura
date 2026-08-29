@@ -188,7 +188,12 @@ const props = defineProps<{
     viewingTrash?: boolean;
     shifts: Shift[];
     areas?: Array<{ id: number; name: string }>;
-    employees?: Array<{ id: number; user_id: number; name: string; code?: string }>;
+    employees?: Array<{
+        id: number;
+        user_id: number;
+        name: string;
+        code?: string;
+    }>;
     kpi: KPI;
     filters: { status: string; month: string };
     canConfirm: boolean;
@@ -225,15 +230,21 @@ const isOwnerRole = computed(() => {
 
     const roles = (usePage().props.auth?.user as any)?.roles ?? [];
 
-    return (usePage().props.auth?.user as any)?.is_owner || roles.some((r: string) => ['owner', 'super_admin'].includes(r));
+    return (
+        (usePage().props.auth?.user as any)?.is_owner ||
+        roles.some((r: string) => ['owner', 'super_admin'].includes(r))
+    );
 });
 
 // ── Cấu hình kiểm soát tiền mặt (Chủ) ─────────────────────────────────────────
 const showCashControl = ref(false);
 const cashControlForm = useForm({
-    blind_cash_count_enabled: props.cashControl?.blind_cash_count_enabled ?? true,
-    cash_variance_threshold: props.cashControl?.cash_variance_threshold ?? 20000,
-    cash_evidence_threshold: props.cashControl?.cash_evidence_threshold ?? 200000,
+    blind_cash_count_enabled:
+        props.cashControl?.blind_cash_count_enabled ?? true,
+    cash_variance_threshold:
+        props.cashControl?.cash_variance_threshold ?? 20000,
+    cash_evidence_threshold:
+        props.cashControl?.cash_evidence_threshold ?? 200000,
     cash_handover_required: props.cashControl?.cash_handover_required ?? false,
 });
 function saveCashControl() {
@@ -535,7 +546,11 @@ async function loadPreview(options: { keepCount?: boolean } = {}) {
 
         if (!res.ok) {
             const errData: any = await res.json().catch(() => null);
-            const serverMsg = errData?.message || (errData?.errors ? (Object.values(errData.errors) as any)[0]?.[0] : null);
+            const serverMsg =
+                errData?.message ||
+                (errData?.errors
+                    ? (Object.values(errData.errors) as any)[0]?.[0]
+                    : null);
             previewError.value = serverMsg || 'Không thể tải dữ liệu. Thử lại.';
 
             return;
@@ -692,7 +707,6 @@ function restoreClosing(id: number) {
     );
 }
 
-
 const expandedId = ref<number | null>(null);
 
 function toggleExpand(id: number) {
@@ -726,7 +740,9 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 
 const totalItems = computed(() => props.closings.length);
-const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / itemsPerPage)));
+const totalPages = computed(() =>
+    Math.max(1, Math.ceil(totalItems.value / itemsPerPage)),
+);
 
 const paginatedClosings = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
@@ -1056,7 +1072,11 @@ onUnmounted(() =>
                     <h1
                         class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
                     >
-                        {{ isManagerRole ? 'Chốt Ca & Doanh Thu' : 'Chốt Ca Trực' }}
+                        {{
+                            isManagerRole
+                                ? 'Chốt Ca & Doanh Thu'
+                                : 'Chốt Ca Trực'
+                        }}
                     </h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
                         {{
@@ -1122,33 +1142,77 @@ onUnmounted(() =>
             v-if="props.isOwner && showCashControl"
             class="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5 dark:border-indigo-950/40 dark:bg-indigo-950/10"
         >
-            <div class="mb-3 flex items-center gap-2 text-sm font-bold text-indigo-800 dark:text-indigo-300">
+            <div
+                class="mb-3 flex items-center gap-2 text-sm font-bold text-indigo-800 dark:text-indigo-300"
+            >
                 <ShieldCheck class="size-4" /> Kiểm soát tiền mặt cuối ca
-                <span class="text-[11px] font-normal text-slate-500">(áp cho chi nhánh đang xem)</span>
+                <span class="text-[11px] font-normal text-slate-500"
+                    >(áp cho chi nhánh đang xem)</span
+                >
             </div>
-            <form @submit.prevent="saveCashControl" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <input v-model="cashControlForm.blind_cash_count_enabled" type="checkbox" class="rounded" />
+            <form
+                @submit.prevent="saveCashControl"
+                class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+            >
+                <label
+                    class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                >
+                    <input
+                        v-model="cashControlForm.blind_cash_count_enabled"
+                        type="checkbox"
+                        class="rounded"
+                    />
                     Bắt buộc đếm tiền mù (đếm trước khi lộ số kỳ vọng)
                 </label>
-                <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    <input v-model="cashControlForm.cash_handover_required" type="checkbox" class="rounded" />
+                <label
+                    class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                >
+                    <input
+                        v-model="cashControlForm.cash_handover_required"
+                        type="checkbox"
+                        class="rounded"
+                    />
                     Bắt buộc bàn giao tiền có chữ ký hai bên
                 </label>
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Ngưỡng chênh lệch phải giải trình (đ)</label>
-                    <input v-model="cashControlForm.cash_variance_threshold" type="number" min="0" step="1000"
-                        class="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+                    <label
+                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >Ngưỡng chênh lệch phải giải trình (đ)</label
+                    >
+                    <input
+                        v-model="cashControlForm.cash_variance_threshold"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    />
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Ngưỡng chênh lệch phải kèm ảnh (đ)</label>
-                    <input v-model="cashControlForm.cash_evidence_threshold" type="number" min="0" step="1000"
-                        class="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+                    <label
+                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >Ngưỡng chênh lệch phải kèm ảnh (đ)</label
+                    >
+                    <input
+                        v-model="cashControlForm.cash_evidence_threshold"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    />
                 </div>
-                <div class="sm:col-span-2 flex justify-end gap-2">
-                    <Button type="button" variant="outline" @click="showCashControl = false" class="h-9 text-xs">Đóng</Button>
-                    <Button type="submit" :disabled="cashControlForm.processing"
-                        class="h-9 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700">
+                <div class="flex justify-end gap-2 sm:col-span-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="showCashControl = false"
+                        class="h-9 text-xs"
+                        >Đóng</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="cashControlForm.processing"
+                        class="h-9 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                    >
                         Lưu cấu hình
                     </Button>
                 </div>
@@ -1365,7 +1429,8 @@ onUnmounted(() =>
                         <span
                             v-if="(trashedClosings?.length ?? 0) > 0"
                             class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-100 px-1 text-[9px] font-black text-red-600 dark:bg-red-950/80 dark:text-red-300"
-                        >{{ trashedClosings?.length }}</span>
+                            >{{ trashedClosings?.length }}</span
+                        >
                     </Link>
                 </div>
 
@@ -1403,13 +1468,23 @@ onUnmounted(() =>
                         <div>Ngày / Ca</div>
                         <div>Khu vực</div>
                         <div>Đơn vào</div>
-                        <div v-if="isManagerRole" class="text-right">Thanh toán TM</div>
-                        <div v-if="isManagerRole" class="text-right">Thanh toán CK</div>
+                        <div v-if="isManagerRole" class="text-right">
+                            Thanh toán TM
+                        </div>
+                        <div v-if="isManagerRole" class="text-right">
+                            Thanh toán CK
+                        </div>
                         <div class="text-right">Đơn hủy</div>
                         <div class="text-right">Hoàn tiền</div>
-                        <div v-if="isManagerRole" class="text-right">Tổng doanh thu</div>
-                        <div v-if="isManagerRole" class="text-right">Tiền mặt thực</div>
-                        <div v-if="isManagerRole" class="text-right">Chênh lệch</div>
+                        <div v-if="isManagerRole" class="text-right">
+                            Tổng doanh thu
+                        </div>
+                        <div v-if="isManagerRole" class="text-right">
+                            Tiền mặt thực
+                        </div>
+                        <div v-if="isManagerRole" class="text-right">
+                            Chênh lệch
+                        </div>
                         <div class="text-right">Trạng thái</div>
                     </div>
 
@@ -1441,19 +1516,30 @@ onUnmounted(() =>
 
                             <!-- Ngày / Ca -->
                             <div class="min-w-0 overflow-hidden">
-                                <p class="truncate text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                                <p
+                                    class="truncate text-sm font-extrabold text-slate-900 dark:text-slate-100"
+                                >
                                     {{ closing.closing_date }}
                                 </p>
-                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5 min-w-0">
+                                <div
+                                    class="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5"
+                                >
                                     <span
-                                        v-if="closing.shift_code && !closing.shift_code.startsWith('SHIFT_')"
+                                        v-if="
+                                            closing.shift_code &&
+                                            !closing.shift_code.startsWith(
+                                                'SHIFT_',
+                                            )
+                                        "
                                         class="max-w-[85px] truncate rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
                                         :title="closing.shift_code"
                                         >{{ closing.shift_code }}</span
                                     >
                                     <span
                                         class="truncate text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                                        >{{ closing.shift_name || 'Ca làm việc' }}</span
+                                        >{{
+                                            closing.shift_name || 'Ca làm việc'
+                                        }}</span
                                     >
                                     <span
                                         v-if="closing.shift_time"
@@ -1464,10 +1550,14 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Khu vực -->
-                            <div class="hidden items-center lg:flex min-w-0 overflow-hidden">
+                            <div
+                                class="hidden min-w-0 items-center overflow-hidden lg:flex"
+                            >
                                 <span
-                                    class="max-w-full truncate inline-flex items-center rounded-lg border border-indigo-200/60 bg-indigo-50/70 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/50 dark:text-indigo-300"
-                                    :title="closing.area_name || 'Khu vực chung'"
+                                    class="inline-flex max-w-full items-center truncate rounded-lg border border-indigo-200/60 bg-indigo-50/70 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/50 dark:text-indigo-300"
+                                    :title="
+                                        closing.area_name || 'Khu vực chung'
+                                    "
                                 >
                                     {{ closing.area_name || 'Khu vực chung' }}
                                 </span>
@@ -1493,7 +1583,10 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Thanh toán TM -->
-                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
+                            <div
+                                v-if="isManagerRole"
+                                class="hidden text-right font-mono lg:block"
+                            >
                                 <p
                                     class="text-xs font-bold text-blue-600 dark:text-blue-400"
                                 >
@@ -1505,7 +1598,10 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Thanh toán CK -->
-                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
+                            <div
+                                v-if="isManagerRole"
+                                class="hidden text-right font-mono lg:block"
+                            >
                                 <p
                                     class="text-xs font-bold text-violet-600 dark:text-violet-400"
                                 >
@@ -1548,7 +1644,10 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Tổng doanh thu (= TM + CK - Hoàn tiền) -->
-                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
+                            <div
+                                v-if="isManagerRole"
+                                class="hidden text-right font-mono lg:block"
+                            >
                                 <p
                                     class="text-sm font-black text-emerald-600 dark:text-emerald-400"
                                 >
@@ -1560,7 +1659,10 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Tiền mặt thực -->
-                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
+                            <div
+                                v-if="isManagerRole"
+                                class="hidden text-right font-mono lg:block"
+                            >
                                 <p
                                     class="text-sm font-bold text-slate-700 dark:text-slate-300"
                                 >
@@ -1569,7 +1671,10 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Chênh lệch -->
-                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
+                            <div
+                                v-if="isManagerRole"
+                                class="hidden text-right font-mono lg:block"
+                            >
                                 <p
                                     class="text-sm font-bold"
                                     :class="
@@ -1842,9 +1947,17 @@ onUnmounted(() =>
                                                 />
                                                 <span
                                                     >Ca làm việc:
-                                                    <strong class="font-bold text-indigo-700 dark:text-indigo-300">{{
-                                                        closing.shift_name
-                                                    }} {{ closing.shift_time ? `(${closing.shift_time})` : '' }}</strong></span
+                                                    <strong
+                                                        class="font-bold text-indigo-700 dark:text-indigo-300"
+                                                        >{{
+                                                            closing.shift_name
+                                                        }}
+                                                        {{
+                                                            closing.shift_time
+                                                                ? `(${closing.shift_time})`
+                                                                : ''
+                                                        }}</strong
+                                                    ></span
                                                 >
                                             </div>
                                             <div
@@ -1890,11 +2003,20 @@ onUnmounted(() =>
                                                 </p>
                                             </div>
                                             <div
-                                                v-if="closing.responsible_user_name"
+                                                v-if="
+                                                    closing.responsible_user_name
+                                                "
                                                 class="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                                             >
-                                                <ShieldCheck class="size-3.5 shrink-0" />
-                                                <span>Giao trách nhiệm: <strong>{{ closing.responsible_user_name }}</strong></span>
+                                                <ShieldCheck
+                                                    class="size-3.5 shrink-0"
+                                                />
+                                                <span
+                                                    >Giao trách nhiệm:
+                                                    <strong>{{
+                                                        closing.responsible_user_name
+                                                    }}</strong></span
+                                                >
                                             </div>
                                         </div>
                                     </div>
@@ -1953,22 +2075,40 @@ onUnmounted(() =>
                                                     </Button>
                                                 </div>
                                             </template>
-                                            <template v-if="isManagerRole && !viewingTrash">
-                                                <div class="flex flex-col gap-2">
+                                            <template
+                                                v-if="
+                                                    isManagerRole &&
+                                                    !viewingTrash
+                                                "
+                                            >
+                                                <div
+                                                    class="flex flex-col gap-2"
+                                                >
                                                     <Button
-                                                        v-if="closing.status === 'draft'"
-                                                        @click.stop="trashClosing(closing)"
+                                                        v-if="
+                                                            closing.status ===
+                                                            'draft'
+                                                        "
+                                                        @click.stop="
+                                                            trashClosing(
+                                                                closing,
+                                                            )
+                                                        "
                                                         variant="outline"
                                                         class="flex h-8 items-center justify-center gap-1 border-slate-200 text-[10px] font-semibold text-slate-500 shadow-sm transition-transform hover:border-red-200 hover:text-red-500 active:scale-95"
                                                     >
-                                                        <Trash2 class="size-3" />
+                                                        <Trash2
+                                                            class="size-3"
+                                                        />
                                                         Vào thùng rác
                                                     </Button>
                                                 </div>
                                             </template>
                                             <span
                                                 v-if="
-                                                    closing.status === 'draft' && !isManagerRole
+                                                    closing.status ===
+                                                        'draft' &&
+                                                    !isManagerRole
                                                 "
                                                 class="text-xs font-semibold text-slate-400 italic"
                                                 >Nhân viên chưa nộp phiếu</span
@@ -2010,11 +2150,13 @@ onUnmounted(() =>
                         <!-- Left: Record summary -->
                         <p class="text-xs text-slate-500 dark:text-slate-400">
                             Hiển thị
-                            <span class="font-bold text-slate-800 dark:text-slate-200"
+                            <span
+                                class="font-bold text-slate-800 dark:text-slate-200"
                                 >{{ startItemIndex }} - {{ endItemIndex }}</span
                             >
                             trong tổng số
-                            <span class="font-bold text-slate-800 dark:text-slate-200"
+                            <span
+                                class="font-bold text-slate-800 dark:text-slate-200"
                                 >{{ totalItems }}</span
                             >
                             phiếu chốt ca
@@ -2054,7 +2196,7 @@ onUnmounted(() =>
                                 type="button"
                                 @click="setPage(p)"
                                 :class="[
-                                    'inline-flex h-8 min-w-[32px] cursor-pointer items-center justify-center rounded-lg px-2 text-xs font-bold transition shadow-2xs',
+                                    'inline-flex h-8 min-w-[32px] cursor-pointer items-center justify-center rounded-lg px-2 text-xs font-bold shadow-2xs transition',
                                     currentPage === p
                                         ? 'border border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-600'
                                         : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
@@ -2101,7 +2243,6 @@ onUnmounted(() =>
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
-            
             <div
                 v-if="showDialog"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -2264,7 +2405,9 @@ onUnmounted(() =>
 
                                 <!-- Chọn ngày — Custom Calendar Picker & Quick Presets -->
                                 <div class="flex flex-col space-y-2">
-                                    <div class="flex items-center justify-between">
+                                    <div
+                                        class="flex items-center justify-between"
+                                    >
                                         <Label
                                             class="text-xs font-bold tracking-wide text-slate-500 uppercase"
                                         >
@@ -2279,7 +2422,8 @@ onUnmounted(() =>
                                                 @click="setQuickDate(todayStr)"
                                                 class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
                                                 :class="
-                                                    form.closing_date === todayStr
+                                                    form.closing_date ===
+                                                    todayStr
                                                         ? 'bg-indigo-600 font-bold text-white shadow-xs'
                                                         : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
                                                 "
@@ -2288,10 +2432,13 @@ onUnmounted(() =>
                                             </button>
                                             <button
                                                 type="button"
-                                                @click="setQuickDate(yesterdayStr)"
+                                                @click="
+                                                    setQuickDate(yesterdayStr)
+                                                "
                                                 class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
                                                 :class="
-                                                    form.closing_date === yesterdayStr
+                                                    form.closing_date ===
+                                                    yesterdayStr
                                                         ? 'bg-indigo-600 font-bold text-white shadow-xs'
                                                         : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
                                                 "
@@ -2300,10 +2447,13 @@ onUnmounted(() =>
                                             </button>
                                             <button
                                                 type="button"
-                                                @click="setQuickDate(twoDaysAgoStr)"
+                                                @click="
+                                                    setQuickDate(twoDaysAgoStr)
+                                                "
                                                 class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
                                                 :class="
-                                                    form.closing_date === twoDaysAgoStr
+                                                    form.closing_date ===
+                                                    twoDaysAgoStr
                                                         ? 'bg-indigo-600 font-bold text-white shadow-xs'
                                                         : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
                                                 "
@@ -2325,281 +2475,288 @@ onUnmounted(() =>
                                                 : ''
                                         "
                                     >
-                                        <span class="font-medium text-slate-900 dark:text-slate-100">
+                                        <span
+                                            class="font-medium text-slate-900 dark:text-slate-100"
+                                        >
                                             {{ displayDate || 'Chọn ngày...' }}
                                         </span>
-                                        <div class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-                                            <CalendarDays class="size-4 shrink-0" />
-                                            <ChevronDown class="size-3.5 opacity-60" />
+                                        <div
+                                            class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400"
+                                        >
+                                            <CalendarDays
+                                                class="size-4 shrink-0"
+                                            />
+                                            <ChevronDown
+                                                class="size-3.5 opacity-60"
+                                            />
                                         </div>
                                     </button>
                                 </div>
 
                                 <!-- Calendar Teleport -->
-                                
-                                    
+
+                                <div
+                                    v-if="showCalendar"
+                                    class="fixed inset-0 z-[9998]"
+                                    @click="showCalendar = false"
+                                />
+                                <Transition
+                                    enter-active-class="transition duration-150 ease-out"
+                                    enter-from-class="opacity-0 scale-95 translate-y-1"
+                                    enter-to-class="opacity-100 scale-100 translate-y-0"
+                                    leave-active-class="transition duration-100 ease-in"
+                                    leave-from-class="opacity-100 scale-100 translate-y-0"
+                                    leave-to-class="opacity-0 scale-95 translate-y-1"
+                                >
                                     <div
                                         v-if="showCalendar"
-                                        class="fixed inset-0 z-[9998]"
-                                        @click="showCalendar = false"
-                                    />
-                                    <Transition
-                                        enter-active-class="transition duration-150 ease-out"
-                                        enter-from-class="opacity-0 scale-95 translate-y-1"
-                                        enter-to-class="opacity-100 scale-100 translate-y-0"
-                                        leave-active-class="transition duration-100 ease-in"
-                                        leave-from-class="opacity-100 scale-100 translate-y-0"
-                                        leave-to-class="opacity-0 scale-95 translate-y-1"
+                                        id="shift-cal-popup"
+                                        class="fixed z-[9999] animate-in overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl duration-100 fade-in-50 zoom-in-95 dark:border-slate-700 dark:bg-slate-900"
+                                        :style="{
+                                            top: calPos.top + 'px',
+                                            left: calPos.left + 'px',
+                                            width: calPos.width + 'px',
+                                        }"
                                     >
+                                        <!-- Header -->
                                         <div
-                                            v-if="showCalendar"
-                                            id="shift-cal-popup"
-                                            class="fixed z-[9999] animate-in overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl duration-100 fade-in-50 zoom-in-95 dark:border-slate-700 dark:bg-slate-900"
-                                            :style="{
-                                                top: calPos.top + 'px',
-                                                left: calPos.left + 'px',
-                                                width: calPos.width + 'px',
-                                            }"
+                                            class="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/80"
                                         >
-                                            <!-- Header -->
-                                            <div
-                                                class="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/80"
+                                            <button
+                                                type="button"
+                                                @click="prevMonth"
+                                                class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                                             >
-                                                <button
-                                                    type="button"
-                                                    @click="prevMonth"
-                                                    class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                                                >
-                                                    <ChevronLeft class="size-4" />
-                                                </button>
+                                                <ChevronLeft class="size-4" />
+                                            </button>
 
-                                                <!-- Click để mở month picker -->
-                                                <button
-                                                    type="button"
-                                                    @click="
-                                                        showMonthPicker =
-                                                            !showMonthPicker
-                                                    "
-                                                    class="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 transition hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-700/70"
+                                            <!-- Click để mở month picker -->
+                                            <button
+                                                type="button"
+                                                @click="
+                                                    showMonthPicker =
+                                                        !showMonthPicker
+                                                "
+                                                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 transition hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-700/70"
+                                            >
+                                                <span>{{
+                                                    viMonths[calView.month]
+                                                }}</span>
+                                                <span
+                                                    class="font-extrabold text-indigo-600 dark:text-indigo-400"
+                                                    >{{ calView.year }}</span
                                                 >
-                                                    <span>{{
-                                                        viMonths[calView.month]
-                                                    }}</span>
+                                                <ChevronDown
+                                                    class="size-3.5 text-slate-500 transition-transform"
+                                                    :class="
+                                                        showMonthPicker
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                    "
+                                                />
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                @click="nextMonth"
+                                                :disabled="isNextMonthDisabled"
+                                                class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                                            >
+                                                <ChevronRight class="size-4" />
+                                            </button>
+                                        </div>
+
+                                        <!-- Month picker panel -->
+                                        <Transition
+                                            enter-active-class="transition duration-150 ease-out"
+                                            enter-from-class="opacity-0 -translate-y-2"
+                                            enter-to-class="opacity-100 translate-y-0"
+                                            leave-active-class="transition duration-100 ease-in"
+                                            leave-from-class="opacity-100 translate-y-0"
+                                            leave-to-class="opacity-0 -translate-y-2"
+                                        >
+                                            <div
+                                                v-if="showMonthPicker"
+                                                class="border-b border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/90"
+                                            >
+                                                <!-- Year nav -->
+                                                <div
+                                                    class="mb-2.5 flex items-center justify-between px-1"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        @click="prevYear"
+                                                        class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+                                                    >
+                                                        <ChevronLeft
+                                                            class="size-3.5"
+                                                        />
+                                                    </button>
                                                     <span
-                                                        class="font-extrabold text-indigo-600 dark:text-indigo-400"
+                                                        class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
                                                         >{{
                                                             calView.year
                                                         }}</span
                                                     >
-                                                    <ChevronDown
-                                                        class="size-3.5 text-slate-500 transition-transform"
-                                                        :class="
-                                                            showMonthPicker
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        "
-                                                    />
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    @click="nextMonth"
-                                                    :disabled="
-                                                        isNextMonthDisabled
-                                                    "
-                                                    class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                                                >
-                                                    <ChevronRight class="size-4" />
-                                                </button>
-                                            </div>
-
-                                            <!-- Month picker panel -->
-                                            <Transition
-                                                enter-active-class="transition duration-150 ease-out"
-                                                enter-from-class="opacity-0 -translate-y-2"
-                                                enter-to-class="opacity-100 translate-y-0"
-                                                leave-active-class="transition duration-100 ease-in"
-                                                leave-from-class="opacity-100 translate-y-0"
-                                                leave-to-class="opacity-0 -translate-y-2"
-                                            >
-                                                <div
-                                                    v-if="showMonthPicker"
-                                                    class="border-b border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/90"
-                                                >
-                                                    <!-- Year nav -->
-                                                    <div
-                                                        class="mb-2.5 flex items-center justify-between px-1"
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            @click="prevYear"
-                                                            class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
-                                                        >
-                                                            <ChevronLeft class="size-3.5" />
-                                                        </button>
-                                                        <span
-                                                            class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
-                                                            >{{
-                                                                calView.year
-                                                            }}</span
-                                                        >
-                                                        <button
-                                                            type="button"
-                                                            @click="nextYear"
-                                                            :disabled="
-                                                                calView.year >=
-                                                                today.getFullYear()
-                                                            "
-                                                            class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700"
-                                                        >
-                                                            <ChevronRight class="size-3.5" />
-                                                        </button>
-                                                    </div>
-                                                    <!-- 12 month grid -->
-                                                    <div
-                                                        class="grid grid-cols-4 gap-1.5"
-                                                    >
-                                                        <button
-                                                            v-for="(
-                                                                m, idx
-                                                            ) in viMonthsShort"
-                                                            :key="idx"
-                                                            type="button"
-                                                            @click="
-                                                                !isMonthFuture(
-                                                                    idx,
-                                                                ) &&
-                                                                selectMonth(idx)
-                                                            "
-                                                            :disabled="
-                                                                isMonthFuture(
-                                                                    idx,
-                                                                )
-                                                            "
-                                                            class="rounded-lg py-1.5 text-xs font-semibold transition-all"
-                                                            :class="[
-                                                                calView.month ===
-                                                                    idx &&
-                                                                !isMonthFuture(
-                                                                    idx,
-                                                                )
-                                                                    ? 'bg-indigo-600 font-bold text-white shadow-sm'
-                                                                    : '',
-                                                                !isMonthFuture(
-                                                                    idx,
-                                                                ) &&
-                                                                calView.month !==
-                                                                    idx
-                                                                    ? 'cursor-pointer text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-200 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
-                                                                    : '',
-                                                                isMonthFuture(
-                                                                    idx,
-                                                                )
-                                                                    ? 'cursor-not-allowed text-slate-400/30 dark:text-slate-600/30'
-                                                                    : '',
-                                                            ]"
-                                                        >
-                                                            {{ m }}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </Transition>
-
-                                            <!-- Day names -->
-                                            <div
-                                                class="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-800/40"
-                                            >
-                                                <div
-                                                    v-for="d in viDays"
-                                                    :key="d"
-                                                    class="text-center text-[11px] font-bold tracking-wider"
-                                                    :class="
-                                                        d === 'CN'
-                                                            ? 'font-extrabold text-rose-500'
-                                                            : 'text-slate-500 dark:text-slate-400'
-                                                    "
-                                                >
-                                                    {{ d }}
-                                                </div>
-                                            </div>
-
-                                            <!-- Day grid -->
-                                            <div
-                                                class="grid grid-cols-7 gap-1 bg-white p-2.5 dark:bg-slate-900"
-                                            >
-                                                <button
-                                                    v-for="day in calDays"
-                                                    :key="day.date"
-                                                    type="button"
-                                                    @click="selectDate(day)"
-                                                    :disabled="day.isFuture"
-                                                    class="relative flex h-8 w-full items-center justify-center rounded-lg text-xs font-semibold transition-all sm:h-9"
-                                                    :class="[
-                                                        day.isSelected
-                                                            ? 'scale-105 bg-indigo-600 font-extrabold text-white shadow-md shadow-indigo-500/40 ring-2 ring-indigo-400'
-                                                            : '',
-                                                        day.isToday &&
-                                                        !day.isSelected
-                                                            ? 'border-2 border-indigo-500 font-bold text-indigo-600 dark:text-indigo-400'
-                                                            : '',
-                                                        day.inMonth &&
-                                                        !day.isSelected &&
-                                                        !day.isToday &&
-                                                        !day.isFuture
-                                                            ? 'cursor-pointer text-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-100 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
-                                                            : '',
-                                                        !day.inMonth &&
-                                                        !day.isFuture
-                                                            ? 'cursor-pointer text-slate-400/40 hover:text-slate-600 dark:text-slate-600/50 dark:hover:text-slate-400'
-                                                            : '',
-                                                        day.isFuture
-                                                            ? 'pointer-events-none cursor-not-allowed text-slate-300/30 dark:text-slate-700/30'
-                                                            : '',
-                                                    ]"
-                                                >
-                                                    {{ day.day }}
-                                                    <span
-                                                        v-if="
-                                                            day.isToday &&
-                                                            !day.isSelected
-                                                        "
-                                                        class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-indigo-500"
-                                                    />
-                                                </button>
-                                            </div>
-
-                                            <!-- Footer: Hôm nay & Hôm qua & Đóng -->
-                                            <div
-                                                class="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-800/80"
-                                            >
-                                                <div class="flex items-center gap-1">
                                                     <button
                                                         type="button"
-                                                        @click="setQuickDate(todayStr)"
-                                                        class="cursor-pointer rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-600 hover:text-white dark:bg-indigo-950/60 dark:text-indigo-400 dark:hover:bg-indigo-600 dark:hover:text-white"
+                                                        @click="nextYear"
+                                                        :disabled="
+                                                            calView.year >=
+                                                            today.getFullYear()
+                                                        "
+                                                        class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700"
                                                     >
-                                                        Hôm nay
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        @click="setQuickDate(yesterdayStr)"
-                                                        class="cursor-pointer rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-indigo-600 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-600 dark:hover:text-white"
-                                                    >
-                                                        Hôm qua
+                                                        <ChevronRight
+                                                            class="size-3.5"
+                                                        />
                                                     </button>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    @click="showCalendar = false"
-                                                    class="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                                <!-- 12 month grid -->
+                                                <div
+                                                    class="grid grid-cols-4 gap-1.5"
                                                 >
-                                                    Đóng
-                                                </button>
+                                                    <button
+                                                        v-for="(
+                                                            m, idx
+                                                        ) in viMonthsShort"
+                                                        :key="idx"
+                                                        type="button"
+                                                        @click="
+                                                            !isMonthFuture(
+                                                                idx,
+                                                            ) &&
+                                                            selectMonth(idx)
+                                                        "
+                                                        :disabled="
+                                                            isMonthFuture(idx)
+                                                        "
+                                                        class="rounded-lg py-1.5 text-xs font-semibold transition-all"
+                                                        :class="[
+                                                            calView.month ===
+                                                                idx &&
+                                                            !isMonthFuture(idx)
+                                                                ? 'bg-indigo-600 font-bold text-white shadow-sm'
+                                                                : '',
+                                                            !isMonthFuture(
+                                                                idx,
+                                                            ) &&
+                                                            calView.month !==
+                                                                idx
+                                                                ? 'cursor-pointer text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-200 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
+                                                                : '',
+                                                            isMonthFuture(idx)
+                                                                ? 'cursor-not-allowed text-slate-400/30 dark:text-slate-600/30'
+                                                                : '',
+                                                        ]"
+                                                    >
+                                                        {{ m }}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </Transition>
+
+                                        <!-- Day names -->
+                                        <div
+                                            class="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-800/40"
+                                        >
+                                            <div
+                                                v-for="d in viDays"
+                                                :key="d"
+                                                class="text-center text-[11px] font-bold tracking-wider"
+                                                :class="
+                                                    d === 'CN'
+                                                        ? 'font-extrabold text-rose-500'
+                                                        : 'text-slate-500 dark:text-slate-400'
+                                                "
+                                            >
+                                                {{ d }}
                                             </div>
                                         </div>
-                                    
-                                    </Transition>
-                                
+
+                                        <!-- Day grid -->
+                                        <div
+                                            class="grid grid-cols-7 gap-1 bg-white p-2.5 dark:bg-slate-900"
+                                        >
+                                            <button
+                                                v-for="day in calDays"
+                                                :key="day.date"
+                                                type="button"
+                                                @click="selectDate(day)"
+                                                :disabled="day.isFuture"
+                                                class="relative flex h-8 w-full items-center justify-center rounded-lg text-xs font-semibold transition-all sm:h-9"
+                                                :class="[
+                                                    day.isSelected
+                                                        ? 'scale-105 bg-indigo-600 font-extrabold text-white shadow-md ring-2 shadow-indigo-500/40 ring-indigo-400'
+                                                        : '',
+                                                    day.isToday &&
+                                                    !day.isSelected
+                                                        ? 'border-2 border-indigo-500 font-bold text-indigo-600 dark:text-indigo-400'
+                                                        : '',
+                                                    day.inMonth &&
+                                                    !day.isSelected &&
+                                                    !day.isToday &&
+                                                    !day.isFuture
+                                                        ? 'cursor-pointer text-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-100 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
+                                                        : '',
+                                                    !day.inMonth &&
+                                                    !day.isFuture
+                                                        ? 'cursor-pointer text-slate-400/40 hover:text-slate-600 dark:text-slate-600/50 dark:hover:text-slate-400'
+                                                        : '',
+                                                    day.isFuture
+                                                        ? 'pointer-events-none cursor-not-allowed text-slate-300/30 dark:text-slate-700/30'
+                                                        : '',
+                                                ]"
+                                            >
+                                                {{ day.day }}
+                                                <span
+                                                    v-if="
+                                                        day.isToday &&
+                                                        !day.isSelected
+                                                    "
+                                                    class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-indigo-500"
+                                                />
+                                            </button>
+                                        </div>
+
+                                        <!-- Footer: Hôm nay & Hôm qua & Đóng -->
+                                        <div
+                                            class="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-800/80"
+                                        >
+                                            <div
+                                                class="flex items-center gap-1"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    @click="
+                                                        setQuickDate(todayStr)
+                                                    "
+                                                    class="cursor-pointer rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-600 hover:text-white dark:bg-indigo-950/60 dark:text-indigo-400 dark:hover:bg-indigo-600 dark:hover:text-white"
+                                                >
+                                                    Hôm nay
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    @click="
+                                                        setQuickDate(
+                                                            yesterdayStr,
+                                                        )
+                                                    "
+                                                    class="cursor-pointer rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-indigo-600 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-600 dark:hover:text-white"
+                                                >
+                                                    Hôm qua
+                                                </button>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                @click="showCalendar = false"
+                                                class="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                            >
+                                                Đóng
+                                            </button>
+                                        </div>
+                                    </div>
+                                </Transition>
 
                                 <!-- Ca qua đêm notice -->
                                 <div
@@ -2640,7 +2797,9 @@ onUnmounted(() =>
                                             <p
                                                 class="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
                                             >
-                                                <Store class="size-3.5 shrink-0" />
+                                                <Store
+                                                    class="size-3.5 shrink-0"
+                                                />
                                                 {{ restaurantName }} ·
                                                 {{ activeBranchName }}
                                             </p>
@@ -2659,74 +2818,109 @@ onUnmounted(() =>
                                         <div
                                             class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-5 shadow-2xs dark:border-slate-700 dark:bg-slate-950"
                                         >
-                                            <p class="text-slate-600 dark:text-slate-400">
+                                            <p
+                                                class="text-slate-600 dark:text-slate-400"
+                                            >
                                                 Ngày:
-                                                <strong class="text-slate-900 dark:text-slate-100">{{
-                                                    form.closing_date
-                                                }}</strong>
+                                                <strong
+                                                    class="text-slate-900 dark:text-slate-100"
+                                                    >{{
+                                                        form.closing_date
+                                                    }}</strong
+                                                >
                                             </p>
-                                            <p class="text-slate-600 dark:text-slate-400">
+                                            <p
+                                                class="text-slate-600 dark:text-slate-400"
+                                            >
                                                 Ca:
-                                                <strong class="text-indigo-600 dark:text-indigo-400">{{
-                                                    previewData.shift_name
-                                                }}</strong>
+                                                <strong
+                                                    class="text-indigo-600 dark:text-indigo-400"
+                                                    >{{
+                                                        previewData.shift_name
+                                                    }}</strong
+                                                >
                                             </p>
-                                            <p class="text-slate-600 dark:text-slate-400">
+                                            <p
+                                                class="text-slate-600 dark:text-slate-400"
+                                            >
                                                 Thời gian:
-                                                <strong class="text-slate-900 dark:text-slate-100">{{
-                                                    previewData.end_time
-                                                }}</strong>
+                                                <strong
+                                                    class="text-slate-900 dark:text-slate-100"
+                                                    >{{
+                                                        previewData.end_time
+                                                    }}</strong
+                                                >
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="grid gap-px bg-slate-200 dark:bg-slate-800 sm:grid-cols-2 lg:grid-cols-4">
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                <div
+                                    class="grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4 dark:bg-slate-800"
+                                >
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             1. NGÀY / CA
                                         </p>
-                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                        <p
+                                            class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >
                                             {{ previewData.start_time }} →
                                             {{ previewData.end_time }}
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             2. KHU VỰC
                                         </p>
-                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                        <p
+                                            class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >
                                             {{ previewData.area_name }}
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             3. ĐƠN VÀO
                                         </p>
-                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                                            {{
-                                                previewData.total_order_count
-                                            }}
+                                        <p
+                                            class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >
+                                            {{ previewData.total_order_count }}
                                             đơn vào ·
-                                            <span class="text-emerald-600 dark:text-emerald-400">{{ previewData.order_count }} hoàn tất</span>
+                                            <span
+                                                class="text-emerald-600 dark:text-emerald-400"
+                                                >{{
+                                                    previewData.order_count
+                                                }}
+                                                hoàn tất</span
+                                            >
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             4. THANH TOÁN TIỀN MẶT
                                         </p>
-                                        <p class="mt-1 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
-                                            {{
-                                                previewData.cash_order_count
-                                            }}
+                                        <p
+                                            class="mt-1 text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
+                                        >
+                                            {{ previewData.cash_order_count }}
                                             đơn ·
                                             {{
                                                 vnd(
@@ -2735,13 +2929,17 @@ onUnmounted(() =>
                                             }}
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             5. THANH TOÁN CHUYỂN KHOẢN
                                         </p>
-                                        <p class="mt-1 text-xs font-extrabold text-sky-600 dark:text-sky-400">
+                                        <p
+                                            class="mt-1 text-xs font-extrabold text-sky-600 dark:text-sky-400"
+                                        >
                                             {{
                                                 previewData.transfer_order_count
                                             }}
@@ -2751,13 +2949,17 @@ onUnmounted(() =>
                                             }}
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             6. ĐƠN HỦY / HOÀN TIỀN
                                         </p>
-                                        <p class="mt-1 text-xs font-bold text-rose-500 dark:text-rose-400">
+                                        <p
+                                            class="mt-1 text-xs font-bold text-rose-500 dark:text-rose-400"
+                                        >
                                             Hủy
                                             {{
                                                 previewData.cancelled_order_count
@@ -2767,7 +2969,8 @@ onUnmounted(() =>
                                                     previewData.cancelled_total_amount,
                                                 )
                                             }})
-                                            <span class="text-slate-300 dark:text-slate-600"
+                                            <span
+                                                class="text-slate-300 dark:text-slate-600"
                                                 >·</span
                                             >
                                             Hoàn
@@ -2777,7 +2980,9 @@ onUnmounted(() =>
                                             đơn
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
@@ -2789,7 +2994,9 @@ onUnmounted(() =>
                                             {{ vnd(previewData.net_revenue) }}
                                         </p>
                                     </div>
-                                    <div class="bg-white p-3.5 dark:bg-slate-900">
+                                    <div
+                                        class="bg-white p-3.5 dark:bg-slate-900"
+                                    >
                                         <p
                                             class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
@@ -2803,12 +3010,22 @@ onUnmounted(() =>
                                     </div>
                                 </div>
 
-                                <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                                <div
+                                    class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400"
+                                >
                                     <div
                                         class="flex justify-between gap-3 font-semibold"
                                     >
-                                        <span>Khung giờ chốt: {{ previewData.start_time }} → {{ previewData.end_time }}</span>
-                                        <span v-if="previewData.discount_total > 0" class="text-rose-500 dark:text-rose-400"
+                                        <span
+                                            >Khung giờ chốt:
+                                            {{ previewData.start_time }} →
+                                            {{ previewData.end_time }}</span
+                                        >
+                                        <span
+                                            v-if="
+                                                previewData.discount_total > 0
+                                            "
+                                            class="text-rose-500 dark:text-rose-400"
                                             >Giảm giá: -{{
                                                 vnd(previewData.discount_total)
                                             }}</span
@@ -2823,7 +3040,9 @@ onUnmounted(() =>
                                     class="rounded-xl border border-indigo-500/25 bg-indigo-50/40 p-4.5 shadow-2xs dark:border-indigo-900/40 dark:bg-slate-900"
                                 >
                                     <div class="flex items-center gap-2">
-                                        <div class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                                        <div
+                                            class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400"
+                                        >
                                             <Wallet class="size-3.5" />
                                         </div>
                                         <p
@@ -2832,7 +3051,9 @@ onUnmounted(() =>
                                             Đối soát tiền thực nhận
                                         </p>
                                     </div>
-                                    <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
+                                    <div
+                                        class="mt-3.5 grid gap-3 sm:grid-cols-2"
+                                    >
                                         <div>
                                             <Label
                                                 class="text-xs font-bold text-slate-700 dark:text-slate-200"
@@ -2854,11 +3075,14 @@ onUnmounted(() =>
                                                 class="mt-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400"
                                             >
                                                 Kỳ vọng:
-                                                <strong class="text-slate-800 dark:text-slate-200">{{
-                                                    vnd(
-                                                        previewData.expected_cash,
-                                                    )
-                                                }}</strong>
+                                                <strong
+                                                    class="text-slate-800 dark:text-slate-200"
+                                                    >{{
+                                                        vnd(
+                                                            previewData.expected_cash,
+                                                        )
+                                                    }}</strong
+                                                >
                                             </p>
                                         </div>
                                         <div>
@@ -2882,11 +3106,14 @@ onUnmounted(() =>
                                                 class="mt-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400"
                                             >
                                                 Kỳ vọng:
-                                                <strong class="text-slate-800 dark:text-slate-200">{{
-                                                    vnd(
-                                                        previewData.transfer_amount,
-                                                    )
-                                                }}</strong>
+                                                <strong
+                                                    class="text-slate-800 dark:text-slate-200"
+                                                    >{{
+                                                        vnd(
+                                                            previewData.transfer_amount,
+                                                        )
+                                                    }}</strong
+                                                >
                                             </p>
                                         </div>
                                     </div>
@@ -2897,7 +3124,9 @@ onUnmounted(() =>
                                     class="rounded-xl border border-amber-500/25 bg-amber-50/40 p-4.5 shadow-2xs dark:border-amber-900/40 dark:bg-slate-900"
                                 >
                                     <div class="flex items-center gap-2">
-                                        <div class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                                        <div
+                                            class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                                        >
                                             <ShieldCheck class="size-3.5" />
                                         </div>
                                         <p
@@ -2915,59 +3144,91 @@ onUnmounted(() =>
                                         step="1000"
                                         class="mt-3.5 h-10 border-slate-300 bg-white font-black text-slate-900 shadow-2xs focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
-                                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                    <p
+                                        class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"
+                                    >
                                         Số âm sẽ trừ lương, số dương sẽ cộng
                                         lương. Mặc định theo tổng chênh lệch.
                                     </p>
-                                    <div class="mt-3 flex flex-col space-y-1.5 border-t border-amber-200/50 pt-2.5 dark:border-amber-900/50">
-                                        <Label class="text-[10px] font-bold tracking-wider text-amber-800 uppercase dark:text-amber-300">
-                                            Nhân viên chịu trách nhiệm (Cấn trừ / Thưởng)
+                                    <div
+                                        class="mt-3 flex flex-col space-y-1.5 border-t border-amber-200/50 pt-2.5 dark:border-amber-900/50"
+                                    >
+                                        <Label
+                                            class="text-[10px] font-bold tracking-wider text-amber-800 uppercase dark:text-amber-300"
+                                        >
+                                            Nhân viên chịu trách nhiệm (Cấn trừ
+                                            / Thưởng)
                                         </Label>
                                         <select
                                             v-model="form.responsible_user_id"
                                             class="h-8.5 w-full rounded-lg border border-amber-300/80 bg-white px-2.5 text-xs font-semibold text-slate-900 shadow-2xs focus:ring-2 focus:ring-amber-500/30 dark:border-amber-800 dark:bg-slate-950 dark:text-slate-100"
                                         >
-                                            <option :value="null">Mặc định (Thu ngân đứng ca / Người nộp)</option>
+                                            <option :value="null">
+                                                Mặc định (Thu ngân đứng ca /
+                                                Người nộp)
+                                            </option>
                                             <option
                                                 v-for="emp in employees"
                                                 :key="emp.id"
                                                 :value="emp.user_id"
                                             >
-                                                {{ emp.name }} {{ emp.code ? `(${emp.code})` : '' }}
+                                                {{ emp.name }}
+                                                {{
+                                                    emp.code
+                                                        ? `(${emp.code})`
+                                                        : ''
+                                                }}
                                             </option>
                                         </select>
                                     </div>
                                     <div
                                         class="mt-3 space-y-1.5 border-t border-slate-200 pt-2.5 text-xs dark:border-slate-800"
                                     >
-                                        <div class="flex justify-between text-slate-600 dark:text-slate-400">
+                                        <div
+                                            class="flex justify-between text-slate-600 dark:text-slate-400"
+                                        >
                                             <span>Lệch tiền mặt</span>
                                             <strong
-                                                :class="cashDifference >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
+                                                :class="
+                                                    cashDifference >= 0
+                                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                                        : 'text-rose-600 dark:text-rose-400'
+                                                "
                                                 >{{
                                                     cashDifference >= 0
                                                         ? '+'
                                                         : ''
                                                 }}{{
                                                     vnd(cashDifference)
-                                                }}</strong>
+                                                }}</strong
+                                            >
                                         </div>
-                                        <div class="flex justify-between text-slate-600 dark:text-slate-400">
+                                        <div
+                                            class="flex justify-between text-slate-600 dark:text-slate-400"
+                                        >
                                             <span>Lệch chuyển khoản</span>
                                             <strong
-                                                :class="transferDifference >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
+                                                :class="
+                                                    transferDifference >= 0
+                                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                                        : 'text-rose-600 dark:text-rose-400'
+                                                "
                                                 >{{
                                                     transferDifference >= 0
                                                         ? '+'
                                                         : ''
                                                 }}{{
                                                     vnd(transferDifference)
-                                                }}</strong>
+                                                }}</strong
+                                            >
                                         </div>
                                         <div
                                             class="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-black dark:border-slate-800"
                                         >
-                                            <span class="text-slate-800 dark:text-slate-200">Tổng chênh lệch</span>
+                                            <span
+                                                class="text-slate-800 dark:text-slate-200"
+                                                >Tổng chênh lệch</span
+                                            >
                                             <span
                                                 class="rounded-md px-2 py-0.5 font-extrabold"
                                                 :class="[
@@ -2975,10 +3236,10 @@ onUnmounted(() =>
                                                         ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                                                         : '',
                                                     totalDifference > 0
-                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                                                        ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                                                         : '',
                                                     totalDifference < 0
-                                                        ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                                        ? 'border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                                                         : '',
                                                 ]"
                                                 >{{
@@ -2987,7 +3248,8 @@ onUnmounted(() =>
                                                         : ''
                                                 }}{{
                                                     vnd(totalDifference)
-                                                }}</span>
+                                                }}</span
+                                            >
                                         </div>
                                     </div>
                                 </div>
@@ -2996,7 +3258,7 @@ onUnmounted(() =>
                             <div class="mt-4 grid gap-4 lg:grid-cols-2">
                                 <div>
                                     <Label
-                                        class="text-xs font-bold text-slate-700 uppercase tracking-wider dark:text-slate-300"
+                                        class="text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300"
                                         >Ghi chú quy trách nhiệm</Label
                                     >
                                     <textarea
@@ -3004,12 +3266,12 @@ onUnmounted(() =>
                                         rows="2"
                                         maxlength="1000"
                                         placeholder="Ví dụ: Thiếu tiền mặt do... / Dư chuyển khoản do..."
-                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-2xs placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
                                 </div>
                                 <div>
                                     <Label
-                                        class="text-xs font-bold text-slate-700 uppercase tracking-wider dark:text-slate-300"
+                                        class="text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300"
                                         >Ghi chú vận hành ca</Label
                                     >
                                     <textarea
@@ -3017,7 +3279,7 @@ onUnmounted(() =>
                                         rows="2"
                                         maxlength="1000"
                                         placeholder="Ghi chú thêm cho phiếu chốt ca..."
-                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-2xs placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
                                 </div>
                             </div>
@@ -3917,16 +4179,13 @@ onUnmounted(() =>
                                     <template v-else-if="isManagerRole">
                                         Nộp cho Chủ doanh nghiệp
                                     </template>
-                                    <template v-else>
-                                        Nộp chốt ca
-                                    </template>
+                                    <template v-else> Nộp chốt ca </template>
                                 </Button>
                             </template>
                         </div>
                     </div>
                 </Card>
             </div>
-            
         </Transition>
     </Teleport>
 
@@ -4016,7 +4275,6 @@ onUnmounted(() =>
                     </div>
                 </Card>
             </div>
-            
         </Transition>
 
         <!-- ── Trash Confirm Dialog ────────────────────────────────────────── -->
@@ -4033,14 +4291,26 @@ onUnmounted(() =>
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
                 @click.self="trashConfirmId = null"
             >
-                <Card class="flex w-full max-w-sm animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in">
-                    <CardHeader class="flex flex-row items-center gap-3 border-b pb-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400">
+                <Card
+                    class="flex w-full max-w-sm animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
+                    <CardHeader
+                        class="flex flex-row items-center gap-3 border-b pb-3"
+                    >
+                        <div
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400"
+                        >
                             <Trash2 class="size-5" />
                         </div>
                         <div>
-                            <CardTitle class="text-base text-red-600">Chuyển vào thùng rác?</CardTitle>
-                            <CardDescription>Phiếu nháp sẽ bị ẩn khỏi danh sách và tự động xóa sau <strong>7 ngày</strong>.</CardDescription>
+                            <CardTitle class="text-base text-red-600"
+                                >Chuyển vào thùng rác?</CardTitle
+                            >
+                            <CardDescription
+                                >Phiếu nháp sẽ bị ẩn khỏi danh sách và tự động
+                                xóa sau
+                                <strong>7 ngày</strong>.</CardDescription
+                            >
                         </div>
                     </CardHeader>
                     <div class="flex justify-end gap-2 p-4">
@@ -4048,13 +4318,17 @@ onUnmounted(() =>
                             variant="outline"
                             @click="trashConfirmId = null"
                             class="h-9 text-xs font-semibold"
-                        >Huỷ</Button>
+                            >Huỷ</Button
+                        >
                         <Button
                             @click="confirmTrash"
                             :disabled="trashLoading"
                             class="flex h-9 items-center gap-1.5 bg-red-600 text-xs font-semibold text-white hover:bg-red-700 active:scale-95"
                         >
-                            <Loader2 v-if="trashLoading" class="size-4 animate-spin" />
+                            <Loader2
+                                v-if="trashLoading"
+                                class="size-4 animate-spin"
+                            />
                             <Trash2 v-else class="size-3.5" />
                             Xác nhận vào thùng rác
                         </Button>
@@ -4062,20 +4336,30 @@ onUnmounted(() =>
                 </Card>
             </div>
         </Transition>
-
     </Teleport>
 
     <!-- ── Trash Panel (hiển thị khi viewingTrash = true) ─────────────────── -->
     <Teleport to="body" v-if="viewingTrash">
         <div class="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs" />
-        <div class="fixed inset-x-4 top-20 bottom-8 z-50 mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl dark:border-red-900/30 dark:bg-slate-900">
+        <div
+            class="fixed inset-x-4 top-20 bottom-8 z-50 mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl dark:border-red-900/30 dark:bg-slate-900"
+        >
             <!-- Header -->
-            <div class="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-3.5 dark:border-red-900/30 dark:bg-red-950/30">
+            <div
+                class="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-3.5 dark:border-red-900/30 dark:bg-red-950/30"
+            >
                 <div class="flex items-center gap-2.5">
                     <Trash2 class="size-5 text-red-600 dark:text-red-400" />
                     <div>
-                        <p class="text-sm font-bold text-red-700 dark:text-red-300">Thùng Rác — Phiếu Chốt Ca Nháp</p>
-                        <p class="text-[11px] text-red-500 dark:text-red-400">Các phiếu dưới đây sẽ tự xóa vĩnh viễn sau 7 ngày kể từ khi bị xóa</p>
+                        <p
+                            class="text-sm font-bold text-red-700 dark:text-red-300"
+                        >
+                            Thùng Rác — Phiếu Chốt Ca Nháp
+                        </p>
+                        <p class="text-[11px] text-red-500 dark:text-red-400">
+                            Các phiếu dưới đây sẽ tự xóa vĩnh viễn sau 7 ngày kể
+                            từ khi bị xóa
+                        </p>
                     </div>
                 </div>
                 <Link
@@ -4091,17 +4375,25 @@ onUnmounted(() =>
                 v-if="!trashedClosings || trashedClosings.length === 0"
                 class="flex flex-1 flex-col items-center justify-center gap-3 text-center text-slate-500"
             >
-                <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                <div
+                    class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50"
+                >
                     <Trash2 class="size-7 opacity-30" />
                 </div>
-                <p class="font-bold text-slate-700 dark:text-slate-300">Thùng rác đang trống</p>
-                <p class="text-xs">Không có phiếu nháp nào trong thùng rác tháng này.</p>
+                <p class="font-bold text-slate-700 dark:text-slate-300">
+                    Thùng rác đang trống
+                </p>
+                <p class="text-xs">
+                    Không có phiếu nháp nào trong thùng rác tháng này.
+                </p>
             </div>
 
             <!-- List -->
             <div v-else class="flex-1 overflow-y-auto">
                 <!-- Table header -->
-                <div class="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr_auto] gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-900/30">
+                <div
+                    class="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr_auto] gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-900/30"
+                >
                     <span>Ngày / Ca</span>
                     <span>Khu vực</span>
                     <span>Thu ngân</span>
@@ -4115,13 +4407,29 @@ onUnmounted(() =>
                     class="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr_auto] items-center gap-2 border-b border-slate-100/60 px-5 py-3 text-sm transition-colors hover:bg-red-50/30 dark:border-slate-800/50 dark:hover:bg-red-950/10"
                 >
                     <div>
-                        <p class="font-semibold text-slate-800 dark:text-slate-100">{{ item.closing_date }}</p>
-                        <p class="text-[11px] text-slate-500">{{ item.shift_name }}</p>
+                        <p
+                            class="font-semibold text-slate-800 dark:text-slate-100"
+                        >
+                            {{ item.closing_date }}
+                        </p>
+                        <p class="text-[11px] text-slate-500">
+                            {{ item.shift_name }}
+                        </p>
                     </div>
-                    <p class="text-xs text-slate-600 dark:text-slate-300">{{ item.area_name }}</p>
-                    <p class="text-xs text-slate-600 dark:text-slate-300">{{ item.cashier_name }}</p>
-                    <p class="text-xs text-red-500 dark:text-red-400">{{ item.trashed_at }}</p>
-                    <p class="text-xs font-semibold text-red-600 dark:text-red-400">{{ item.purge_at }}</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300">
+                        {{ item.area_name }}
+                    </p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300">
+                        {{ item.cashier_name }}
+                    </p>
+                    <p class="text-xs text-red-500 dark:text-red-400">
+                        {{ item.trashed_at }}
+                    </p>
+                    <p
+                        class="text-xs font-semibold text-red-600 dark:text-red-400"
+                    >
+                        {{ item.purge_at }}
+                    </p>
                     <button
                         v-if="isManagerRole"
                         @click="restoreClosing(item.id)"
@@ -4135,11 +4443,19 @@ onUnmounted(() =>
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-between border-t border-red-100 bg-red-50/40 px-5 py-3 dark:border-red-900/20 dark:bg-red-950/10">
+            <div
+                class="flex items-center justify-between border-t border-red-100 bg-red-50/40 px-5 py-3 dark:border-red-900/20 dark:bg-red-950/10"
+            >
                 <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                    <span class="font-semibold text-red-600">{{ trashedClosings?.length ?? 0 }}</span> phiếu đang chờ xóa
+                    <span class="font-semibold text-red-600">{{
+                        trashedClosings?.length ?? 0
+                    }}</span>
+                    phiếu đang chờ xóa
                 </p>
-                <Link href="/shift-closings" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">
+                <Link
+                    href="/shift-closings"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600"
+                >
                     <X class="size-3" />
                     Đóng thùng rác
                 </Link>
