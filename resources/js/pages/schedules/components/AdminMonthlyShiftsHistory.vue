@@ -150,7 +150,10 @@ const shiftGroups = computed(() => {
 
     for (const a of assignments) {
         // Filter by selected month if set
-        if (selectedMonth.value && !a.scheduled_date.startsWith(selectedMonth.value)) {
+        if (
+            selectedMonth.value &&
+            !a.scheduled_date.startsWith(selectedMonth.value)
+        ) {
             continue;
         }
 
@@ -223,7 +226,10 @@ const filteredShiftGroups = computed(() => {
             return false;
         }
 
-        if (selectedStatusFilter.value === 'has_absent' && g.absentCount === 0) {
+        if (
+            selectedStatusFilter.value === 'has_absent' &&
+            g.absentCount === 0
+        ) {
             return false;
         }
 
@@ -246,7 +252,8 @@ const filteredShiftGroups = computed(() => {
             const matchStaff = g.assignments.some(
                 (a) =>
                     a.employee_name.toLowerCase().includes(q) ||
-                    (a.employee_code && a.employee_code.toLowerCase().includes(q)),
+                    (a.employee_code &&
+                        a.employee_code.toLowerCase().includes(q)),
             );
 
             if (!matchDate && !matchShift && !matchStaff) {
@@ -310,20 +317,29 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
 <template>
     <div class="space-y-6">
         <!-- Monthly Header & Controls -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div>
-                <h3 class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                    <Calendar class="size-5 text-indigo-600 dark:text-indigo-400" />
+                <h3
+                    class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white"
+                >
+                    <Calendar
+                        class="size-5 text-indigo-600 dark:text-indigo-400"
+                    />
                     Báo cáo Các Ca Làm Đã Diễn Ra Trong Tháng
                 </h3>
                 <p class="text-xs text-muted-foreground">
-                    Theo dõi chi tiết lịch sử ca trực, tình trạng chấm công, nhân sự và chốt két của từng ca làm việc.
+                    Theo dõi chi tiết lịch sử ca trực, tình trạng chấm công,
+                    nhân sự và chốt két của từng ca làm việc.
                 </p>
             </div>
 
             <!-- Month Selector -->
             <div class="flex items-center gap-2">
-                <span class="text-xs font-semibold text-muted-foreground">Chọn Tháng:</span>
+                <span class="text-xs font-semibold text-muted-foreground"
+                    >Chọn Tháng:</span
+                >
                 <Input
                     type="month"
                     v-model="selectedMonth"
@@ -335,16 +351,25 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
         <!-- Summary KPI Cards -->
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             <!-- Total Shifts -->
-            <Card class="border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white dark:border-indigo-900/40 dark:from-indigo-950/20 dark:to-slate-900">
+            <Card
+                class="border-indigo-100 bg-gradient-to-br from-indigo-50/50 to-white dark:border-indigo-900/40 dark:from-indigo-950/20 dark:to-slate-900"
+            >
                 <CardHeader class="p-3 pb-1">
-                    <CardTitle class="flex items-center justify-between text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                    <CardTitle
+                        class="flex items-center justify-between text-[11px] font-semibold text-indigo-600 dark:text-indigo-400"
+                    >
                         <span>Tổng Ca Đã Diễn Ra</span>
                         <Calendar class="size-4 opacity-70" />
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-3 pt-0">
-                    <div class="text-xl font-bold text-slate-900 dark:text-white">
-                        {{ statsOverview.totalGroups }} <span class="text-xs font-normal text-muted-foreground">ca</span>
+                    <div
+                        class="text-xl font-bold text-slate-900 dark:text-white"
+                    >
+                        {{ statsOverview.totalGroups }}
+                        <span class="text-xs font-normal text-muted-foreground"
+                            >ca</span
+                        >
                     </div>
                     <div class="text-[10px] text-muted-foreground">
                         {{ statsOverview.totalAssignments }} lượt phân ca
@@ -353,15 +378,21 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
             </Card>
 
             <!-- On-time Rate -->
-            <Card class="border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-900/40 dark:from-emerald-950/20 dark:to-slate-900">
+            <Card
+                class="border-emerald-100 bg-gradient-to-br from-emerald-50/50 to-white dark:border-emerald-900/40 dark:from-emerald-950/20 dark:to-slate-900"
+            >
                 <CardHeader class="p-3 pb-1">
-                    <CardTitle class="flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <CardTitle
+                        class="flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400"
+                    >
                         <span>Tỷ Lệ Đúng Giờ</span>
                         <CheckCircle2 class="size-4 opacity-70" />
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-3 pt-0">
-                    <div class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <div
+                        class="text-xl font-bold text-emerald-600 dark:text-emerald-400"
+                    >
                         {{ statsOverview.onTimeRate }}%
                     </div>
                     <div class="text-[10px] text-muted-foreground">
@@ -371,16 +402,25 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
             </Card>
 
             <!-- Late & Absent -->
-            <Card class="border-amber-100 bg-gradient-to-br from-amber-50/50 to-white dark:border-amber-900/40 dark:from-amber-950/20 dark:to-slate-900">
+            <Card
+                class="border-amber-100 bg-gradient-to-br from-amber-50/50 to-white dark:border-amber-900/40 dark:from-amber-950/20 dark:to-slate-900"
+            >
                 <CardHeader class="p-3 pb-1">
-                    <CardTitle class="flex items-center justify-between text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                    <CardTitle
+                        class="flex items-center justify-between text-[11px] font-semibold text-amber-600 dark:text-amber-400"
+                    >
                         <span>Đi Trễ / Vắng Mặt</span>
                         <Clock class="size-4 opacity-70" />
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-3 pt-0">
-                    <div class="text-xl font-bold text-amber-600 dark:text-amber-400">
-                        {{ statsOverview.totalLate }} <span class="text-xs font-normal text-rose-500">/ {{ statsOverview.totalAbsent }} vắng</span>
+                    <div
+                        class="text-xl font-bold text-amber-600 dark:text-amber-400"
+                    >
+                        {{ statsOverview.totalLate }}
+                        <span class="text-xs font-normal text-rose-500"
+                            >/ {{ statsOverview.totalAbsent }} vắng</span
+                        >
                     </div>
                     <div class="text-[10px] text-muted-foreground">
                         Cần lưu ý nhắc nhở
@@ -389,15 +429,21 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
             </Card>
 
             <!-- Cash Closing Total -->
-            <Card class="border-blue-100 bg-gradient-to-br from-blue-50/50 to-white dark:border-blue-900/40 dark:from-blue-950/20 dark:to-slate-900">
+            <Card
+                class="border-blue-100 bg-gradient-to-br from-blue-50/50 to-white dark:border-blue-900/40 dark:from-blue-950/20 dark:to-slate-900"
+            >
                 <CardHeader class="p-3 pb-1">
-                    <CardTitle class="flex items-center justify-between text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                    <CardTitle
+                        class="flex items-center justify-between text-[11px] font-semibold text-blue-600 dark:text-blue-400"
+                    >
                         <span>Doanh Thu Két Ca</span>
                         <DollarSign class="size-4 opacity-70" />
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-3 pt-0">
-                    <div class="text-lg font-bold text-blue-600 dark:text-blue-400 truncate">
+                    <div
+                        class="truncate text-lg font-bold text-blue-600 dark:text-blue-400"
+                    >
                         {{ formatVND(statsOverview.totalCashClosing) }}
                     </div>
                     <div class="text-[10px] text-muted-foreground">
@@ -407,16 +453,25 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
             </Card>
 
             <!-- Discrepancy Shifts -->
-            <Card class="border-rose-100 bg-gradient-to-br from-rose-50/50 to-white dark:border-rose-900/40 dark:from-rose-950/20 dark:to-slate-900">
+            <Card
+                class="border-rose-100 bg-gradient-to-br from-rose-50/50 to-white dark:border-rose-900/40 dark:from-rose-950/20 dark:to-slate-900"
+            >
                 <CardHeader class="p-3 pb-1">
-                    <CardTitle class="flex items-center justify-between text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    <CardTitle
+                        class="flex items-center justify-between text-[11px] font-semibold text-rose-600 dark:text-rose-400"
+                    >
                         <span>Ca Lệch Tiền Két</span>
                         <ShieldAlert class="size-4 opacity-70" />
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-3 pt-0">
-                    <div class="text-xl font-bold text-rose-600 dark:text-rose-400">
-                        {{ statsOverview.totalDiscrepancies }} <span class="text-xs font-normal text-muted-foreground">ca</span>
+                    <div
+                        class="text-xl font-bold text-rose-600 dark:text-rose-400"
+                    >
+                        {{ statsOverview.totalDiscrepancies }}
+                        <span class="text-xs font-normal text-muted-foreground"
+                            >ca</span
+                        >
                     </div>
                     <div class="text-[10px] text-muted-foreground">
                         Cần đối soát két chốt ca
@@ -428,10 +483,14 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
         <!-- Filter Bar -->
         <Card class="border-border/60 shadow-xs">
             <CardContent class="p-4">
-                <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div
+                    class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                >
                     <!-- Search Input -->
                     <div class="relative flex-1">
-                        <Search class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                        <Search
+                            class="absolute top-2.5 left-3 size-4 text-muted-foreground"
+                        />
                         <Input
                             v-model="searchQuery"
                             placeholder="Tìm kiếm theo ngày, tên ca, tên nhân viên..."
@@ -445,7 +504,7 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                             <Filter class="size-3.5 text-muted-foreground" />
                             <select
                                 v-model="selectedShiftFilter"
-                                class="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                class="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                             >
                                 <option value="all">Tất cả ca làm</option>
                                 <option
@@ -461,7 +520,7 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                         <!-- Status Filter -->
                         <select
                             v-model="selectedStatusFilter"
-                            class="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            class="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-2xs focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                         >
                             <option value="all">Tất cả trạng thái</option>
                             <option value="ontime_only">100% Đúng giờ</option>
@@ -479,7 +538,9 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
         <Card class="overflow-hidden border-border/60 shadow-xs">
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs">
-                    <thead class="bg-muted/50 font-semibold text-muted-foreground uppercase">
+                    <thead
+                        class="bg-muted/50 font-semibold text-muted-foreground uppercase"
+                    >
                         <tr>
                             <th class="px-4 py-3">Ngày Diễn Ra</th>
                             <th class="px-4 py-3">Tên Ca & Khung Giờ</th>
@@ -496,16 +557,22 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                             class="transition-colors hover:bg-muted/40"
                         >
                             <!-- Date -->
-                            <td class="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                            <td
+                                class="px-4 py-3 font-semibold text-slate-900 dark:text-white"
+                            >
                                 {{ g.formattedDate }}
                             </td>
 
                             <!-- Shift & Time -->
                             <td class="px-4 py-3">
-                                <div class="font-bold text-indigo-600 dark:text-indigo-400">
+                                <div
+                                    class="font-bold text-indigo-600 dark:text-indigo-400"
+                                >
                                     {{ g.shiftName }}
                                 </div>
-                                <div class="font-mono text-[10px] text-muted-foreground">
+                                <div
+                                    class="font-mono text-[10px] text-muted-foreground"
+                                >
                                     {{ g.shiftTime }}
                                 </div>
                             </td>
@@ -521,14 +588,16 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                                     >
                                         <span
                                             v-if="a.is_shift_leader"
-                                            class="text-amber-500 font-bold"
+                                            class="font-bold text-amber-500"
                                             title="Ca trưởng"
-                                        >★</span>
+                                            >★</span
+                                        >
                                         {{ a.employee_name }}
                                         <span
                                             v-if="a.late_minutes"
-                                            class="text-amber-600 font-semibold"
-                                        >(+{{ a.late_minutes }}p)</span>
+                                            class="font-semibold text-amber-600"
+                                            >(+{{ a.late_minutes }}p)</span
+                                        >
                                     </span>
                                 </div>
                             </td>
@@ -568,19 +637,29 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                             <!-- Cash Closing Status -->
                             <td class="px-4 py-3">
                                 <div v-if="g.closing">
-                                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                                    <div
+                                        class="font-bold text-slate-800 dark:text-slate-200"
+                                    >
                                         {{ formatVND(g.closing.actual_cash) }}
                                     </div>
                                     <div class="text-[10px]">
                                         <span
-                                            v-if="g.closing.cash_difference === 0"
+                                            v-if="
+                                                g.closing.cash_difference === 0
+                                            "
                                             class="font-semibold text-emerald-600"
-                                        >✓ Khớp 100%</span>
+                                            >✓ Khớp 100%</span
+                                        >
                                         <span
                                             v-else
                                             class="font-bold text-rose-600"
                                         >
-                                            Lệch {{ formatVND(g.closing.cash_difference) }}
+                                            Lệch
+                                            {{
+                                                formatVND(
+                                                    g.closing.cash_difference,
+                                                )
+                                            }}
                                         </span>
                                     </div>
                                 </div>
@@ -611,8 +690,11 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                                 colspan="6"
                                 class="py-12 text-center text-xs text-muted-foreground"
                             >
-                                <HelpCircle class="mx-auto mb-2 size-8 opacity-40" />
-                                Không tìm thấy dữ liệu ca làm việc nào phù hợp với bộ lọc trong tháng.
+                                <HelpCircle
+                                    class="mx-auto mb-2 size-8 opacity-40"
+                                />
+                                Không tìm thấy dữ liệu ca làm việc nào phù hợp
+                                với bộ lọc trong tháng.
                             </td>
                         </tr>
                     </tbody>
@@ -626,11 +708,20 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                 v-if="showDetailModal && selectedShiftGroup"
                 class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs"
             >
-                <Card class="w-full max-w-3xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in">
-                    <CardHeader class="flex flex-row items-center justify-between border-b pb-3">
+                <Card
+                    class="w-full max-w-3xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b pb-3"
+                    >
                         <div>
-                            <CardTitle class="text-base text-indigo-600 dark:text-indigo-400">
-                                Chi Tiết Ca Làm: {{ selectedShiftGroup.shiftName }} ({{ selectedShiftGroup.shiftTime }})
+                            <CardTitle
+                                class="text-base text-indigo-600 dark:text-indigo-400"
+                            >
+                                Chi Tiết Ca Làm:
+                                {{ selectedShiftGroup.shiftName }} ({{
+                                    selectedShiftGroup.shiftTime
+                                }})
                             </CardTitle>
                             <p class="text-xs text-muted-foreground">
                                 {{ selectedShiftGroup.formattedDate }}
@@ -644,13 +735,19 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                         </button>
                     </CardHeader>
 
-                    <CardContent class="max-h-[75vh] space-y-6 overflow-y-auto p-4">
+                    <CardContent
+                        class="max-h-[75vh] space-y-6 overflow-y-auto p-4"
+                    >
                         <!-- Employee Roster & Attendance Details -->
                         <div>
-                            <h4 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            <h4
+                                class="mb-3 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300"
+                            >
                                 Danh Sách Nhân Sự & Giờ Chấm Công
                             </h4>
-                            <div class="divide-y divide-border/60 rounded-lg border">
+                            <div
+                                class="divide-y divide-border/60 rounded-lg border"
+                            >
                                 <div
                                     v-for="a in selectedShiftGroup.assignments"
                                     :key="a.id"
@@ -672,15 +769,21 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                                         </div>
 
                                         <div>
-                                            <div class="font-bold text-slate-900 dark:text-white">
+                                            <div
+                                                class="font-bold text-slate-900 dark:text-white"
+                                            >
                                                 {{ a.employee_name }}
                                                 <span
                                                     v-if="a.is_shift_leader"
                                                     class="ml-1 rounded-sm bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700"
-                                                >Ca Trưởng</span>
+                                                    >Ca Trưởng</span
+                                                >
                                             </div>
-                                            <div class="text-[10px] text-muted-foreground">
-                                                {{ a.employee_code || '—' }} • {{ a.job_title || 'Nhân viên' }}
+                                            <div
+                                                class="text-[10px] text-muted-foreground"
+                                            >
+                                                {{ a.employee_code || '—' }} •
+                                                {{ a.job_title || 'Nhân viên' }}
                                             </div>
                                         </div>
                                     </div>
@@ -689,30 +792,50 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
                                         <!-- Attendance status -->
                                         <div class="text-xs font-semibold">
                                             <span
-                                                v-if="a.status === 'completed' || a.status === 'checked_in'"
-                                                class="text-emerald-600 font-bold"
+                                                v-if="
+                                                    a.status === 'completed' ||
+                                                    a.status === 'checked_in'
+                                                "
+                                                class="font-bold text-emerald-600"
                                             >
-                                                Check-in: {{ a.check_in_time || 'Chưa rõ' }}
-                                                <template v-if="a.check_out_time"> → {{ a.check_out_time }}</template>
+                                                Check-in:
+                                                {{
+                                                    a.check_in_time || 'Chưa rõ'
+                                                }}
+                                                <template
+                                                    v-if="a.check_out_time"
+                                                >
+                                                    →
+                                                    {{
+                                                        a.check_out_time
+                                                    }}</template
+                                                >
                                             </span>
                                             <span
-                                                v-else-if="a.status === 'absent'"
-                                                class="text-rose-600 font-bold"
-                                            >Vắng mặt</span>
-                                            <span
-                                                v-else
-                                                class="text-slate-400"
-                                            >Chưa check-in</span>
+                                                v-else-if="
+                                                    a.status === 'absent'
+                                                "
+                                                class="font-bold text-rose-600"
+                                                >Vắng mặt</span
+                                            >
+                                            <span v-else class="text-slate-400"
+                                                >Chưa check-in</span
+                                            >
                                         </div>
 
-                                        <div class="text-[10px] text-muted-foreground">
+                                        <div
+                                            class="text-[10px] text-muted-foreground"
+                                        >
                                             <span
                                                 v-if="a.late_minutes"
                                                 class="font-semibold text-amber-600"
-                                            >Trễ {{ a.late_minutes }} phút</span>
-                                            <span
-                                                v-else-if="a.duration_hours"
-                                            >Tổng giờ: {{ a.duration_hours }}h</span>
+                                                >Trễ
+                                                {{ a.late_minutes }} phút</span
+                                            >
+                                            <span v-else-if="a.duration_hours"
+                                                >Tổng giờ:
+                                                {{ a.duration_hours }}h</span
+                                            >
                                         </div>
                                     </div>
                                 </div>
@@ -721,35 +844,84 @@ const openDetailModal = (group: (typeof shiftGroups.value)[0]) => {
 
                         <!-- Cashier Closing Info (if available) -->
                         <div v-if="selectedShiftGroup.closing">
-                            <h4 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                            <h4
+                                class="mb-3 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-300"
+                            >
                                 Thông Tin Chốt Két Ca Làm
                             </h4>
-                            <div class="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-xs sm:grid-cols-4">
+                            <div
+                                class="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-xs sm:grid-cols-4"
+                            >
                                 <div>
-                                    <div class="text-[10px] text-muted-foreground">Người Chốt Két</div>
-                                    <div class="font-bold text-slate-800 dark:text-slate-200">
-                                        {{ selectedShiftGroup.closing.cashier_name }}
+                                    <div
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Người Chốt Két
+                                    </div>
+                                    <div
+                                        class="font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{
+                                            selectedShiftGroup.closing
+                                                .cashier_name
+                                        }}
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="text-[10px] text-muted-foreground">Tiền Kỳ Vọng</div>
-                                    <div class="font-bold text-slate-800 dark:text-slate-200">
-                                        {{ formatVND(selectedShiftGroup.closing.expected_cash) }}
+                                    <div
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Tiền Kỳ Vọng
+                                    </div>
+                                    <div
+                                        class="font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{
+                                            formatVND(
+                                                selectedShiftGroup.closing
+                                                    .expected_cash,
+                                            )
+                                        }}
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="text-[10px] text-muted-foreground">Tiền Thực Tế</div>
-                                    <div class="font-bold text-slate-800 dark:text-slate-200">
-                                        {{ formatVND(selectedShiftGroup.closing.actual_cash) }}
+                                    <div
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Tiền Thực Tế
+                                    </div>
+                                    <div
+                                        class="font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{
+                                            formatVND(
+                                                selectedShiftGroup.closing
+                                                    .actual_cash,
+                                            )
+                                        }}
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="text-[10px] text-muted-foreground">Chênh Lệch Két</div>
+                                    <div
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Chênh Lệch Két
+                                    </div>
                                     <div
                                         class="font-bold"
-                                        :class="selectedShiftGroup.closing.cash_difference === 0 ? 'text-emerald-600' : 'text-rose-600'"
+                                        :class="
+                                            selectedShiftGroup.closing
+                                                .cash_difference === 0
+                                                ? 'text-emerald-600'
+                                                : 'text-rose-600'
+                                        "
                                     >
-                                        {{ formatVND(selectedShiftGroup.closing.cash_difference) }}
+                                        {{
+                                            formatVND(
+                                                selectedShiftGroup.closing
+                                                    .cash_difference,
+                                            )
+                                        }}
                                     </div>
                                 </div>
                             </div>

@@ -196,237 +196,246 @@ onUnmounted(() => {
 
 <template>
     <Teleport to="body">
-    <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
-    >
-        <Card
-            class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
         >
-            <CardHeader
-                class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+            <Card
+                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
-                <div>
-                    <CardTitle
-                        class="flex items-center gap-1.5 text-base text-indigo-600"
-                    >
-                        <Clock class="size-5" />
-                        Xác Thực Vào Ca (Check-In)
-                    </CardTitle>
-                    <CardDescription
-                        >Hệ thống tự động xác minh vị trí địa lý (GPS) và ảnh
-                        selfie an toàn để ghi nhận ca trực.</CardDescription
-                    >
-                </div>
-                <button
-                    @click="closeCheckInFlow"
-                    class="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                <CardHeader
+                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                 >
-                    <X class="size-4" />
-                </button>
-            </CardHeader>
-
-            <CardContent class="space-y-4 pt-4">
-                <!-- Webcam & Selfie Verification -->
-                <div class="space-y-2">
-                    <Label
-                        class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                        >Chụp ảnh Selfie Xác Minh</Label
-                    >
-                    <div
-                        class="relative flex min-h-[200px] flex-col items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-950 dark:border-slate-800"
-                    >
-                        <!-- Loading/Error state -->
-                        <div
-                            v-if="webcamError"
-                            class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center text-xs text-rose-500"
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
                         >
-                            <AlertCircle
-                                class="mb-2 size-8 animate-bounce text-rose-500"
-                            />
-                            <p class="font-bold text-wrap">{{ webcamError }}</p>
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                class="mt-3 text-xs"
-                                @click="startWebcam"
-                                >Thử lại</Button
-                            >
-                        </div>
-
-                        <!-- Video camera stream if no photo captured yet -->
-                        <video
-                            v-if="!checkInPhoto && !webcamError"
-                            ref="videoRef"
-                            autoplay
-                            playsinline
-                            class="h-48 w-full object-cover"
-                        ></video>
-
-                        <!-- Snapshot Preview if photo is captured -->
-                        <img
-                            v-if="checkInPhoto"
-                            :src="checkInPhoto"
-                            class="h-48 w-full animate-in object-cover duration-200 fade-in"
-                            alt="Selfie Check-In"
-                        />
-
-                        <!-- Camera overlay action button -->
-                        <div
-                            v-if="!webcamError"
-                            class="absolute right-0 bottom-2 left-0 flex justify-center gap-2"
+                            <Clock class="size-5" />
+                            Xác Thực Vào Ca (Check-In)
+                        </CardTitle>
+                        <CardDescription
+                            >Hệ thống tự động xác minh vị trí địa lý (GPS) và
+                            ảnh selfie an toàn để ghi nhận ca
+                            trực.</CardDescription
                         >
-                            <Button
-                                v-if="!checkInPhoto"
-                                type="button"
-                                size="sm"
-                                @click="captureSelfie"
-                                class="bg-indigo-650 hover:bg-indigo-755 flex items-center gap-1.5 text-[11px] font-bold text-white shadow-sm"
-                            >
-                                <Clock class="size-3.5" />
-                                Chụp ảnh Selfie
-                            </Button>
-                            <Button
-                                v-else
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                @click="retakeSelfie"
-                                class="flex items-center gap-1 border-none bg-white/95 text-[11px] font-semibold text-slate-800 shadow-sm hover:bg-white"
-                            >
-                                <RefreshCw class="size-3.5" />
-                                Chụp lại ảnh
-                            </Button>
-                        </div>
                     </div>
-                </div>
-
-                <!-- GPS Verification Status -->
-                <div
-                    v-if="gpsSettings?.latitude && gpsSettings?.longitude"
-                    class="space-y-2"
-                >
-                    <Label
-                        class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                        >Xác minh định vị GPS</Label
-                    >
-                    <div
-                        class="flex items-center gap-3 rounded-xl border p-3 text-xs"
-                        :class="[
-                            gpsStatus === 'fetching'
-                                ? 'border-amber-200 bg-amber-50/50 text-amber-600'
-                                : '',
-                            gpsStatus === 'success'
-                                ? 'border-emerald-200 bg-emerald-50/55 text-emerald-600'
-                                : '',
-                            gpsStatus === 'error'
-                                ? 'border-rose-200 bg-rose-50/50 text-rose-600'
-                                : '',
-                        ]"
-                    >
-                        <span
-                            v-if="gpsStatus === 'fetching'"
-                            class="size-2 animate-ping rounded-full bg-amber-500"
-                        ></span>
-                        <span
-                            v-if="gpsStatus === 'success'"
-                            class="size-2 rounded-full bg-emerald-600"
-                        ></span>
-                        <span
-                            v-if="gpsStatus === 'error'"
-                            class="size-2 rounded-full bg-rose-600"
-                        ></span>
-
-                        <div class="flex-1">
-                            <p
-                                v-if="gpsStatus === 'fetching'"
-                                class="font-bold"
-                            >
-                                Đang lấy tọa độ GPS của thiết bị...
-                            </p>
-                            <p v-if="gpsStatus === 'success'" class="font-bold">
-                                Định vị GPS hợp lệ! (Kinh độ:
-                                {{ gpsCoords.longitude }}, Vĩ độ:
-                                {{ gpsCoords.latitude }})
-                            </p>
-                            <p v-if="gpsStatus === 'error'" class="font-bold">
-                                Không thể xác minh định vị GPS
-                            </p>
-                            <p
-                                v-if="gpsStatus === 'error'"
-                                class="mt-0.5 text-[10px] font-medium text-rose-500"
-                            >
-                                {{ gpsErrorMsg }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- QR Code Input (if configured) -->
-                <div
-                    v-if="qrSettings?.code && !qrSettings?.is_expired"
-                    class="space-y-2"
-                >
-                    <Label
-                        for="qr-input"
-                        class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                        >Nhập mã QR của ca trực hôm nay</Label
-                    >
-                    <Input
-                        id="qr-input"
-                        type="text"
-                        v-model="inputQrCode"
-                        placeholder="Mã QR hiển thị trên bảng thông tin..."
-                        required
-                        class="h-10 text-center font-mono text-sm tracking-widest"
-                    />
-                </div>
-
-                <div
-                    class="flex items-start gap-2 rounded-xl border border-indigo-100/50 bg-indigo-50/50 p-3 text-[10px] text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400"
-                >
-                    <AlertCircle
-                        class="text-indigo-650 mt-0.5 size-4 shrink-0"
-                    />
-                    <p>
-                        <strong>Lưu ý:</strong> Vị trí GPS của bạn phải nằm
-                        trong bán kính {{ gpsSettings?.radius ?? 100 }}m của cửa
-                        hàng để có thể check-in thành công.
-                    </p>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex justify-end gap-2 border-t pt-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
+                    <button
                         @click="closeCheckInFlow"
-                        >Hủy</Button
+                        class="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
-                    <Button
-                        type="button"
-                        size="sm"
-                        @click="submitCheckIn"
-                        class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
-                        :disabled="
-                            isCheckingIn ||
-                            !checkInPhoto ||
-                            gpsStatus !== 'success' ||
-                            (qrSettings?.code &&
-                                !qrSettings?.is_expired &&
-                                !inputQrCode)
-                        "
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+
+                <CardContent class="space-y-4 pt-4">
+                    <!-- Webcam & Selfie Verification -->
+                    <div class="space-y-2">
+                        <Label
+                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                            >Chụp ảnh Selfie Xác Minh</Label
+                        >
+                        <div
+                            class="relative flex min-h-[200px] flex-col items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-950 dark:border-slate-800"
+                        >
+                            <!-- Loading/Error state -->
+                            <div
+                                v-if="webcamError"
+                                class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center text-xs text-rose-500"
+                            >
+                                <AlertCircle
+                                    class="mb-2 size-8 animate-bounce text-rose-500"
+                                />
+                                <p class="font-bold text-wrap">
+                                    {{ webcamError }}
+                                </p>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="mt-3 text-xs"
+                                    @click="startWebcam"
+                                    >Thử lại</Button
+                                >
+                            </div>
+
+                            <!-- Video camera stream if no photo captured yet -->
+                            <video
+                                v-if="!checkInPhoto && !webcamError"
+                                ref="videoRef"
+                                autoplay
+                                playsinline
+                                class="h-48 w-full object-cover"
+                            ></video>
+
+                            <!-- Snapshot Preview if photo is captured -->
+                            <img
+                                v-if="checkInPhoto"
+                                :src="checkInPhoto"
+                                class="h-48 w-full animate-in object-cover duration-200 fade-in"
+                                alt="Selfie Check-In"
+                            />
+
+                            <!-- Camera overlay action button -->
+                            <div
+                                v-if="!webcamError"
+                                class="absolute right-0 bottom-2 left-0 flex justify-center gap-2"
+                            >
+                                <Button
+                                    v-if="!checkInPhoto"
+                                    type="button"
+                                    size="sm"
+                                    @click="captureSelfie"
+                                    class="bg-indigo-650 hover:bg-indigo-755 flex items-center gap-1.5 text-[11px] font-bold text-white shadow-sm"
+                                >
+                                    <Clock class="size-3.5" />
+                                    Chụp ảnh Selfie
+                                </Button>
+                                <Button
+                                    v-else
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    @click="retakeSelfie"
+                                    class="flex items-center gap-1 border-none bg-white/95 text-[11px] font-semibold text-slate-800 shadow-sm hover:bg-white"
+                                >
+                                    <RefreshCw class="size-3.5" />
+                                    Chụp lại ảnh
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GPS Verification Status -->
+                    <div
+                        v-if="gpsSettings?.latitude && gpsSettings?.longitude"
+                        class="space-y-2"
                     >
-                        {{
-                            isCheckingIn
-                                ? 'Đang xác thực...'
-                                : 'Xác nhận Vào Ca'
-                        }}
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
-    </div>
+                        <Label
+                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                            >Xác minh định vị GPS</Label
+                        >
+                        <div
+                            class="flex items-center gap-3 rounded-xl border p-3 text-xs"
+                            :class="[
+                                gpsStatus === 'fetching'
+                                    ? 'border-amber-200 bg-amber-50/50 text-amber-600'
+                                    : '',
+                                gpsStatus === 'success'
+                                    ? 'border-emerald-200 bg-emerald-50/55 text-emerald-600'
+                                    : '',
+                                gpsStatus === 'error'
+                                    ? 'border-rose-200 bg-rose-50/50 text-rose-600'
+                                    : '',
+                            ]"
+                        >
+                            <span
+                                v-if="gpsStatus === 'fetching'"
+                                class="size-2 animate-ping rounded-full bg-amber-500"
+                            ></span>
+                            <span
+                                v-if="gpsStatus === 'success'"
+                                class="size-2 rounded-full bg-emerald-600"
+                            ></span>
+                            <span
+                                v-if="gpsStatus === 'error'"
+                                class="size-2 rounded-full bg-rose-600"
+                            ></span>
+
+                            <div class="flex-1">
+                                <p
+                                    v-if="gpsStatus === 'fetching'"
+                                    class="font-bold"
+                                >
+                                    Đang lấy tọa độ GPS của thiết bị...
+                                </p>
+                                <p
+                                    v-if="gpsStatus === 'success'"
+                                    class="font-bold"
+                                >
+                                    Định vị GPS hợp lệ! (Kinh độ:
+                                    {{ gpsCoords.longitude }}, Vĩ độ:
+                                    {{ gpsCoords.latitude }})
+                                </p>
+                                <p
+                                    v-if="gpsStatus === 'error'"
+                                    class="font-bold"
+                                >
+                                    Không thể xác minh định vị GPS
+                                </p>
+                                <p
+                                    v-if="gpsStatus === 'error'"
+                                    class="mt-0.5 text-[10px] font-medium text-rose-500"
+                                >
+                                    {{ gpsErrorMsg }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Input (if configured) -->
+                    <div
+                        v-if="qrSettings?.code && !qrSettings?.is_expired"
+                        class="space-y-2"
+                    >
+                        <Label
+                            for="qr-input"
+                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                            >Nhập mã QR của ca trực hôm nay</Label
+                        >
+                        <Input
+                            id="qr-input"
+                            type="text"
+                            v-model="inputQrCode"
+                            placeholder="Mã QR hiển thị trên bảng thông tin..."
+                            required
+                            class="h-10 text-center font-mono text-sm tracking-widest"
+                        />
+                    </div>
+
+                    <div
+                        class="flex items-start gap-2 rounded-xl border border-indigo-100/50 bg-indigo-50/50 p-3 text-[10px] text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400"
+                    >
+                        <AlertCircle
+                            class="text-indigo-650 mt-0.5 size-4 shrink-0"
+                        />
+                        <p>
+                            <strong>Lưu ý:</strong> Vị trí GPS của bạn phải nằm
+                            trong bán kính {{ gpsSettings?.radius ?? 100 }}m của
+                            cửa hàng để có thể check-in thành công.
+                        </p>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-end gap-2 border-t pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="closeCheckInFlow"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="button"
+                            size="sm"
+                            @click="submitCheckIn"
+                            class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                            :disabled="
+                                isCheckingIn ||
+                                !checkInPhoto ||
+                                gpsStatus !== 'success' ||
+                                (qrSettings?.code &&
+                                    !qrSettings?.is_expired &&
+                                    !inputQrCode)
+                            "
+                        >
+                            {{
+                                isCheckingIn
+                                    ? 'Đang xác thực...'
+                                    : 'Xác nhận Vào Ca'
+                            }}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
     </Teleport>
 </template>

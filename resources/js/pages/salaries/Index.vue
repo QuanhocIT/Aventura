@@ -1,6 +1,30 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { Wallet, Users, TrendingDown, TrendingUp, Check, ChevronDown, ChevronUp, Plus, BadgeDollarSign, AlertCircle, Clock, X, Sparkles, Search, Download, Building2, UserCog, AlertTriangle, ChevronLeft, ChevronRight, Calculator, Printer, Calendar } from 'lucide-vue-next';
+import {
+    Wallet,
+    Users,
+    TrendingDown,
+    TrendingUp,
+    Check,
+    ChevronDown,
+    ChevronUp,
+    Plus,
+    BadgeDollarSign,
+    AlertCircle,
+    Clock,
+    X,
+    Sparkles,
+    Search,
+    Download,
+    Building2,
+    UserCog,
+    AlertTriangle,
+    ChevronLeft,
+    ChevronRight,
+    Calculator,
+    Printer,
+    Calendar,
+} from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import TrustScoreBadge from '@/components/employees/TrustScoreBadge.vue';
@@ -169,7 +193,8 @@ const adjStatusConfig = {
 const activePeriod = ref(props.period);
 const showMonthPicker = ref(false);
 const pickerYear = ref<number>(
-    parseInt((props.period || '').split('-')[0], 10) || new Date().getFullYear(),
+    parseInt((props.period || '').split('-')[0], 10) ||
+        new Date().getFullYear(),
 );
 
 function formatPeriodVietnamese(periodStr: string): string {
@@ -194,7 +219,8 @@ function toggleMonthPicker() {
         const parts = activePeriod.value.split('-');
 
         if (parts[0]) {
-            pickerYear.value = parseInt(parts[0], 10) || new Date().getFullYear();
+            pickerYear.value =
+                parseInt(parts[0], 10) || new Date().getFullYear();
         }
     }
 
@@ -627,10 +653,12 @@ const compact = (v: number) =>
                             type="button"
                             id="sal-period"
                             @click="toggleMonthPicker"
-                            class="flex h-9 min-w-[150px] items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 shadow-xs transition hover:bg-slate-50 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                            class="flex h-9 min-w-[150px] cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 shadow-xs transition hover:bg-slate-50 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                         >
                             <span class="flex items-center gap-1.5">
-                                <Calendar class="size-3.5 text-indigo-600 dark:text-indigo-400" />
+                                <Calendar
+                                    class="size-3.5 text-indigo-600 dark:text-indigo-400"
+                                />
                                 {{ formatPeriodVietnamese(activePeriod) }}
                             </span>
                             <ChevronDown class="size-3.5 text-slate-400" />
@@ -638,72 +666,79 @@ const compact = (v: number) =>
 
                         <!-- Overlay backdrop -->
                         <Teleport to="body">
-                        <div
-                            v-if="showMonthPicker"
-                            class="fixed inset-0 z-40"
-                            @click="showMonthPicker = false"
-                        />
+                            <div
+                                v-if="showMonthPicker"
+                                class="fixed inset-0 z-40"
+                                @click="showMonthPicker = false"
+                            />
 
-                        <!-- Popover Month Picker Panel -->
-                        <div
-                            v-if="showMonthPicker"
-                            class="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900 animate-in fade-in zoom-in-95"
-                        >
-                            <!-- Year Header -->
-                            <div class="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    @click.stop="pickerYear--"
-                                    class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+                            <!-- Popover Month Picker Panel -->
+                            <div
+                                v-if="showMonthPicker"
+                                class="absolute top-full right-0 z-50 mt-1.5 w-64 animate-in rounded-xl border border-slate-200 bg-white p-3 shadow-xl backdrop-blur-md zoom-in-95 fade-in dark:border-slate-800 dark:bg-slate-900"
+                            >
+                                <!-- Year Header -->
+                                <div
+                                    class="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800"
                                 >
-                                    <ChevronLeft class="size-4" />
-                                </button>
-                                <span class="text-sm font-bold text-slate-800 dark:text-slate-100">Năm {{ pickerYear }}</span>
-                                <button
-                                    type="button"
-                                    @click.stop="pickerYear++"
-                                    class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
-                                >
-                                    <ChevronRight class="size-4" />
-                                </button>
-                            </div>
+                                    <button
+                                        type="button"
+                                        @click.stop="pickerYear--"
+                                        class="cursor-pointer rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                                    >
+                                        <ChevronLeft class="size-4" />
+                                    </button>
+                                    <span
+                                        class="text-sm font-bold text-slate-800 dark:text-slate-100"
+                                        >Năm {{ pickerYear }}</span
+                                    >
+                                    <button
+                                        type="button"
+                                        @click.stop="pickerYear++"
+                                        class="cursor-pointer rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                                    >
+                                        <ChevronRight class="size-4" />
+                                    </button>
+                                </div>
 
-                            <!-- Months Grid -->
-                            <div class="grid grid-cols-3 gap-1.5">
-                                <button
-                                    v-for="m in 12"
-                                    :key="m"
-                                    type="button"
-                                    @click.stop="selectMonth(m)"
-                                    class="rounded-lg py-2 text-xs font-semibold transition cursor-pointer"
-                                    :class="[
-                                        isCurrentSelected(m)
-                                            ? 'bg-indigo-600 font-bold text-white shadow-xs'
-                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
-                                    ]"
-                                >
-                                    Tháng {{ m < 10 ? '0' + m : m }}
-                                </button>
-                            </div>
+                                <!-- Months Grid -->
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <button
+                                        v-for="m in 12"
+                                        :key="m"
+                                        type="button"
+                                        @click.stop="selectMonth(m)"
+                                        class="cursor-pointer rounded-lg py-2 text-xs font-semibold transition"
+                                        :class="[
+                                            isCurrentSelected(m)
+                                                ? 'bg-indigo-600 font-bold text-white shadow-xs'
+                                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
+                                        ]"
+                                    >
+                                        Tháng {{ m < 10 ? '0' + m : m }}
+                                    </button>
+                                </div>
 
-                            <!-- Bottom Fast Action -->
-                            <div class="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    @click.stop="selectCurrentMonth"
-                                    class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400 cursor-pointer"
+                                <!-- Bottom Fast Action -->
+                                <div
+                                    class="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800"
                                 >
-                                    Tháng này
-                                </button>
-                                <button
-                                    type="button"
-                                    @click.stop="showMonthPicker = false"
-                                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                                >
-                                    Đóng
-                                </button>
+                                    <button
+                                        type="button"
+                                        @click.stop="selectCurrentMonth"
+                                        class="cursor-pointer font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                                    >
+                                        Tháng này
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click.stop="showMonthPicker = false"
+                                        class="cursor-pointer text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                    >
+                                        Đóng
+                                    </button>
+                                </div>
                             </div>
-                        </div>
                         </Teleport>
                     </div>
                 </div>
@@ -719,7 +754,11 @@ const compact = (v: number) =>
                         class="size-4"
                         :class="generating ? 'animate-spin' : ''"
                     />
-                    {{ generating ? 'Đang tính...' : 'Tạo / tính lại bảng lương' }}
+                    {{
+                        generating
+                            ? 'Đang tính...'
+                            : 'Tạo / tính lại bảng lương'
+                    }}
                 </Button>
 
                 <!-- Bulk Adjustment button -->
@@ -763,7 +802,8 @@ const compact = (v: number) =>
                     <p
                         class="text-2xl font-black text-slate-800 dark:text-slate-100"
                     >
-                        {{ totals.headcount }} / {{ generation.eligible_employees }}
+                        {{ totals.headcount }} /
+                        {{ generation.eligible_employees }}
                     </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         có bảng lương tháng này
@@ -855,21 +895,48 @@ const compact = (v: number) =>
 
         <!-- Payroll status & calculation sources -->
         <div class="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-            <Card class="border-indigo-100 bg-indigo-50/40 shadow-xs dark:border-indigo-950/30 dark:bg-indigo-950/10">
+            <Card
+                class="border-indigo-100 bg-indigo-50/40 shadow-xs dark:border-indigo-950/30 dark:bg-indigo-950/10"
+            >
                 <CardContent class="p-4">
                     <div class="flex items-start gap-3">
-                        <Calculator class="mt-0.5 size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                        <Calculator
+                            class="mt-0.5 size-5 shrink-0 text-indigo-600 dark:text-indigo-400"
+                        />
                         <div class="min-w-0">
-                            <p class="text-sm font-bold text-indigo-950 dark:text-indigo-100">Cách hệ thống tính kỳ {{ formatPeriodVietnamese(period) }}</p>
-                            <p class="mt-1 text-xs leading-5 text-indigo-900/70 dark:text-indigo-200/70">
-                                Lương gốc lấy từ hợp đồng, chấm công ca hoàn thành, OT đã duyệt và loại trả công của từng nhân viên.
-                                Thưởng/khấu trừ chỉ được tính khi khoản điều chỉnh ở trạng thái đã áp dụng.
+                            <p
+                                class="text-sm font-bold text-indigo-950 dark:text-indigo-100"
+                            >
+                                Cách hệ thống tính kỳ
+                                {{ formatPeriodVietnamese(period) }}
                             </p>
-                            <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold text-indigo-900/80 dark:text-indigo-100/80">
-                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">Chấm công</span>
-                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">Nghỉ phép</span>
-                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">OT đã duyệt</span>
-                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">KPI & điều chỉnh</span>
+                            <p
+                                class="mt-1 text-xs leading-5 text-indigo-900/70 dark:text-indigo-200/70"
+                            >
+                                Lương gốc lấy từ hợp đồng, chấm công ca hoàn
+                                thành, OT đã duyệt và loại trả công của từng
+                                nhân viên. Thưởng/khấu trừ chỉ được tính khi
+                                khoản điều chỉnh ở trạng thái đã áp dụng.
+                            </p>
+                            <div
+                                class="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold text-indigo-900/80 dark:text-indigo-100/80"
+                            >
+                                <span
+                                    class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40"
+                                    >Chấm công</span
+                                >
+                                <span
+                                    class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40"
+                                    >Nghỉ phép</span
+                                >
+                                <span
+                                    class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40"
+                                    >OT đã duyệt</span
+                                >
+                                <span
+                                    class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40"
+                                    >KPI & điều chỉnh</span
+                                >
                             </div>
                         </div>
                     </div>
@@ -881,14 +948,47 @@ const compact = (v: number) =>
                     <div class="flex items-center justify-between gap-3">
                         <div>
                             <p class="text-sm font-bold">Trạng thái kỳ lương</p>
-                            <p class="mt-1 text-xs text-muted-foreground">{{ generation.salary_rows }} / {{ generation.eligible_employees }} nhân viên đã có bảng lương</p>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{ generation.salary_rows }} /
+                                {{ generation.eligible_employees }} nhân viên đã
+                                có bảng lương
+                            </p>
                         </div>
                         <Clock class="size-5 text-muted-foreground" />
                     </div>
-                    <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                        <div class="rounded-lg bg-slate-100 p-2 dark:bg-slate-800"><p class="font-bold text-slate-700 dark:text-slate-200">{{ generation.status_counts.draft }}</p><p class="mt-0.5 text-muted-foreground">Nháp</p></div>
-                        <div class="rounded-lg bg-indigo-50 p-2 dark:bg-indigo-950/30"><p class="font-bold text-indigo-700 dark:text-indigo-300">{{ generation.status_counts.approved }}</p><p class="mt-0.5 text-muted-foreground">Đã duyệt</p></div>
-                        <div class="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30"><p class="font-bold text-emerald-700 dark:text-emerald-300">{{ generation.status_counts.paid }}</p><p class="mt-0.5 text-muted-foreground">Đã trả</p></div>
+                    <div
+                        class="mt-4 grid grid-cols-3 gap-2 text-center text-xs"
+                    >
+                        <div
+                            class="rounded-lg bg-slate-100 p-2 dark:bg-slate-800"
+                        >
+                            <p
+                                class="font-bold text-slate-700 dark:text-slate-200"
+                            >
+                                {{ generation.status_counts.draft }}
+                            </p>
+                            <p class="mt-0.5 text-muted-foreground">Nháp</p>
+                        </div>
+                        <div
+                            class="rounded-lg bg-indigo-50 p-2 dark:bg-indigo-950/30"
+                        >
+                            <p
+                                class="font-bold text-indigo-700 dark:text-indigo-300"
+                            >
+                                {{ generation.status_counts.approved }}
+                            </p>
+                            <p class="mt-0.5 text-muted-foreground">Đã duyệt</p>
+                        </div>
+                        <div
+                            class="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30"
+                        >
+                            <p
+                                class="font-bold text-emerald-700 dark:text-emerald-300"
+                            >
+                                {{ generation.status_counts.paid }}
+                            </p>
+                            <p class="mt-0.5 text-muted-foreground">Đã trả</p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -997,12 +1097,18 @@ const compact = (v: number) =>
                         <Wallet class="size-7" />
                     </div>
                     <p class="font-bold text-slate-800 dark:text-slate-200">
-                        {{ generation.eligible_employees > 0 ? 'Chưa tạo bảng lương cho kỳ này' : 'Chưa có nhân viên đủ điều kiện tính lương' }}
+                        {{
+                            generation.eligible_employees > 0
+                                ? 'Chưa tạo bảng lương cho kỳ này'
+                                : 'Chưa có nhân viên đủ điều kiện tính lương'
+                        }}
                     </p>
                     <p class="mx-auto max-w-sm text-xs text-slate-500">
-                        {{ generation.eligible_employees > 0
-                            ? `Có ${generation.eligible_employees} nhân viên đang hoạt động. Nhấn “Tạo / tính lại bảng lương” để sinh bản nháp từ dữ liệu chấm công, OT và điều chỉnh đã duyệt.`
-                            : 'Hãy kiểm tra trạng thái nhân viên, chi nhánh đang chọn và kỳ lương trước khi tạo bảng.' }}
+                        {{
+                            generation.eligible_employees > 0
+                                ? `Có ${generation.eligible_employees} nhân viên đang hoạt động. Nhấn “Tạo / tính lại bảng lương” để sinh bản nháp từ dữ liệu chấm công, OT và điều chỉnh đã duyệt.`
+                                : 'Hãy kiểm tra trạng thái nhân viên, chi nhánh đang chọn và kỳ lương trước khi tạo bảng.'
+                        }}
                     </p>
                 </div>
 
@@ -1254,7 +1360,10 @@ const compact = (v: number) =>
                                                 </p>
                                             </div>
 
-                                            <p v-if="s.breakdown?.policy_note" class="mt-2 text-[10px] leading-4 text-muted-foreground">
+                                            <p
+                                                v-if="s.breakdown?.policy_note"
+                                                class="mt-2 text-[10px] leading-4 text-muted-foreground"
+                                            >
                                                 {{ s.breakdown.policy_note }}
                                             </p>
 
@@ -1320,16 +1429,24 @@ const compact = (v: number) =>
                                                             }}
                                                             làm +
                                                             {{
-                                                            s.breakdown
+                                                                s.breakdown
                                                                     ?.paid_leave_days
                                                             }}
                                                             phép)</span
                                                         >
                                                         <span
-                                                            v-if="s.breakdown?.unpaid_leave_days"
+                                                            v-if="
+                                                                s.breakdown
+                                                                    ?.unpaid_leave_days
+                                                            "
                                                             class="mt-1 block text-[9px] font-normal text-rose-500"
                                                         >
-                                                            {{ s.breakdown.unpaid_leave_days }} ngày nghỉ không lương
+                                                            {{
+                                                                s.breakdown
+                                                                    .unpaid_leave_days
+                                                            }}
+                                                            ngày nghỉ không
+                                                            lương
                                                         </span>
                                                     </p>
                                                 </div>
@@ -1357,14 +1474,32 @@ const compact = (v: number) =>
                                                             >(+{{
                                                                 s.breakdown
                                                                     ?.ot_hours
-                                                            }}h OT duyệt<span v-if="s.breakdown?.unapproved_ot_hours">, {{ s.breakdown.unapproved_ot_hours }}h ngoài ca chưa duyệt</span>)</span
+                                                            }}h OT duyệt<span
+                                                                v-if="
+                                                                    s.breakdown
+                                                                        ?.unapproved_ot_hours
+                                                                "
+                                                                >,
+                                                                {{
+                                                                    s.breakdown
+                                                                        .unapproved_ot_hours
+                                                                }}h ngoài ca
+                                                                chưa duyệt</span
+                                                            >)</span
                                                         >
                                                     </p>
                                                     <p
-                                                        v-if="s.breakdown?.unpaid_leave_days"
+                                                        v-if="
+                                                            s.breakdown
+                                                                ?.unpaid_leave_days
+                                                        "
                                                         class="mt-1 text-[9px] font-normal text-rose-500"
                                                     >
-                                                        {{ s.breakdown.unpaid_leave_days }} ngày nghỉ không lương
+                                                        {{
+                                                            s.breakdown
+                                                                .unpaid_leave_days
+                                                        }}
+                                                        ngày nghỉ không lương
                                                     </p>
                                                 </div>
                                                 <div
@@ -1528,11 +1663,22 @@ const compact = (v: number) =>
                                                             {{ a.reason }}
                                                         </p>
                                                         <span
-                                                            v-if="a.status !== 'applied'"
+                                                            v-if="
+                                                                a.status !==
+                                                                'applied'
+                                                            "
                                                             class="mt-1 inline-flex rounded px-1.5 py-0.5 text-[9px] font-semibold"
-                                                            :class="adjStatusConfig[a.status].cls"
+                                                            :class="
+                                                                adjStatusConfig[
+                                                                    a.status
+                                                                ].cls
+                                                            "
                                                         >
-                                                            {{ adjStatusConfig[a.status].label }}
+                                                            {{
+                                                                adjStatusConfig[
+                                                                    a.status
+                                                                ].label
+                                                            }}
                                                         </span>
                                                     </div>
                                                     <span
@@ -1660,7 +1806,6 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
-        
         <div
             v-if="adjTarget"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1818,7 +1963,6 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
-        
     </Transition>
 
     <!-- ══ Bulk Adjustment Dialog ═════════════════════════════════════════════ -->
@@ -1830,7 +1974,6 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
-        
         <div
             v-if="showBulkDialog"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1880,7 +2023,8 @@ const compact = (v: number) =>
                                 Thưởng chuyên cần / Thưởng nóng đồng loạt
                             </option>
                             <option value="advance">
-                                Tạm ứng lương đồng loạt (tối đa 50% lương tích lũy)
+                                Tạm ứng lương đồng loạt (tối đa 50% lương tích
+                                lũy)
                             </option>
                             <option value="penalty">
                                 Phạt lỗi tập thể / Kỷ luật
@@ -1972,7 +2116,6 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
-        
     </Transition>
 
     <!-- ══ Floating Bulk Action Bar ════════════════════════════════════════════ -->
@@ -2028,7 +2171,6 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
-        
         <div
             v-if="showBulkApproveModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -2084,7 +2226,6 @@ const compact = (v: number) =>
                 </div>
             </Card>
         </div>
-        
     </Transition>
 
     <!-- ══ Pay Stub Preview Modal ═══════════════════════════════════════════════ -->
@@ -2097,192 +2238,261 @@ const compact = (v: number) =>
         leave-to-class="opacity-0"
     >
         <Teleport to="body">
-        <div
-            v-if="payStubTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:bg-white print:p-0"
-            @click.self="closePayStub"
-        >
             <div
-                class="relative w-full max-w-2xl overflow-hidden rounded-3xl border bg-card p-6 shadow-2xl dark:border-slate-800 print:border-0 print:p-8 print:shadow-none"
+                v-if="payStubTarget"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:bg-white print:p-0"
+                @click.self="closePayStub"
             >
-                <!-- Close & Print buttons -->
                 <div
-                    class="flex items-center justify-between border-b pb-4 print:hidden"
+                    class="relative w-full max-w-2xl overflow-hidden rounded-3xl border bg-card p-6 shadow-2xl dark:border-slate-800 print:border-0 print:p-8 print:shadow-none"
                 >
-                    <div class="flex items-center gap-2">
-                        <Printer class="size-5 text-indigo-600" />
-                        <h2 class="text-base font-extrabold text-foreground">
-                            Phiếu Lương Chi Tiết — Kỳ {{ period }}
-                        </h2>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            class="h-8 rounded-xl text-xs font-bold"
-                            @click="printPayStub"
-                        >
-                            <Printer class="mr-1 size-3.5" /> In phiếu lương
-                        </Button>
-                        <button
-                            @click="closePayStub"
-                            class="rounded-full p-1 text-muted-foreground hover:bg-muted"
-                        >
-                            <X class="size-5" />
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Pay Stub Content -->
-                <div class="mt-4 space-y-5 text-xs text-foreground">
-                    <!-- Title banner -->
-                    <div class="border-b pb-4 text-center">
-                        <h1
-                            class="text-xl font-black tracking-tight text-indigo-950 uppercase dark:text-indigo-200"
-                        >
-                            PHIẾU LƯƠNG NHÂN VIÊN
-                        </h1>
-                        <p class="mt-1 font-semibold text-muted-foreground">
-                            Kỳ lương: Tháng {{ period }}
-                        </p>
-                    </div>
-
-                    <!-- Employee metadata -->
+                    <!-- Close & Print buttons -->
                     <div
-                        class="grid grid-cols-2 gap-4 rounded-2xl border bg-muted/30 p-4"
+                        class="flex items-center justify-between border-b pb-4 print:hidden"
                     >
-                        <div>
-                            <p
-                                class="text-[10px] font-bold text-muted-foreground uppercase"
+                        <div class="flex items-center gap-2">
+                            <Printer class="size-5 text-indigo-600" />
+                            <h2
+                                class="text-base font-extrabold text-foreground"
                             >
-                                Họ và tên nhân viên:
-                            </p>
-                            <p
-                                class="mt-0.5 text-sm font-black text-foreground"
-                            >
-                                {{ payStubTarget.employee_name }}
-                            </p>
-                            <p class="mt-0.5 text-xs text-muted-foreground">
-                                Mã NV: {{ payStubTarget.employee_code }}
-                            </p>
+                                Phiếu Lương Chi Tiết — Kỳ {{ period }}
+                            </h2>
                         </div>
-                        <div>
-                            <p
-                                class="text-[10px] font-bold text-muted-foreground uppercase"
+                        <div class="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="h-8 rounded-xl text-xs font-bold"
+                                @click="printPayStub"
                             >
-                                Chức vụ / Hợp đồng:
-                            </p>
-                            <p class="mt-0.5 text-sm font-bold text-foreground">
-                                {{ payStubTarget.job_title || 'Nhân viên' }}
-                            </p>
-                            <p
-                                class="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                                <Printer class="mr-1 size-3.5" /> In phiếu lương
+                            </Button>
+                            <button
+                                @click="closePayStub"
+                                class="rounded-full p-1 text-muted-foreground hover:bg-muted"
                             >
-                                {{
-                                    payStubTarget.breakdown
-                                        ?.compensation_type_label
-                                }}
-                            </p>
+                                <X class="size-5" />
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Formula breakdown box -->
-                    <div
-                        class="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20"
-                    >
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-indigo-600 uppercase"
-                        >
-                            Giải trình công thức tính lương gốc:
-                        </p>
-                        <p
-                            class="mt-1 font-mono text-xs leading-relaxed font-bold text-indigo-950 dark:text-indigo-200"
-                        >
-                            {{ payStubTarget.breakdown?.formula_text }}
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 rounded-2xl border bg-card p-4 text-[11px] sm:grid-cols-4">
-                        <div><p class="text-muted-foreground">Ngày làm</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.actual_work_days }}</p></div>
-                        <div><p class="text-muted-foreground">Nghỉ hưởng lương</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.paid_leave_days }} ngày</p></div>
-                        <div><p class="text-muted-foreground">Nghỉ không lương</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.unpaid_leave_days ?? 0 }} ngày</p></div>
-                        <div><p class="text-muted-foreground">OT được duyệt</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.ot_hours ?? 0 }} giờ</p></div>
-                    </div>
-
-                    <!-- Earnings & Deductions Table -->
-                    <div class="space-y-2 rounded-2xl border bg-card p-4">
-                        <p
-                            class="text-xs font-bold tracking-wider text-foreground uppercase"
-                        >
-                            Chi Tiết Thu Nhập & Khấu Trừ
-                        </p>
-                        <div class="space-y-1.5 pt-2">
-                            <div
-                                class="flex justify-between border-b border-dashed py-1"
+                    <!-- Pay Stub Content -->
+                    <div class="mt-4 space-y-5 text-xs text-foreground">
+                        <!-- Title banner -->
+                        <div class="border-b pb-4 text-center">
+                            <h1
+                                class="text-xl font-black tracking-tight text-indigo-950 uppercase dark:text-indigo-200"
                             >
-                                <span>Lương gốc thực tính</span>
-                                <span class="font-mono font-bold">{{
-                                    vnd(payStubTarget.base_salary)
-                                }}</span>
-                            </div>
-                            <div
-                                v-if="payStubTarget.bonus_amount > 0"
-                                class="flex justify-between border-b border-dashed py-1 text-emerald-600"
-                            >
-                                <span>Tổng cộng các khoản thưởng (+)</span>
-                                <span class="font-mono font-bold"
-                                    >+{{
-                                        vnd(payStubTarget.bonus_amount)
-                                    }}</span
+                                PHIẾU LƯƠNG NHÂN VIÊN
+                            </h1>
+                            <p class="mt-1 font-semibold text-muted-foreground">
+                                Kỳ lương: Tháng {{ period }}
+                            </p>
+                        </div>
+
+                        <!-- Employee metadata -->
+                        <div
+                            class="grid grid-cols-2 gap-4 rounded-2xl border bg-muted/30 p-4"
+                        >
+                            <div>
+                                <p
+                                    class="text-[10px] font-bold text-muted-foreground uppercase"
                                 >
-                            </div>
-                            <div
-                                v-if="payStubTarget.overtime_amount > 0"
-                                class="flex justify-between border-b border-dashed py-1 text-indigo-600"
-                            >
-                                <span>{{ payStubTarget.breakdown?.compensation_type === 'hourly' ? 'Tiền tăng ca được duyệt (đã nằm trong lương gốc)' : 'Tiền tăng ca được duyệt (+)' }}</span>
-                                <span class="font-mono font-bold">{{ payStubTarget.breakdown?.compensation_type === 'hourly' ? '' : '+' }}{{ vnd(payStubTarget.overtime_amount) }}</span>
-                            </div>
-                            <div
-                                v-if="payStubTarget.deduction_amount > 0"
-                                class="flex justify-between border-b border-dashed py-1 text-rose-600"
-                            >
-                                <span>Tổng cộng các khoản khấu trừ (-)</span>
-                                <span class="font-mono font-bold"
-                                    >-{{
-                                        vnd(payStubTarget.deduction_amount)
-                                    }}</span
+                                    Họ và tên nhân viên:
+                                </p>
+                                <p
+                                    class="mt-0.5 text-sm font-black text-foreground"
                                 >
+                                    {{ payStubTarget.employee_name }}
+                                </p>
+                                <p class="mt-0.5 text-xs text-muted-foreground">
+                                    Mã NV: {{ payStubTarget.employee_code }}
+                                </p>
                             </div>
-                            <div
-                                class="flex justify-between py-2 text-sm font-black text-indigo-600 dark:text-indigo-400"
-                            >
-                                <span>THỰC LÃNH (NET SALARY)</span>
-                                <span class="font-mono text-base">{{
-                                    vnd(payStubTarget.net_salary)
-                                }}</span>
+                            <div>
+                                <p
+                                    class="text-[10px] font-bold text-muted-foreground uppercase"
+                                >
+                                    Chức vụ / Hợp đồng:
+                                </p>
+                                <p
+                                    class="mt-0.5 text-sm font-bold text-foreground"
+                                >
+                                    {{ payStubTarget.job_title || 'Nhân viên' }}
+                                </p>
+                                <p
+                                    class="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                                >
+                                    {{
+                                        payStubTarget.breakdown
+                                            ?.compensation_type_label
+                                    }}
+                                </p>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Signature line -->
-                    <div class="grid grid-cols-2 pt-8 text-center print:pt-12">
-                        <div>
-                            <p class="text-xs font-bold">Người Duyệt Lương</p>
-                            <p class="mt-1 text-[10px] text-muted-foreground">
-                                (Ký & ghi rõ họ tên)
+                        <!-- Formula breakdown box -->
+                        <div
+                            class="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20"
+                        >
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-indigo-600 uppercase"
+                            >
+                                Giải trình công thức tính lương gốc:
+                            </p>
+                            <p
+                                class="mt-1 font-mono text-xs leading-relaxed font-bold text-indigo-950 dark:text-indigo-200"
+                            >
+                                {{ payStubTarget.breakdown?.formula_text }}
                             </p>
                         </div>
-                        <div>
-                            <p class="text-xs font-bold">Người Nhận Lương</p>
-                            <p class="mt-1 text-[10px] text-muted-foreground">
-                                (Ký & ghi rõ họ tên)
+
+                        <div
+                            class="grid grid-cols-2 gap-2 rounded-2xl border bg-card p-4 text-[11px] sm:grid-cols-4"
+                        >
+                            <div>
+                                <p class="text-muted-foreground">Ngày làm</p>
+                                <p class="mt-1 font-bold">
+                                    {{
+                                        payStubTarget.breakdown
+                                            ?.actual_work_days
+                                    }}
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-muted-foreground">
+                                    Nghỉ hưởng lương
+                                </p>
+                                <p class="mt-1 font-bold">
+                                    {{
+                                        payStubTarget.breakdown?.paid_leave_days
+                                    }}
+                                    ngày
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-muted-foreground">
+                                    Nghỉ không lương
+                                </p>
+                                <p class="mt-1 font-bold">
+                                    {{
+                                        payStubTarget.breakdown
+                                            ?.unpaid_leave_days ?? 0
+                                    }}
+                                    ngày
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-muted-foreground">
+                                    OT được duyệt
+                                </p>
+                                <p class="mt-1 font-bold">
+                                    {{ payStubTarget.breakdown?.ot_hours ?? 0 }}
+                                    giờ
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Earnings & Deductions Table -->
+                        <div class="space-y-2 rounded-2xl border bg-card p-4">
+                            <p
+                                class="text-xs font-bold tracking-wider text-foreground uppercase"
+                            >
+                                Chi Tiết Thu Nhập & Khấu Trừ
                             </p>
+                            <div class="space-y-1.5 pt-2">
+                                <div
+                                    class="flex justify-between border-b border-dashed py-1"
+                                >
+                                    <span>Lương gốc thực tính</span>
+                                    <span class="font-mono font-bold">{{
+                                        vnd(payStubTarget.base_salary)
+                                    }}</span>
+                                </div>
+                                <div
+                                    v-if="payStubTarget.bonus_amount > 0"
+                                    class="flex justify-between border-b border-dashed py-1 text-emerald-600"
+                                >
+                                    <span>Tổng cộng các khoản thưởng (+)</span>
+                                    <span class="font-mono font-bold"
+                                        >+{{
+                                            vnd(payStubTarget.bonus_amount)
+                                        }}</span
+                                    >
+                                </div>
+                                <div
+                                    v-if="payStubTarget.overtime_amount > 0"
+                                    class="flex justify-between border-b border-dashed py-1 text-indigo-600"
+                                >
+                                    <span>{{
+                                        payStubTarget.breakdown
+                                            ?.compensation_type === 'hourly'
+                                            ? 'Tiền tăng ca được duyệt (đã nằm trong lương gốc)'
+                                            : 'Tiền tăng ca được duyệt (+)'
+                                    }}</span>
+                                    <span class="font-mono font-bold"
+                                        >{{
+                                            payStubTarget.breakdown
+                                                ?.compensation_type === 'hourly'
+                                                ? ''
+                                                : '+'
+                                        }}{{
+                                            vnd(payStubTarget.overtime_amount)
+                                        }}</span
+                                    >
+                                </div>
+                                <div
+                                    v-if="payStubTarget.deduction_amount > 0"
+                                    class="flex justify-between border-b border-dashed py-1 text-rose-600"
+                                >
+                                    <span
+                                        >Tổng cộng các khoản khấu trừ (-)</span
+                                    >
+                                    <span class="font-mono font-bold"
+                                        >-{{
+                                            vnd(payStubTarget.deduction_amount)
+                                        }}</span
+                                    >
+                                </div>
+                                <div
+                                    class="flex justify-between py-2 text-sm font-black text-indigo-600 dark:text-indigo-400"
+                                >
+                                    <span>THỰC LÃNH (NET SALARY)</span>
+                                    <span class="font-mono text-base">{{
+                                        vnd(payStubTarget.net_salary)
+                                    }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Signature line -->
+                        <div
+                            class="grid grid-cols-2 pt-8 text-center print:pt-12"
+                        >
+                            <div>
+                                <p class="text-xs font-bold">
+                                    Người Duyệt Lương
+                                </p>
+                                <p
+                                    class="mt-1 text-[10px] text-muted-foreground"
+                                >
+                                    (Ký & ghi rõ họ tên)
+                                </p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold">
+                                    Người Nhận Lương
+                                </p>
+                                <p
+                                    class="mt-1 text-[10px] text-muted-foreground"
+                                >
+                                    (Ký & ghi rõ họ tên)
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
         </Teleport>
     </Transition>
 </template>

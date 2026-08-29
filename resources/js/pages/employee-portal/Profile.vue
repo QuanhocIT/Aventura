@@ -466,13 +466,16 @@ const displayValue = (value?: string | null) => value || 'Chưa cập nhật';
                     </dl>
 
                     <div class="border-t border-border px-6 py-5">
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div
+                            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
                             <div>
                                 <p class="text-sm font-bold text-foreground">
                                     Đổi mật khẩu đăng nhập
                                 </p>
                                 <p class="mt-1 text-xs text-muted-foreground">
-                                    Mật khẩu hiện tại không thể xem lại. Bạn cần nhập mật khẩu hiện tại để đặt mật khẩu mới.
+                                    Mật khẩu hiện tại không thể xem lại. Bạn cần
+                                    nhập mật khẩu hiện tại để đặt mật khẩu mới.
                                 </p>
                             </div>
                             <Button
@@ -513,7 +516,9 @@ const displayValue = (value?: string | null) => value || 'Chưa cập nhật';
                                     placeholder="Nhập mật khẩu hiện tại"
                                     class="rounded-xl"
                                 />
-                                <InputError :message="errors.current_password" />
+                                <InputError
+                                    :message="errors.current_password"
+                                />
                             </div>
 
                             <div class="grid gap-2">

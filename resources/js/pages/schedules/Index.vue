@@ -178,7 +178,13 @@ onUnmounted(() => {
 
 const activeStaffTab = ref<'roster' | 'register'>('roster');
 const activeAdminTab = ref<
-    'attendance' | 'roster' | 'register' | 'settings' | 'swaps' | 'analytics' | 'monthly_shifts'
+    | 'attendance'
+    | 'roster'
+    | 'register'
+    | 'settings'
+    | 'swaps'
+    | 'analytics'
+    | 'monthly_shifts'
 >('attendance');
 
 // --- OVERRIDE MODAL CONTROL ---

@@ -24,7 +24,8 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-vue-next';
-import { ref, computed, watch } from 'vue';import { Button } from '@/components/ui/button';
+import { ref, computed, watch } from 'vue';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -175,8 +176,8 @@ const filteredEmployees = computed(() => {
     );
 });
 
-const totalEmpPages = computed(() =>
-    Math.ceil(filteredEmployees.value.length / empPerPage) || 1,
+const totalEmpPages = computed(
+    () => Math.ceil(filteredEmployees.value.length / empPerPage) || 1,
 );
 
 const paginatedEmployees = computed(() => {
@@ -259,7 +260,12 @@ const isCentralBranch = (b: {
     warehouse_type?: string;
     is_central_warehouse?: boolean;
     is_central?: boolean;
-}) => Boolean(b.is_central || b.is_central_warehouse || b.warehouse_type === 'central');
+}) =>
+    Boolean(
+        b.is_central ||
+        b.is_central_warehouse ||
+        b.warehouse_type === 'central',
+    );
 
 const centralBranch = computed(() => {
     return props.branches.find((b) => isCentralBranch(b)) ?? null;
@@ -287,7 +293,9 @@ const availableCreateBranches = computed(() => {
     }
 
     if (isWarehouseRole(employeeForm.role)) {
-        return centralBranch.value ? [centralBranch.value] : props.branches.filter(isCentralBranch);
+        return centralBranch.value
+            ? [centralBranch.value]
+            : props.branches.filter(isCentralBranch);
     }
 
     return props.branches;
@@ -299,7 +307,9 @@ const availableEditBranches = computed(() => {
     }
 
     if (isWarehouseRole(editForm.role)) {
-        return centralBranch.value ? [centralBranch.value] : props.branches.filter(isCentralBranch);
+        return centralBranch.value
+            ? [centralBranch.value]
+            : props.branches.filter(isCentralBranch);
     }
 
     return props.branches;
@@ -319,18 +329,28 @@ const availableWageTiers = computed(() => {
 });
 
 const compTypeLabel = (t?: 'fixed' | 'hourly' | 'shift' | string) =>
-    t === 'hourly' ? 'Lương theo giờ' : t === 'shift' ? 'Lương theo ca' : 'Lương tháng (Cố định)';
+    t === 'hourly'
+        ? 'Lương theo giờ'
+        : t === 'shift'
+          ? 'Lương theo ca'
+          : 'Lương tháng (Cố định)';
 
 const formattedSalaryRate = computed(() => {
     if (employeeForm.compensation_type === 'hourly') {
-        return employeeForm.pay_rate ? `${formatVnd(employeeForm.pay_rate)}/giờ` : '—';
+        return employeeForm.pay_rate
+            ? `${formatVnd(employeeForm.pay_rate)}/giờ`
+            : '—';
     }
 
     if (employeeForm.compensation_type === 'shift') {
-        return employeeForm.pay_rate ? `${formatVnd(employeeForm.pay_rate)}/ca` : '—';
+        return employeeForm.pay_rate
+            ? `${formatVnd(employeeForm.pay_rate)}/ca`
+            : '—';
     }
 
-    return employeeForm.base_salary ? `${formatVnd(employeeForm.base_salary)}/tháng` : '—';
+    return employeeForm.base_salary
+        ? `${formatVnd(employeeForm.base_salary)}/tháng`
+        : '—';
 });
 
 const formattedEditSalaryRate = computed(() => {
@@ -342,7 +362,9 @@ const formattedEditSalaryRate = computed(() => {
         return editForm.pay_rate ? `${formatVnd(editForm.pay_rate)}/ca` : '—';
     }
 
-    return editForm.base_salary ? `${formatVnd(editForm.base_salary)}/tháng` : '—';
+    return editForm.base_salary
+        ? `${formatVnd(editForm.base_salary)}/tháng`
+        : '—';
 });
 
 // Khi chọn bậc lương → KHOÁ mức lương theo bậc (đồng bộ với backend).
@@ -368,7 +390,11 @@ watch(
 watch(
     availableWageTiers,
     (tiers) => {
-        if (tiers.length > 0 && (!employeeForm.wage_tier_id || !tiers.some((t) => t.id === Number(employeeForm.wage_tier_id)))) {
+        if (
+            tiers.length > 0 &&
+            (!employeeForm.wage_tier_id ||
+                !tiers.some((t) => t.id === Number(employeeForm.wage_tier_id)))
+        ) {
             employeeForm.wage_tier_id = tiers[0].id;
             employeeForm.compensation_type = tiers[0].compensation_type;
             employeeForm.pay_rate = tiers[0].rate;
@@ -413,9 +439,7 @@ watch(
             return;
         }
 
-        const tier = (props.wageTiers ?? []).find(
-            (t) => t.id === Number(val),
-        );
+        const tier = (props.wageTiers ?? []).find((t) => t.id === Number(val));
 
         if (tier) {
             editForm.compensation_type = tier.compensation_type;
@@ -535,7 +559,10 @@ const allRoleOptions: RoleOption[] = [
     { value: 'inventory_staff', label: 'Nhân viên Kho Chi Nhánh' },
     { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
     { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
-    { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
+    {
+        value: 'operations_inspector',
+        label: 'Giám sát viên Vận hành / Thanh tra',
+    },
 ];
 
 const createRoleOptions = computed(() => {
@@ -544,10 +571,16 @@ const createRoleOptions = computed(() => {
     if (props.isWarehouseManager) {
         roles = roles.filter((option) => option.value === 'warehouse_staff');
     } else if (props.isBranchManager) {
-        roles = roles.filter((option) => managerAllowedRoles.includes(option.value));
+        roles = roles.filter((option) =>
+            managerAllowedRoles.includes(option.value),
+        );
     } else if (isActiveBusinessBranch.value) {
         // Chi nhánh kinh doanh: Không thể tạo nhân viên Kho Tổng hoặc Giám sát viên Vận hành / Thanh tra
-        roles = roles.filter((option) => !isWarehouseRole(option.value) && !isInspectorRole(option.value));
+        roles = roles.filter(
+            (option) =>
+                !isWarehouseRole(option.value) &&
+                !isInspectorRole(option.value),
+        );
     } else if (isActiveCentralBranch.value) {
         // Chi nhánh Kho Tổng: Chỉ có thể tạo Trưởng kho Tổng hoặc Nhân viên Kho Tổng
         roles = roles.filter((option) => isWarehouseRole(option.value));
@@ -572,7 +605,11 @@ const editRoleOptions = computed(() => {
         ];
     }
 
-    if (!props.isBranchManager || !editForm.role || managerAllowedRoles.includes(editForm.role)) {
+    if (
+        !props.isBranchManager ||
+        !editForm.role ||
+        managerAllowedRoles.includes(editForm.role)
+    ) {
         return createRoleOptions.value;
     }
 
@@ -651,19 +688,26 @@ watch(showAddEmployee, (val) => {
 
 const roleColors: Record<string, string> = {
     owner: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400 border border-indigo-200/50',
-    manager: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400 border border-sky-200/50',
+    manager:
+        'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400 border border-sky-200/50',
     cashier:
         'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/50',
     kitchen:
         'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200/50',
     waiter: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400 border border-teal-200/50',
     staff: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200/50',
-    warehouse_manager: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/50',
-    warehouse_staff: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300 border border-violet-200/50',
-    inventory_staff: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/50',
-    operations_inspector: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/50',
-    compliance_auditor: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-200/50',
-    shipper: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/50',
+    warehouse_manager:
+        'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/50',
+    warehouse_staff:
+        'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300 border border-violet-200/50',
+    inventory_staff:
+        'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/50',
+    operations_inspector:
+        'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/50',
+    compliance_auditor:
+        'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-200/50',
+    shipper:
+        'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/50',
 };
 
 const avatarColors = [
@@ -806,7 +850,7 @@ const handleToggleAutoSchedule = async () => {
         }
     }
 
-const targetState = !isAutoSchedule.value;
+    const targetState = !isAutoSchedule.value;
     router.post(
         '/employees/schedules/toggle-auto',
         {
@@ -850,9 +894,7 @@ const emergencyForm = useForm({
     replacement_employee_id: '' as number | '',
     reason: '',
 });
-const assignmentsWithId = computed(() =>
-    props.schedules.filter((a) => !!a.id),
-);
+const assignmentsWithId = computed(() => props.schedules.filter((a) => !!a.id));
 function submitEmergencyReplace() {
     if (emergencyForm.processing) {
         return;
@@ -1143,7 +1185,9 @@ const deleteShift = (id: number) => {
 const saveShiftsConfig = () => {
     if (!props.isOwner && !props.canConfigureShifts) {
         import('vue-sonner').then((m) =>
-            m.toast.error('Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.'),
+            m.toast.error(
+                'Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.',
+            ),
         );
 
         return;
@@ -1578,37 +1622,74 @@ const submitSwapReject = () => {
 
         <!-- Quỹ lương được Chủ doanh nghiệp cấp cho phạm vi hiện tại -->
         <Card
-            v-if="props.payrollBudget && (props.isBranchManager || props.isWarehouseManager || props.canManagePayrollBudget)"
+            v-if="
+                props.payrollBudget &&
+                (props.isBranchManager ||
+                    props.isWarehouseManager ||
+                    props.canManagePayrollBudget)
+            "
             class="border-slate-200 bg-slate-50/70 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/20"
         >
-            <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-indigo-200">
+            <div
+                class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div
+                    class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-indigo-200"
+                >
                     <Wallet class="size-4 shrink-0" />
                     <span>Quỹ lương</span>
-                    <span class="font-normal text-slate-500 dark:text-slate-400">
-                        {{ props.payrollBudget.branch_name || 'Phạm vi hiện tại' }} · {{ props.payrollBudget.month }}
+                    <span
+                        class="font-normal text-slate-500 dark:text-slate-400"
+                    >
+                        {{
+                            props.payrollBudget.branch_name ||
+                            'Phạm vi hiện tại'
+                        }}
+                        · {{ props.payrollBudget.month }}
                     </span>
                 </div>
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <div
+                    class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm"
+                >
                     <span>
                         <span class="text-muted-foreground">Quỹ:</span>
                         <strong class="ml-1 text-slate-700 dark:text-slate-200">
-                        {{ props.payrollBudget.configured && props.payrollBudget.budget_amount !== null ? formatVnd(props.payrollBudget.budget_amount) : 'Chưa được cấp' }}
+                            {{
+                                props.payrollBudget.configured &&
+                                props.payrollBudget.budget_amount !== null
+                                    ? formatVnd(
+                                          props.payrollBudget.budget_amount,
+                                      )
+                                    : 'Chưa được cấp'
+                            }}
                         </strong>
                     </span>
                     <span>
                         <span class="text-muted-foreground">Đã dùng:</span>
                         <strong class="ml-1 text-slate-900 dark:text-slate-100">
-                        {{ formatVnd(props.payrollBudget.committed) }}
+                            {{ formatVnd(props.payrollBudget.committed) }}
                         </strong>
                     </span>
                     <span>
                         <span class="text-muted-foreground">Còn lại:</span>
                         <strong
                             class="ml-1"
-                        :class="!props.payrollBudget.configured || props.payrollBudget.over_budget ? 'text-rose-600' : 'text-emerald-600'"
+                            :class="
+                                !props.payrollBudget.configured ||
+                                props.payrollBudget.over_budget
+                                    ? 'text-rose-600'
+                                    : 'text-emerald-600'
+                            "
                         >
-                        {{ !props.payrollBudget.configured ? 'Chưa cấp quỹ' : props.payrollBudget.over_budget ? `Vượt ${formatVnd(Math.abs(props.payrollBudget.remaining ?? 0))}` : formatVnd(props.payrollBudget.remaining ?? 0) }}
+                            {{
+                                !props.payrollBudget.configured
+                                    ? 'Chưa cấp quỹ'
+                                    : props.payrollBudget.over_budget
+                                      ? `Vượt ${formatVnd(Math.abs(props.payrollBudget.remaining ?? 0))}`
+                                      : formatVnd(
+                                            props.payrollBudget.remaining ?? 0,
+                                        )
+                            }}
                         </strong>
                     </span>
                     <a
@@ -1628,481 +1709,619 @@ const submitSwapReject = () => {
                 v-if="showAddEmployee"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
             >
-            <Card
-                class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
-            >
-                <CardHeader>
-                    <CardTitle
-                        class="flex items-center gap-1.5 text-base text-indigo-600"
-                    >
-                        <UserCheck class="size-5" />
-                        Tạo tài khoản nhân viên mới (Hồ sơ bảo mật)
-                    </CardTitle>
-                    <CardDescription
-                        >Khai báo chi tiết lý lịch trích ngang của nhân sự để
-                        đảm bảo tính pháp lý và phòng chống rủi ro gian
-                        lận.</CardDescription
-                    >
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitEmployee" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-name"
-                                    >Họ và tên nhân sự
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-name"
-                                    v-model="employeeForm.name"
-                                    placeholder="Ví dụ: Nguyễn Văn A"
-                                    @input="(e: Event) => { employeeForm.name = (e.target as HTMLInputElement).value.replace(/[^\p{L}\s]/gu, ''); }"
-                                    required
-                                />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-email"
-                                    >Email đăng nhập
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-email"
-                                    type="email"
-                                    v-model="employeeForm.email"
-                                    placeholder="Ví dụ: nva@aventura.vn"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-phone"
-                                    >Số điện thoại liên lạc
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-phone"
-                                    v-model="employeeForm.phone"
-                                    placeholder="0900 000 000"
-                                    maxlength="15"
-                                    @input="(e: Event) => { employeeForm.phone = (e.target as HTMLInputElement).value.replace(/\D/g, ''); }"
-                                    required
-                                />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-dob"
-                                    >Ngày tháng năm sinh
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-dob"
-                                    type="date"
-                                    v-model="employeeForm.date_of_birth"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-citizen-number"
-                                    >Số định danh / Số CCCD
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-citizen-number"
-                                    v-model="employeeForm.citizen_id_number"
-                                    placeholder="12 chữ số..."
-                                    required
-                                />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-address"
-                                    >Địa chỉ tạm trú hiện tại
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <Input
-                                    id="emp-address"
-                                    v-model="employeeForm.address"
-                                    placeholder="Ví dụ: 123 Lê Lợi, Quận 1, TP. HCM"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="emp-role"
-                                    >Phân quyền hệ thống</Label
-                                >
-                                <p
-                                    v-if="props.isWarehouseManager"
-                                    class="text-xs text-amber-600 dark:text-amber-400"
-                                >
-                                    Trưởng kho tổng có quyền tạo Nhân viên Kho Tổng. Chức danh công việc có thể ghi rõ Tài xế hoặc Thủ kho phụ.
-                                </p>
-                                <p
-                                    v-else-if="props.isBranchManager"
-                                    class="text-xs text-amber-600 dark:text-amber-400"
-                                >
-                                    Quản lý chỉ được tạo Thu ngân, Order hoặc Bếp.
-                                </p>
-                                <p
-                                    v-else-if="isActiveBusinessBranch"
-                                    class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50/80 dark:bg-amber-950/40 p-2 rounded border border-amber-200/60 dark:border-amber-900/50"
-                                >
-                                    ⚠️ Đang thao tác tại Chi nhánh Kinh doanh: Không thể tạo Nhân viên Kho Tổng hoặc Giám sát viên Vận hành. Vui lòng chuyển sang Phạm vi toàn chuỗi nếu muốn tạo các vai trò trên.
-                                </p>
-                                <p
-                                    v-else-if="isActiveCentralBranch"
-                                    class="text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-50/80 dark:bg-purple-950/40 p-2 rounded border border-purple-200/60 dark:border-purple-900/50"
-                                >
-                                    🔒 Đang thao tác tại Chi nhánh Kho Tổng: Chỉ được phép tạo Trưởng kho Tổng hoặc Nhân viên Kho Tổng.
-                                </p>
-                                <select
-                                    id="emp-role"
-                                    v-model="employeeForm.role"
-                                    @change="handleRoleChange"
-                                    required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                                >
-                                    <option
-                                        v-for="roleOption in createRoleOptions"
-                                        :key="roleOption.value"
-                                        :value="roleOption.value"
-                                    >
-                                        {{ roleOption.label }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label for="emp-title"
-                                    >Chức danh công việc</Label
-                                >
-                                <Input
-                                    id="emp-title"
-                                    v-model="employeeForm.job_title"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
-                        <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
-                        <div
-                            class="grid gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-emerald-950/40 dark:bg-emerald-950/20"
+                <Card
+                    class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
+                    <CardHeader>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
                         >
-                            <div class="flex items-center justify-between">
-                                <Label
-                                    class="text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                                    >Bậc lương do Chủ quy định
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <span class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                                    🔒 Chuẩn hóa thang bảng lương
-                                </span>
-                            </div>
-                            <select
-                                v-model="employeeForm.wage_tier_id"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                            >
-                                <option value="" disabled>
-                                    — Chọn Bậc lương do Chủ quy định —
-                                </option>
-                                <option
-                                    v-for="tier in availableWageTiers"
-                                    :key="tier.id"
-                                    :value="tier.id"
-                                >
-                                    {{ tier.name }} ·
-                                    {{ compTypeLabel(tier.compensation_type) }} ·
-                                    {{ formatVnd(tier.rate) }}{{ tier.revenue_percent ? ` + ${tier.revenue_percent}% DT` : '' }} (≈
-                                    {{ formatVnd(tier.estimated_monthly) }}/tháng)
-                                </option>
-                            </select>
-                            <p
-                                v-if="!availableWageTiers.length"
-                                class="text-xs text-rose-500"
-                            >
-                                Chi nhánh chưa có bậc lương. Vui lòng tạo Bậc lương do Chủ quy định trước khi thêm nhân viên.
-                            </p>
-                            <p
-                                v-else
-                                class="text-xs text-emerald-600 dark:text-emerald-400"
-                            >
-                                🔒 Mức lương được khóa tự động theo Bậc lương do Chủ quy định — không cho phép nhập tay.
-                            </p>
-                        </div>
-
-                        <!-- Cấu hình Hình thức trả lương & Mức lương (Chỉ hiển thị theo Bậc, không sửa tay) -->
-                        <div
-                            class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
+                            <UserCheck class="size-5" />
+                            Tạo tài khoản nhân viên mới (Hồ sơ bảo mật)
+                        </CardTitle>
+                        <CardDescription
+                            >Khai báo chi tiết lý lịch trích ngang của nhân sự
+                            để đảm bảo tính pháp lý và phòng chống rủi ro gian
+                            lận.</CardDescription
                         >
-                            <div class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Hình thức trả lương</Label
-                                >
-                                <Input
-                                    :model-value="compTypeLabel(employeeForm.compensation_type)"
-                                    disabled
-                                    readonly
-                                    class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-800 dark:text-slate-100"
-                                />
-                            </div>
-
-                            <div class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Mức lương</Label
-                                >
-                                <Input
-                                    :model-value="formattedSalaryRate"
-                                    disabled
-                                    readonly
-                                    class="h-9 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
-                                />
-                            </div>
-                        </div>
-
-                        <div
-                            v-if="employeeForm.compensation_type === 'fixed'"
-                            class="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 dark:border-amber-950/40 dark:bg-amber-950/20"
+                    </CardHeader>
+                    <CardContent>
+                        <form
+                            @submit.prevent="submitEmployee"
+                            class="space-y-4"
                         >
-                            <div>
-                                <Label class="text-xs font-bold text-amber-700 dark:text-amber-300">
-                                    Lịch làm cố định (tự động đưa vào bảng xếp ca)
-                                </Label>
-                                <p class="mt-1 text-[11px] text-amber-700/80 dark:text-amber-300/80">
-                                    Khi tạo nhân viên lương tháng cố định, hệ thống sẽ tạo lịch lặp lại và sinh ca trong 90 ngày đầu.
-                                </p>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid grid-cols-2 gap-4">
                                 <div class="grid gap-1.5">
-                                    <Label class="text-xs">Ca cố định</Label>
-                                    <select
-                                        v-model="employeeForm.fixed_shift_id"
-                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm"
+                                    <Label for="emp-name"
+                                        >Họ và tên nhân sự
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
                                     >
-                                        <option v-for="shift in props.shifts" :key="shift.id" :value="shift.id">
-                                            {{ shift.name }} ({{ shift.start }} - {{ shift.end }})
+                                    <Input
+                                        id="emp-name"
+                                        v-model="employeeForm.name"
+                                        placeholder="Ví dụ: Nguyễn Văn A"
+                                        @input="
+                                            (e: Event) => {
+                                                employeeForm.name = (
+                                                    e.target as HTMLInputElement
+                                                ).value.replace(
+                                                    /[^\p{L}\s]/gu,
+                                                    '',
+                                                );
+                                            }
+                                        "
+                                        required
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-email"
+                                        >Email đăng nhập
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        id="emp-email"
+                                        type="email"
+                                        v-model="employeeForm.email"
+                                        placeholder="Ví dụ: nva@aventura.vn"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-phone"
+                                        >Số điện thoại liên lạc
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        id="emp-phone"
+                                        v-model="employeeForm.phone"
+                                        placeholder="0900 000 000"
+                                        maxlength="15"
+                                        @input="
+                                            (e: Event) => {
+                                                employeeForm.phone = (
+                                                    e.target as HTMLInputElement
+                                                ).value.replace(/\D/g, '');
+                                            }
+                                        "
+                                        required
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-dob"
+                                        >Ngày tháng năm sinh
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        id="emp-dob"
+                                        type="date"
+                                        v-model="employeeForm.date_of_birth"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-citizen-number"
+                                        >Số định danh / Số CCCD
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        id="emp-citizen-number"
+                                        v-model="employeeForm.citizen_id_number"
+                                        placeholder="12 chữ số..."
+                                        required
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-address"
+                                        >Địa chỉ tạm trú hiện tại
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <Input
+                                        id="emp-address"
+                                        v-model="employeeForm.address"
+                                        placeholder="Ví dụ: 123 Lê Lợi, Quận 1, TP. HCM"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label for="emp-role"
+                                        >Phân quyền hệ thống</Label
+                                    >
+                                    <p
+                                        v-if="props.isWarehouseManager"
+                                        class="text-xs text-amber-600 dark:text-amber-400"
+                                    >
+                                        Trưởng kho tổng có quyền tạo Nhân viên
+                                        Kho Tổng. Chức danh công việc có thể ghi
+                                        rõ Tài xế hoặc Thủ kho phụ.
+                                    </p>
+                                    <p
+                                        v-else-if="props.isBranchManager"
+                                        class="text-xs text-amber-600 dark:text-amber-400"
+                                    >
+                                        Quản lý chỉ được tạo Thu ngân, Order
+                                        hoặc Bếp.
+                                    </p>
+                                    <p
+                                        v-else-if="isActiveBusinessBranch"
+                                        class="rounded border border-amber-200/60 bg-amber-50/80 p-2 text-xs font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-400"
+                                    >
+                                        ⚠️ Đang thao tác tại Chi nhánh Kinh
+                                        doanh: Không thể tạo Nhân viên Kho Tổng
+                                        hoặc Giám sát viên Vận hành. Vui lòng
+                                        chuyển sang Phạm vi toàn chuỗi nếu muốn
+                                        tạo các vai trò trên.
+                                    </p>
+                                    <p
+                                        v-else-if="isActiveCentralBranch"
+                                        class="rounded border border-purple-200/60 bg-purple-50/80 p-2 text-xs font-medium text-purple-700 dark:border-purple-900/50 dark:bg-purple-950/40 dark:text-purple-400"
+                                    >
+                                        🔒 Đang thao tác tại Chi nhánh Kho Tổng:
+                                        Chỉ được phép tạo Trưởng kho Tổng hoặc
+                                        Nhân viên Kho Tổng.
+                                    </p>
+                                    <select
+                                        id="emp-role"
+                                        v-model="employeeForm.role"
+                                        @change="handleRoleChange"
+                                        required
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                    >
+                                        <option
+                                            v-for="roleOption in createRoleOptions"
+                                            :key="roleOption.value"
+                                            :value="roleOption.value"
+                                        >
+                                            {{ roleOption.label }}
                                         </option>
                                     </select>
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label class="text-xs">Bắt đầu áp dụng</Label>
-                                    <Input v-model="employeeForm.fixed_schedule_from" type="date" />
+                                    <Label for="emp-title"
+                                        >Chức danh công việc</Label
+                                    >
+                                    <Input
+                                        id="emp-title"
+                                        v-model="employeeForm.job_title"
+                                        required
+                                    />
                                 </div>
                             </div>
-                            <div class="flex flex-wrap gap-1.5">
-                                <label
-                                    v-for="day in fixedWeekdays"
-                                    :key="day.value"
-                                    class="flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs"
-                                    :class="employeeForm.fixed_weekdays.includes(day.value) ? 'border-amber-500 bg-amber-100 text-amber-800' : 'border-slate-200 bg-background text-slate-500'"
-                                >
-                                    <input v-model="employeeForm.fixed_weekdays" type="checkbox" :value="day.value" class="accent-amber-600" />
-                                    {{ day.label }}
-                                </label>
-                            </div>
-                        </div>
 
-                        <div class="grid gap-1.5">
-                            <div class="flex items-center justify-between">
-                                <Label
-                                    >Chi nhánh làm việc
-                                    <span v-if="!isInspectorRole(employeeForm.role)" class="text-rose-500">*</span></Label
+                            <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
+                            <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
+                            <div
+                                class="grid gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-emerald-950/40 dark:bg-emerald-950/20"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <Label
+                                        class="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                                        >Bậc lương do Chủ quy định
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <span
+                                        class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"
+                                    >
+                                        🔒 Chuẩn hóa thang bảng lương
+                                    </span>
+                                </div>
+                                <select
+                                    v-model="employeeForm.wage_tier_id"
+                                    required
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                                 >
-                                <span
+                                    <option value="" disabled>
+                                        — Chọn Bậc lương do Chủ quy định —
+                                    </option>
+                                    <option
+                                        v-for="tier in availableWageTiers"
+                                        :key="tier.id"
+                                        :value="tier.id"
+                                    >
+                                        {{ tier.name }} ·
+                                        {{
+                                            compTypeLabel(
+                                                tier.compensation_type,
+                                            )
+                                        }}
+                                        · {{ formatVnd(tier.rate)
+                                        }}{{
+                                            tier.revenue_percent
+                                                ? ` + ${tier.revenue_percent}% DT`
+                                                : ''
+                                        }}
+                                        (≈
+                                        {{
+                                            formatVnd(tier.estimated_monthly)
+                                        }}/tháng)
+                                    </option>
+                                </select>
+                                <p
+                                    v-if="!availableWageTiers.length"
+                                    class="text-xs text-rose-500"
+                                >
+                                    Chi nhánh chưa có bậc lương. Vui lòng tạo
+                                    Bậc lương do Chủ quy định trước khi thêm
+                                    nhân viên.
+                                </p>
+                                <p
+                                    v-else
+                                    class="text-xs text-emerald-600 dark:text-emerald-400"
+                                >
+                                    🔒 Mức lương được khóa tự động theo Bậc
+                                    lương do Chủ quy định — không cho phép nhập
+                                    tay.
+                                </p>
+                            </div>
+
+                            <!-- Cấu hình Hình thức trả lương & Mức lương (Chỉ hiển thị theo Bậc, không sửa tay) -->
+                            <div
+                                class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
+                            >
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                        >Hình thức trả lương</Label
+                                    >
+                                    <Input
+                                        :model-value="
+                                            compTypeLabel(
+                                                employeeForm.compensation_type,
+                                            )
+                                        "
+                                        disabled
+                                        readonly
+                                        class="h-9 cursor-not-allowed bg-slate-100 font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                                    />
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                        >Mức lương</Label
+                                    >
+                                    <Input
+                                        :model-value="formattedSalaryRate"
+                                        disabled
+                                        readonly
+                                        class="h-9 cursor-not-allowed bg-slate-100 font-mono text-xs font-bold text-indigo-600 dark:bg-slate-900 dark:text-indigo-400"
+                                    />
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="
+                                    employeeForm.compensation_type === 'fixed'
+                                "
+                                class="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 dark:border-amber-950/40 dark:bg-amber-950/20"
+                            >
+                                <div>
+                                    <Label
+                                        class="text-xs font-bold text-amber-700 dark:text-amber-300"
+                                    >
+                                        Lịch làm cố định (tự động đưa vào bảng
+                                        xếp ca)
+                                    </Label>
+                                    <p
+                                        class="mt-1 text-[11px] text-amber-700/80 dark:text-amber-300/80"
+                                    >
+                                        Khi tạo nhân viên lương tháng cố định,
+                                        hệ thống sẽ tạo lịch lặp lại và sinh ca
+                                        trong 90 ngày đầu.
+                                    </p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="grid gap-1.5">
+                                        <Label class="text-xs"
+                                            >Ca cố định</Label
+                                        >
+                                        <select
+                                            v-model="
+                                                employeeForm.fixed_shift_id
+                                            "
+                                            class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm"
+                                        >
+                                            <option
+                                                v-for="shift in props.shifts"
+                                                :key="shift.id"
+                                                :value="shift.id"
+                                            >
+                                                {{ shift.name }} ({{
+                                                    shift.start
+                                                }}
+                                                - {{ shift.end }})
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="grid gap-1.5">
+                                        <Label class="text-xs"
+                                            >Bắt đầu áp dụng</Label
+                                        >
+                                        <Input
+                                            v-model="
+                                                employeeForm.fixed_schedule_from
+                                            "
+                                            type="date"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <label
+                                        v-for="day in fixedWeekdays"
+                                        :key="day.value"
+                                        class="flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs"
+                                        :class="
+                                            employeeForm.fixed_weekdays.includes(
+                                                day.value,
+                                            )
+                                                ? 'border-amber-500 bg-amber-100 text-amber-800'
+                                                : 'border-slate-200 bg-background text-slate-500'
+                                        "
+                                    >
+                                        <input
+                                            v-model="
+                                                employeeForm.fixed_weekdays
+                                            "
+                                            type="checkbox"
+                                            :value="day.value"
+                                            class="accent-amber-600"
+                                        />
+                                        {{ day.label }}
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="grid gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label
+                                        >Chi nhánh làm việc
+                                        <span
+                                            v-if="
+                                                !isInspectorRole(
+                                                    employeeForm.role,
+                                                )
+                                            "
+                                            class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <span
+                                        v-if="
+                                            isInspectorRole(employeeForm.role)
+                                        "
+                                        class="text-[11px] font-semibold text-rose-600 dark:text-rose-400"
+                                    >
+                                        🌐 Toàn chuỗi (Không cố định chi nhánh)
+                                    </span>
+                                    <span
+                                        v-else-if="
+                                            isWarehouseRole(employeeForm.role)
+                                        "
+                                        class="text-[11px] font-semibold text-purple-600 dark:text-purple-400"
+                                    >
+                                        🔒 Cố định theo Chi nhánh Tổng Kho
+                                    </span>
+                                </div>
+                                <select
                                     v-if="isInspectorRole(employeeForm.role)"
-                                    class="text-[11px] font-semibold text-rose-600 dark:text-rose-400"
+                                    disabled
+                                    class="w-full rounded-md border border-rose-200 bg-rose-50/50 px-3 py-2 text-sm font-semibold text-rose-700 focus-visible:outline-none disabled:cursor-not-allowed dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
                                 >
-                                    🌐 Toàn chuỗi (Không cố định chi nhánh)
-                                </span>
-                                <span
-                                    v-else-if="isWarehouseRole(employeeForm.role)"
-                                    class="text-[11px] font-semibold text-purple-600 dark:text-purple-400"
+                                    <option value="">
+                                        🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi
+                                        giám sát tất cả chi nhánh)
+                                    </option>
+                                </select>
+                                <select
+                                    v-else
+                                    v-model="employeeForm.branch_id"
+                                    required
+                                    :disabled="
+                                        isWarehouseRole(employeeForm.role)
+                                    "
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
                                 >
-                                    🔒 Cố định theo Chi nhánh Tổng Kho
-                                </span>
-                            </div>
-                            <select
-                                v-if="isInspectorRole(employeeForm.role)"
-                                disabled
-                                class="w-full rounded-md border border-rose-200 bg-rose-50/50 px-3 py-2 text-sm font-semibold text-rose-700 focus-visible:outline-none disabled:cursor-not-allowed dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
-                            >
-                                <option value="">
-                                    🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi giám sát tất cả chi nhánh)
-                                </option>
-                            </select>
-                            <select
-                                v-else
-                                v-model="employeeForm.branch_id"
-                                required
-                                :disabled="isWarehouseRole(employeeForm.role)"
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
-                            >
-                                <option
-                                    v-for="branch in availableCreateBranches"
-                                    :key="branch.id"
-                                    :value="branch.id"
-                                >
-                                    {{ branch.name }} {{ isCentralBranch(branch) ? '(Kho Tổng)' : '' }}
-                                </option>
-                            </select>
-                            <p
-                                v-if="isInspectorRole(employeeForm.role)"
-                                class="text-xs text-rose-600 dark:text-rose-400"
-                            >
-                                Giám sát viên Vận hành / Thanh tra có thẩm quyền kiểm tra và giám sát trên toàn bộ các chi nhánh trong chuỗi, không bị ràng buộc cố định vào một chi nhánh cụ thể.
-                            </p>
-                            <p
-                                v-else-if="isWarehouseRole(employeeForm.role)"
-                                class="text-xs text-purple-600 dark:text-purple-400"
-                            >
-                                Nhân sự vai trò Kho Tổng (Trưởng kho / Nhân viên kho Tổng) bắt buộc chỉ được xếp làm tại chi nhánh Tổng kho, không được xếp làm ở chi nhánh kinh doanh.
-                            </p>
-                        </div>
-
-                        <!-- CCCD Front / Back File Upload Section -->
-                        <div class="grid grid-cols-2 gap-4 border-t pt-3">
-                            <div class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-semibold text-slate-700"
-                                    >Ảnh mặt trước CCCD
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <div
-                                    class="flex w-full items-center justify-center"
-                                >
-                                    <label
-                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                    <option
+                                        v-for="branch in availableCreateBranches"
+                                        :key="branch.id"
+                                        :value="branch.id"
                                     >
-                                        <div
-                                            class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
+                                        {{ branch.name }}
+                                        {{
+                                            isCentralBranch(branch)
+                                                ? '(Kho Tổng)'
+                                                : ''
+                                        }}
+                                    </option>
+                                </select>
+                                <p
+                                    v-if="isInspectorRole(employeeForm.role)"
+                                    class="text-xs text-rose-600 dark:text-rose-400"
+                                >
+                                    Giám sát viên Vận hành / Thanh tra có thẩm
+                                    quyền kiểm tra và giám sát trên toàn bộ các
+                                    chi nhánh trong chuỗi, không bị ràng buộc cố
+                                    định vào một chi nhánh cụ thể.
+                                </p>
+                                <p
+                                    v-else-if="
+                                        isWarehouseRole(employeeForm.role)
+                                    "
+                                    class="text-xs text-purple-600 dark:text-purple-400"
+                                >
+                                    Nhân sự vai trò Kho Tổng (Trưởng kho / Nhân
+                                    viên kho Tổng) bắt buộc chỉ được xếp làm tại
+                                    chi nhánh Tổng kho, không được xếp làm ở chi
+                                    nhánh kinh doanh.
+                                </p>
+                            </div>
+
+                            <!-- CCCD Front / Back File Upload Section -->
+                            <div class="grid grid-cols-2 gap-4 border-t pt-3">
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700"
+                                        >Ảnh mặt trước CCCD
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <div
+                                        class="flex w-full items-center justify-center"
+                                    >
+                                        <label
+                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
                                         >
-                                            <Plus
-                                                class="mb-0.5 size-4 text-indigo-600"
-                                            />
-                                            <p
-                                                class="max-w-[200px] truncate text-[10px] font-medium text-slate-500"
+                                            <div
+                                                class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
                                             >
-                                                {{
-                                                    employeeForm.citizen_id_front
-                                                        ? employeeForm
-                                                              .citizen_id_front
-                                                              .name
-                                                        : 'Tải lên mặt trước CCCD'
-                                                }}
-                                            </p>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            class="hidden"
-                                            accept="image/*"
-                                            @change="
-                                                (e) =>
-                                                    (employeeForm.citizen_id_front =
-                                                        (
-                                                            e.target as HTMLInputElement
-                                                        ).files?.[0] || null)
-                                            "
-                                            required
-                                        />
-                                    </label>
+                                                <Plus
+                                                    class="mb-0.5 size-4 text-indigo-600"
+                                                />
+                                                <p
+                                                    class="max-w-[200px] truncate text-[10px] font-medium text-slate-500"
+                                                >
+                                                    {{
+                                                        employeeForm.citizen_id_front
+                                                            ? employeeForm
+                                                                  .citizen_id_front
+                                                                  .name
+                                                            : 'Tải lên mặt trước CCCD'
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                class="hidden"
+                                                accept="image/*"
+                                                @change="
+                                                    (e) =>
+                                                        (employeeForm.citizen_id_front =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).files?.[0] ||
+                                                            null)
+                                                "
+                                                required
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700"
+                                        >Ảnh mặt sau CCCD
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <div
+                                        class="flex w-full items-center justify-center"
+                                    >
+                                        <label
+                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                        >
+                                            <div
+                                                class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
+                                            >
+                                                <Plus
+                                                    class="mb-0.5 size-4 text-indigo-600"
+                                                />
+                                                <p
+                                                    class="max-w-[200px] truncate text-[10px] font-medium text-slate-500"
+                                                >
+                                                    {{
+                                                        employeeForm.citizen_id_back
+                                                            ? employeeForm
+                                                                  .citizen_id_back
+                                                                  .name
+                                                            : 'Tải lên mặt sau CCCD'
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                class="hidden"
+                                                accept="image/*"
+                                                @change="
+                                                    (e) =>
+                                                        (employeeForm.citizen_id_back =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).files?.[0] ||
+                                                            null)
+                                                "
+                                                required
+                                            />
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-semibold text-slate-700"
-                                    >Ảnh mặt sau CCCD
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <div
-                                    class="flex w-full items-center justify-center"
-                                >
-                                    <label
-                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
-                                    >
-                                        <div
-                                            class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
-                                        >
-                                            <Plus
-                                                class="mb-0.5 size-4 text-indigo-600"
-                                            />
-                                            <p
-                                                class="max-w-[200px] truncate text-[10px] font-medium text-slate-500"
-                                            >
-                                                {{
-                                                    employeeForm.citizen_id_back
-                                                        ? employeeForm
-                                                              .citizen_id_back
-                                                              .name
-                                                        : 'Tải lên mặt sau CCCD'
-                                                }}
-                                            </p>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            class="hidden"
-                                            accept="image/*"
-                                            @change="
-                                                (e) =>
-                                                    (employeeForm.citizen_id_back =
-                                                        (
-                                                            e.target as HTMLInputElement
-                                                        ).files?.[0] || null)
-                                            "
-                                            required
-                                        />
-                                    </label>
-                                </div>
+
+                            <div
+                                class="flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-[11px] text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
+                            >
+                                <AlertCircle class="mt-0.5 size-4 shrink-0" />
+                                <p>
+                                    <strong>Bảo mật mật khẩu:</strong> Nhân viên
+                                    sẽ nhận link kích hoạt qua email và tự đặt
+                                    mật khẩu riêng.
+                                </p>
                             </div>
-                        </div>
 
-                        <div
-                            class="flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-[11px] text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
-                        >
-                            <AlertCircle class="mt-0.5 size-4 shrink-0" />
-                            <p>
-                                <strong>Bảo mật mật khẩu:</strong> Nhân viên sẽ nhận
-                                link kích hoạt qua email và tự đặt mật khẩu riêng.
-                            </p>
-                        </div>
-
-                        <div class="flex justify-end gap-2 border-t pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showAddEmployee = false"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                class="bg-indigo-600 text-white"
-                                :disabled="employeeForm.processing"
-                            >
-                                {{
-                                    employeeForm.processing
-                                        ? 'Đang tạo...'
-                                        : 'Tạo nhân sự'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                            <div class="flex justify-end gap-2 border-t pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showAddEmployee = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    class="bg-indigo-600 text-white"
+                                    :disabled="employeeForm.processing"
+                                >
+                                    {{
+                                        employeeForm.processing
+                                            ? 'Đang tạo...'
+                                            : 'Tạo nhân sự'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
         </Teleport>
 
         <!-- Edit Employee Modal -->
-        
-            <div
-                v-if="editingEmployee"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
+
+        <div
+            v-if="editingEmployee"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -2135,7 +2354,13 @@ const submitSwapReject = () => {
                                 >
                                 <Input
                                     v-model="editForm.full_name"
-                                    @input="(e: Event) => { editForm.full_name = (e.target as HTMLInputElement).value.replace(/[^\p{L}\s]/gu, ''); }"
+                                    @input="
+                                        (e: Event) => {
+                                            editForm.full_name = (
+                                                e.target as HTMLInputElement
+                                            ).value.replace(/[^\p{L}\s]/gu, '');
+                                        }
+                                    "
                                     required
                                 />
                             </div>
@@ -2147,7 +2372,13 @@ const submitSwapReject = () => {
                                 <Input
                                     v-model="editForm.phone"
                                     maxlength="15"
-                                    @input="(e: Event) => { editForm.phone = (e.target as HTMLInputElement).value.replace(/\D/g, ''); }"
+                                    @input="
+                                        (e: Event) => {
+                                            editForm.phone = (
+                                                e.target as HTMLInputElement
+                                            ).value.replace(/\D/g, '');
+                                        }
+                                    "
                                     required
                                 />
                             </div>
@@ -2234,7 +2465,8 @@ const submitSwapReject = () => {
                                     <Label
                                         class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
                                     >
-                                        Bậc lương áp dụng (Chủ doanh nghiệp quy định)
+                                        Bậc lương áp dụng (Chủ doanh nghiệp quy
+                                        định)
                                     </Label>
                                     <span
                                         class="text-[11px] font-semibold text-amber-600 dark:text-amber-400"
@@ -2247,41 +2479,66 @@ const submitSwapReject = () => {
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none dark:border-slate-800 dark:text-slate-200"
                                 >
                                     <option value="">
-                                        -- Giữ bậc/mức lương hiện tại (hoặc chọn Bậc lương để thay đổi) --
+                                        -- Giữ bậc/mức lương hiện tại (hoặc chọn
+                                        Bậc lương để thay đổi) --
                                     </option>
                                     <option
                                         v-for="tier in availableEditWageTiers"
                                         :key="tier.id"
                                         :value="tier.id"
                                     >
-                                        {{ tier.name }} ({{ compTypeLabel(tier.compensation_type) }} - {{ formatVnd(tier.rate) }}{{ tier.revenue_percent ? ` + ${tier.revenue_percent}% DT` : '' }})
+                                        {{ tier.name }} ({{
+                                            compTypeLabel(
+                                                tier.compensation_type,
+                                            )
+                                        }}
+                                        - {{ formatVnd(tier.rate)
+                                        }}{{
+                                            tier.revenue_percent
+                                                ? ` + ${tier.revenue_percent}% DT`
+                                                : ''
+                                        }})
                                     </option>
                                 </select>
                             </div>
 
                             <div class="grid grid-cols-2 gap-4 pt-1">
                                 <div class="grid gap-1.5">
-                                    <Label class="text-xs font-medium text-slate-500 dark:text-slate-400">Hình thức trả lương</Label>
+                                    <Label
+                                        class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                        >Hình thức trả lương</Label
+                                    >
                                     <Input
-                                        :model-value="compTypeLabel(editForm.compensation_type)"
+                                        :model-value="
+                                            compTypeLabel(
+                                                editForm.compensation_type,
+                                            )
+                                        "
                                         disabled
                                         readonly
-                                        class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-800 dark:text-slate-100"
+                                        class="h-9 cursor-not-allowed bg-slate-100 font-semibold text-slate-800 dark:bg-slate-900 dark:text-slate-100"
                                     />
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mức lương</Label>
+                                    <Label
+                                        class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                                        >Mức lương</Label
+                                    >
                                     <Input
                                         :model-value="formattedEditSalaryRate"
                                         disabled
                                         readonly
-                                        class="h-9 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                        class="h-9 cursor-not-allowed bg-slate-100 font-mono text-xs font-bold text-indigo-600 dark:bg-slate-900 dark:text-indigo-400"
                                     />
                                 </div>
                             </div>
-                            <p class="text-[11px] text-slate-500 dark:text-slate-400">
-                                * Hệ thống quy định không được sửa mức lương tùy ý. Muốn điều chỉnh tăng hoặc giảm lương phải chọn Bậc lương đã phê duyệt ở trên.
+                            <p
+                                class="text-[11px] text-slate-500 dark:text-slate-400"
+                            >
+                                * Hệ thống quy định không được sửa mức lương tùy
+                                ý. Muốn điều chỉnh tăng hoặc giảm lương phải
+                                chọn Bậc lương đã phê duyệt ở trên.
                             </p>
                         </div>
 
@@ -2289,7 +2546,11 @@ const submitSwapReject = () => {
                             <div class="flex items-center justify-between">
                                 <Label
                                     >Chi nhánh làm việc
-                                    <span v-if="!isInspectorRole(editForm.role)" class="text-rose-500">*</span></Label
+                                    <span
+                                        v-if="!isInspectorRole(editForm.role)"
+                                        class="text-rose-500"
+                                        >*</span
+                                    ></Label
                                 >
                                 <span
                                     v-if="isInspectorRole(editForm.role)"
@@ -2310,7 +2571,8 @@ const submitSwapReject = () => {
                                 class="w-full rounded-md border border-rose-200 bg-rose-50/50 px-3 py-2 text-sm font-semibold text-rose-700 focus-visible:outline-none disabled:cursor-not-allowed dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
                             >
                                 <option value="">
-                                    🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi giám sát tất cả chi nhánh)
+                                    🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi giám
+                                    sát tất cả chi nhánh)
                                 </option>
                             </select>
                             <select
@@ -2325,20 +2587,27 @@ const submitSwapReject = () => {
                                     :key="branch.id"
                                     :value="branch.id"
                                 >
-                                    {{ branch.name }} {{ isCentralBranch(branch) ? '(Kho Tổng)' : '' }}
+                                    {{ branch.name }}
+                                    {{
+                                        isCentralBranch(branch)
+                                            ? '(Kho Tổng)'
+                                            : ''
+                                    }}
                                 </option>
                             </select>
                             <p
                                 v-if="isInspectorRole(editForm.role)"
                                 class="text-xs text-rose-600 dark:text-rose-400"
                             >
-                                Giám sát viên Vận hành / Thanh tra có thẩm quyền kiểm tra và giám sát trên toàn chuỗi hệ thống.
+                                Giám sát viên Vận hành / Thanh tra có thẩm quyền
+                                kiểm tra và giám sát trên toàn chuỗi hệ thống.
                             </p>
                             <p
                                 v-else-if="isWarehouseRole(editForm.role)"
                                 class="text-xs text-purple-600 dark:text-purple-400"
                             >
-                                Nhân sự vai trò Kho Tổng bắt buộc làm việc tại chi nhánh Tổng kho.
+                                Nhân sự vai trò Kho Tổng bắt buộc làm việc tại
+                                chi nhánh Tổng kho.
                             </p>
                         </div>
 
@@ -2463,7 +2732,6 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <!-- Left content: Employee roster -->
@@ -2548,7 +2816,10 @@ const submitSwapReject = () => {
                                         <p
                                             class="mt-0.5 flex flex-wrap items-center gap-1.5 truncate text-xs text-muted-foreground"
                                         >
-                                            <span>{{ emp.employee_code }} · {{ emp.job_title }}</span>
+                                            <span
+                                                >{{ emp.employee_code }} ·
+                                                {{ emp.job_title }}</span
+                                            >
                                             <span
                                                 v-if="emp.branch_name"
                                                 class="inline-flex items-center gap-0.5 rounded border border-slate-200/60 bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
@@ -2560,12 +2831,16 @@ const submitSwapReject = () => {
                                             class="mt-1 flex items-center gap-1.5 text-xs"
                                         >
                                             <span
-                                                v-if="(emp.rating_count || 0) > 0"
+                                                v-if="
+                                                    (emp.rating_count || 0) > 0
+                                                "
                                                 class="inline-flex items-center gap-0.5 rounded-full border border-amber-200/50 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                                             >
                                                 ⭐
                                                 {{
-                                                    Number(emp.rating_star).toFixed(1)
+                                                    Number(
+                                                        emp.rating_star,
+                                                    ).toFixed(1)
                                                 }}
                                                 / 5.0
                                             </span>
@@ -2576,7 +2851,9 @@ const submitSwapReject = () => {
                                                 Chưa có đánh giá
                                             </span>
                                             <span
-                                                v-if="(emp.rating_count || 0) > 0"
+                                                v-if="
+                                                    (emp.rating_count || 0) > 0
+                                                "
                                                 class="text-[10px] font-medium text-slate-400"
                                             >
                                                 ({{ emp.rating_count || 0 }}
@@ -2774,8 +3051,11 @@ const submitSwapReject = () => {
                                 v-if="totalEmpPages > 1"
                                 class="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800"
                             >
-                                <span class="text-xs text-slate-500 dark:text-slate-400">
-                                    Trang {{ empCurrentPage }} / {{ totalEmpPages }}
+                                <span
+                                    class="text-xs text-slate-500 dark:text-slate-400"
+                                >
+                                    Trang {{ empCurrentPage }} /
+                                    {{ totalEmpPages }}
                                 </span>
                                 <div class="flex items-center gap-1">
                                     <Button
@@ -2798,7 +3078,7 @@ const submitSwapReject = () => {
                                             'h-7 w-7 p-0 text-xs font-semibold',
                                             empCurrentPage === p
                                                 ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white dark:bg-indigo-500'
-                                                : ''
+                                                : '',
                                         ]"
                                     >
                                         {{ p }}
@@ -2806,7 +3086,9 @@ const submitSwapReject = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        :disabled="empCurrentPage === totalEmpPages"
+                                        :disabled="
+                                            empCurrentPage === totalEmpPages
+                                        "
                                         @click="empCurrentPage++"
                                         class="h-7 px-2 text-xs"
                                     >
@@ -3097,8 +3379,7 @@ const submitSwapReject = () => {
                                             <!-- Load assigned schedules -->
                                             <div
                                                 v-for="s in schedulesState.filter(
-                                                    (sc) =>
-                                                        sc.day === day.key,
+                                                    (sc) => sc.day === day.key,
                                                 )"
                                                 :key="
                                                     s.employee_name +
@@ -3119,17 +3400,29 @@ const submitSwapReject = () => {
                                                 >
                                                 <span
                                                     v-if="s.branch_name"
-                                                    class="rounded bg-indigo-100/90 px-1 py-0.2 text-[8px] font-extrabold text-indigo-700 dark:bg-indigo-900/70 dark:text-indigo-300"
+                                                    class="py-0.2 rounded bg-indigo-100/90 px-1 text-[8px] font-extrabold text-indigo-700 dark:bg-indigo-900/70 dark:text-indigo-300"
                                                 >
                                                     🏢 {{ s.branch_name }}
                                                 </span>
                                                 <span
                                                     class="font-mono text-[9px] text-slate-400"
-                                                    >({{ s.shift_name }}<template v-if="s.start_time">: {{ s.start_time }}-{{ s.end_time }}</template>)</span
+                                                    >({{ s.shift_name
+                                                    }}<template
+                                                        v-if="s.start_time"
+                                                        >: {{ s.start_time }}-{{
+                                                            s.end_time
+                                                        }}</template
+                                                    >)</span
                                                 >
                                                 <!-- Delete button (Only available before shift end time) -->
                                                 <button
-                                                    v-if="!isAutoSchedule && !isShiftEnded(day.dateStr, s.end_time)"
+                                                    v-if="
+                                                        !isAutoSchedule &&
+                                                        !isShiftEnded(
+                                                            day.dateStr,
+                                                            s.end_time,
+                                                        )
+                                                    "
                                                     @click="
                                                         removeAssignment(
                                                             day.key,
@@ -3144,7 +3437,12 @@ const submitSwapReject = () => {
                                                     <X class="size-3" />
                                                 </button>
                                                 <span
-                                                    v-else-if="isShiftEnded(day.dateStr, s.end_time)"
+                                                    v-else-if="
+                                                        isShiftEnded(
+                                                            day.dateStr,
+                                                            s.end_time,
+                                                        )
+                                                    "
                                                     class="ml-1 text-[9px] text-slate-400 opacity-60"
                                                     title="Ca làm việc đã kết thúc (không thể xóa)"
                                                 >
@@ -3509,370 +3807,360 @@ const submitSwapReject = () => {
         </Card>
 
         <!-- Modal: Thiết lập ca nhanh -->
-        
-            <div
-                v-if="showQuickScheduleModal"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
-                <Card
-                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
-                >
-                    <CardHeader
-                        class="flex flex-row items-start justify-between gap-4 border-b pb-3"
-                    >
-                        <div>
-                            <CardTitle
-                                class="flex items-center gap-1.5 text-base text-amber-600"
-                            >
-                                <Sparkles class="size-5" />
-                                Thiết lập ca nhanh
-                            </CardTitle>
-                            <CardDescription>
-                                Hệ thống tự lấy ngày và thời điểm bạn bấm
-                                “Xếp ca” làm mốc, không cần chọn ngày.
-                            </CardDescription>
-                        </div>
-                        <button
-                            @click="showQuickScheduleModal = false"
-                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </CardHeader>
-                    <CardContent class="space-y-4 pt-4">
-                        <div
-                            class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
-                        >
-                            <p class="font-semibold">
-                                Quy tắc thiết lập ca nhanh
-                            </p>
-                            <p class="mt-1">
-                                Hôm nay chỉ xếp ca có giờ bắt đầu không trước
-                                thời điểm bạn bấm “Xếp ca”. Ví dụ bấm lúc 17:00
-                                thì ca bắt đầu trước 17:00 sẽ không được xếp.
-                                Từ ngày mai đến Chủ nhật, hệ thống xếp các ca
-                                còn trống. Ca đã có, đã hoàn thành hoặc đã khóa
-                                không bị thay đổi.
-                            </p>
-                        </div>
 
-                        <div class="flex justify-end gap-2 border-t pt-3">
+        <div
+            v-if="showQuickScheduleModal"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
+            <Card
+                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+            >
+                <CardHeader
+                    class="flex flex-row items-start justify-between gap-4 border-b pb-3"
+                >
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-amber-600"
+                        >
+                            <Sparkles class="size-5" />
+                            Thiết lập ca nhanh
+                        </CardTitle>
+                        <CardDescription>
+                            Hệ thống tự lấy ngày và thời điểm bạn bấm “Xếp ca”
+                            làm mốc, không cần chọn ngày.
+                        </CardDescription>
+                    </div>
+                    <button
+                        @click="showQuickScheduleModal = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                <CardContent class="space-y-4 pt-4">
+                    <div
+                        class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                    >
+                        <p class="font-semibold">Quy tắc thiết lập ca nhanh</p>
+                        <p class="mt-1">
+                            Hôm nay chỉ xếp ca có giờ bắt đầu không trước thời
+                            điểm bạn bấm “Xếp ca”. Ví dụ bấm lúc 17:00 thì ca
+                            bắt đầu trước 17:00 sẽ không được xếp. Từ ngày mai
+                            đến Chủ nhật, hệ thống xếp các ca còn trống. Ca đã
+                            có, đã hoàn thành hoặc đã khóa không bị thay đổi.
+                        </p>
+                    </div>
+
+                    <div class="flex justify-end gap-2 border-t pt-3">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="showQuickScheduleModal = false"
+                            >Hủy</Button
+                        >
+                        <Button
+                            type="button"
+                            size="sm"
+                            @click="submitQuickSchedule"
+                            class="bg-amber-500 font-semibold text-white shadow hover:bg-amber-600"
+                        >
+                            <Sparkles class="mr-1.5 size-3.5" />
+                            Xếp ca
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
+
+        <div
+            v-if="showShiftConfigModal"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
+            <Card
+                class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                >
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
+                        >
+                            <Settings class="size-5" />
+                            Thiết lập Ca làm việc trong ngày
+                        </CardTitle>
+                        <CardDescription
+                            >Cấu hình thời gian và số ca hoạt động của nhà hàng
+                            hàng ngày.</CardDescription
+                        >
+                    </div>
+                    <button
+                        @click="showShiftConfigModal = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                <CardContent class="space-y-4 pt-4">
+                    <div
+                        v-if="shiftsState.length > 0"
+                        class="max-h-[300px] space-y-3 overflow-y-auto pr-1"
+                    >
+                        <div
+                            v-for="s in shiftsState"
+                            :key="s.id"
+                            class="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                            <!-- Name input -->
+                            <div class="min-w-0 flex-1">
+                                <Label
+                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                    >Tên ca</Label
+                                >
+                                <Input
+                                    v-model="s.name"
+                                    class="h-8 text-xs font-semibold"
+                                    placeholder="Ví dụ: Ca Sáng"
+                                />
+                            </div>
+
+                            <!-- Start time input -->
+                            <div class="w-24 shrink-0">
+                                <Label
+                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                    >Bắt đầu</Label
+                                >
+                                <Input
+                                    type="time"
+                                    v-model="s.start"
+                                    class="h-8 font-mono text-xs"
+                                />
+                            </div>
+
+                            <!-- End time input -->
+                            <div class="w-24 shrink-0">
+                                <Label
+                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                    >Kết thúc</Label
+                                >
+                                <Input
+                                    type="time"
+                                    v-model="s.end"
+                                    class="h-8 font-mono text-xs"
+                                />
+                            </div>
+
+                            <!-- Delete shift button -->
+                            <button
+                                @click="deleteShift(s.id)"
+                                class="mb-0.5 shrink-0 self-end rounded-lg p-1.5 text-rose-500 transition-colors hover:bg-rose-100 dark:hover:bg-rose-950/40"
+                                title="Xóa ca này"
+                            >
+                                <Trash2 class="size-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        v-else
+                        class="py-8 text-center text-xs text-muted-foreground italic"
+                    >
+                        Chưa có ca làm việc nào. Vui lòng bấm thêm ca bên dưới.
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between border-t border-border/60 pt-2"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="addShift"
+                            class="border-indigo-200 font-semibold text-indigo-600 hover:bg-indigo-50"
+                        >
+                            <Plus class="mr-1.5 size-4" /> Thêm ca mới
+                        </Button>
+
+                        <div class="flex gap-2">
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                @click="showQuickScheduleModal = false"
+                                @click="showShiftConfigModal = false"
                                 >Hủy</Button
                             >
                             <Button
                                 type="button"
                                 size="sm"
-                                @click="submitQuickSchedule"
-                                class="bg-amber-500 font-semibold text-white shadow hover:bg-amber-600"
+                                @click="saveShiftsConfig"
+                                class="bg-indigo-600 font-semibold text-white shadow"
                             >
-                                <Sparkles class="mr-1.5 size-3.5" />
-                                Xếp ca
+                                Lưu cấu hình
                             </Button>
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
-        
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
 
-        <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
-        
-            <div
-                v-if="showShiftConfigModal"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
+
+        <div
+            v-if="showAssignModal"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-28"
+        >
+            <Card
+                class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
-                <Card
-                    class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                <CardHeader
+                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                 >
-                    <CardHeader
-                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base text-indigo-600"
+                        >
+                            <Calendar class="size-5" />
+                            Xếp ca - {{ currentAssignDayLabel }}
+                        </CardTitle>
+                        <CardDescription
+                            >Chọn nhân sự và gán ca tương ứng vào ngày
+                            này.</CardDescription
+                        >
+                    </div>
+                    <button
+                        @click="showAssignModal = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
-                        <div>
-                            <CardTitle
-                                class="flex items-center gap-1.5 text-base text-indigo-600"
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
+                <CardContent class="space-y-4 pt-4">
+                    <form @submit.prevent="submitAssignment" class="space-y-4">
+                        <div class="grid gap-1.5">
+                            <Label for="assign-emp"
+                                >Chọn nhân sự
+                                <span class="text-rose-500">*</span></Label
                             >
-                                <Settings class="size-5" />
-                                Thiết lập Ca làm việc trong ngày
-                            </CardTitle>
-                            <CardDescription
-                                >Cấu hình thời gian và số ca hoạt động của nhà hàng
-                                hàng ngày.</CardDescription
+                            <select
+                                id="assign-emp"
+                                v-model="assignForm.employee_name"
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                             >
-                        </div>
-                        <button
-                            @click="showShiftConfigModal = false"
-                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </CardHeader>
-                    <CardContent class="space-y-4 pt-4">
-                        <div
-                            v-if="shiftsState.length > 0"
-                            class="max-h-[300px] space-y-3 overflow-y-auto pr-1"
-                        >
-                            <div
-                                v-for="s in shiftsState"
-                                :key="s.id"
-                                class="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-3"
-                            >
-                                <!-- Name input -->
-                                <div class="min-w-0 flex-1">
-                                    <Label
-                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                        >Tên ca</Label
-                                    >
-                                    <Input
-                                        v-model="s.name"
-                                        class="h-8 text-xs font-semibold"
-                                        placeholder="Ví dụ: Ca Sáng"
-                                    />
-                                </div>
-
-                                <!-- Start time input -->
-                                <div class="w-24 shrink-0">
-                                    <Label
-                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                        >Bắt đầu</Label
-                                    >
-                                    <Input
-                                        type="time"
-                                        v-model="s.start"
-                                        class="h-8 font-mono text-xs"
-                                    />
-                                </div>
-
-                                <!-- End time input -->
-                                <div class="w-24 shrink-0">
-                                    <Label
-                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                        >Kết thúc</Label
-                                    >
-                                    <Input
-                                        type="time"
-                                        v-model="s.end"
-                                        class="h-8 font-mono text-xs"
-                                    />
-                                </div>
-
-                                <!-- Delete shift button -->
-                                <button
-                                    @click="deleteShift(s.id)"
-                                    class="mb-0.5 shrink-0 self-end rounded-lg p-1.5 text-rose-500 transition-colors hover:bg-rose-100 dark:hover:bg-rose-950/40"
-                                    title="Xóa ca này"
+                                <option
+                                    v-for="emp in employees"
+                                    :key="emp.id"
+                                    :value="emp.full_name"
                                 >
-                                    <Trash2 class="size-4" />
+                                    {{ emp.full_name }} ({{ emp.job_title }}){{
+                                        emp.branch_name
+                                            ? ' — 🏢 ' + emp.branch_name
+                                            : ''
+                                    }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label for="assign-shift"
+                                >Chọn ca làm việc
+                                <span class="text-rose-500">*</span></Label
+                            >
+                            <select
+                                id="assign-shift"
+                                v-model="assignForm.shift_id"
+                                @change="
+                                    (e) => {
+                                        const targetId = Number(
+                                            (e.target as HTMLSelectElement)
+                                                .value,
+                                        );
+                                        const s = shiftsState.find(
+                                            (x) => x.id === targetId,
+                                        );
+                                        if (s)
+                                            assignForm.shift_name =
+                                                s.name.split(' (')[0];
+                                    }
+                                "
+                                required
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                            >
+                                <option
+                                    v-for="s in shiftsState"
+                                    :key="s.id"
+                                    :value="s.id"
+                                >
+                                    {{ s.name }} ({{ s.start }} - {{ s.end }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Suggestions helper -->
+                        <div
+                            v-if="
+                                getRegistrationsForDay(currentAssignDay).length
+                            "
+                            class="dark:text-emerald-350 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20"
+                        >
+                            <span class="flex items-center gap-1 font-bold"
+                                ><Sparkles class="size-3.5" /> Gợi ý: Nhân viên
+                                đăng ký rảnh hôm nay</span
+                            >
+                            <div class="mt-1.5 flex flex-wrap gap-1">
+                                <button
+                                    v-for="r in getRegistrationsForDay(
+                                        currentAssignDay,
+                                    )"
+                                    :key="r.employee_name + '-' + r.shift_name"
+                                    type="button"
+                                    @click="
+                                        assignForm.employee_name =
+                                            r.employee_name;
+                                        assignForm.shift_name =
+                                            r.shift_name.split(' (')[0];
+                                    "
+                                    class="cursor-pointer rounded border bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 active:scale-95 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    title="Chọn nhanh nhân viên này"
+                                >
+                                    {{ r.employee_name }} ({{
+                                        r.shift_name.split(' (')[0]
+                                    }})
                                 </button>
                             </div>
                         </div>
 
                         <div
-                            v-else
-                            class="py-8 text-center text-xs text-muted-foreground italic"
-                        >
-                            Chưa có ca làm việc nào. Vui lòng bấm thêm ca bên dưới.
-                        </div>
-
-                        <div
-                            class="flex items-center justify-between border-t border-border/60 pt-2"
+                            class="flex justify-end gap-2 border-t border-border/60 pt-2"
                         >
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                @click="addShift"
-                                class="border-indigo-200 font-semibold text-indigo-600 hover:bg-indigo-50"
+                                @click="showAssignModal = false"
+                                >Hủy</Button
                             >
-                                <Plus class="mr-1.5 size-4" /> Thêm ca mới
-                            </Button>
-
-                            <div class="flex gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    @click="showShiftConfigModal = false"
-                                    >Hủy</Button
-                                >
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    @click="saveShiftsConfig"
-                                    class="bg-indigo-600 font-semibold text-white shadow"
-                                >
-                                    Lưu cấu hình
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        
-
-        <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
-        
-            <div
-                v-if="showAssignModal"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-28"
-            >
-                <Card
-                    class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
-                >
-                    <CardHeader
-                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
-                    >
-                        <div>
-                            <CardTitle
-                                class="flex items-center gap-1.5 text-base text-indigo-600"
-                            >
-                                <Calendar class="size-5" />
-                                Xếp ca - {{ currentAssignDayLabel }}
-                            </CardTitle>
-                            <CardDescription
-                                >Chọn nhân sự và gán ca tương ứng vào ngày
-                                này.</CardDescription
+                            <Button
+                                type="submit"
+                                size="sm"
+                                class="bg-indigo-600 font-semibold text-white"
+                                >Xác nhận xếp ca</Button
                             >
                         </div>
-                        <button
-                            @click="showAssignModal = false"
-                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </CardHeader>
-                    <CardContent class="space-y-4 pt-4">
-                        <form
-                            @submit.prevent="submitAssignment"
-                            class="space-y-4"
-                        >
-                            <div class="grid gap-1.5">
-                                <Label for="assign-emp"
-                                    >Chọn nhân sự
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <select
-                                    id="assign-emp"
-                                    v-model="assignForm.employee_name"
-                                    required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                                >
-                                    <option
-                                        v-for="emp in employees"
-                                        :key="emp.id"
-                                        :value="emp.full_name"
-                                    >
-                                        {{ emp.full_name }} ({{ emp.job_title }}){{ emp.branch_name ? ' — 🏢 ' + emp.branch_name : '' }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <div class="grid gap-1.5">
-                                <Label for="assign-shift"
-                                    >Chọn ca làm việc
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <select
-                                    id="assign-shift"
-                                    v-model="assignForm.shift_id"
-                                    @change="
-                                        (e) => {
-                                            const targetId = Number(
-                                                (
-                                                    e.target as HTMLSelectElement
-                                                ).value,
-                                            );
-                                            const s = shiftsState.find(
-                                                (x) => x.id === targetId,
-                                            );
-                                            if (s)
-                                                assignForm.shift_name =
-                                                    s.name.split(' (')[0];
-                                        }
-                                    "
-                                    required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                                >
-                                    <option
-                                        v-for="s in shiftsState"
-                                        :key="s.id"
-                                        :value="s.id"
-                                    >
-                                        {{ s.name }} ({{ s.start }} -
-                                        {{ s.end }})
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- Suggestions helper -->
-                            <div
-                                v-if="
-                                    getRegistrationsForDay(currentAssignDay)
-                                        .length
-                                "
-                                class="dark:text-emerald-350 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20"
-                            >
-                                <span class="flex items-center gap-1 font-bold"
-                                    ><Sparkles class="size-3.5" /> Gợi ý: Nhân
-                                    viên đăng ký rảnh hôm nay</span
-                                >
-                                <div class="mt-1.5 flex flex-wrap gap-1">
-                                    <button
-                                        v-for="r in getRegistrationsForDay(
-                                            currentAssignDay,
-                                        )"
-                                        :key="
-                                            r.employee_name + '-' + r.shift_name
-                                        "
-                                        type="button"
-                                        @click="
-                                            assignForm.employee_name =
-                                                r.employee_name;
-                                            assignForm.shift_name =
-                                                r.shift_name.split(' (')[0];
-                                        "
-                                        class="cursor-pointer rounded border bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 active:scale-95 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                                        title="Chọn nhanh nhân viên này"
-                                    >
-                                        {{ r.employee_name }} ({{
-                                            r.shift_name.split(' (')[0]
-                                        }})
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div
-                                class="flex justify-end gap-2 border-t border-border/60 pt-2"
-                            >
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    @click="showAssignModal = false"
-                                    >Hủy</Button
-                                >
-                                <Button
-                                    type="submit"
-                                    size="sm"
-                                    class="bg-indigo-600 font-semibold text-white"
-                                    >Xác nhận xếp ca</Button
-                                >
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-            </div>
-        
+                    </form>
+                </CardContent>
+            </Card>
+        </div>
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
-        
-            <div
-                v-if="showLeaveModal"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
+
+        <div
+            v-if="showLeaveModal"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
             <Card class="w-full max-w-md shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -4013,14 +4301,13 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <!-- Modal: Duyệt đơn & Gợi ý thế chỗ nhân sự (showApproveReplacementModal) -->
-        
-            <div
-                v-if="showApproveReplacementModal && replacementLeaveData"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
+
+        <div
+            v-if="showApproveReplacementModal && replacementLeaveData"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
             <Card
                 class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95"
             >
@@ -4181,14 +4468,13 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <!-- Modal: Nhập lý do từ chối (showRejectModal) -->
-        
-            <div
-                v-if="showRejectModal !== null"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
+
+        <div
+            v-if="showRejectModal !== null"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
             <Card class="w-full max-w-sm shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -4250,14 +4536,13 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <!-- Modal: Nhập lý do từ chối đổi ca trực (showSwapRejectModal) -->
-        
-            <div
-                v-if="showSwapRejectModal !== null"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-            >
+
+        <div
+            v-if="showSwapRejectModal !== null"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+        >
             <Card class="w-full max-w-sm shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -4319,53 +4604,123 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        
 
         <Teleport to="body">
-        <div
-            v-if="showEmergencyReplace"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-        >
-            <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-                <div class="mb-3 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase">
-                    <UserCog class="size-4.5" /> Thay ca khẩn cấp
+            <div
+                v-if="showEmergencyReplace"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            >
+                <div
+                    class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <div
+                        class="mb-3 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase"
+                    >
+                        <UserCog class="size-4.5" /> Thay ca khẩn cấp
+                    </div>
+                    <p class="mb-3 text-xs text-slate-500">
+                        Chọn ca của người nghỉ đột xuất và người vào thay. Ca
+                        gốc sẽ đánh dấu vắng; ca thay được ghi nhận và báo Chủ.
+                    </p>
+                    <form
+                        @submit.prevent="submitEmergencyReplace"
+                        class="flex flex-col gap-3"
+                    >
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Ca cần thay (người nghỉ)</label
+                            >
+                            <select
+                                v-model="emergencyForm.assignment_id"
+                                required
+                                class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="" disabled>— Chọn ca —</option>
+                                <option
+                                    v-for="a in assignmentsWithId"
+                                    :key="a.id"
+                                    :value="a.id"
+                                >
+                                    {{ a.day }} · {{ a.employee_name }} ·
+                                    {{ a.shift_name }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="emergencyForm.errors.assignment_id"
+                                class="text-[11px] font-semibold text-rose-500"
+                            >
+                                {{ emergencyForm.errors.assignment_id }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Người vào thay</label
+                            >
+                            <select
+                                v-model="emergencyForm.replacement_employee_id"
+                                required
+                                class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="" disabled>
+                                    — Chọn nhân viên —
+                                </option>
+                                <option
+                                    v-for="e in employees"
+                                    :key="e.id"
+                                    :value="e.id"
+                                >
+                                    {{ e.full_name }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="
+                                    emergencyForm.errors.replacement_employee_id
+                                "
+                                class="text-[11px] font-semibold text-rose-500"
+                            >
+                                {{
+                                    emergencyForm.errors.replacement_employee_id
+                                }}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Lý do</label
+                            >
+                            <Input
+                                v-model="emergencyForm.reason"
+                                required
+                                placeholder="VD: Nghỉ ốm đột xuất không báo trước"
+                            />
+                            <p
+                                v-if="emergencyForm.errors.reason"
+                                class="text-[11px] font-semibold text-rose-500"
+                            >
+                                {{ emergencyForm.errors.reason }}
+                            </p>
+                        </div>
+                        <div class="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showEmergencyReplace = false"
+                                class="rounded-xl text-xs"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="emergencyForm.processing"
+                                class="rounded-xl border-0 bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                            >
+                                Xếp người thay
+                            </Button>
+                        </div>
+                    </form>
                 </div>
-                <p class="mb-3 text-xs text-slate-500">
-                    Chọn ca của người nghỉ đột xuất và người vào thay. Ca gốc sẽ đánh dấu vắng; ca thay được ghi nhận và báo Chủ.
-                </p>
-                <form @submit.prevent="submitEmergencyReplace" class="flex flex-col gap-3">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Ca cần thay (người nghỉ)</label>
-                        <select v-model="emergencyForm.assignment_id" required class="h-9 rounded-md border border-input bg-background px-3 text-sm">
-                            <option value="" disabled>— Chọn ca —</option>
-                            <option v-for="a in assignmentsWithId" :key="a.id" :value="a.id">
-                                {{ a.day }} · {{ a.employee_name }} · {{ a.shift_name }}
-                            </option>
-                        </select>
-                        <p v-if="emergencyForm.errors.assignment_id" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.assignment_id }}</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Người vào thay</label>
-                        <select v-model="emergencyForm.replacement_employee_id" required class="h-9 rounded-md border border-input bg-background px-3 text-sm">
-                            <option value="" disabled>— Chọn nhân viên —</option>
-                            <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.full_name }}</option>
-                        </select>
-                        <p v-if="emergencyForm.errors.replacement_employee_id" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.replacement_employee_id }}</p>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Lý do</label>
-                        <Input v-model="emergencyForm.reason" required placeholder="VD: Nghỉ ốm đột xuất không báo trước" />
-                        <p v-if="emergencyForm.errors.reason" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.reason }}</p>
-                    </div>
-                    <div class="flex justify-end gap-2 border-t pt-3">
-                        <Button type="button" variant="outline" @click="showEmergencyReplace = false" class="rounded-xl text-xs">Hủy</Button>
-                        <Button type="submit" :disabled="emergencyForm.processing" class="rounded-xl border-0 bg-rose-600 text-xs font-bold text-white hover:bg-rose-700">
-                            Xếp người thay
-                        </Button>
-                    </div>
-                </form>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

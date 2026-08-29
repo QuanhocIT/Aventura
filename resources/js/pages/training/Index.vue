@@ -154,7 +154,9 @@ async function openLearning(enrollment: any) {
         quizAnswers.value = {};
         showLearningDialog.value = true;
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Không thể tải nội dung khóa học.');
+        toast.error(
+            e.response?.data?.message || 'Không thể tải nội dung khóa học.',
+        );
     } finally {
         learningLoading.value = false;
     }
@@ -198,7 +200,8 @@ async function submitLearningQuiz(quiz: any) {
         toast.success(`Kết quả kiểm tra: ${response.data.score}%`);
         learning.value.enrollment.progress_percent = Math.max(
             learning.value.enrollment.progress_percent,
-            response.data.progress || learning.value.enrollment.progress_percent,
+            response.data.progress ||
+                learning.value.enrollment.progress_percent,
         );
 
         if (response.data.certificate_code) {
@@ -454,7 +457,7 @@ const statusColor: Record<string, string> = {
                     <div>
                         <div class="flex items-center gap-2">
                             <h1
-                                class="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl"
+                                class="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl dark:text-white"
                             >
                                 Đào Tạo & Onboarding
                             </h1>
@@ -468,8 +471,8 @@ const statusColor: Record<string, string> = {
                         <p
                             class="mt-1 text-xs text-slate-600 dark:text-slate-300"
                         >
-                            Quản lý quy trình đào tạo hội nhập, chuẩn hóa bài kiểm
-                            tra ATTP/Thực đơn và chứng chỉ nhân sự.
+                            Quản lý quy trình đào tạo hội nhập, chuẩn hóa bài
+                            kiểm tra ATTP/Thực đơn và chứng chỉ nhân sự.
                         </p>
                     </div>
                 </div>
@@ -510,9 +513,13 @@ const statusColor: Record<string, string> = {
                             class="text-2xl font-extrabold text-slate-900 dark:text-white"
                             >{{ stats.total_courses }}</span
                         >
-                        <span class="text-[11px] text-slate-500">chương trình</span>
+                        <span class="text-[11px] text-slate-500"
+                            >chương trình</span
+                        >
                     </div>
-                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p
+                        class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                         Đang lưu hành trong hệ thống
                     </p>
                 </CardContent>
@@ -540,7 +547,9 @@ const statusColor: Record<string, string> = {
                         >
                         <span class="text-[11px] text-slate-500">hồ sơ</span>
                     </div>
-                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p
+                        class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                         Hồ sơ nhân viên học tập
                     </p>
                 </CardContent>
@@ -568,7 +577,9 @@ const statusColor: Record<string, string> = {
                         >
                         <span class="text-[11px] text-slate-500">đã đạt</span>
                     </div>
-                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p
+                        class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                         Được cấp chứng chỉ / Xác nhận
                     </p>
                 </CardContent>
@@ -594,9 +605,13 @@ const statusColor: Record<string, string> = {
                             class="text-2xl font-extrabold text-amber-600 dark:text-amber-400"
                             >{{ stats.in_progress }}</span
                         >
-                        <span class="text-[11px] text-slate-500">nhân viên</span>
+                        <span class="text-[11px] text-slate-500"
+                            >nhân viên</span
+                        >
                     </div>
-                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <p
+                        class="mt-1 text-[11px] text-slate-500 dark:text-slate-400"
+                    >
                         Đang làm bài học / quiz
                     </p>
                 </CardContent>
@@ -609,29 +624,38 @@ const statusColor: Record<string, string> = {
                 canManage &&
                 (stats.overdue || stats.awaiting_approval || stats.failed)
             "
-            class="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-xs dark:border-amber-500/30 dark:bg-amber-950/20 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-950/20"
         >
             <div class="flex flex-wrap items-center gap-4">
                 <div
                     v-if="stats.overdue"
-                    class="flex items-center gap-2 text-amber-800 font-semibold dark:text-amber-300"
+                    class="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300"
                 >
                     <AlertTriangle class="size-4 shrink-0 text-amber-600" />
-                    <span>Có <strong>{{ stats.overdue }}</strong> hồ sơ trễ hạn</span>
+                    <span
+                        >Có <strong>{{ stats.overdue }}</strong> hồ sơ trễ
+                        hạn</span
+                    >
                 </div>
                 <div
                     v-if="stats.awaiting_approval"
-                    class="flex items-center gap-2 text-blue-800 font-semibold dark:text-blue-300"
+                    class="flex items-center gap-2 font-semibold text-blue-800 dark:text-blue-300"
                 >
                     <ClipboardCheck class="size-4 shrink-0 text-blue-600" />
-                    <span>Có <strong>{{ stats.awaiting_approval }}</strong> hồ sơ thực hành chờ Quản lý ký duyệt</span>
+                    <span
+                        >Có <strong>{{ stats.awaiting_approval }}</strong> hồ sơ
+                        thực hành chờ Quản lý ký duyệt</span
+                    >
                 </div>
                 <div
                     v-if="stats.failed"
-                    class="flex items-center gap-2 text-rose-800 font-semibold dark:text-rose-300"
+                    class="flex items-center gap-2 font-semibold text-rose-800 dark:text-rose-300"
                 >
                     <Clock3 class="size-4 shrink-0 text-rose-600" />
-                    <span>Có <strong>{{ stats.failed }}</strong> lượt kiểm tra chưa đạt</span>
+                    <span
+                        >Có <strong>{{ stats.failed }}</strong> lượt kiểm tra
+                        chưa đạt</span
+                    >
                 </div>
             </div>
             <button
@@ -643,12 +667,22 @@ const statusColor: Record<string, string> = {
         </div>
 
         <!-- Tabs Switcher -->
-        <div class="flex border-b border-slate-200/80 pb-0 dark:border-slate-800">
+        <div
+            class="flex border-b border-slate-200/80 pb-0 dark:border-slate-800"
+        >
             <div class="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
                 <button
                     v-for="tab in [
-                        { key: 'courses', label: 'Danh mục khóa học', icon: BookOpen },
-                        { key: 'enrollments', label: 'Tiến độ & Hồ sơ nhân viên', icon: Users },
+                        {
+                            key: 'courses',
+                            label: 'Danh mục khóa học',
+                            icon: BookOpen,
+                        },
+                        {
+                            key: 'enrollments',
+                            label: 'Tiến độ & Hồ sơ nhân viên',
+                            icon: Users,
+                        },
                     ]"
                     :key="tab.key"
                     @click="activeTab = tab.key as any"
@@ -676,7 +710,9 @@ const statusColor: Record<string, string> = {
                     :key="course.id"
                     class="group flex flex-col overflow-hidden border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/40"
                 >
-                    <CardContent class="flex flex-1 flex-col justify-between p-5 space-y-4">
+                    <CardContent
+                        class="flex flex-1 flex-col justify-between space-y-4 p-5"
+                    >
                         <div class="space-y-3">
                             <div class="flex items-start justify-between gap-2">
                                 <Badge
@@ -695,7 +731,7 @@ const statusColor: Record<string, string> = {
                                     </Badge>
                                     <Badge
                                         v-if="course.required_for_new_hires"
-                                        class="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 px-2 py-0.5 text-[10px]"
+                                        class="border-blue-200 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300"
                                     >
                                         Auto New-hire
                                     </Badge>
@@ -728,7 +764,9 @@ const statusColor: Record<string, string> = {
                                     v-if="course.target_roles?.length"
                                     class="flex flex-wrap items-center gap-1 text-[11px]"
                                 >
-                                    <span class="font-semibold text-slate-500">Vai trò:</span>
+                                    <span class="font-semibold text-slate-500"
+                                        >Vai trò:</span
+                                    >
                                     <span
                                         v-for="rKey in course.target_roles"
                                         :key="rKey"
@@ -737,16 +775,25 @@ const statusColor: Record<string, string> = {
                                         {{ roleLabelsMap[rKey] || rKey }}
                                     </span>
                                 </div>
-                                <div class="flex items-center gap-3 text-[11px] text-slate-500">
-                                    <span>📚 {{ course.lessons_count || 0 }} bài học</span>
-                                    <span>👥 {{ course.enrollments_count || 0 }} học viên</span>
+                                <div
+                                    class="flex items-center gap-3 text-[11px] text-slate-500"
+                                >
+                                    <span
+                                        >📚 {{ course.lessons_count || 0 }} bài
+                                        học</span
+                                    >
+                                    <span
+                                        >👥
+                                        {{ course.enrollments_count || 0 }} học
+                                        viên</span
+                                    >
                                 </div>
                             </div>
 
                             <!-- Quizzes preview -->
                             <div
                                 v-if="course.quizzes?.length"
-                                class="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800"
+                                class="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800"
                             >
                                 <span
                                     v-for="q in course.quizzes"
@@ -792,7 +839,7 @@ const statusColor: Record<string, string> = {
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    class="h-8 size-8 p-0 text-slate-400 hover:text-rose-600"
+                                    class="size-8 h-8 p-0 text-slate-400 hover:text-rose-600"
                                     title="Xóa khóa học"
                                     @click="destroyCourse(course)"
                                 >
@@ -814,11 +861,14 @@ const statusColor: Record<string, string> = {
                 >
                     <BookOpen class="size-7" />
                 </div>
-                <h3 class="mt-4 text-base font-bold text-slate-900 dark:text-white">
+                <h3
+                    class="mt-4 text-base font-bold text-slate-900 dark:text-white"
+                >
                     Chưa có khóa đào tạo nào
                 </h3>
                 <p class="mt-1 text-xs text-slate-500">
-                    Bắt đầu bằng cách tạo khóa học Onboarding hoặc Quy chuẩn vận hành mới.
+                    Bắt đầu bằng cách tạo khóa học Onboarding hoặc Quy chuẩn vận
+                    hành mới.
                 </p>
 
                 <Button
@@ -837,20 +887,26 @@ const statusColor: Record<string, string> = {
                 class="overflow-hidden border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900"
             >
                 <CardContent class="overflow-x-auto p-0">
-                    <table class="w-full min-w-[700px] border-collapse text-left">
+                    <table
+                        class="w-full min-w-[700px] border-collapse text-left"
+                    >
                         <thead>
                             <tr
                                 class="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold tracking-wider text-slate-600 uppercase dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
                             >
                                 <th class="px-5 py-3.5">Nhân viên</th>
                                 <th class="px-5 py-3.5">Khóa đào tạo</th>
-                                <th class="px-5 py-3.5 text-center">Tiến độ học tập</th>
+                                <th class="px-5 py-3.5 text-center">
+                                    Tiến độ học tập
+                                </th>
                                 <th class="px-5 py-3.5">Trạng thái</th>
                                 <th class="px-5 py-3.5">Mã chứng chỉ</th>
                                 <th class="px-5 py-3.5 text-right">Thao tác</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        <tbody
+                            class="divide-y divide-slate-100 dark:divide-slate-800/60"
+                        >
                             <tr
                                 v-for="e in enrollments"
                                 :key="e.id"
@@ -861,35 +917,72 @@ const statusColor: Record<string, string> = {
                                         <div
                                             class="flex size-9 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
                                         >
-                                            {{ (e.employee?.full_name || 'NV').slice(0, 2).toUpperCase() }}
+                                            {{
+                                                (e.employee?.full_name || 'NV')
+                                                    .slice(0, 2)
+                                                    .toUpperCase()
+                                            }}
                                         </div>
                                         <div>
-                                            <p class="text-xs font-bold text-slate-900 dark:text-white">
-                                                {{ e.employee?.full_name ?? 'Chưa xác định' }}
+                                            <p
+                                                class="text-xs font-bold text-slate-900 dark:text-white"
+                                            >
+                                                {{
+                                                    e.employee?.full_name ??
+                                                    'Chưa xác định'
+                                                }}
                                             </p>
-                                            <p class="text-[11px] text-slate-500">
-                                                {{ e.employee?.branch_name || 'Chi nhánh' }} · {{ e.employee?.role || 'Nhân viên' }}
+                                            <p
+                                                class="text-[11px] text-slate-500"
+                                            >
+                                                {{
+                                                    e.employee?.branch_name ||
+                                                    'Chi nhánh'
+                                                }}
+                                                ·
+                                                {{
+                                                    e.employee?.role ||
+                                                    'Nhân viên'
+                                                }}
                                             </p>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="px-5 py-4">
-                                    <p class="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                    <p
+                                        class="text-xs font-semibold text-slate-800 dark:text-slate-200"
+                                    >
                                         {{ e.course?.title }}
                                     </p>
-                                    <p v-if="e.due_at" class="text-[10px] text-slate-500">
-                                        Hạn: {{ new Date(e.due_at).toLocaleDateString('vi-VN') }}
+                                    <p
+                                        v-if="e.due_at"
+                                        class="text-[10px] text-slate-500"
+                                    >
+                                        Hạn:
+                                        {{
+                                            new Date(
+                                                e.due_at,
+                                            ).toLocaleDateString('vi-VN')
+                                        }}
                                     </p>
                                 </td>
                                 <td class="px-5 py-4">
-                                    <div class="flex flex-col items-center gap-1.5">
-                                        <div class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                    <div
+                                        class="flex flex-col items-center gap-1.5"
+                                    >
+                                        <div
+                                            class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                        >
                                             <div
                                                 class="h-full rounded-full bg-indigo-600 transition-all duration-500"
-                                                :style="{ width: `${e.progress_percent}%` }"
+                                                :style="{
+                                                    width: `${e.progress_percent}%`,
+                                                }"
                                             ></div>
                                         </div>
-                                        <span class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                                        <span
+                                            class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400"
+                                        >
                                             {{ e.progress_percent }}%
                                         </span>
                                     </div>
@@ -905,21 +998,28 @@ const statusColor: Record<string, string> = {
                                 <td class="px-5 py-4">
                                     <span
                                         v-if="e.certificate_code"
-                                        class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-mono text-xs font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-500/30 dark:text-emerald-300"
+                                        class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 font-mono text-xs font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300"
                                     >
-                                        <Award class="size-3.5" /> {{ e.certificate_code }}
+                                        <Award class="size-3.5" />
+                                        {{ e.certificate_code }}
                                     </span>
-                                    <span v-else class="text-xs text-slate-400">—</span>
+                                    <span v-else class="text-xs text-slate-400"
+                                        >—</span
+                                    >
                                 </td>
                                 <td class="px-5 py-4 text-right">
                                     <Button
-                                        v-if="!canManage || e.employee_id === currentEmployeeId"
+                                        v-if="
+                                            !canManage ||
+                                            e.employee_id === currentEmployeeId
+                                        "
                                         size="sm"
                                         class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
                                         :disabled="learningLoading"
                                         @click="openLearning(e)"
                                     >
-                                        <BookOpen class="mr-1 size-3.5" /> Vào học ngay
+                                        <BookOpen class="mr-1 size-3.5" /> Vào
+                                        học ngay
                                     </Button>
                                     <Button
                                         v-else-if="e.awaiting_manager_approval"
@@ -927,7 +1027,8 @@ const statusColor: Record<string, string> = {
                                         class="bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
                                         @click="approveEnrollment(e)"
                                     >
-                                        <ShieldCheck class="mr-1 size-3.5" /> Duyệt thực hành
+                                        <ShieldCheck class="mr-1 size-3.5" />
+                                        Duyệt thực hành
                                     </Button>
                                     <Button
                                         v-else
@@ -936,7 +1037,8 @@ const statusColor: Record<string, string> = {
                                         class="text-xs"
                                         @click="openLearning(e)"
                                     >
-                                        <BookOpen class="mr-1 size-3.5" /> Xem tiến độ
+                                        <BookOpen class="mr-1 size-3.5" /> Xem
+                                        tiến độ
                                     </Button>
                                 </td>
                             </tr>
@@ -967,11 +1069,13 @@ const statusColor: Record<string, string> = {
                         <GraduationCap class="size-5" />
                     </div>
                     <div>
-                        <DialogTitle class="text-lg font-bold text-slate-900 dark:text-white"
+                        <DialogTitle
+                            class="text-lg font-bold text-slate-900 dark:text-white"
                             >Tạo Khóa Đào Tạo Mới</DialogTitle
                         >
                         <DialogDescription class="text-xs text-slate-500"
-                            >Khởi tạo khóa đào tạo chuẩn hóa cho nhân sự chi nhánh.</DialogDescription
+                            >Khởi tạo khóa đào tạo chuẩn hóa cho nhân sự chi
+                            nhánh.</DialogDescription
                         >
                     </div>
                 </div>
@@ -979,8 +1083,10 @@ const statusColor: Record<string, string> = {
 
             <form @submit.prevent="submitCourse" class="mt-4 space-y-4">
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                        >Tên khóa học <span class="text-rose-500">*</span></Label
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        >Tên khóa học
+                        <span class="text-rose-500">*</span></Label
                     >
                     <Input
                         v-model="courseForm.title"
@@ -991,7 +1097,8 @@ const statusColor: Record<string, string> = {
                 </div>
 
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
                         >Mô tả khóa học</Label
                     >
                     <Input
@@ -1003,7 +1110,8 @@ const statusColor: Record<string, string> = {
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Mã khóa học</Label
                         >
                         <Input
@@ -1013,7 +1121,8 @@ const statusColor: Record<string, string> = {
                         />
                     </div>
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Hạn hoàn thành (ngày)</Label
                         >
                         <Input
@@ -1026,24 +1135,33 @@ const statusColor: Record<string, string> = {
                 </div>
 
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
                         >Phân loại bài học</Label
                     >
                     <select
                         v-model="courseForm.type"
                         class="h-9 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     >
-                        <option value="onboarding">Onboarding - Nhân viên mới</option>
+                        <option value="onboarding">
+                            Onboarding - Nhân viên mới
+                        </option>
                         <option value="menu">Thực đơn & Công thức món</option>
                         <option value="attp">ATTP - An toàn thực phẩm</option>
-                        <option value="operations">Vận hành & Quy chuẩn phục vụ</option>
+                        <option value="operations">
+                            Vận hành & Quy chuẩn phục vụ
+                        </option>
                         <option value="custom">Chuyên đề nâng cao</option>
                     </select>
                 </div>
 
                 <!-- Interactive Target Roles Tag Chips -->
-                <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
-                    <Label class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                <div
+                    class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50"
+                >
+                    <Label
+                        class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                    >
                         Áp dụng cho vai trò (Nhấp chọn)
                     </Label>
                     <div class="flex flex-wrap gap-1.5">
@@ -1059,20 +1177,33 @@ const statusColor: Record<string, string> = {
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
                             ]"
                         >
-                            <Check v-if="courseForm.target_roles.includes(role.key)" class="size-3.5 shrink-0" />
+                            <Check
+                                v-if="
+                                    courseForm.target_roles.includes(role.key)
+                                "
+                                class="size-3.5 shrink-0"
+                            />
                             {{ role.label }}
                         </button>
                     </div>
                 </div>
 
                 <!-- Interactive Target Branches Tag Chips -->
-                <div class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
+                <div
+                    class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50"
+                >
                     <div class="flex items-center justify-between">
-                        <Label class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Label
+                            class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                        >
                             Giới hạn chi nhánh áp dụng
                         </Label>
                         <span class="text-[10px] text-slate-500">
-                            {{ courseForm.target_branch_ids.length === 0 ? 'Áp dụng toàn chuỗi' : `Đã chọn ${courseForm.target_branch_ids.length} chi nhánh` }}
+                            {{
+                                courseForm.target_branch_ids.length === 0
+                                    ? 'Áp dụng toàn chuỗi'
+                                    : `Đã chọn ${courseForm.target_branch_ids.length} chi nhánh`
+                            }}
                         </span>
                     </div>
 
@@ -1087,7 +1218,10 @@ const statusColor: Record<string, string> = {
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
                             ]"
                         >
-                            <Check v-if="courseForm.target_branch_ids.length === 0" class="size-3.5" />
+                            <Check
+                                v-if="courseForm.target_branch_ids.length === 0"
+                                class="size-3.5"
+                            />
                             🌐 Toàn chuỗi
                         </button>
 
@@ -1111,35 +1245,83 @@ const statusColor: Record<string, string> = {
 
                 <!-- Switches & Checks -->
                 <div class="space-y-2 pt-1 text-xs">
-                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
-                        <input v-model="courseForm.required_for_new_hires" type="checkbox" class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <label
+                        class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                    >
+                        <input
+                            v-model="courseForm.required_for_new_hires"
+                            type="checkbox"
+                            class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
                         <div>
-                            <span class="font-bold text-slate-800 dark:text-slate-200">Tự động giao cho nhân viên mới</span>
-                            <p class="text-[10px] text-slate-500">Tự động khởi tạo ghi danh khi có nhân sự mới nhận việc.</p>
+                            <span
+                                class="font-bold text-slate-800 dark:text-slate-200"
+                                >Tự động giao cho nhân viên mới</span
+                            >
+                            <p class="text-[10px] text-slate-500">
+                                Tự động khởi tạo ghi danh khi có nhân sự mới
+                                nhận việc.
+                            </p>
                         </div>
                     </label>
 
-                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
-                        <input v-model="courseForm.requires_manager_signoff" type="checkbox" class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <label
+                        class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                    >
+                        <input
+                            v-model="courseForm.requires_manager_signoff"
+                            type="checkbox"
+                            class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
                         <div>
-                            <span class="font-bold text-slate-800 dark:text-slate-200">Cần Quản lý ký duyệt thực hành</span>
-                            <p class="text-[10px] text-slate-500">Sau khi học xong lý thuyết, Quản lý phải ký xác nhận tại cửa hàng.</p>
+                            <span
+                                class="font-bold text-slate-800 dark:text-slate-200"
+                                >Cần Quản lý ký duyệt thực hành</span
+                            >
+                            <p class="text-[10px] text-slate-500">
+                                Sau khi học xong lý thuyết, Quản lý phải ký xác
+                                nhận tại cửa hàng.
+                            </p>
                         </div>
                     </label>
 
-                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900">
-                        <input v-model="courseForm.is_required" type="checkbox" class="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
+                    <label
+                        class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                    >
+                        <input
+                            v-model="courseForm.is_required"
+                            type="checkbox"
+                            class="size-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        />
                         <div>
-                            <span class="font-bold text-rose-700 dark:text-rose-400">Đánh dấu khóa học bắt buộc tuân thủ</span>
-                            <p class="text-[10px] text-slate-500">Cảnh báo nếu nhân sự quá hạn đào tạo quy chuẩn.</p>
+                            <span
+                                class="font-bold text-rose-700 dark:text-rose-400"
+                                >Đánh dấu khóa học bắt buộc tuân thủ</span
+                            >
+                            <p class="text-[10px] text-slate-500">
+                                Cảnh báo nếu nhân sự quá hạn đào tạo quy chuẩn.
+                            </p>
                         </div>
                     </label>
                 </div>
 
                 <DialogFooter class="pt-2">
-                    <Button variant="outline" type="button" @click="showCourseDialog = false">Hủy</Button>
-                    <Button type="submit" :disabled="courseForm.processing" class="bg-indigo-600 font-bold text-white hover:bg-indigo-700">
-                        {{ courseForm.processing ? 'Đang khởi tạo...' : 'Tạo khóa học' }}
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="showCourseDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="courseForm.processing"
+                        class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                    >
+                        {{
+                            courseForm.processing
+                                ? 'Đang khởi tạo...'
+                                : 'Tạo khóa học'
+                        }}
                     </Button>
                 </DialogFooter>
             </form>
@@ -1148,65 +1330,142 @@ const statusColor: Record<string, string> = {
 
     <!-- MODAL 2: GIAO ĐÀO TẠO CHO NHÂN VIÊN -->
     <Dialog v-model:open="showAssignmentDialog">
-        <DialogContent class="max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent
+            class="max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+        >
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
-                    <Users class="size-5 text-blue-600" /> Giao đào tạo cho Nhân viên
+                <DialogTitle
+                    class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"
+                >
+                    <Users class="size-5 text-blue-600" /> Giao đào tạo cho Nhân
+                    viên
                 </DialogTitle>
             </DialogHeader>
 
             <form @submit.prevent="submitAssignment" class="mt-3 space-y-4">
                 <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Danh sách nhân sự</Label>
-                        <button type="button" @click="toggleAllEmployees" class="text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-400">
-                            {{ assignmentForm.employee_ids.length === filteredEmployees.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả' }}
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Danh sách nhân sự</Label
+                        >
+                        <button
+                            type="button"
+                            @click="toggleAllEmployees"
+                            class="text-xs font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
+                            {{
+                                assignmentForm.employee_ids.length ===
+                                filteredEmployees.length
+                                    ? 'Bỏ chọn tất cả'
+                                    : 'Chọn tất cả'
+                            }}
                         </button>
                     </div>
 
                     <div class="relative">
-                        <Search class="absolute left-2.5 top-2.5 size-4 text-slate-400" />
-                        <Input v-model="employeeSearchQuery" placeholder="Tìm tên nhân viên, vai trò, chi nhánh..." class="h-9 pl-9 text-xs" />
+                        <Search
+                            class="absolute top-2.5 left-2.5 size-4 text-slate-400"
+                        />
+                        <Input
+                            v-model="employeeSearchQuery"
+                            placeholder="Tìm tên nhân viên, vai trò, chi nhánh..."
+                            class="h-9 pl-9 text-xs"
+                        />
                     </div>
 
-                    <div class="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-800">
+                    <div
+                        class="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-800"
+                    >
                         <label
                             v-for="employee in filteredEmployees"
                             :key="employee.id"
                             class="flex cursor-pointer items-center justify-between rounded-lg p-2 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                             <div class="flex items-center gap-2.5">
-                                <input v-model="assignmentForm.employee_ids" type="checkbox" :value="employee.id" class="size-4 rounded border-slate-300 text-indigo-600" />
+                                <input
+                                    v-model="assignmentForm.employee_ids"
+                                    type="checkbox"
+                                    :value="employee.id"
+                                    class="size-4 rounded border-slate-300 text-indigo-600"
+                                />
                                 <div>
-                                    <p class="text-xs font-bold text-slate-900 dark:text-white">{{ employee.full_name }}</p>
-                                    <p class="text-[10px] text-slate-500">{{ employee.branch_name }} · {{ employee.role || 'Nhân viên' }}</p>
+                                    <p
+                                        class="text-xs font-bold text-slate-900 dark:text-white"
+                                    >
+                                        {{ employee.full_name }}
+                                    </p>
+                                    <p class="text-[10px] text-slate-500">
+                                        {{ employee.branch_name }} ·
+                                        {{ employee.role || 'Nhân viên' }}
+                                    </p>
                                 </div>
                             </div>
                         </label>
-                        <p v-if="!filteredEmployees.length" class="p-4 text-center text-xs text-slate-400">Không tìm thấy nhân viên phù hợp.</p>
+                        <p
+                            v-if="!filteredEmployees.length"
+                            class="p-4 text-center text-xs text-slate-400"
+                        >
+                            Không tìm thấy nhân viên phù hợp.
+                        </p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Hạn hoàn thành</Label>
-                        <Input v-model="assignmentForm.due_at" type="datetime-local" class="h-9 text-xs" required />
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Hạn hoàn thành</Label
+                        >
+                        <Input
+                            v-model="assignmentForm.due_at"
+                            type="datetime-local"
+                            class="h-9 text-xs"
+                            required
+                        />
                     </div>
                     <div class="flex items-end pb-1">
-                        <label class="flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                            <input v-model="assignmentForm.mandatory" type="checkbox" class="size-4 rounded text-rose-600" /> Bắt buộc phải đạt
+                        <label
+                            class="flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200"
+                        >
+                            <input
+                                v-model="assignmentForm.mandatory"
+                                type="checkbox"
+                                class="size-4 rounded text-rose-600"
+                            />
+                            Bắt buộc phải đạt
                         </label>
                     </div>
                 </div>
 
                 <div class="space-y-1">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Lý do giao</Label>
-                    <Input v-model="assignmentForm.reason" placeholder="Kế hoạch đào tạo quý..." class="h-9 text-xs" maxlength="120" />
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        >Lý do giao</Label
+                    >
+                    <Input
+                        v-model="assignmentForm.reason"
+                        placeholder="Kế hoạch đào tạo quý..."
+                        class="h-9 text-xs"
+                        maxlength="120"
+                    />
                 </div>
 
                 <DialogFooter class="pt-2">
-                    <Button variant="outline" type="button" @click="showAssignmentDialog = false">Hủy</Button>
-                    <Button type="submit" :disabled="assignmentForm.processing || !assignmentForm.employee_ids.length" class="bg-blue-600 font-bold text-white hover:bg-blue-700">
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="showAssignmentDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="
+                            assignmentForm.processing ||
+                            !assignmentForm.employee_ids.length
+                        "
+                        class="bg-blue-600 font-bold text-white hover:bg-blue-700"
+                    >
                         Giao khóa học ({{ assignmentForm.employee_ids.length }})
                     </Button>
                 </DialogFooter>
@@ -1216,23 +1475,41 @@ const statusColor: Record<string, string> = {
 
     <!-- MODAL 3: THÊM BÀI HỌC MỚI -->
     <Dialog v-model:open="showLessonDialog">
-        <DialogContent class="max-w-md rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent
+            class="max-w-md rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+        >
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                <DialogTitle
+                    class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"
+                >
                     <Plus class="size-5 text-indigo-600" /> Thêm Bài Học Mới
                 </DialogTitle>
             </DialogHeader>
 
             <form @submit.prevent="submitLesson" class="mt-3 space-y-4">
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Tiêu đề bài học</Label>
-                    <Input v-model="lessonForm.title" placeholder="Ví dụ: Quy định rửa tay & Khử khuẩn dụng cụ bếp" class="text-xs" required />
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        >Tiêu đề bài học</Label
+                    >
+                    <Input
+                        v-model="lessonForm.title"
+                        placeholder="Ví dụ: Quy định rửa tay & Khử khuẩn dụng cụ bếp"
+                        class="text-xs"
+                        required
+                    />
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Loại nội dung</Label>
-                        <select v-model="lessonForm.content_type" class="h-9 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-900 focus:bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Loại nội dung</Label
+                        >
+                        <select
+                            v-model="lessonForm.content_type"
+                            class="h-9 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-900 focus:bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        >
                             <option value="text">Văn bản hướng dẫn</option>
                             <option value="video">Video đào tạo</option>
                             <option value="pdf">Tài liệu PDF</option>
@@ -1240,19 +1517,43 @@ const statusColor: Record<string, string> = {
                         </select>
                     </div>
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Thời lượng (phút)</Label>
-                        <Input type="number" v-model="lessonForm.duration_minutes" class="text-xs" />
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Thời lượng (phút)</Label
+                        >
+                        <Input
+                            type="number"
+                            v-model="lessonForm.duration_minutes"
+                            class="text-xs"
+                        />
                     </div>
                 </div>
 
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Nội dung chi tiết / Đường dẫn URL</Label>
-                    <textarea v-model="lessonForm.content" rows="4" placeholder="Nhập nội dung quy trình hoặc dán link video Youtube/Drive..." class="w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"></textarea>
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        >Nội dung chi tiết / Đường dẫn URL</Label
+                    >
+                    <textarea
+                        v-model="lessonForm.content"
+                        rows="4"
+                        placeholder="Nhập nội dung quy trình hoặc dán link video Youtube/Drive..."
+                        class="w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    ></textarea>
                 </div>
 
                 <DialogFooter class="pt-2">
-                    <Button variant="outline" type="button" @click="showLessonDialog = false">Hủy</Button>
-                    <Button type="submit" :disabled="lessonForm.processing" class="bg-indigo-600 font-bold text-white hover:bg-indigo-700">
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="showLessonDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="lessonForm.processing"
+                        class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                    >
                         Thêm bài học
                     </Button>
                 </DialogFooter>
@@ -1262,70 +1563,161 @@ const statusColor: Record<string, string> = {
 
     <!-- MODAL 4: TẠO BÀI KIỂM TRA (QUIZ BUILDER) -->
     <Dialog v-model:open="showQuizDialog">
-        <DialogContent class="max-h-[85vh] max-w-xl overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent
+            class="max-h-[85vh] max-w-xl overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+        >
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
-                    <Award class="size-5 text-indigo-600" /> Tạo Bài Kiểm Tra (Quiz)
+                <DialogTitle
+                    class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"
+                >
+                    <Award class="size-5 text-indigo-600" /> Tạo Bài Kiểm Tra
+                    (Quiz)
                 </DialogTitle>
             </DialogHeader>
 
             <form @submit.prevent="submitQuiz" class="mt-3 space-y-4">
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Tiêu đề bài kiểm tra</Label>
-                    <Input v-model="quizForm.title" placeholder="Kiểm tra kiến thức Quy trình Bếp..." class="text-xs" required />
+                    <Label
+                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                        >Tiêu đề bài kiểm tra</Label
+                    >
+                    <Input
+                        v-model="quizForm.title"
+                        placeholder="Kiểm tra kiến thức Quy trình Bếp..."
+                        class="text-xs"
+                        required
+                    />
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Điểm đạt tối thiểu (%)</Label>
-                        <Input type="number" v-model="quizForm.pass_score" min="1" max="100" class="text-xs" />
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Điểm đạt tối thiểu (%)</Label
+                        >
+                        <Input
+                            type="number"
+                            v-model="quizForm.pass_score"
+                            min="1"
+                            max="100"
+                            class="text-xs"
+                        />
                     </div>
                     <div class="space-y-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Số lần làm tối đa</Label>
-                        <Input type="number" v-model="quizForm.max_attempts" min="1" class="text-xs" />
+                        <Label
+                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                            >Số lần làm tối đa</Label
+                        >
+                        <Input
+                            type="number"
+                            v-model="quizForm.max_attempts"
+                            min="1"
+                            class="text-xs"
+                        />
                     </div>
                 </div>
 
                 <div class="space-y-3 pt-2">
-                    <Label class="text-xs font-bold text-slate-800 dark:text-slate-200">Danh sách câu hỏi trắc nghiệm</Label>
+                    <Label
+                        class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                        >Danh sách câu hỏi trắc nghiệm</Label
+                    >
                     <div
                         v-for="(q, qIdx) in quizForm.questions"
                         :key="qIdx"
                         class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50"
                     >
                         <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">Câu {{ Number(qIdx) + 1 }}</span>
-                            <button v-if="quizForm.questions.length > 1" type="button" @click="removeQuestion(Number(qIdx))" class="text-[11px] font-semibold text-rose-500 hover:underline">
+                            <span
+                                class="text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                                >Câu {{ Number(qIdx) + 1 }}</span
+                            >
+                            <button
+                                v-if="quizForm.questions.length > 1"
+                                type="button"
+                                @click="removeQuestion(Number(qIdx))"
+                                class="text-[11px] font-semibold text-rose-500 hover:underline"
+                            >
                                 Xóa câu hỏi
                             </button>
                         </div>
 
-                        <Input v-model="q.question" :placeholder="`Nội dung câu hỏi ${Number(qIdx) + 1}...`" class="text-xs font-semibold" required />
+                        <Input
+                            v-model="q.question"
+                            :placeholder="`Nội dung câu hỏi ${Number(qIdx) + 1}...`"
+                            class="text-xs font-semibold"
+                            required
+                        />
 
                         <div class="space-y-1.5 pt-1">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Các đáp án (Tích chọn đáp án đúng):</p>
-                            <div v-for="(opt, oIdx) in q.options" :key="oIdx" class="flex items-center gap-2">
-                                <input type="radio" :name="`q_${qIdx}`" :value="oIdx" v-model="q.correct" class="size-4 text-indigo-600" />
-                                <Input v-model="q.options[Number(oIdx)]" :placeholder="`Đáp án ${Number(oIdx) + 1}`" class="h-8 flex-1 text-xs" required />
-                                <button v-if="q.options.length > 2" type="button" @click="removeOption(Number(qIdx), Number(oIdx))" class="text-slate-400 hover:text-rose-500">
+                            <p
+                                class="text-[10px] font-bold text-slate-500 uppercase"
+                            >
+                                Các đáp án (Tích chọn đáp án đúng):
+                            </p>
+                            <div
+                                v-for="(opt, oIdx) in q.options"
+                                :key="oIdx"
+                                class="flex items-center gap-2"
+                            >
+                                <input
+                                    type="radio"
+                                    :name="`q_${qIdx}`"
+                                    :value="oIdx"
+                                    v-model="q.correct"
+                                    class="size-4 text-indigo-600"
+                                />
+                                <Input
+                                    v-model="q.options[Number(oIdx)]"
+                                    :placeholder="`Đáp án ${Number(oIdx) + 1}`"
+                                    class="h-8 flex-1 text-xs"
+                                    required
+                                />
+                                <button
+                                    v-if="q.options.length > 2"
+                                    type="button"
+                                    @click="
+                                        removeOption(Number(qIdx), Number(oIdx))
+                                    "
+                                    class="text-slate-400 hover:text-rose-500"
+                                >
                                     <X class="size-3.5" />
                                 </button>
                             </div>
                         </div>
 
-                        <button type="button" @click="addOption(Number(qIdx))" class="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400">
+                        <button
+                            type="button"
+                            @click="addOption(Number(qIdx))"
+                            class="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                        >
                             + Thêm đáp án lựa chọn
                         </button>
                     </div>
 
-                    <Button variant="outline" size="sm" type="button" @click="addQuestion" class="w-full gap-1.5 border-dashed">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        @click="addQuestion"
+                        class="w-full gap-1.5 border-dashed"
+                    >
                         <Plus class="size-3.5" /> Thêm câu hỏi trắc nghiệm mới
                     </Button>
                 </div>
 
                 <DialogFooter class="pt-2">
-                    <Button variant="outline" type="button" @click="showQuizDialog = false">Hủy</Button>
-                    <Button type="submit" :disabled="quizForm.processing" class="bg-indigo-600 font-bold text-white hover:bg-indigo-700">
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="showQuizDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="quizForm.processing"
+                        class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                    >
                         Tạo bài kiểm tra
                     </Button>
                 </DialogFooter>
@@ -1335,51 +1727,102 @@ const statusColor: Record<string, string> = {
 
     <!-- MODAL 5: CỔNG HỌC VIÊN LÀM BÀI HỌC VÀ QUIZ -->
     <Dialog v-model:open="showLearningDialog">
-        <DialogContent class="max-h-[90vh] max-w-3xl overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <DialogContent
+            class="max-h-[90vh] max-w-3xl overflow-y-auto rounded-2xl border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+        >
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
-                    <BookOpen class="size-5 text-indigo-600" /> {{ learning?.course?.title || 'Nội dung đào tạo' }}
+                <DialogTitle
+                    class="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white"
+                >
+                    <BookOpen class="size-5 text-indigo-600" />
+                    {{ learning?.course?.title || 'Nội dung đào tạo' }}
                 </DialogTitle>
             </DialogHeader>
 
             <div v-if="learning" class="mt-4 space-y-6">
                 <!-- Progress Header Banner -->
-                <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/30">
-                    <div class="flex items-center justify-between text-xs font-bold">
+                <div
+                    class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-500/30 dark:bg-indigo-950/30"
+                >
+                    <div
+                        class="flex items-center justify-between text-xs font-bold"
+                    >
                         <span class="text-indigo-900 dark:text-indigo-200">
-                            Tiến độ hoàn thành: <strong class="text-indigo-600 dark:text-indigo-400">{{ learning.enrollment.progress_percent }}%</strong>
+                            Tiến độ hoàn thành:
+                            <strong class="text-indigo-600 dark:text-indigo-400"
+                                >{{
+                                    learning.enrollment.progress_percent
+                                }}%</strong
+                            >
                         </span>
-                        <span v-if="learning.enrollment.due_at" :class="learning.enrollment.is_overdue ? 'text-rose-600' : 'text-slate-600 dark:text-slate-300'">
-                            <CalendarClock class="mr-1 inline size-3.5" /> Hạn hoàn thành: {{ new Date(learning.enrollment.due_at).toLocaleDateString('vi-VN') }}
+                        <span
+                            v-if="learning.enrollment.due_at"
+                            :class="
+                                learning.enrollment.is_overdue
+                                    ? 'text-rose-600'
+                                    : 'text-slate-600 dark:text-slate-300'
+                            "
+                        >
+                            <CalendarClock class="mr-1 inline size-3.5" /> Hạn
+                            hoàn thành:
+                            {{
+                                new Date(
+                                    learning.enrollment.due_at,
+                                ).toLocaleDateString('vi-VN')
+                            }}
                         </span>
                     </div>
-                    <div class="mt-2.5 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                        <div class="h-full rounded-full bg-indigo-600 transition-all duration-500" :style="{ width: `${learning.enrollment.progress_percent}%` }"></div>
+                    <div
+                        class="mt-2.5 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+                    >
+                        <div
+                            class="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                            :style="{
+                                width: `${learning.enrollment.progress_percent}%`,
+                            }"
+                        ></div>
                     </div>
-                    <p v-if="learning.enrollment.awaiting_manager_approval" class="mt-2.5 text-xs font-bold text-amber-700 dark:text-amber-300">
-                        ⚠️ Bạn đã hoàn thành bài học lý thuyết. Đang chờ Quản lý ký duyệt phần thực hành!
+                    <p
+                        v-if="learning.enrollment.awaiting_manager_approval"
+                        class="mt-2.5 text-xs font-bold text-amber-700 dark:text-amber-300"
+                    >
+                        ⚠️ Bạn đã hoàn thành bài học lý thuyết. Đang chờ Quản lý
+                        ký duyệt phần thực hành!
                     </p>
                 </div>
 
                 <!-- Lessons Section -->
                 <section class="space-y-3">
-                    <h3 class="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-                        <BookOpen class="size-4 text-indigo-600" /> Danh sách bài học lý thuyết
+                    <h3
+                        class="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"
+                    >
+                        <BookOpen class="size-4 text-indigo-600" /> Danh sách
+                        bài học lý thuyết
                     </h3>
                     <div class="space-y-2.5">
                         <div
                             v-for="lesson in learning.lessons"
                             :key="lesson.id"
-                            class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-start sm:justify-between"
+                            class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition sm:flex-row sm:items-start sm:justify-between dark:border-slate-800 dark:bg-slate-900/50"
                         >
                             <div class="min-w-0 flex-1 space-y-1">
                                 <div class="flex items-center gap-2">
-                                    <h4 class="text-xs font-bold text-slate-900 dark:text-white">{{ lesson.title }}</h4>
-                                    <Badge variant="outline" class="text-[10px]">
+                                    <h4
+                                        class="text-xs font-bold text-slate-900 dark:text-white"
+                                    >
+                                        {{ lesson.title }}
+                                    </h4>
+                                    <Badge
+                                        variant="outline"
+                                        class="text-[10px]"
+                                    >
                                         {{ lesson.duration_minutes || 10 }} phút
                                     </Badge>
                                 </div>
-                                <p v-if="lesson.content" class="mt-2 whitespace-pre-wrap text-xs text-slate-600 dark:text-slate-300">
+                                <p
+                                    v-if="lesson.content"
+                                    class="mt-2 text-xs whitespace-pre-wrap text-slate-600 dark:text-slate-300"
+                                >
                                     {{ lesson.content }}
                                 </p>
                                 <a
@@ -1389,41 +1832,78 @@ const statusColor: Record<string, string> = {
                                     rel="noreferrer"
                                     class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
                                 >
-                                    <LinkIcon class="size-3.5" /> Mở tài liệu đính kèm
+                                    <LinkIcon class="size-3.5" /> Mở tài liệu
+                                    đính kèm
                                 </a>
                             </div>
 
                             <Button
                                 size="sm"
-                                :variant="(learning.enrollment.completed_lessons || []).includes(lesson.id) ? 'secondary' : 'default'"
-                                :disabled="(learning.enrollment.completed_lessons || []).includes(lesson.id)"
+                                :variant="
+                                    (
+                                        learning.enrollment.completed_lessons ||
+                                        []
+                                    ).includes(lesson.id)
+                                        ? 'secondary'
+                                        : 'default'
+                                "
+                                :disabled="
+                                    (
+                                        learning.enrollment.completed_lessons ||
+                                        []
+                                    ).includes(lesson.id)
+                                "
                                 @click="completeLearningLesson(lesson.id)"
                                 class="shrink-0 font-bold"
                             >
                                 <CheckCircle2 class="mr-1 size-3.5" />
-                                {{ (learning.enrollment.completed_lessons || []).includes(lesson.id) ? 'Đã học' : 'Đánh dấu đã học' }}
+                                {{
+                                    (
+                                        learning.enrollment.completed_lessons ||
+                                        []
+                                    ).includes(lesson.id)
+                                        ? 'Đã học'
+                                        : 'Đánh dấu đã học'
+                                }}
                             </Button>
                         </div>
                     </div>
                 </section>
 
                 <!-- Quizzes Section -->
-                <section v-for="quiz in learning.quizzes" :key="quiz.id" class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/60">
-                    <h3 class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-                        <Award class="size-4 text-indigo-600" /> {{ quiz.title }}
+                <section
+                    v-for="quiz in learning.quizzes"
+                    :key="quiz.id"
+                    class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/60"
+                >
+                    <h3
+                        class="mb-4 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"
+                    >
+                        <Award class="size-4 text-indigo-600" />
+                        {{ quiz.title }}
                     </h3>
-                    <div v-for="(question, qIndex) in quiz.questions" :key="qIndex" class="mb-5 space-y-2">
-                        <p class="text-xs font-bold text-slate-900 dark:text-white">
+                    <div
+                        v-for="(question, qIndex) in quiz.questions"
+                        :key="qIndex"
+                        class="mb-5 space-y-2"
+                    >
+                        <p
+                            class="text-xs font-bold text-slate-900 dark:text-white"
+                        >
                             {{ Number(qIndex) + 1 }}. {{ question.question }}
                         </p>
                         <div class="space-y-1.5 pl-2">
                             <label
-                                v-for="(option, optionIndex) in question.options"
+                                v-for="(
+                                    option, optionIndex
+                                ) in question.options"
                                 :key="optionIndex"
                                 class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
                             >
                                 <input
-                                    v-model.number="quizAnswersFor(quiz)[Number(qIndex)]"
+                                    v-model.number="
+                                        quizAnswersFor(quiz)[Number(qIndex)]
+                                    "
                                     type="radio"
                                     :value="Number(optionIndex)"
                                     class="size-4 text-indigo-600"
@@ -1432,7 +1912,10 @@ const statusColor: Record<string, string> = {
                             </label>
                         </div>
                     </div>
-                    <Button @click="submitLearningQuiz(quiz)" class="w-full bg-indigo-600 font-bold text-white hover:bg-indigo-700">
+                    <Button
+                        @click="submitLearningQuiz(quiz)"
+                        class="w-full bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                    >
                         Nộp bài kiểm tra trắc nghiệm
                     </Button>
                 </section>

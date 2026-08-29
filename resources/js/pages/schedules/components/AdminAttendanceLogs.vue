@@ -304,19 +304,40 @@ const statusColors: Record<string, string> = {
                                 <span
                                     class="rounded bg-indigo-50 px-2 py-0.5 font-mono font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400"
                                 >
-                                    {{ a.shift_name }} {{ a.shift_start ? `(${a.shift_start} - ${a.shift_end})` : '' }}
+                                    {{ a.shift_name }}
+                                    {{
+                                        a.shift_start
+                                            ? `(${a.shift_start} - ${a.shift_end})`
+                                            : ''
+                                    }}
                                 </span>
                             </td>
-                            <td class="p-3.5 font-mono text-slate-600 dark:text-slate-300">
-                                <div v-if="a.requested_time || a.requested_at" class="flex flex-col gap-0.5">
-                                    <span class="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                                        {{ a.requested_time || a.requested_at?.split(' ')[0] }}
+                            <td
+                                class="p-3.5 font-mono text-slate-600 dark:text-slate-300"
+                            >
+                                <div
+                                    v-if="a.requested_time || a.requested_at"
+                                    class="flex flex-col gap-0.5"
+                                >
+                                    <span
+                                        class="font-mono font-bold text-indigo-600 dark:text-indigo-400"
+                                    >
+                                        {{
+                                            a.requested_time ||
+                                            a.requested_at?.split(' ')[0]
+                                        }}
                                     </span>
-                                    <span v-if="a.requested_at?.split(' ')[1]" class="text-[10px] text-slate-400">
+                                    <span
+                                        v-if="a.requested_at?.split(' ')[1]"
+                                        class="text-[10px] text-slate-400"
+                                    >
                                         {{ a.requested_at?.split(' ')[1] }}
                                     </span>
                                 </div>
-                                <div v-else class="text-slate-300 dark:text-slate-700">
+                                <div
+                                    v-else
+                                    class="text-slate-300 dark:text-slate-700"
+                                >
                                     —
                                 </div>
                             </td>
@@ -415,7 +436,14 @@ const statusColors: Record<string, string> = {
                                 </button>
 
                                 <!-- Actions based on status -->
-                                <template v-if="['scheduled', 'pending_checkin'].includes(a.status)">
+                                <template
+                                    v-if="
+                                        [
+                                            'scheduled',
+                                            'pending_checkin',
+                                        ].includes(a.status)
+                                    "
+                                >
                                     <button
                                         @click="
                                             emit('open-override', a, 'check_in')
@@ -435,7 +463,14 @@ const statusColors: Record<string, string> = {
                                         Báo Vắng
                                     </button>
                                 </template>
-                                <template v-else-if="['checked_in', 'pending_checkout'].includes(a.status)">
+                                <template
+                                    v-else-if="
+                                        [
+                                            'checked_in',
+                                            'pending_checkout',
+                                        ].includes(a.status)
+                                    "
+                                >
                                     <button
                                         @click="
                                             emit(
@@ -479,30 +514,32 @@ const statusColors: Record<string, string> = {
 
     <!-- Selfie Lightbox Modal -->
     <Teleport to="body">
-    <div
-        v-if="viewSelfieUrl"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
-        @click="viewSelfieUrl = null"
-    >
         <div
-            class="relative w-full max-w-lg animate-in overflow-hidden rounded-2xl bg-white p-2 shadow-2xl duration-200 zoom-in-95 fade-in dark:bg-slate-900"
-            @click.stop
+            v-if="viewSelfieUrl"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
+            @click="viewSelfieUrl = null"
         >
-            <button
-                class="absolute top-4 right-4 cursor-pointer rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
-                @click="viewSelfieUrl = null"
+            <div
+                class="relative w-full max-w-lg animate-in overflow-hidden rounded-2xl bg-white p-2 shadow-2xl duration-200 zoom-in-95 fade-in dark:bg-slate-900"
+                @click.stop
             >
-                <X class="size-4" />
-            </button>
-            <img
-                :src="viewSelfieUrl"
-                alt="Selfie check-in high-res"
-                class="h-auto max-h-[80vh] w-full rounded-xl object-contain"
-            />
-            <div class="p-3 text-center text-xs font-semibold text-slate-500">
-                Ảnh tự sướng đối chiếu chấm công
+                <button
+                    class="absolute top-4 right-4 cursor-pointer rounded-full bg-black/50 p-2 text-white transition hover:bg-black/70"
+                    @click="viewSelfieUrl = null"
+                >
+                    <X class="size-4" />
+                </button>
+                <img
+                    :src="viewSelfieUrl"
+                    alt="Selfie check-in high-res"
+                    class="h-auto max-h-[80vh] w-full rounded-xl object-contain"
+                />
+                <div
+                    class="p-3 text-center text-xs font-semibold text-slate-500"
+                >
+                    Ảnh tự sướng đối chiếu chấm công
+                </div>
             </div>
         </div>
-    </div>
     </Teleport>
 </template>

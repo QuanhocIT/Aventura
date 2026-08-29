@@ -220,79 +220,79 @@ const submitRejectSwap = () => {
 
         <!-- Reject Swap Modal -->
         <Teleport to="body">
-        <div
-            v-if="isRejectingSwap"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
-        >
-            <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+            <div
+                v-if="isRejectingSwap"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-base text-rose-600"
-                        >
-                            <Ban class="size-5" />
-                            Từ Chối Yêu Cầu Đổi Ca
-                        </CardTitle>
-                        <CardDescription
-                            >Vui lòng nhập lý do từ chối yêu cầu đổi ca để thông
-                            báo cho nhân viên.</CardDescription
-                        >
-                    </div>
-                    <button
-                        @click="isRejectingSwap = false"
-                        class="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                     >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-
-                <CardContent class="space-y-4 pt-4">
-                    <div class="grid gap-1.5">
-                        <Label
-                            for="reject-reason"
-                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                            >Lý do từ chối</Label
-                        >
-                        <Input
-                            id="reject-reason"
-                            type="text"
-                            v-model="rejectNotes"
-                            placeholder="Ví dụ: Không cân bằng được vai trò nhân sự trong ca..."
-                            required
-                            class="h-10 border-rose-200 text-xs focus-visible:ring-rose-500"
-                        />
-                    </div>
-
-                    <!-- Buttons -->
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-rose-600"
+                            >
+                                <Ban class="size-5" />
+                                Từ Chối Yêu Cầu Đổi Ca
+                            </CardTitle>
+                            <CardDescription
+                                >Vui lòng nhập lý do từ chối yêu cầu đổi ca để
+                                thông báo cho nhân viên.</CardDescription
+                            >
+                        </div>
+                        <button
                             @click="isRejectingSwap = false"
-                            >Hủy</Button
+                            class="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                        <Button
-                            type="button"
-                            size="sm"
-                            @click="submitRejectSwap"
-                            class="bg-rose-650 hover:bg-rose-755 cursor-pointer font-bold text-white"
-                            :disabled="!rejectNotes || isProcessing"
-                        >
-                            {{
-                                isProcessing
-                                    ? 'Đang xử lý...'
-                                    : 'Xác nhận từ chối'
-                            }}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
+
+                    <CardContent class="space-y-4 pt-4">
+                        <div class="grid gap-1.5">
+                            <Label
+                                for="reject-reason"
+                                class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                                >Lý do từ chối</Label
+                            >
+                            <Input
+                                id="reject-reason"
+                                type="text"
+                                v-model="rejectNotes"
+                                placeholder="Ví dụ: Không cân bằng được vai trò nhân sự trong ca..."
+                                required
+                                class="h-10 border-rose-200 text-xs focus-visible:ring-rose-500"
+                            />
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="flex justify-end gap-2 border-t pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="isRejectingSwap = false"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="button"
+                                size="sm"
+                                @click="submitRejectSwap"
+                                class="bg-rose-650 hover:bg-rose-755 cursor-pointer font-bold text-white"
+                                :disabled="!rejectNotes || isProcessing"
+                            >
+                                {{
+                                    isProcessing
+                                        ? 'Đang xử lý...'
+                                        : 'Xác nhận từ chối'
+                                }}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </Teleport>
     </div>
 </template>
