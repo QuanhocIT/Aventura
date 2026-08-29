@@ -68,6 +68,7 @@ class ShiftClosing extends Model
         return [
             'closing_date' => 'date',
             'period_start_at' => 'datetime',
+            'period_end_at' => 'datetime',
             'closed_at' => 'datetime',
             'trashed_at' => 'datetime',
             'expected_cash' => 'decimal:2',

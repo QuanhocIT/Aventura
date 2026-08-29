@@ -25,7 +25,9 @@ final class CashControlSettings
     public const HANDOVER_REQUIRED = 'cash_handover_required';
 
     private const DEFAULTS = [
-        self::BLIND_COUNT => false,
+        // Cashiers must count before the expected amount is revealed unless
+        // the owner explicitly turns this control off.
+        self::BLIND_COUNT => true,
         self::VARIANCE_THRESHOLD => 20000,
         self::EVIDENCE_THRESHOLD => 200000,
         self::HANDOVER_REQUIRED => false,

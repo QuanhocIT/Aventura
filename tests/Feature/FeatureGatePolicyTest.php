@@ -31,6 +31,7 @@ class FeatureGatePolicyTest extends TestCase
     private array $paidControllers = [
         'BIDashboardController' => 'advanced_analytics',
         'BestSellerController' => 'advanced_analytics',
+        'BranchClosingController' => 'inventory_basic',
         'BusinessGoalController' => 'advanced_analytics',
         'CashFlowController' => 'advanced_analytics',
         'CdpController' => 'advanced_analytics',

@@ -424,6 +424,13 @@ class ApprovalService
         $data = $approval->operation_data;
 
         match ($approval->operation_type) {
+            // These legacy low-risk requests are approval-ledger operations:
+            // the originating workflow has already applied the user-facing
+            // change, while approval records the controlled decision.
+            'discount_small',
+            'leave_request_short',
+            'ingredient_transfer_small',
+            'menu_item_pause' => $this->validateLowRiskApproval($approval->operation_type, $data),
             'inventory_create' => $this->executeInventoryCreate($data, $approval->restaurant_id),
             'inventory_update' => $this->executeInventoryUpdate($data, $approval->restaurant_id),
             'inventory_delete' => $this->executeInventoryDelete($data, $approval->restaurant_id),
@@ -450,6 +457,22 @@ class ApprovalService
                 'operation_type' => 'Approval operation has no executable handler and was not applied.',
             ]),
         };
+    }
+
+    /**
+     * Validate legacy low-risk approval payloads without silently treating an
+     * unknown operation as approved. The operation is intentionally explicit
+     * in the match above so all other unsupported operations still fail closed.
+     */
+    private function validateLowRiskApproval(string $operationType, array $data): void
+    {
+        $amount = ApprovalOperations::amountFor($operationType, $data);
+
+        if ($amount !== null && $amount > 100000) {
+            throw ValidationException::withMessages([
+                'amount_involved' => 'Thao tác rủi ro thấp không được vượt quá 100.000đ.',
+            ]);
+        }
     }
 
     private function executeCashManualTransaction(array $data, int $restaurantId, int $requesterId, int $approvalId): void

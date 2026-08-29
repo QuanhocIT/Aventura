@@ -1027,13 +1027,20 @@ class OrdersController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:5', 'max:500'],
-            'refund_category' => ['required', 'in:compensation,mistake'],
+            // Keep older POS clients compatible; new clients may explicitly
+            // choose whether the refund is compensation or an input mistake.
+            'refund_category' => ['nullable', 'in:compensation,mistake'],
             'refund_amount' => ['required', 'numeric', 'min:1000', "max:{$order->total_amount}"],
             'refund_type' => ['required', 'in:full,partial'],
             'items' => ['nullable', 'array'],
             'items.*.order_item_id' => ['required_with:items', 'integer'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:1'],
         ]);
+
+        // Historical refund requests predate the category field. Treat them
+        // as compensation, which is the conservative inventory-accounting
+        // default, instead of rejecting an otherwise valid refund.
+        $data['refund_category'] ??= 'compensation';
 
         $alreadyRefunded = (float) ($order->refund_amount ?? 0);
         $remainingRefundable = max(0.0, (float) $order->total_amount - $alreadyRefunded);

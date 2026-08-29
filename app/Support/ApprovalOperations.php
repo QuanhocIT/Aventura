@@ -14,6 +14,7 @@ final class ApprovalOperations
     public const LABELS = [
         'cash_manual_transaction' => 'Giao dịch thu/chi tiền mặt thủ công',
         'inventory_purchase_batch' => 'Nhập nhiều nguyên liệu kho',
+        'discount_small' => 'Giảm giá nhỏ',
         // Kho & nguyên liệu
         'inventory_create' => 'Thêm nguyên liệu mới',
         'inventory_update' => 'Cập nhật thông tin nguyên liệu',
@@ -87,6 +88,7 @@ final class ApprovalOperations
      * Dùng để đối chiếu hạn mức của Quản lý.
      */
     private const AMOUNT_KEYS = [
+        'discount_small' => ['discount_amount'],
         'cash_manual_transaction' => ['amount'],
         'inventory_purchase_batch' => ['total_cost', 'estimated_cost'],
         'order_refund' => ['refund_amount'],

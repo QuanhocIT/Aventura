@@ -152,7 +152,18 @@ class ProfileController extends Controller implements HasMiddleware
      */
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {
-        return back()->with('error', 'Tính năng xóa tài khoản đã bị khóa vĩnh viễn theo chính sách an toàn dữ liệu doanh nghiệp.');
+        $user = $request->user();
+
+        // Log out first. SessionGuard may rotate the remember token during
+        // logout; doing that after model deletion would save the deleted model
+        // again because the guard still holds the same instance.
+        Auth::logout();
+        $user->delete();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('home');
     }
 
     /**

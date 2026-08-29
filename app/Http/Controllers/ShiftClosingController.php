@@ -809,9 +809,15 @@ class ShiftClosingController extends Controller
                 $transferDifference = $actualTransfer - $transferAmountForSlip;
                 $totalDifference = $cashDifference + $transferDifference;
 
-                $responsibilityAmount = array_key_exists('responsibility_amount', $data) && ! is_null($data['responsibility_amount'])
-                    ? (float) $data['responsibility_amount']
-                    : $totalDifference;
+                // Only owners can assign a shortage/bonus to an employee. A
+                // cashier or manager may submit the variance, but must not
+                // accidentally create a salary adjustment by omitting the
+                // owner review step.
+                $responsibilityAmount = $isOwnerUser
+                    ? (array_key_exists('responsibility_amount', $data) && ! is_null($data['responsibility_amount'])
+                        ? (float) $data['responsibility_amount']
+                        : $totalDifference)
+                    : 0.0;
 
                 if (! $isAreaScoped && $calculated['split_penalty_total'] > 0) {
                     $notes = trim(($notes ?? '')."\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -".number_format($calculated['split_penalty_total']).'đ');

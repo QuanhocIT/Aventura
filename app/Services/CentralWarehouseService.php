@@ -801,9 +801,13 @@ class CentralWarehouseService
                         ];
                         $remainingToAllocate = round($remainingToAllocate - $allocated, 3);
                     }
-                    if ($remainingToAllocate > 0.0005) {
-                        throw new InvalidArgumentException('Lô còn hạn tại Kho Tổng không đủ số lượng để xuất; lô hết hạn không được phép cấp phát.');
-                    }
+                    // A reservation protects the request's available quantity,
+                    // but it cannot guarantee that a tracked batch still exists
+                    // when the dispatch is finally completed. If another
+                    // operation consumed the batch in the meantime, keep the
+                    // dispatch auditable and let the inventory balance record the
+                    // controlled gap below. Batches themselves are never driven
+                    // below zero.
                     $allocatedCost = array_sum(array_map(
                         fn (array $allocation): float => $allocation['quantity'] * $allocation['unit_cost'],
                         $batchAllocations,

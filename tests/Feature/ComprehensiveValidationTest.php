@@ -18,6 +18,7 @@ use App\Models\RestaurantTable;
 use App\Models\Salary;
 use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
+use App\Models\StockTransferRequest;
 use App\Models\SubscriptionPlan;
 use App\Models\Supplier;
 use App\Models\Unit;
@@ -717,146 +718,160 @@ class ComprehensiveValidationTest extends TestCase
 
     public function test_gps_checkin_checkout_validation(): void
     {
-        // Configure restaurant coordinates and radius
-        $this->restaurant->update([
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'checkin_radius_meters' => 100,
-        ]);
+        // Keep the schedule and request timestamps consistent across midnight.
+        Carbon::setTestNow(Carbon::today()->setTime(12, 0));
 
-        $shift = WorkShift::factory()->create([
-            'restaurant_id' => $this->restaurant->id,
-            'start_time' => now()->subMinutes(10)->format('H:i:s'),
-            'end_time' => now()->addMinutes(4)->format('H:i:s'), // ends in 4 mins, <= 5 min grace checkout
-            'status' => 'active',
-        ]);
+        try {
+            // Configure restaurant coordinates and radius
+            $this->restaurant->update([
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'checkin_radius_meters' => 100,
+            ]);
 
-        // Link employee1 to cashier user
-        $this->employee1->update(['user_id' => $this->cashier->id]);
+            $shift = WorkShift::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'start_time' => now()->subMinutes(10)->format('H:i:s'),
+                'end_time' => now()->addMinutes(4)->format('H:i:s'), // ends in 4 mins, <= 5 min grace checkout
+                'status' => 'active',
+            ]);
 
-        $assignment = ScheduleAssignment::create([
-            'restaurant_id' => $this->restaurant->id,
-            'employee_id' => $this->employee1->id,
-            'shift_id' => $shift->id,
-            'scheduled_date' => today()->toDateString(),
-            'status' => 'scheduled',
-        ]);
+            // Link employee1 to cashier user
+            $this->employee1->update(['user_id' => $this->cashier->id]);
 
-        $this->actingAs($this->cashier);
+            $assignment = ScheduleAssignment::create([
+                'restaurant_id' => $this->restaurant->id,
+                'employee_id' => $this->employee1->id,
+                'shift_id' => $shift->id,
+                'scheduled_date' => today()->toDateString(),
+                'status' => 'scheduled',
+            ]);
 
-        // 1. Try mock GPS
-        $responseMock = $this->post(route('schedules.check-in'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'is_mock' => true,
-        ]);
-        $responseMock->assertSessionHasErrors();
+            $this->actingAs($this->cashier);
 
-        // 2. Try poor accuracy
-        $responseAccuracy = $this->post(route('schedules.check-in'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'accuracy' => 150,
-        ]);
-        $responseAccuracy->assertSessionHasErrors();
+            // 1. Try mock GPS
+            $responseMock = $this->post(route('schedules.check-in'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'is_mock' => true,
+            ]);
+            $responseMock->assertSessionHasErrors();
 
-        // 3. Try far distance
-        $responseDistance = $this->post(route('schedules.check-in'), [
-            'latitude' => 11.0,
-            'longitude' => 107.0,
-            'accuracy' => 10,
-        ]);
-        $responseDistance->assertSessionHasErrors();
+            // 2. Try poor accuracy
+            $responseAccuracy = $this->post(route('schedules.check-in'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'accuracy' => 150,
+            ]);
+            $responseAccuracy->assertSessionHasErrors();
 
-        // 4. Successful check-in
-        $responseSuccess = $this->post(route('schedules.check-in'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'accuracy' => 10,
-        ]);
-        $responseSuccess->assertSessionHasNoErrors();
-        $responseSuccess->assertSessionHas('success');
+            // 3. Try far distance
+            $responseDistance = $this->post(route('schedules.check-in'), [
+                'latitude' => 11.0,
+                'longitude' => 107.0,
+                'accuracy' => 10,
+            ]);
+            $responseDistance->assertSessionHasErrors();
 
-        // 5. Try mock GPS checkout
-        $responseCheckoutMock = $this->post(route('schedules.check-out'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'is_mock' => true,
-        ]);
-        $responseCheckoutMock->assertSessionHasErrors();
+            // 4. Successful check-in
+            $responseSuccess = $this->post(route('schedules.check-in'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'accuracy' => 10,
+            ]);
+            $responseSuccess->assertSessionHasNoErrors();
+            $responseSuccess->assertSessionHas('success');
 
-        // 6. Try poor accuracy checkout
-        $responseCheckoutAccuracy = $this->post(route('schedules.check-out'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'accuracy' => 150,
-        ]);
-        $responseCheckoutAccuracy->assertSessionHasErrors();
+            // 5. Try mock GPS checkout
+            $responseCheckoutMock = $this->post(route('schedules.check-out'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'is_mock' => true,
+            ]);
+            $responseCheckoutMock->assertSessionHasErrors();
 
-        // 7. Try far distance checkout
-        $responseCheckoutDistance = $this->post(route('schedules.check-out'), [
-            'latitude' => 11.0,
-            'longitude' => 107.0,
-            'accuracy' => 10,
-        ]);
-        $responseCheckoutDistance->assertSessionHasErrors();
+            // 6. Try poor accuracy checkout
+            $responseCheckoutAccuracy = $this->post(route('schedules.check-out'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'accuracy' => 150,
+            ]);
+            $responseCheckoutAccuracy->assertSessionHasErrors();
 
-        // 8. Successful check-out
-        $responseCheckoutSuccess = $this->post(route('schedules.check-out'), [
-            'latitude' => 10.762622,
-            'longitude' => 106.660172,
-            'accuracy' => 10,
-        ]);
-        $responseCheckoutSuccess->assertSessionHasNoErrors();
-        $responseCheckoutSuccess->assertSessionHas('success');
+            // 7. Try far distance checkout
+            $responseCheckoutDistance = $this->post(route('schedules.check-out'), [
+                'latitude' => 11.0,
+                'longitude' => 107.0,
+                'accuracy' => 10,
+            ]);
+            $responseCheckoutDistance->assertSessionHasErrors();
+
+            // 8. Successful check-out
+            $responseCheckoutSuccess = $this->post(route('schedules.check-out'), [
+                'latitude' => 10.762622,
+                'longitude' => 106.660172,
+                'accuracy' => 10,
+            ]);
+            $responseCheckoutSuccess->assertSessionHasNoErrors();
+            $responseCheckoutSuccess->assertSessionHas('success');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_duplicate_checkin_is_blocked(): void
     {
-        // Configure restaurant without GPS/QR so we can test pure check-in logic
-        $this->restaurant->update([
-            'latitude' => null,
-            'longitude' => null,
-            'qr_checkin_code' => null,
-        ]);
+        // Keep the schedule and request timestamps consistent across midnight.
+        Carbon::setTestNow(Carbon::today()->setTime(12, 0));
 
-        $shift = WorkShift::factory()->create([
-            'restaurant_id' => $this->restaurant->id,
-            'start_time' => now()->subMinutes(10)->format('H:i:s'),
-            'end_time' => now()->addHours(4)->format('H:i:s'),
-            'status' => 'active',
-        ]);
+        try {
+            // Configure restaurant without GPS/QR so we can test pure check-in logic
+            $this->restaurant->update([
+                'latitude' => null,
+                'longitude' => null,
+                'qr_checkin_code' => null,
+            ]);
 
-        // Link employee1 to cashier via user_id
-        $this->employee1->update(['user_id' => $this->cashier->id]);
+            $shift = WorkShift::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'start_time' => now()->subMinutes(10)->format('H:i:s'),
+                'end_time' => now()->addHours(4)->format('H:i:s'),
+                'status' => 'active',
+            ]);
 
-        // Create a scheduled assignment for employee1
-        $assignment = ScheduleAssignment::factory()->create([
-            'restaurant_id' => $this->restaurant->id,
-            'employee_id' => $this->employee1->id,
-            'shift_id' => $shift->id,
-            'scheduled_date' => now()->toDateString(),
-            'status' => 'scheduled',
-        ]);
+            // Link employee1 to cashier via user_id
+            $this->employee1->update(['user_id' => $this->cashier->id]);
 
-        $this->actingAs($this->cashier);
+            // Create a scheduled assignment for employee1
+            $assignment = ScheduleAssignment::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'employee_id' => $this->employee1->id,
+                'shift_id' => $shift->id,
+                'scheduled_date' => now()->toDateString(),
+                'status' => 'scheduled',
+            ]);
 
-        // First check-in should succeed
-        $resp1 = $this->post(route('schedules.check-in'), []);
-        $resp1->assertSessionHasNoErrors();
-        $assignment->refresh();
-        $this->assertEquals('checked_in', $assignment->status);
-        $this->assertNotNull($assignment->check_in_at);
-        $originalCheckInAt = $assignment->check_in_at->toDateTimeString();
+            $this->actingAs($this->cashier);
 
-        // Second check-in: no more 'scheduled' slot found. Backend should return
-        // the idempotent-success since employee is already checked-in today.
-        $resp2 = $this->post(route('schedules.check-in'), []);
-        // Either returns early with success (idempotent) OR returns an error about no slot.
-        // The critical assertion is that assignment check_in_at was NOT overwritten.
-        $assignment->refresh();
-        $this->assertEquals('checked_in', $assignment->status);
-        $this->assertEquals($originalCheckInAt, $assignment->check_in_at->toDateTimeString());
+            // First check-in should succeed
+            $resp1 = $this->post(route('schedules.check-in'), []);
+            $resp1->assertSessionHasNoErrors();
+            $assignment->refresh();
+            $this->assertEquals('checked_in', $assignment->status);
+            $this->assertNotNull($assignment->check_in_at);
+            $originalCheckInAt = $assignment->check_in_at->toDateTimeString();
+
+            // Second check-in: no more 'scheduled' slot found. Backend should return
+            // the idempotent-success since employee is already checked-in today.
+            $resp2 = $this->post(route('schedules.check-in'), []);
+            // Either returns early with success (idempotent) OR returns an error about no slot.
+            // The critical assertion is that assignment check_in_at was NOT overwritten.
+            $assignment->refresh();
+            $this->assertEquals('checked_in', $assignment->status);
+            $this->assertEquals($originalCheckInAt, $assignment->check_in_at->toDateTimeString());
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_violation_report_created_successfully(): void
@@ -950,7 +965,7 @@ class ComprehensiveValidationTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        $transfer = \App\Models\StockTransferRequest::latest('id')->firstOrFail();
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
         $this->actingAs($this->owner)->post("/inventory/transfers/{$transfer->id}/route", [
             'from_branch_id' => $branch1->id,
         ])->assertRedirect()->assertSessionHasErrors(['from_branch_id']);
