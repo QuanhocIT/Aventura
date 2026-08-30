@@ -277,7 +277,11 @@ const finalCartPrice = computed(() =>
 
 const totalActiveOrdersAmount = computed(() =>
     props.activeTempOrders.reduce((sum, o) => {
-        if (o.status !== 'cancelled' && o.order_status !== 'cancelled') {
+        if (
+            o.status !== 'cancelled' &&
+            o.order_status !== 'cancelled' &&
+            o.payment_status !== 'paid'
+        ) {
             return sum + (o.total_amount || 0);
         }
 

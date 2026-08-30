@@ -900,4 +900,58 @@ class QROrderingLifecycleTest extends TestCase
         ]);
         $submitResponse->assertStatus(404);
     }
+
+    public function test_guest_sees_active_table_orders_created_at_pos_when_opening_qr_link(): void
+    {
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Cà Phê Sữa Đá',
+            'price' => 25000,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'created_by' => $this->owner->id,
+            'order_number' => 'ORD-POS-B1-001',
+            'channel' => 'dine_in',
+            'status' => 'confirmed',
+            'payment_status' => 'unpaid',
+            'subtotal' => 25000.0,
+            'discount_amount' => 0.0,
+            'total_amount' => 25000.0,
+        ]);
+
+        $order->items()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 25000.0,
+            'line_total' => 25000.0,
+            'status' => 'preparing',
+        ]);
+
+        $response = $this->get(route('customer.qr-order.show', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'session_id' => 'new-guest-session-' . uniqid(),
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('customers/QROrder')
+            ->has('activeTempOrders', 1)
+            ->where('activeTempOrders.0.order_number', 'ORD-POS-B1-001')
+            ->where('activeTempOrders.0.total_amount', 25000)
+            ->where('activeTempOrders.0.items_status.0.name', 'Cà Phê Sữa Đá')
+            ->where('activeTempOrders.0.items_status.0.status', 'preparing')
+        );
+    }
 }
+

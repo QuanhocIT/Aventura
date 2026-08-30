@@ -241,6 +241,58 @@ class QROrderController extends Controller
                 ];
             });
 
+        // 4.2 Lấy các đơn hàng chính thức đang active/phục vụ tại bàn (từ POS/nhân viên hoặc đã xác nhận)
+        $coveredOrderIds = $activeTempOrders->pluck('order_id')->filter()->toArray();
+
+        $activeOfficialOrders = Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('table_id', $table->id)
+            ->activeForService()
+            ->with(['items.product'])
+            ->latest()
+            ->get()
+            ->reject(fn ($order) => in_array($order->id, $coveredOrderIds, true))
+            ->map(function ($order) {
+                $itemsStatus = $order->items
+                    ->where('status', '!=', 'cancelled')
+                    ->map(fn ($item) => [
+                        'name' => $item->product?->name ?? 'Món ăn',
+                        'quantity' => (float) $item->quantity,
+                        'status' => $item->status,
+                        'notes' => $item->notes,
+                    ])->values()->all();
+
+                $cartData = $order->items
+                    ->where('status', '!=', 'cancelled')
+                    ->map(fn ($item) => [
+                        'product_id' => $item->product_id,
+                        'name' => $item->product?->name ?? 'Món ăn',
+                        'quantity' => (float) $item->quantity,
+                        'unit_price' => (float) $item->unit_price,
+                        'line_total' => (float) $item->subtotal,
+                        'notes' => $item->notes,
+                    ])->values()->all();
+
+                return [
+                    'id' => $order->id,
+                    'status' => 'confirmed',
+                    'awaiting_customer_confirmation' => false,
+                    'revision_note' => null,
+                    'total_amount' => (float) $order->total_amount,
+                    'cart_data' => $cartData,
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number,
+                    'order_status' => $order->status,
+                    'order_note' => $order->note,
+                    'payment_status' => $order->payment_status,
+                    'cancellation_reason' => null,
+                    'items_status' => $itemsStatus,
+                    'created_at' => $order->created_at ? $order->created_at->toIso8601String() : now()->toIso8601String(),
+                ];
+            });
+
+        $activeTempOrders = $activeTempOrders->concat($activeOfficialOrders)->values();
+
         // 5. Lấy danh sách nhân viên phục vụ trong ca trực hiện tại để khách hàng đánh giá
         $staffList = $this->resolveCurrentShiftStaff($restaurantId);
 
