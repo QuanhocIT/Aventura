@@ -86,7 +86,6 @@ class QROrderController extends Controller
                 'name' => $p->name,
                 'description' => $p->description,
                 'price' => (float) $p->price,
-                'earn_points' => (int) ($p->earn_points ?? 0),
                 'redeem_points' => (int) ($p->redeem_points ?? 0),
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,

@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -177,23 +178,55 @@ class CustomerController extends Controller
     /**
      * Tạo khách hàng mới.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         // index() đã yêu cầu manage_customers từ đầu; store()/update() thì
         // không — nghĩa là không xem được danh sách nhưng vẫn ghi được dữ liệu
         // cá nhân của khách.
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền thêm khách hàng.');
 
+        $request->merge(['phone' => trim((string) $request->input('phone'))]);
+
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
+            'phone' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('customers', 'phone')->where(
+                    fn ($query) => $query->where('restaurant_id', $request->user()->restaurant_id),
+                ),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
             'gender' => ['nullable', 'in:male,female,other'],
             'date_of_birth' => ['nullable', 'date', 'before:today'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        Customer::create($data);
+        $customer = Customer::create([
+            ...$data,
+            'phone' => trim($data['phone']),
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã thêm khách hàng mới thành công vào hệ thống CRM.',
+                'customer' => [
+                    'id' => $customer->id,
+                    'full_name' => $customer->full_name,
+                    'phone' => $customer->phone,
+                    'email' => $customer->email,
+                    'loyalty_points' => (int) $customer->loyalty_points,
+                    'membership_level' => $customer->membership_level ?? 'silver',
+                    'total_spent' => (float) ($customer->total_spent ?? 0),
+                    'is_vip' => (bool) $customer->is_vip,
+                    'is_b2b' => (bool) $customer->is_b2b,
+                    'credit_limit' => (float) ($customer->credit_limit ?? 0),
+                    'current_debt' => (float) ($customer->current_debt ?? 0),
+                ],
+            ], 201);
+        }
 
         return back()->with('success', 'Đã thêm khách hàng mới thành công vào hệ thống CRM.');
     }

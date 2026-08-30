@@ -86,7 +86,7 @@ class CustomerLoyaltyClaimTest extends TestCase
         $summaryResponse->assertStatus(200)
             ->assertJson([
                 'success' => true,
-                'total_earned_points' => 85, // 80 + 5
+                'total_earned_points' => 12, // 125,000 VND x 0.0001
             ]);
 
         // 2. Claim points via quick phone login/registration
@@ -103,14 +103,14 @@ class CustomerLoyaltyClaimTest extends TestCase
             ->assertJson([
                 'success' => true,
                 'is_new_customer' => true,
-                'points_added' => 85,
+                'points_added' => 12,
             ]);
 
         // Assert Customer created & tagged with restaurant_id
         $customer = Customer::where('phone', '0912345678')->first();
         $this->assertNotNull($customer);
         $this->assertEquals($restaurant->id, $customer->restaurant_id);
-        $this->assertEquals(85, $customer->loyalty_points);
+        $this->assertEquals(12, $customer->loyalty_points);
 
         // Assert User created & assigned 'customer' role
         $user = User::where('phone', '0912345678')->first();

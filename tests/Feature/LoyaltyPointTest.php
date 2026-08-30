@@ -154,4 +154,49 @@ class LoyaltyPointTest extends TestCase
         $customer->refresh();
         $this->assertEquals(58, $customer->loyalty_points);
     }
+
+    public function test_customer_attached_at_payment_receives_points(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'manager_user_id' => null,
+        ]);
+        $user = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+
+        $customer = Customer::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'full_name' => 'New POS Member',
+            'phone' => '0909999000',
+            'loyalty_points' => 0,
+        ]);
+        $order = Order::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'customer_id' => null,
+            'created_by' => $user->id,
+            'order_number' => 'ORD-NEW-MEMBER-TEST',
+            'channel' => 'dine_in',
+            'status' => 'confirmed',
+            'payment_status' => 'unpaid',
+            'subtotal' => 100000.0,
+            'discount_amount' => 0.0,
+            'total_amount' => 100000.0,
+        ]);
+
+        app(OrderService::class)->payOrder($order, [
+            'payment_method' => 'cash',
+            'cash_received' => 100000,
+            'customer_id' => $customer->id,
+        ], $user);
+
+        $this->assertSame($customer->id, $order->refresh()->customer_id);
+        $this->assertSame(10, (int) $customer->refresh()->loyalty_points);
+    }
 }

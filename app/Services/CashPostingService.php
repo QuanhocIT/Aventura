@@ -21,6 +21,10 @@ class CashPostingService
         $amount = round((float) $data['amount'], 2);
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
+        if ($amount <= 0) {
+            return null;
+        }
+
         return DB::transaction(function () use ($data, $restaurantId, $amount, $idempotencyKey): ?CashTransaction {
             $register = null;
             if (! empty($data['cash_register_id'])) {

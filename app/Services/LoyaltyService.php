@@ -61,21 +61,10 @@ class LoyaltyService
         $tier = $customer->loyaltyTier;
         $multiplier = $tier ? (float) $tier->points_multiplier : 1.0;
 
-        // Calculate points earned per product rule if configured
-        $order->loadMissing('items.product');
-        $itemPoints = 0;
-        foreach ($order->items as $item) {
-            $prodEarnPoints = (int) ($item->product?->earn_points ?? 0);
-            if ($prodEarnPoints > 0) {
-                $itemPoints += $prodEarnPoints * (int) $item->quantity;
-            }
-        }
-
-        if ($itemPoints > 0) {
-            $pointsEarned = (int) round($itemPoints * $multiplier);
-        } else {
-            $pointsEarned = (int) floor($orderTotal * (float) $program->points_per_vnd * $multiplier);
-        }
+        // Points are earned from the invoice total only. Product-level earn
+        // rules are intentionally ignored so the program has one clear source
+        // of truth and customers are not awarded points twice.
+        $pointsEarned = (int) floor($orderTotal * (float) $program->points_per_vnd * $multiplier);
 
         if ($pointsEarned <= 0) {
             return 0;
@@ -126,6 +115,15 @@ class LoyaltyService
             $actual = min($pointsToRedeem, $customer->loyalty_points);
             if ($actual <= 0) {
                 return 0;
+            }
+
+            if ($order && (float) $program->point_value_vnd > 0) {
+                $remainingPayable = max(0.0, (float) $order->total_amount);
+                $maxPointsNeeded = (int) ceil($remainingPayable / (float) $program->point_value_vnd);
+                $actual = min($actual, $maxPointsNeeded);
+                if ($actual <= 0) {
+                    return 0;
+                }
             }
 
             // FIFO deduction

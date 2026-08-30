@@ -26,6 +26,10 @@ class PaymentObserver
             return;
         }
 
+        if ((float) $payment->amount <= 0) {
+            return;
+        }
+
         $isRefund = $payment->status === 'refunded';
         $userId = $payment->processed_by ?? auth()->id();
         $account = match (strtolower((string) $payment->payment_method)) {

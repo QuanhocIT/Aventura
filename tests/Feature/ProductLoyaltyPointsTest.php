@@ -54,7 +54,7 @@ class ProductLoyaltyPointsTest extends TestCase
         ]);
     }
 
-    public function test_owner_can_set_custom_earn_and_redeem_points_on_product(): void
+    public function test_owner_can_set_redeem_points_on_product(): void
     {
         $this->actingAs($this->owner);
 
@@ -63,7 +63,6 @@ class ProductLoyaltyPointsTest extends TestCase
             'category_id' => $this->category->id,
             'name' => 'Phở Bò Đặc Biệt',
             'price' => 50000,
-            'earn_points' => 30,
             'redeem_points' => 300,
             'description' => 'Phở truyền thống gia truyền thơm ngon đậm đà',
             'scope' => 'branch',
@@ -74,7 +73,6 @@ class ProductLoyaltyPointsTest extends TestCase
 
         $product = Product::where('name', 'Phở Bò Đặc Biệt')->first();
         $this->assertNotNull($product);
-        $this->assertEquals(30, $product->earn_points);
         $this->assertEquals(300, $product->redeem_points);
 
         // Update Product
@@ -82,18 +80,16 @@ class ProductLoyaltyPointsTest extends TestCase
             'name' => 'Phở Bò Tái Lăn',
             'price' => 55000,
             'description' => 'Phở bò tái lăn đậm vị',
-            'earn_points' => 50,
             'redeem_points' => 450,
         ]);
 
         $updateResponse->assertSessionHasNoErrors();
         $product->refresh();
 
-        $this->assertEquals(50, $product->earn_points);
         $this->assertEquals(450, $product->redeem_points);
     }
 
-    public function test_loyalty_service_earns_and_redeems_points_per_product(): void
+    public function test_loyalty_service_earns_from_invoice_and_redeems_per_product(): void
     {
         $product = Product::create([
             'restaurant_id' => $this->restaurant->id,
@@ -135,15 +131,15 @@ class ProductLoyaltyPointsTest extends TestCase
 
         // 1. Earn points from order
         $earned = $loyaltyService->earnPoints($customer, $order, 100000);
-        $this->assertEquals(60, $earned);
+        $this->assertEquals(10, $earned);
         $customer->refresh();
-        $this->assertEquals(560, $customer->loyalty_points);
+        $this->assertEquals(510, $customer->loyalty_points);
 
         // 2. Redeem 1 bowl of Phở (costs 300 points, saves 50,000 VND)
         $discount = $loyaltyService->redeemProductWithPoints($customer, $product, 1, $order);
         $this->assertEquals(50000.0, $discount);
 
         $customer->refresh();
-        $this->assertEquals(260, $customer->loyalty_points); // 560 - 300 = 260
+        $this->assertEquals(210, $customer->loyalty_points); // 510 - 300 = 210
     }
 }

@@ -153,6 +153,31 @@ class CustomerSecurityTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_cashier_can_quickly_create_customer_and_receive_json_profile(): void
+    {
+        app(TenantContext::class)->setRestaurantId($this->restaurantA->id);
+
+        $response = $this->actingAs($this->cashierA)->postJson('/customers', [
+            'full_name' => 'POS Member',
+            'phone' => '0903333444',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('customer.full_name', 'POS Member')
+            ->assertJsonPath('customer.phone', '0903333444')
+            ->assertJsonPath('customer.loyalty_points', 0);
+
+        $this->assertDatabaseHas('customers', [
+            'restaurant_id' => $this->restaurantA->id,
+            'branch_id' => $this->branchA->id,
+            'full_name' => 'POS Member',
+            'phone' => '0903333444',
+            'loyalty_points' => 0,
+        ]);
+    }
+
     public function test_owner_role_can_successfully_export_customer_csv(): void
     {
         app(TenantContext::class)->setRestaurantId($this->restaurantA->id);
