@@ -21,6 +21,16 @@ import {
     Coffee,
     Dessert,
     Beef,
+    ChefHat,
+    ShoppingBag,
+    Coins,
+    Gift,
+    ImageIcon,
+    Save,
+    Building2,
+    Layers,
+    Check,
+    Camera,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -52,7 +62,6 @@ type Product = {
     code: string;
     name: string;
     price: number;
-    earn_points?: number;
     redeem_points?: number;
     description: string | null;
     category: Category | null;
@@ -281,7 +290,6 @@ const productForm = useForm({
     name: '',
     price: '',
     is_processed: true,
-    earn_points: 0,
     redeem_points: 0,
     description: '',
     image: null as File | null,
@@ -293,7 +301,6 @@ const editForm = useForm({
     name: '',
     price: '',
     is_processed: true,
-    earn_points: 0,
     redeem_points: 0,
     category_id: '',
     description: '',
@@ -468,7 +475,6 @@ const openEditModal = (p: Product) => {
     editForm.name = p.name;
     editForm.price = String(p.price);
     editForm.is_processed = p.is_processed ?? true;
-    editForm.earn_points = p.earn_points ?? 0;
     editForm.redeem_points = p.redeem_points ?? 0;
     editForm.category_id = p.category ? String(p.category.id) : '';
     editForm.description = p.description ?? '';
@@ -488,7 +494,6 @@ const submitEdit = () => {
                 ? {
                       price: editForm.price,
                       is_processed: editForm.is_processed,
-                      earn_points: editForm.earn_points,
                       redeem_points: editForm.redeem_points,
                   }
                 : {}),
@@ -2110,565 +2115,508 @@ const toggleAvailability = (p: Product) => {
 
     <!-- Add Product Modal -->
 
+    <!-- Add Product Modal -->
+    <!-- Add Product Modal -->
     <div
         v-if="showAddProduct"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
     >
-        <div class="flex min-h-full items-center justify-center">
-            <Card
-                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-            >
-                <CardHeader class="border-b border-border/60 pb-3">
-                    <CardTitle
-                        class="flex items-center gap-2 text-base font-extrabold"
-                    >
-                        <Plus class="size-5 text-rose-500" />
-                        Thêm Món Ăn Mới Vào Thực Đơn
-                    </CardTitle>
-                    <CardDescription
-                        >Nhập thông tin chi tiết về sản phẩm để phục vụ bán
-                        hàng.</CardDescription
-                    >
-                </CardHeader>
-                <CardContent class="p-5">
-                    <form @submit.prevent="submitProduct" class="space-y-4">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-foreground"
-                                    >Phạm vi</Label
-                                >
-                                <select
-                                    v-model="productForm.scope"
-                                    class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground"
-                                >
-                                    <option value="branch">
-                                        Theo chi nhánh
-                                    </option>
-                                    <option
-                                        v-if="canCreateShared"
-                                        value="shared"
-                                    >
-                                        Dùng chung toàn chuỗi
-                                    </option>
-                                </select>
-                            </div>
+        <Card
+            class="my-auto flex max-h-[90vh] w-full max-w-3xl animate-in flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl duration-150 zoom-in-95 fade-in"
+        >
+            <CardHeader class="flex shrink-0 flex-row items-center justify-between border-b border-border/60 bg-gradient-to-r from-rose-500/10 via-pink-500/5 to-transparent p-5 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/25">
+                        <Plus class="size-5" />
+                    </div>
+                    <div>
+                        <CardTitle class="text-base font-black tracking-tight text-foreground">
+                            Thêm Món Ăn Mới Vào Thực Đơn
+                        </CardTitle>
+                        <CardDescription class="mt-0.5 text-xs text-muted-foreground">
+                            Thiết lập phân loại chế biến, giá bán và công thức định lượng kho.
+                        </CardDescription>
+                    </div>
+                </div>
+                <button
+                    @click="showAddProduct = false"
+                    class="cursor-pointer rounded-xl p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                    <X class="size-4" />
+                </button>
+            </CardHeader>
+
+            <form @submit.prevent="submitProduct" class="flex flex-1 flex-col overflow-hidden">
+                <CardContent class="flex-1 overflow-y-auto p-6 space-y-5">
+                    <!-- Phân loại Món & Công thức -->
+                    <div class="grid gap-2">
+                        <Label class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                            <ChefHat class="size-3.5 text-rose-500" />
+                            Phân loại Món & Công thức <span class="font-bold text-rose-500">*</span>
+                        </Label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div
-                                v-if="productForm.scope === 'branch'"
-                                class="grid gap-1.5"
+                                @click="productForm.is_processed = false"
+                                :class="[
+                                    'cursor-pointer rounded-2xl border p-4 transition-all flex flex-col justify-between relative overflow-hidden',
+                                    !productForm.is_processed
+                                        ? 'border-blue-500 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent text-blue-950 dark:text-blue-200 ring-2 ring-blue-500/30 shadow-md shadow-blue-500/10'
+                                        : 'border-border/80 bg-card hover:bg-muted/50 text-foreground',
+                                ]"
                             >
-                                <Label class="text-xs font-bold text-foreground"
-                                    >Chi nhánh
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <select
-                                    v-model="productForm.branch_id"
-                                    required
-                                    class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground"
-                                >
-                                    <option
-                                        v-for="branch in branches"
-                                        :key="branch.id"
-                                        :value="branch.id"
-                                    >
-                                        {{ branch.name }}
-                                    </option>
-                                </select>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 font-bold text-xs">
+                                        <div class="flex size-7 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                                            <ShoppingBag class="size-4" />
+                                        </div>
+                                        <span>Bán sẵn (Không chế biến)</span>
+                                    </div>
+                                    <Badge v-if="!productForm.is_processed" class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                        <Check class="size-2.5" /> Bán ngay
+                                    </Badge>
+                                </div>
+                                <p class="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                                    Đưa trực tiếp vào thực đơn bán ngay (nước ngọt, bia, bánh đóng gói). Không bắt buộc cài công thức.
+                                </p>
+                            </div>
+
+                            <div
+                                @click="productForm.is_processed = true"
+                                :class="[
+                                    'cursor-pointer rounded-2xl border p-4 transition-all flex flex-col justify-between relative overflow-hidden',
+                                    productForm.is_processed
+                                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/30 shadow-md shadow-amber-500/10'
+                                        : 'border-border/80 bg-card hover:bg-muted/50 text-foreground',
+                                ]"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 font-bold text-xs">
+                                        <div class="flex size-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                                            <ChefHat class="size-4" />
+                                        </div>
+                                        <span>Cần chế biến & Định lượng</span>
+                                    </div>
+                                    <Badge v-if="productForm.is_processed" class="bg-amber-600 text-white text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                        <Check class="size-2.5" /> Trừ kho COGS
+                                    </Badge>
+                                </div>
+                                <p class="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                                    Yêu cầu tạo công thức nguyên liệu thô tại Kho để tự động trừ tồn & tính giá vốn COGS chính xác.
+                                </p>
                             </div>
                         </div>
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="prod-cat"
-                                class="text-xs font-bold text-foreground"
-                                >Thuộc nhóm món
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <div class="relative">
-                                <select
-                                    id="prod-cat"
-                                    v-model="productForm.category_id"
-                                    required
-                                    class="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border bg-card pr-8 pl-3 text-xs font-bold text-foreground focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
-                                >
-                                    <option value="" disabled>
-                                        Chọn một nhóm món
-                                    </option>
-                                    <option
-                                        v-for="cat in categories"
-                                        :key="cat.id"
-                                        :value="cat.id"
+                    </div>
+
+                    <!-- 2-Column Content Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <!-- Cột Trái: Thông tin cơ bản & Định giá -->
+                        <div class="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
+                            <!-- Scope / Branch nếu có -->
+                            <div class="grid grid-cols-2 gap-3" v-if="canCreateShared">
+                                <div class="grid gap-1.5">
+                                    <Label class="flex items-center gap-1 text-xs font-bold text-foreground">
+                                        <Building2 class="size-3 text-sky-500" />
+                                        Phạm vi
+                                    </Label>
+                                    <select
+                                        v-model="productForm.scope"
+                                        class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
                                     >
-                                        {{ cat.name }}
-                                    </option>
-                                </select>
-                                <ChevronDown
-                                    class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+                                        <option value="branch">Theo chi nhánh</option>
+                                        <option value="shared">Dùng chung toàn chuỗi</option>
+                                    </select>
+                                </div>
+                                <div v-if="productForm.scope === 'branch'" class="grid gap-1.5">
+                                    <Label class="flex items-center gap-1 text-xs font-bold text-foreground">
+                                        <Building2 class="size-3 text-sky-500" />
+                                        Chi nhánh <span class="text-rose-500">*</span>
+                                    </Label>
+                                    <select
+                                        v-model="productForm.branch_id"
+                                        required
+                                        class="h-10 w-full rounded-xl border border-border bg-card px-3 text-xs font-bold text-foreground focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                                    >
+                                        <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                            {{ branch.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Nhóm món -->
+                            <div class="grid gap-1.5">
+                                <Label for="prod-cat" class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Layers class="size-3.5 text-indigo-500" />
+                                    Thuộc nhóm món <span class="font-bold text-rose-500">*</span>
+                                </Label>
+                                <div class="relative">
+                                    <select
+                                        id="prod-cat"
+                                        v-model="productForm.category_id"
+                                        required
+                                        class="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border bg-card pr-8 pl-3.5 text-xs font-bold text-foreground focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                    >
+                                        <option value="" disabled>-- Chọn nhóm món --</option>
+                                        <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                                            {{ cat.name }}
+                                        </option>
+                                    </select>
+                                    <ChevronDown class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                </div>
+                            </div>
+
+                            <!-- Tên món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label for="prod-name" class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <UtensilsCrossed class="size-3.5 text-rose-500" />
+                                    Tên món ăn <span class="font-bold text-rose-500">*</span>
+                                </Label>
+                                <Input
+                                    id="prod-name"
+                                    v-model="productForm.name"
+                                    placeholder="Ví dụ: Trà đào cam sả, Bò sốt tiêu..."
+                                    required
+                                    class="h-10 rounded-xl font-semibold focus-visible:ring-rose-500/30"
                                 />
                             </div>
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold text-foreground"
-                                >Phân loại Món & Công thức
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
+
+                            <!-- Giá bán & Điểm đổi món (2 cột con) -->
                             <div class="grid grid-cols-2 gap-3">
-                                <div
-                                    @click="productForm.is_processed = false"
-                                    :class="[
-                                        'cursor-pointer rounded-xl border p-3 transition-all',
-                                        !productForm.is_processed
-                                            ? 'border-blue-500 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-200'
-                                            : 'border-border bg-card hover:bg-muted/50',
-                                    ]"
-                                >
-                                    <div
-                                        class="flex items-center gap-1.5 text-xs font-bold"
-                                    >
-                                        <span>🥤 Bán sẵn (Không chế biến)</span>
+                                <div class="grid gap-1.5">
+                                    <Label for="prod-price" class="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                        <Coins class="size-3.5 text-emerald-500" />
+                                        Giá bán (VNĐ) <span class="font-bold text-rose-500">*</span>
+                                    </Label>
+                                    <div class="relative">
+                                        <Input
+                                            id="prod-price"
+                                            type="number"
+                                            v-model="productForm.price"
+                                            placeholder="45000"
+                                            required
+                                            class="h-10 rounded-xl font-mono font-black text-emerald-600 dark:text-emerald-400 pr-8 focus-visible:ring-emerald-500/30"
+                                        />
+                                        <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs font-bold text-emerald-500/80">₫</span>
                                     </div>
-                                    <p
-                                        class="mt-1 text-[10px] text-muted-foreground"
-                                    >
-                                        Đưa trực tiếp vào thực đơn bán ngay.
-                                        Không bắt buộc cài công thức.
-                                    </p>
                                 </div>
 
-                                <div
-                                    @click="productForm.is_processed = true"
-                                    :class="[
-                                        'cursor-pointer rounded-xl border p-3 transition-all',
-                                        productForm.is_processed
-                                            ? 'border-amber-500 bg-amber-50/70 text-amber-900 ring-2 ring-amber-500/20 dark:bg-amber-950/40 dark:text-amber-200'
-                                            : 'border-border bg-card hover:bg-muted/50',
-                                    ]"
-                                >
-                                    <div
-                                        class="flex items-center gap-1.5 text-xs font-bold"
-                                    >
-                                        <span
-                                            >🍲 Cần chế biến & Định lượng</span
-                                        >
+                                <div class="grid gap-1.5">
+                                    <Label for="prod-redeem" class="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                        <Gift class="size-3.5 text-amber-500" />
+                                        Điểm đổi món
+                                    </Label>
+                                    <div class="relative">
+                                        <Input
+                                            id="prod-redeem"
+                                            type="number"
+                                            min="0"
+                                            v-model="productForm.redeem_points"
+                                            placeholder="Ví dụ: 90"
+                                            class="h-10 rounded-xl font-mono text-xs font-bold text-amber-600 dark:text-amber-400 pr-8 focus-visible:ring-amber-500/30"
+                                        />
+                                        <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-amber-500/80">pt</span>
                                     </div>
-                                    <p
-                                        class="mt-1 text-[10px] text-muted-foreground"
-                                    >
-                                        Yêu cầu tạo công thức nguyên liệu thô để
-                                        tự động trừ kho & tính COGS.
-                                    </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="prod-name"
-                                class="text-xs font-bold text-foreground"
-                                >Tên món ăn
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <Input
-                                id="prod-name"
-                                v-model="productForm.name"
-                                placeholder="Ví dụ: Phở bò tái lăn..."
-                                required
-                                class="rounded-xl"
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="prod-price"
-                                class="text-xs font-bold text-foreground"
-                                >Giá bán (VND)
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <Input
-                                id="prod-price"
-                                type="number"
-                                v-model="productForm.price"
-                                placeholder="Ví dụ: 45000"
-                                required
-                                class="rounded-xl"
-                            />
-                        </div>
-                        <div
-                            class="grid grid-cols-2 gap-3 rounded-xl border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"
-                        >
-                            <div class="grid gap-1">
-                                <Label
-                                    class="text-[11px] font-bold text-amber-900 dark:text-amber-300"
-                                >
-                                    🎁 Tích điểm khi mua
+                        <!-- Cột Phải: Ảnh & Mô tả -->
+                        <div class="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
+                            <!-- Ảnh món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label for="prod-image" class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Camera class="size-3.5 text-purple-500" />
+                                    Ảnh món ăn (Menu Image)
                                 </Label>
                                 <Input
-                                    type="number"
-                                    min="0"
-                                    v-model="productForm.earn_points"
-                                    placeholder="Ví dụ: 30"
-                                    class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                                    id="prod-image"
+                                    type="file"
+                                    accept="image/*"
+                                    @change="(e: any) => (productForm.image = e.target.files[0])"
+                                    class="h-10 rounded-xl text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-purple-500/10 file:px-2.5 file:py-1 file:text-xs file:font-bold file:text-purple-600 hover:file:bg-purple-500/20"
                                 />
-                                <p
-                                    class="text-[9px] text-amber-700/80 dark:text-amber-400"
-                                >
-                                    Điểm thưởng khi mua 1 món
-                                </p>
                             </div>
-                            <div class="grid gap-1">
-                                <Label
-                                    class="text-[11px] font-bold text-amber-900 dark:text-amber-300"
-                                >
-                                    🔄 Điểm để đổi món
+
+                            <!-- Mô tả món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label for="prod-desc" class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Sparkles class="size-3.5 text-amber-500" />
+                                    Đặc điểm & Hương vị món ăn <span class="font-bold text-rose-500">*</span>
                                 </Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    v-model="productForm.redeem_points"
-                                    placeholder="Ví dụ: 300"
-                                    class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
+                                <textarea
+                                    id="prod-desc"
+                                    v-model="productForm.description"
+                                    rows="5"
+                                    required
+                                    placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt thanh...) để nhân viên dễ dàng tư vấn và upsell cho khách hàng."
+                                    class="w-full resize-none rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs text-foreground focus:ring-2 focus:ring-rose-500/30 focus:outline-none leading-relaxed"
                                 />
-                                <p
-                                    class="text-[9px] text-amber-700/80 dark:text-amber-400"
-                                >
-                                    Điểm cần có để đổi 1 món
-                                </p>
                             </div>
                         </div>
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="prod-image"
-                                class="text-xs font-bold text-foreground"
-                                >Ảnh món ăn (Menu Image)</Label
-                            >
-                            <Input
-                                id="prod-image"
-                                type="file"
-                                accept="image/*"
-                                @change="
-                                    (e: any) =>
-                                        (productForm.image = e.target.files[0])
-                                "
-                                class="rounded-xl text-xs"
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <div class="flex items-center justify-between">
-                                <Label
-                                    for="prod-desc"
-                                    class="text-xs font-bold text-foreground"
-                                >
-                                    Đặc điểm & Hương vị món ăn
-                                    <span class="font-bold text-rose-500"
-                                        >*</span
-                                    >
-                                </Label>
-                            </div>
-                            <textarea
-                                id="prod-desc"
-                                v-model="productForm.description"
-                                rows="3"
-                                required
-                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
-                                class="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs text-foreground focus:ring-2 focus:ring-rose-500/30 focus:outline-none"
-                            />
-                        </div>
-                        <div
-                            class="flex justify-end gap-2 border-t border-border/60 pt-2"
-                        >
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showAddProduct = false"
-                                class="rounded-xl"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                class="bg-rose-650 cursor-pointer rounded-xl font-bold text-white hover:bg-rose-700"
-                                :disabled="productForm.processing"
-                            >
-                                {{
-                                    productForm.processing
-                                        ? 'Đang thêm...'
-                                        : 'Thêm món ăn'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
+                    </div>
                 </CardContent>
-            </Card>
-        </div>
+
+                <div class="flex shrink-0 items-center justify-end gap-3 border-t border-border/60 bg-muted/30 p-4 px-6">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        @click="showAddProduct = false"
+                        class="rounded-xl font-semibold hover:bg-muted"
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        type="submit"
+                        class="cursor-pointer rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 font-bold text-white shadow-lg shadow-rose-600/25 hover:from-rose-500 hover:to-pink-500 gap-1.5"
+                        :disabled="productForm.processing"
+                    >
+                        <Plus class="size-4" />
+                        {{ productForm.processing ? 'Đang thêm...' : 'Thêm món ăn' }}
+                    </Button>
+                </div>
+            </form>
+        </Card>
     </div>
 
     <!-- Edit Product Modal -->
-
     <div
         v-if="editingProduct"
-        class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
+        class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
     >
-        <div class="flex min-h-full items-center justify-center">
-            <Card
-                class="w-full max-w-md animate-in rounded-2xl border-border duration-150 zoom-in-95 fade-in"
-            >
-                <CardHeader class="border-b border-border/60 pb-3">
-                    <div class="flex items-center justify-between">
-                        <CardTitle
-                            class="flex items-center gap-2 text-base font-extrabold"
-                        >
-                            <Pencil class="size-4 text-indigo-600" />Chỉnh Sửa
-                            Món Ăn
-                        </CardTitle>
-                        <button
-                            @click="editingProduct = null"
-                            class="cursor-pointer text-muted-foreground hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
+        <Card
+            class="my-auto flex max-h-[90vh] w-full max-w-3xl animate-in flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl duration-150 zoom-in-95 fade-in"
+        >
+            <CardHeader class="flex shrink-0 flex-row items-center justify-between border-b border-border/60 bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-transparent p-5 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-lg shadow-indigo-500/25">
+                        <Pencil class="size-5" />
                     </div>
-                </CardHeader>
-                <CardContent class="p-5">
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold text-foreground"
-                                >Phân loại Món & Công thức
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <div class="grid grid-cols-2 gap-3">
-                                <div
-                                    @click="
-                                        canManagePrices &&
-                                        (editForm.is_processed = false)
-                                    "
-                                    :class="[
-                                        'cursor-pointer rounded-xl border p-3 transition-all',
-                                        !editForm.is_processed
-                                            ? 'border-blue-500 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-200'
-                                            : 'border-border bg-card hover:bg-muted/50',
-                                    ]"
-                                >
-                                    <div
-                                        class="flex items-center gap-1.5 text-xs font-bold"
-                                    >
-                                        <span>🥤 Bán sẵn (Không chế biến)</span>
-                                    </div>
-                                    <p
-                                        class="mt-1 text-[10px] text-muted-foreground"
-                                    >
-                                        Đưa trực tiếp vào thực đơn bán ngay.
-                                        Không bắt buộc cài công thức.
-                                    </p>
-                                </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <CardTitle class="text-base font-black tracking-tight text-foreground">
+                                Chỉnh Sửa Món Ăn
+                            </CardTitle>
+                            <Badge variant="outline" class="font-mono text-[10px] text-muted-foreground border-border/80">
+                                {{ editingProduct.code }}
+                            </Badge>
+                        </div>
+                        <CardDescription class="mt-0.5 text-xs text-muted-foreground">
+                            Cập nhật phân loại chế biến, giá bán và thông tin chi tiết của món ăn.
+                        </CardDescription>
+                    </div>
+                </div>
+                <button
+                    @click="editingProduct = null"
+                    class="cursor-pointer rounded-xl p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                    <X class="size-4" />
+                </button>
+            </CardHeader>
 
-                                <div
-                                    @click="
-                                        canManagePrices &&
-                                        (editForm.is_processed = true)
-                                    "
-                                    :class="[
-                                        'cursor-pointer rounded-xl border p-3 transition-all',
-                                        editForm.is_processed
-                                            ? 'border-amber-500 bg-amber-50/70 text-amber-900 ring-2 ring-amber-500/20 dark:bg-amber-950/40 dark:text-amber-200'
-                                            : 'border-border bg-card hover:bg-muted/50',
-                                    ]"
-                                >
-                                    <div
-                                        class="flex items-center gap-1.5 text-xs font-bold"
-                                    >
-                                        <span
-                                            >🍲 Cần chế biến & Định lượng</span
-                                        >
+            <form @submit.prevent="submitEdit" class="flex flex-1 flex-col overflow-hidden">
+                <CardContent class="flex-1 overflow-y-auto p-6 space-y-5">
+                    <!-- Phân loại Món & Công thức -->
+                    <div class="grid gap-2">
+                        <Label class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                            <ChefHat class="size-3.5 text-indigo-500" />
+                            Phân loại Món & Công thức <span class="font-bold text-rose-500">*</span>
+                        </Label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div
+                                @click="canManagePrices && (editForm.is_processed = false)"
+                                :class="[
+                                    'cursor-pointer rounded-2xl border p-4 transition-all flex flex-col justify-between relative overflow-hidden',
+                                    !editForm.is_processed
+                                        ? 'border-blue-500 bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent text-blue-950 dark:text-blue-200 ring-2 ring-blue-500/30 shadow-md shadow-blue-500/10'
+                                        : 'border-border/80 bg-card hover:bg-muted/50 text-foreground',
+                                    !canManagePrices ? 'cursor-not-allowed opacity-75' : '',
+                                ]"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 font-bold text-xs">
+                                        <div class="flex size-7 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                                            <ShoppingBag class="size-4" />
+                                        </div>
+                                        <span>Bán sẵn (Không chế biến)</span>
                                     </div>
-                                    <p
-                                        class="mt-1 text-[10px] text-muted-foreground"
-                                    >
-                                        Yêu cầu tạo công thức nguyên liệu thô để
-                                        tự động trừ kho & tính COGS.
-                                    </p>
+                                    <Badge v-if="!editForm.is_processed" class="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                        <Check class="size-2.5" /> Bán ngay
+                                    </Badge>
                                 </div>
+                                <p class="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                                    Đưa trực tiếp vào thực đơn bán ngay (nước ngọt, bia, snack). Không bắt buộc cài công thức.
+                                </p>
+                            </div>
+
+                            <div
+                                @click="canManagePrices && (editForm.is_processed = true)"
+                                :class="[
+                                    'cursor-pointer rounded-2xl border p-4 transition-all flex flex-col justify-between relative overflow-hidden',
+                                    editForm.is_processed
+                                        ? 'border-amber-500 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/30 shadow-md shadow-amber-500/10'
+                                        : 'border-border/80 bg-card hover:bg-muted/50 text-foreground',
+                                    !canManagePrices ? 'cursor-not-allowed opacity-75' : '',
+                                ]"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2 font-bold text-xs">
+                                        <div class="flex size-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                                            <ChefHat class="size-4" />
+                                        </div>
+                                        <span>Cần chế biến & Định lượng</span>
+                                    </div>
+                                    <Badge v-if="editForm.is_processed" class="bg-amber-600 text-white text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                        <Check class="size-2.5" /> Trừ kho COGS
+                                    </Badge>
+                                </div>
+                                <p class="mt-2 text-[11px] text-muted-foreground leading-relaxed">
+                                    Yêu cầu tạo công thức nguyên liệu thô tại Kho để tự động trừ tồn kho & tính COGS.
+                                </p>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold text-foreground"
-                                >Nhóm món</Label
-                            >
-                            <div class="relative">
-                                <select
-                                    v-model="editForm.category_id"
-                                    class="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border bg-card pr-8 pl-3 text-xs font-bold text-foreground focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
-                                >
-                                    <option value="">Chưa gán nhóm</option>
-                                    <option
-                                        v-for="cat in categories"
-                                        :key="cat.id"
-                                        :value="cat.id"
+                    <!-- 2-Column Content Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <!-- Cột Trái: Nhóm món, Tên món, Giá bán & Điểm -->
+                        <div class="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
+                            <!-- Nhóm món -->
+                            <div class="grid gap-1.5">
+                                <Label class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Layers class="size-3.5 text-indigo-500" />
+                                    Nhóm món
+                                </Label>
+                                <div class="relative">
+                                    <select
+                                        v-model="editForm.category_id"
+                                        class="h-10 w-full cursor-pointer appearance-none rounded-xl border border-border bg-card pr-8 pl-3.5 text-xs font-bold text-foreground focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                                     >
-                                        {{ cat.name }}
-                                    </option>
-                                </select>
-                                <ChevronDown
-                                    class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+                                        <option value="">-- Chưa gán nhóm --</option>
+                                        <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+                                            {{ cat.name }}
+                                        </option>
+                                    </select>
+                                    <ChevronDown class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                </div>
+                            </div>
+
+                            <!-- Tên món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <UtensilsCrossed class="size-3.5 text-rose-500" />
+                                    Tên món ăn <span class="font-bold text-rose-500">*</span>
+                                </Label>
+                                <Input
+                                    v-model="editForm.name"
+                                    required
+                                    class="h-10 rounded-xl font-semibold focus-visible:ring-indigo-500/30"
                                 />
                             </div>
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold text-foreground"
-                                >Tên món ăn
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <Input
-                                v-model="editForm.name"
-                                required
-                                class="rounded-xl"
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label class="text-xs font-bold text-foreground"
-                                >Giá bán (VND)
-                                <span class="font-bold text-rose-500"
-                                    >*</span
-                                ></Label
-                            >
-                            <Input
-                                type="number"
-                                v-model="editForm.price"
-                                required
-                                :disabled="!canManagePrices"
-                                class="rounded-xl"
-                            />
-                            <p
-                                v-if="!canManagePrices"
-                                class="text-[10px] text-amber-700 dark:text-amber-300"
-                            >
-                                Giá bán và dữ liệu ảnh hưởng giá vốn chỉ Chủ
-                                doanh nghiệp được thay đổi.
+
+                            <!-- Giá bán & Điểm đổi món (2 cột con) -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="grid gap-1.5">
+                                    <Label class="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                        <Coins class="size-3.5 text-emerald-500" />
+                                        Giá bán (VNĐ) <span class="font-bold text-rose-500">*</span>
+                                    </Label>
+                                    <div class="relative">
+                                        <Input
+                                            type="number"
+                                            v-model="editForm.price"
+                                            required
+                                            :disabled="!canManagePrices"
+                                            class="h-10 rounded-xl font-mono font-black text-emerald-600 dark:text-emerald-400 pr-8 focus-visible:ring-emerald-500/30"
+                                        />
+                                        <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs font-bold text-emerald-500/80">₫</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label class="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                        <Gift class="size-3.5 text-amber-500" />
+                                        Điểm đổi món
+                                    </Label>
+                                    <div class="relative">
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            v-model="editForm.redeem_points"
+                                            placeholder="Ví dụ: 90"
+                                            class="h-10 rounded-xl font-mono text-xs font-bold text-amber-600 dark:text-amber-400 pr-8 focus-visible:ring-amber-500/30"
+                                        />
+                                        <span class="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-amber-500/80">pt</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-if="!canManagePrices" class="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                * Giá bán và dữ liệu ảnh hưởng giá vốn chỉ Chủ doanh nghiệp mới có quyền thay đổi.
                             </p>
                         </div>
-                        <div
-                            class="grid grid-cols-2 gap-3 rounded-xl border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"
-                        >
-                            <div class="grid gap-1">
-                                <Label
-                                    class="text-[11px] font-bold text-amber-900 dark:text-amber-300"
-                                >
-                                    🎁 Tích điểm khi mua
+
+                        <!-- Cột Phải: Ảnh & Mô tả -->
+                        <div class="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
+                            <!-- Ảnh món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label for="edit-image" class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Camera class="size-3.5 text-purple-500" />
+                                    Thay đổi ảnh món ăn
                                 </Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    v-model="editForm.earn_points"
-                                    placeholder="Ví dụ: 30"
-                                    class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
-                                />
-                                <p
-                                    class="text-[9px] text-amber-700/80 dark:text-amber-400"
-                                >
-                                    Điểm thưởng khi mua 1 món
-                                </p>
-                            </div>
-                            <div class="grid gap-1">
-                                <Label
-                                    class="text-[11px] font-bold text-amber-900 dark:text-amber-300"
-                                >
-                                    🔄 Điểm để đổi món
-                                </Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    v-model="editForm.redeem_points"
-                                    placeholder="Ví dụ: 300"
-                                    class="h-8 rounded-lg bg-white text-xs dark:bg-slate-900"
-                                />
-                                <p
-                                    class="text-[9px] text-amber-700/80 dark:text-amber-400"
-                                >
-                                    Điểm cần có để đổi 1 món
-                                </p>
-                            </div>
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label
-                                for="edit-image"
-                                class="text-xs font-bold text-foreground"
-                                >Thay đổi ảnh món ăn</Label
-                            >
-                            <div class="flex items-center gap-3">
-                                <div
-                                    v-if="editingProduct?.image_url"
-                                    class="size-12 shrink-0 overflow-hidden rounded-xl border border-border bg-muted shadow-xs"
-                                >
-                                    <img
-                                        :src="editingProduct.image_url"
-                                        class="h-full w-full object-cover"
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        v-if="editingProduct?.image_url"
+                                        class="size-12 shrink-0 overflow-hidden rounded-xl border border-border bg-muted shadow-sm"
+                                    >
+                                        <img :src="editingProduct.image_url" class="h-full w-full object-cover" />
+                                    </div>
+                                    <Input
+                                        id="edit-image"
+                                        type="file"
+                                        accept="image/*"
+                                        @change="(e: any) => (editForm.image = e.target.files[0])"
+                                        class="h-10 flex-1 rounded-xl text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-purple-500/10 file:px-2.5 file:py-1 file:text-xs file:font-bold file:text-purple-600 hover:file:bg-purple-500/20"
                                     />
                                 </div>
-                                <Input
-                                    id="edit-image"
-                                    type="file"
-                                    accept="image/*"
-                                    @change="
-                                        (e: any) =>
-                                            (editForm.image = e.target.files[0])
-                                    "
-                                    class="flex-1 rounded-xl text-xs"
+                            </div>
+
+                            <!-- Mô tả món ăn -->
+                            <div class="grid gap-1.5">
+                                <Label class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <Sparkles class="size-3.5 text-amber-500" />
+                                    Đặc điểm & Hương vị món ăn <span class="font-bold text-rose-500">*</span>
+                                </Label>
+                                <textarea
+                                    v-model="editForm.description"
+                                    rows="5"
+                                    required
+                                    placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt thanh...) để nhân viên dễ dàng tư vấn và upsell cho khách hàng."
+                                    class="w-full resize-none rounded-xl border border-border bg-card px-3.5 py-2.5 text-xs text-foreground focus:ring-2 focus:ring-indigo-500/30 focus:outline-none leading-relaxed"
                                 />
                             </div>
                         </div>
-                        <div class="grid gap-1.5">
-                            <div class="flex items-center justify-between">
-                                <Label
-                                    class="text-xs font-bold text-foreground"
-                                >
-                                    Đặc điểm & Hương vị món ăn
-                                    <span class="font-bold text-rose-500"
-                                        >*</span
-                                    >
-                                </Label>
-                            </div>
-                            <textarea
-                                v-model="editForm.description"
-                                rows="3"
-                                required
-                                placeholder="Mô tả hương vị (chua cay, béo ngậy, ngọt dịu...) để nhân viên dễ tư vấn khách."
-                                class="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs text-foreground focus:ring-2 focus:ring-rose-500/30 focus:outline-none"
-                            />
-                        </div>
-                        <div
-                            class="flex justify-end gap-2 border-t border-border/60 pt-2"
-                        >
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="editingProduct = null"
-                                class="rounded-xl"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                class="bg-indigo-650 cursor-pointer rounded-xl font-bold text-white hover:bg-indigo-700"
-                                :disabled="editForm.processing"
-                            >
-                                {{
-                                    editForm.processing
-                                        ? 'Đang lưu...'
-                                        : 'Lưu thay đổi'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
+                    </div>
                 </CardContent>
-            </Card>
-        </div>
+
+                <div class="flex shrink-0 items-center justify-end gap-3 border-t border-border/60 bg-muted/30 p-4 px-6">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        @click="editingProduct = null"
+                        class="rounded-xl font-semibold hover:bg-muted"
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        type="submit"
+                        class="cursor-pointer rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 font-bold text-white shadow-lg shadow-indigo-600/25 hover:from-indigo-500 hover:to-indigo-600 gap-1.5"
+                        :disabled="editForm.processing"
+                    >
+                        <Save class="size-4" />
+                        {{ editForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                    </Button>
+                </div>
+            </form>
+        </Card>
     </div>
 
     <!-- Delete Confirmation Modal -->

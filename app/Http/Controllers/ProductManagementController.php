@@ -67,7 +67,6 @@ class ProductManagementController extends Controller
                     'code' => $p->code,
                     'name' => $p->name,
                     'price' => $p->price,
-                    'earn_points' => (int) ($p->earn_points ?? 0),
                     'redeem_points' => (int) ($p->redeem_points ?? 0),
                     'description' => $p->description,
                     'is_available' => (bool) $p->is_available,
@@ -107,7 +106,6 @@ class ProductManagementController extends Controller
             'description' => ['nullable', 'string'],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
-            'earn_points' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $branchId = $this->resolveCatalogBranch($user, app(TenantContext::class), $data);
@@ -149,7 +147,6 @@ class ProductManagementController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
-            'earn_points' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $context = app(TenantContext::class);
@@ -176,7 +173,6 @@ class ProductManagementController extends Controller
             'name' => $data['name'],
             'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
             'price' => $data['price'],
-            'earn_points' => $data['earn_points'] ?? 0,
             'redeem_points' => $data['redeem_points'] ?? 0,
             'description' => $data['description'] ?? null,
             'image_url' => $imageUrl,
@@ -210,7 +206,7 @@ class ProductManagementController extends Controller
 
         // is_processed quyết định món có đi qua BOM/COGS hay không, nên cũng
         // là một thay đổi tài chính chứ không chỉ là thuộc tính hiển thị.
-        $financialFields = ['price', 'earn_points', 'redeem_points', 'is_processed'];
+        $financialFields = ['price', 'redeem_points', 'is_processed'];
         if (array_intersect($financialFields, array_keys($request->all()))) {
             abort_unless(
                 $user->isOwner() || $user->isSuperAdmin(),
@@ -223,7 +219,6 @@ class ProductManagementController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'price' => ['sometimes', 'numeric', 'min:0'],
-            'earn_points' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'redeem_points' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'category_id' => ['sometimes', 'nullable', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'description' => ['sometimes', 'required', 'string', 'min:5'],
