@@ -54,20 +54,15 @@ class KitchenController extends Controller
         $todayStart = today()->startOfDay();
         $todayEnd = today()->endOfDay();
 
-        // 1. Nhận đơn (Pending/Preparing items in active orders for today)
+        // 1. Nhận đơn (Pending/Preparing items in active orders)
         $pendingItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNull('prepared_at')
             ->where('status', '!=', 'cancelled')
-            ->whereHas('order', function ($q) use ($branchId, $todayStart, $todayEnd) {
+            ->whereHas('order', function ($q) use ($branchId) {
                 // Payment completion and kitchen/service completion are
                 // separate. Keep every unserved item in the queue.
                 $q->where('status', '!=', 'cancelled')
-                    ->activeForService()
-                    ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
-                        $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('updated_at', [$todayStart, $todayEnd]);
-                    });
+                    ->activeForService();
                 if ($branchId) {
                     $q->where(function ($bq) use ($branchId) {
                         $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
@@ -79,6 +74,7 @@ class KitchenController extends Controller
             ->get()
             ->map(fn ($item) => [
                 'id' => $item->id,
+                'order_id' => $item->order_id,
                 'product_name' => $item->product?->name ?? 'Món ăn',
                 'quantity' => (float) $item->quantity,
                 'notes' => $item->notes,
@@ -93,21 +89,16 @@ class KitchenController extends Controller
                 'prep_minutes' => max(1, (int) ($item->product?->preparation_time_minutes ?? 10)),
             ]);
 
-        // 2. Đơn đã làm xong (Completed but not served yet for today)
+        // 2. Đơn đã làm xong (Completed but not served yet)
         // Payment status and kitchen status are independent. A paid
         // order must remain visible in kitchen until every item is served.
         $completedItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNotNull('prepared_at')
             ->whereNull('served_at')
             ->where('status', '!=', 'cancelled')
-            ->whereHas('order', function ($q) use ($branchId, $todayStart, $todayEnd) {
+            ->whereHas('order', function ($q) use ($branchId) {
                 $q->where('status', '!=', 'cancelled')
-                    ->activeForService()
-                    ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
-                        $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('updated_at', [$todayStart, $todayEnd]);
-                    });
+                    ->activeForService();
                 if ($branchId) {
                     $q->where(function ($bq) use ($branchId) {
                         $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
@@ -119,12 +110,14 @@ class KitchenController extends Controller
             ->get()
             ->map(fn ($item) => [
                 'id' => $item->id,
+                'order_id' => $item->order_id,
                 'product_name' => $item->product?->name ?? 'Món ăn',
                 'quantity' => (float) $item->quantity,
                 'notes' => $item->notes,
                 'prepared_at' => $item->prepared_at->format('H:i'),
                 'prepared_by_name' => $item->preparedBy?->name ?? 'Bếp',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
+                'table_id' => $item->order->table_id,
             ]);
 
         $products = Product::where('restaurant_id', $restaurantId)
@@ -266,14 +259,18 @@ class KitchenController extends Controller
         $order = $item->order;
         $tableName = $order?->table?->name ?? 'Bàn chưa xác định';
 
-        event(new KitchenWaiterCalled(
-            $user->restaurant_id,
-            $order?->id ?? 0,
-            $order?->order_number ?? 'ORD-000',
-            $tableName,
-            $item->product?->name ?? 'Món ăn',
-            "Món [{$item->product?->name}] cho bàn {$tableName} bị trễ SLA. Vui lòng hỗ trợ!"
-        ));
+        try {
+            event(new KitchenWaiterCalled(
+                $user->restaurant_id,
+                $order?->id ?? 0,
+                $order?->order_number ?? 'ORD-000',
+                $tableName,
+                $item->product?->name ?? 'Món ăn',
+                "Món [{$item->product?->name}] cho bàn {$tableName} bị trễ SLA. Vui lòng hỗ trợ!"
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('KitchenWaiterCalled broadcast failed in notifyWaiterOverdue: '.$e->getMessage());
+        }
 
         $msg = "Đã gửi thông báo hỗ trợ cho phục vụ bàn {$tableName}!";
         if ($request->wantsJson()) {

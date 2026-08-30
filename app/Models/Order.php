@@ -225,27 +225,21 @@ class Order extends Model
     }
 
     /**
-     * Tính tổng số điểm tích lũy của toàn bộ các món trong hóa đơn này.
+     * Tính số điểm tích lũy theo tổng giá trị của hóa đơn này.
      */
     public function calculateTotalEarnPoints(): int
     {
-        $this->loadMissing('items.product');
-        $totalEarn = 0;
-        foreach ($this->items as $item) {
-            $earnPoints = (int) ($item->product?->earn_points ?? 0);
-            if ($earnPoints > 0) {
-                $totalEarn += $earnPoints * (int) $item->quantity;
-            }
+        if ((float) $this->total_amount <= 0) {
+            return 0;
         }
 
-        if ($totalEarn === 0 && (float) $this->total_amount > 0) {
-            $program = (new LoyaltyService)->getProgram($this->restaurant_id);
-            if ($program && $program->is_active) {
-                $totalEarn = (int) floor((float) $this->total_amount * (float) $program->points_per_vnd);
-            }
+        $program = (new LoyaltyService)->getProgram($this->restaurant_id);
+
+        if (! $program || ! $program->is_active) {
+            return 0;
         }
 
-        return $totalEarn;
+        return (int) floor((float) $this->total_amount * (float) $program->points_per_vnd);
     }
 
     public function payments(): HasMany

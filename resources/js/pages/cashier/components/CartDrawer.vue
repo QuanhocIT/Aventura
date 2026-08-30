@@ -56,6 +56,14 @@ const paymentBlockMessage = computed(() => {
 
     return 'Chờ phục vụ đủ món';
 });
+
+const isOrderLocked = computed(() => {
+    return Boolean(
+        props.activeTable?.active_order &&
+            (props.isNotified ||
+                props.activeTable.active_order.status !== 'pending'),
+    );
+});
 </script>
 
 <template>
@@ -180,15 +188,20 @@ const paymentBlockMessage = computed(() => {
                     >
                     <Input
                         type="text"
-                        placeholder="Nhập ghi chú chung cho toàn bộ đơn..."
+                        :placeholder="
+                            isOrderLocked
+                                ? (cartNote || 'Đơn đã khóa & báo bếp')
+                                : 'Nhập ghi chú chung cho toàn bộ đơn...'
+                        "
                         :value="cartNote"
+                        :disabled="isOrderLocked"
                         @input="
                             emit(
                                 'update:cartNote',
                                 ($event.target as HTMLInputElement).value,
                             )
                         "
-                        class="h-9 rounded-xl text-xs"
+                        class="h-9 rounded-xl text-xs disabled:cursor-not-allowed disabled:bg-slate-100/70 disabled:text-slate-500 dark:disabled:bg-slate-800/40"
                     />
                 </div>
             </div>

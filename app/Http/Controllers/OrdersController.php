@@ -878,19 +878,21 @@ class OrdersController extends Controller
                     ]);
 
                     // Ghi nhận doanh thu và phải thu cho đơn bán ghi nợ
-                    app(FinancialPostingService::class)->post([
-                        'restaurant_id' => $order->restaurant_id,
-                        'branch_id' => $order->branch_id,
-                        'entry_date' => now()->toDateString(),
-                        'source_type' => 'order',
-                        'source_id' => $order->id,
-                        'idempotency_key' => "order_credit_sale_{$order->id}",
-                        'description' => "Doanh thu bán ghi nợ đơn hàng #{$order->order_number}",
-                        'lines' => [
-                            ['account' => '1311', 'debit' => (float) $order->total_amount, 'credit' => 0],
-                            ['account' => '5111', 'debit' => 0, 'credit' => (float) $order->total_amount],
-                        ],
-                    ]);
+                    if ((float) $order->total_amount > 0) {
+                        app(FinancialPostingService::class)->post([
+                            'restaurant_id' => $order->restaurant_id,
+                            'branch_id' => $order->branch_id,
+                            'entry_date' => now()->toDateString(),
+                            'source_type' => 'order',
+                            'source_id' => $order->id,
+                            'idempotency_key' => "order_credit_sale_{$order->id}",
+                            'description' => "Doanh thu bán ghi nợ đơn hàng #{$order->order_number}",
+                            'lines' => [
+                                ['account' => '1311', 'debit' => (float) $order->total_amount, 'credit' => 0],
+                                ['account' => '5111', 'debit' => 0, 'credit' => (float) $order->total_amount],
+                            ],
+                        ]);
+                    }
 
                     // Create Payment record
                     Payment::create([

@@ -114,43 +114,78 @@ export function useCashierCart(
         }
     };
 
-    const decreaseProductQty = (productId: number) => {
-        isNotified.value = false;
-        const itemIndex = cartItems.value.findIndex(
-            (i) => i.product_id === productId && !i.id,
-        );
+    const checkIsNotified = () => {
+        const hasNewItems = cartItems.value.some((i) => !i.id);
 
-        if (itemIndex !== -1) {
-            const item = cartItems.value[itemIndex];
-
-            if (item.quantity > 1) {
-                item.quantity -= 1;
-            } else {
-                cartItems.value.splice(itemIndex, 1);
-            }
+        if (!hasNewItems && activeTable.value?.active_order) {
+            isNotified.value = true;
         }
     };
 
-    const increaseQty = (item: OrderItem) => {
-        if (!item.id) {
-            const product = products().find((p) => p.id === item.product_id);
+    const decreaseProductQty = (productId: number) => {
+        const unsubmittedItem = cartItems.value.find(
+            (i) => i.product_id === productId && !i.id,
+        );
 
-            if (
-                product?.available_portions !== null &&
-                product?.available_portions !== undefined &&
-                item.quantity >= product.available_portions
-            ) {
-                toast(
-                    `Món ${product.name} đã đạt số suất còn lại trong kho.`,
-                    'error',
+        if (unsubmittedItem) {
+            if (unsubmittedItem.quantity > 1) {
+                unsubmittedItem.quantity -= 1;
+            } else {
+                cartItems.value = cartItems.value.filter(
+                    (i) => i !== unsubmittedItem,
                 );
-
-                return;
             }
+
+            checkIsNotified();
+
+            return;
+        }
+
+        toast('Không thể giảm số lượng món đã gửi bếp.', 'error');
+    };
+
+    const increaseQty = (item: OrderItem) => {
+        const product = products().find((p) => p.id === item.product_id);
+        const currentUnsentQty = cartItems.value
+            .filter((i) => i.product_id === item.product_id && !i.id)
+            .reduce((s, i) => s + i.quantity, 0);
+
+        if (
+            product?.available_portions !== null &&
+            product?.available_portions !== undefined &&
+            currentUnsentQty >= product.available_portions
+        ) {
+            toast(
+                `Món ${product?.name ?? item.product_name} chỉ còn ${product.available_portions} suất có thể phục vụ.`,
+                'error',
+            );
+
+            return;
         }
 
         isNotified.value = false;
-        item.quantity += 1;
+
+        if (item.id) {
+            // Món đã gửi bếp: Thêm dòng gọi thêm mới để có ô ghi chú riêng biệt cho phần sau
+            const existingUnsent = cartItems.value.find(
+                (i) => i.product_id === item.product_id && !i.id,
+            );
+
+            if (existingUnsent) {
+                existingUnsent.quantity += 1;
+            } else {
+                cartItems.value.push({
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    price: item.price,
+                    quantity: 1,
+                    notes: '',
+                });
+            }
+        } else {
+            item.quantity += 1;
+        }
+
         triggerCartBounce();
     };
 
@@ -161,13 +196,15 @@ export function useCashierCart(
             return;
         }
 
-        isNotified.value = false;
-
         if (item.quantity > 1) {
             item.quantity -= 1;
         } else {
             removeItem(item);
+
+            return;
         }
+
+        checkIsNotified();
     };
 
     const removeItem = (item: OrderItem) => {
@@ -177,8 +214,8 @@ export function useCashierCart(
             return;
         }
 
-        isNotified.value = false;
         cartItems.value = cartItems.value.filter((i) => i !== item);
+        checkIsNotified();
     };
 
     const totalCartAmount = computed(() => {
@@ -246,7 +283,10 @@ export function useCashierCart(
                                             (item) =>
                                                 item.status !== 'cancelled',
                                         )
-                                        .map((item) => ({ ...item })) ?? [];
+                                        .map((item) => ({
+                                            ...item,
+                                            original_quantity: item.quantity,
+                                        })) ?? [];
                             }
                         }, 200);
                         toast('Đã gửi bổ sung món xuống nhà bếp thành công!');
@@ -285,7 +325,10 @@ export function useCashierCart(
                                             (item) =>
                                                 item.status !== 'cancelled',
                                         )
-                                        .map((item) => ({ ...item })) ?? [];
+                                        .map((item) => ({
+                                            ...item,
+                                            original_quantity: item.quantity,
+                                        })) ?? [];
                             }
                         }, 200);
                         toast('Đã tạo đơn mới thành công!');
@@ -306,7 +349,13 @@ export function useCashierCart(
     };
 
     const sendToKitchen = () => {
-        if (!activeTable.value?.active_order) {
+        if (!activeTable.value) {
+            return;
+        }
+
+        if (!activeTable.value.active_order) {
+            submitOrder();
+
             return;
         }
 

@@ -1,7 +1,7 @@
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import type { Ref } from 'vue';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { TableItem, CustomerItem } from '../types';
 
 export type AvailableVoucher = {
@@ -44,6 +44,10 @@ export function useCashierPayment(
     const searchCustomerPhone = ref('');
     const isSearchingCustomer = ref(false);
     const foundCustomer = ref<CustomerItem | null>(null);
+    const customerNotFound = ref(false);
+    const showCreateCustomerForm = ref(false);
+    const newCustomerName = ref('');
+    const isCreatingCustomer = ref(false);
     const loyaltyPointsToRedeem = ref<number>(0);
     const voucherCode = ref('');
     const isApplyingVoucher = ref(false);
@@ -114,18 +118,32 @@ export function useCashierPayment(
     };
 
     const searchCustomer = () => {
-        if (!searchCustomerPhone.value.trim()) {
+        const phone = searchCustomerPhone.value.trim();
+
+        if (!phone) {
+            foundCustomer.value = null;
+            customerNotFound.value = false;
+            showCreateCustomerForm.value = false;
+            newCustomerName.value = '';
+
             return;
         }
 
+        foundCustomer.value = null;
+        customerNotFound.value = false;
+        showCreateCustomerForm.value = false;
+        newCustomerName.value = '';
         isSearchingCustomer.value = true;
         axios
             .get('/api/customers/search', {
-                params: { phone: searchCustomerPhone.value.trim() },
+                params: { phone },
             })
             .then((res) => {
+                customerNotFound.value = true;
+
                 if (res.data.customer) {
                     foundCustomer.value = res.data.customer;
+                    customerNotFound.value = false;
                     toast(
                         `Đã tìm thấy khách hàng: ${res.data.customer.full_name}`,
                     );
@@ -141,9 +159,91 @@ export function useCashierPayment(
             });
     };
 
+    const clearCustomerSearchStatus = () => {
+        customerNotFound.value = false;
+        showCreateCustomerForm.value = false;
+        newCustomerName.value = '';
+    };
+
+    const startCreateCustomer = () => {
+        if (!customerNotFound.value || !searchCustomerPhone.value.trim()) {
+            toast(
+                'Vui lÃ²ng tra cá»©u sá»‘ Ä‘iá»‡n thoáº¡i trÆ°á»›c khi táº¡o khÃ¡ch hÃ ng.',
+                'error',
+            );
+
+            return;
+        }
+
+        showCreateCustomerForm.value = true;
+    };
+
+    const cancelCreateCustomer = () => {
+        showCreateCustomerForm.value = false;
+        newCustomerName.value = '';
+    };
+
+    const createCustomer = () => {
+        const phone = searchCustomerPhone.value.trim();
+        const fullName = newCustomerName.value.trim();
+
+        if (!phone || !fullName) {
+            toast('Vui lÃ²ng nháº­p tÃªn khÃ¡ch hÃ ng.', 'error');
+
+            return;
+        }
+
+        isCreatingCustomer.value = true;
+        axios
+            .post(
+                '/customers',
+                { full_name: fullName, phone },
+                { headers: { Accept: 'application/json' } },
+            )
+            .then((res) => {
+                if (!res.data.customer) {
+                    throw new Error(
+                        'KhÃ´ng nháº­n Ä‘Æ°á»£c thÃ´ng tin khÃ¡ch hÃ ng vá»«a táº¡o.',
+                    );
+                }
+
+                foundCustomer.value = res.data.customer;
+                searchCustomerPhone.value = res.data.customer.phone;
+                customerNotFound.value = false;
+                showCreateCustomerForm.value = false;
+                newCustomerName.value = '';
+                toast(
+                    res.data.message ||
+                        'ÄÃ£ táº¡o khÃ¡ch hÃ ng vÃ  gáº¯n vÃ o hÃ³a Ä‘Æ¡n.',
+                );
+            })
+            .catch((err) => {
+                const data = err.response?.data;
+                const validationMessage = data?.errors
+                    ? Object.values(data.errors).flat().join(' ')
+                    : undefined;
+                toast(
+                    validationMessage ||
+                        data?.message ||
+                        'KhÃ´ng thá»ƒ táº¡o khÃ¡ch hÃ ng. Vui lÃ²ng thá»­ láº¡i.',
+                    'error',
+                );
+            })
+            .finally(() => {
+                isCreatingCustomer.value = false;
+            });
+    };
+
+    watch(searchCustomerPhone, (phone, previousPhone) => {
+        if (phone !== previousPhone && !foundCustomer.value) {
+            clearCustomerSearchStatus();
+        }
+    });
+
     const clearCustomerSelection = () => {
         foundCustomer.value = null;
         searchCustomerPhone.value = '';
+        clearCustomerSearchStatus();
     };
 
     const loadAvailableVouchers = (orderId: number) => {
@@ -209,6 +309,9 @@ export function useCashierPayment(
         ];
         foundCustomer.value = null;
         searchCustomerPhone.value = '';
+        customerNotFound.value = false;
+        showCreateCustomerForm.value = false;
+        newCustomerName.value = '';
         loyaltyPointsToRedeem.value = 0;
         voucherCode.value = '';
         bypassRequired.value = false;
@@ -431,6 +534,10 @@ export function useCashierPayment(
         searchCustomerPhone,
         isSearchingCustomer,
         foundCustomer,
+        customerNotFound,
+        showCreateCustomerForm,
+        newCustomerName,
+        isCreatingCustomer,
         loyaltyPointsToRedeem,
         voucherCode,
         isApplyingVoucher,
@@ -453,6 +560,10 @@ export function useCashierPayment(
         addMultiPayment,
         removeMultiPayment,
         searchCustomer,
+        clearCustomerSearchStatus,
+        startCreateCustomer,
+        cancelCreateCustomer,
+        createCustomer,
         clearCustomerSelection,
         applyVoucher,
         openPayment,

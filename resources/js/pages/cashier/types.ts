@@ -4,9 +4,11 @@ export interface OrderItem {
     product_name?: string;
     price: number;
     quantity: number;
+    original_quantity?: number;
     max_quantity?: number;
     notes?: string;
     status?: string;
+    started_preparing_at?: string | null;
     prepared_at?: string | null;
     served_at?: string | null;
 }

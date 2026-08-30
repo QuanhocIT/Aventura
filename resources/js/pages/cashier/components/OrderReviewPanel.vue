@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     ArrowLeftRight,
     CheckCircle2 as CheckIcon,
+    ChefHat,
     CreditCard,
     Minus,
     Plus,
@@ -14,6 +15,15 @@ import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { OrderItem, TableItem } from '../types';
+
+const isItemBeingPrepared = (item: OrderItem) => {
+    return Boolean(
+        item.started_preparing_at ||
+            item.prepared_at ||
+            item.status === 'preparing' ||
+            item.status === 'served',
+    );
+};
 
 const props = defineProps<{
     activeTable: TableItem | null;
@@ -67,6 +77,14 @@ const paymentBlockMessage = computed(() => {
     }
 
     return 'Chờ phục vụ đủ món';
+});
+
+const isOrderLocked = computed(() => {
+    return Boolean(
+        props.activeTable?.active_order &&
+            (props.isNotified ||
+                props.activeTable.active_order.status !== 'pending'),
+    );
 });
 </script>
 
@@ -131,11 +149,19 @@ const paymentBlockMessage = computed(() => {
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0 text-left">
-                                <p
-                                    class="truncate text-sm font-black text-slate-900 dark:text-slate-100"
-                                >
-                                    {{ item.product_name }}
-                                </p>
+                                <div class="flex items-center gap-1.5">
+                                    <p
+                                        class="truncate text-sm font-black text-slate-900 dark:text-slate-100"
+                                    >
+                                        {{ item.product_name }}
+                                    </p>
+                                    <span
+                                        v-if="!item.id && activeTable?.active_order"
+                                        class="shrink-0 rounded-md bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-400"
+                                    >
+                                        Gọi thêm
+                                    </span>
+                                </div>
                                 <p
                                     class="mt-1 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                 >
@@ -171,31 +197,38 @@ const paymentBlockMessage = computed(() => {
                         <div class="mt-4 flex items-center gap-2">
                             <Input
                                 type="text"
-                                placeholder="Ghi chú món..."
+                                :placeholder="
+                                    Boolean(item.id)
+                                        ? (item.notes || 'Không có ghi chú')
+                                        : 'Ghi chú cho phần gọi thêm này...'
+                                "
                                 :value="item.notes"
+                                :disabled="Boolean(item.id)"
                                 @input="
                                     item.notes = (
                                         $event.target as HTMLInputElement
                                     ).value
                                 "
-                                class="h-9 rounded-xl border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+                                class="h-9 rounded-xl border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200/60 disabled:bg-slate-100/70 disabled:text-slate-500 disabled:placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:border-slate-800 dark:disabled:bg-slate-800/40 dark:disabled:text-slate-400"
                             />
                             <button
                                 v-if="!item.id"
                                 type="button"
                                 class="flex size-9 shrink-0 items-center justify-center rounded-xl text-rose-500 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
-                                title="Xóa món"
+                                title="Xóa phần gọi thêm này"
                                 @click="emit('removeItem', item)"
                             >
                                 <Trash2 class="size-4" />
                             </button>
                         </div>
 
+                        <!-- Món chưa bắt đầu làm: Cho phép hủy -->
                         <button
                             v-if="
                                 item.id &&
                                 item.status !== 'cancelled' &&
-                                !item.served_at
+                                !item.served_at &&
+                                !isItemBeingPrepared(item)
                             "
                             type="button"
                             class="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/5 text-xs font-black text-rose-500 transition-colors hover:bg-rose-500/10 dark:text-rose-300"
@@ -205,6 +238,21 @@ const paymentBlockMessage = computed(() => {
                             <XCircle class="size-4" />
                             Hủy món
                         </button>
+
+                        <!-- Món bếp đã bắt đầu nấu hoặc đã xong: Bị mờ & khóa bấm -->
+                        <div
+                            v-else-if="
+                                item.id &&
+                                item.status !== 'cancelled' &&
+                                !item.served_at &&
+                                isItemBeingPrepared(item)
+                            "
+                            class="mt-3 flex h-9 w-full cursor-not-allowed select-none items-center justify-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs font-semibold text-amber-500/70 opacity-60 dark:border-amber-400/10 dark:bg-amber-500/10 dark:text-amber-300/60"
+                            title="Bếp đã bắt đầu chế biến hoặc làm xong món này, không thể hủy từ thu ngân"
+                        >
+                            <ChefHat class="size-3.5" />
+                            <span>{{ item.prepared_at ? 'Đã làm xong (Không thể hủy)' : 'Đang chế biến (Không thể hủy)' }}</span>
+                        </div>
                     </article>
                 </div>
 
@@ -215,15 +263,20 @@ const paymentBlockMessage = computed(() => {
                     >
                     <Input
                         type="text"
-                        placeholder="Nhập ghi chú chung cho toàn bộ đơn..."
+                        :placeholder="
+                            isOrderLocked
+                                ? (cartNote || 'Đơn đã khóa & báo bếp (Không thể sửa ghi chú)')
+                                : 'Nhập ghi chú chung cho toàn bộ đơn...'
+                        "
                         :value="cartNote"
+                        :disabled="isOrderLocked"
                         @input="
                             emit(
                                 'update:cartNote',
                                 ($event.target as HTMLInputElement).value,
                             )
                         "
-                        class="h-10 rounded-xl border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500"
+                        class="h-10 rounded-xl border-slate-200 bg-white text-xs text-slate-900 placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200/60 disabled:bg-slate-100/70 disabled:text-slate-500 disabled:placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:border-slate-800 dark:disabled:bg-slate-800/40 dark:disabled:text-slate-400"
                     />
                 </div>
             </div>

@@ -217,13 +217,17 @@ class OrderActionsController extends Controller
         $itemName = $request->input('item_name', '');
         $tableName = $order->table?->name ?? 'Đơn mang về / Online';
 
-        event(new KitchenWaiterCalled(
-            restaurantId: $order->restaurant_id,
-            orderId: $order->id,
-            orderNumber: $order->order_number,
-            tableName: $tableName,
-            itemName: $itemName,
-        ));
+        try {
+            event(new KitchenWaiterCalled(
+                restaurantId: $order->restaurant_id,
+                orderId: $order->id,
+                orderNumber: $order->order_number,
+                tableName: $tableName,
+                itemName: $itemName,
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('KitchenWaiterCalled broadcast failed: '.$e->getMessage());
+        }
 
         return response()->json(['message' => 'Đã gửi thông báo réo phục vụ tới các thiết bị!']);
     }

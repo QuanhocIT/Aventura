@@ -100,7 +100,10 @@ export function useCashierTables(
             if (isCartOpen.value && drawerStep.value === 'confirm') {
                 cartItems.value = updatedTable.active_order.items
                     .filter((item) => item.status !== 'cancelled')
-                    .map((item) => ({ ...item }));
+                    .map((item) => ({
+                        ...item,
+                        original_quantity: item.quantity,
+                    }));
             }
         },
         { deep: true },
@@ -113,7 +116,10 @@ export function useCashierTables(
         if (table.active_order) {
             cartItems.value = table.active_order.items
                 .filter((item) => item.status !== 'cancelled')
-                .map((item) => ({ ...item }));
+                .map((item) => ({
+                    ...item,
+                    original_quantity: item.quantity,
+                }));
             cartNote.value = table.active_order.note || '';
             drawerStep.value = 'confirm';
             isNotified.value = true;

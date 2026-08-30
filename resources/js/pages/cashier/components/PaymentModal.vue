@@ -42,6 +42,10 @@ const props = defineProps<{
             usage_limit: number | null;
         };
     } | null;
+    customerNotFound: boolean;
+    showCreateCustomerForm: boolean;
+    newCustomerName: string;
+    isCreatingCustomer: boolean;
     bypassRequired?: boolean;
     bypassMessage?: string;
     bypassCode?: string;
@@ -65,9 +69,14 @@ const emit = defineEmits<{
     (e: 'update:cashReceived', val: number): void;
     (e: 'update:searchCustomerPhone', val: string): void;
     (e: 'update:loyaltyPointsToRedeem', val: number): void;
+    (e: 'update:newCustomerName', val: string): void;
     (e: 'update:voucherCode', val: string): void;
     (e: 'update:bypassCode', val: string): void;
     (e: 'searchCustomer'): void;
+    (e: 'startCreateCustomer'): void;
+    (e: 'cancelCreateCustomer'): void;
+    (e: 'createCustomer'): void;
+    (e: 'clearCustomerSearchStatus'): void;
     (e: 'clearCustomerSelection'): void;
     (e: 'applyVoucher'): void;
     (e: 'previewVoucher'): void;
@@ -84,12 +93,14 @@ const numberFormat = (val: number) =>
     <Teleport to="body">
         <div
             v-if="showPaymentModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
+            class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
         >
             <div
                 class="animate-fade-in my-auto flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border bg-white shadow-2xl dark:bg-slate-900"
             >
-                <div class="flex shrink-0 items-center justify-between border-b border-slate-100 p-5 pb-4 dark:border-slate-800">
+                <div
+                    class="flex shrink-0 items-center justify-between border-b border-slate-100 p-5 pb-4 dark:border-slate-800"
+                >
                     <h3
                         class="flex items-center gap-2 text-base font-black text-slate-800 dark:text-slate-100"
                     >
@@ -107,7 +118,9 @@ const numberFormat = (val: number) =>
                 </div>
 
                 <!-- Nội dung thanh toán -->
-                <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-4 text-left">
+                <div
+                    class="flex flex-1 flex-col gap-4 overflow-y-auto p-5 text-left"
+                >
                     <div
                         class="rounded-2xl border bg-slate-50 p-4 dark:bg-slate-950"
                     >
@@ -416,32 +429,123 @@ const numberFormat = (val: number) =>
                         <span class="text-xs font-bold text-slate-500"
                             >Tích điểm thành viên:</span
                         >
-                        <div v-if="!foundCustomer" class="flex gap-2">
-                            <Input
-                                type="text"
-                                placeholder="Nhập SĐT khách hàng..."
-                                :value="searchCustomerPhone"
-                                @input="
-                                    emit(
-                                        'update:searchCustomerPhone',
-                                        ($event.target as HTMLInputElement)
-                                            .value,
-                                    )
+                        <div v-if="!foundCustomer" class="flex flex-col gap-2">
+                            <div class="flex gap-2">
+                                <Input
+                                    type="text"
+                                    placeholder="Nhập SĐT khách hàng..."
+                                    :value="searchCustomerPhone"
+                                    @input="
+                                        emit(
+                                            'update:searchCustomerPhone',
+                                            ($event.target as HTMLInputElement)
+                                                .value,
+                                        );
+                                        emit('clearCustomerSearchStatus');
+                                    "
+                                    @keyup.enter="emit('searchCustomer')"
+                                    class="h-9 rounded-xl text-xs"
+                                />
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="h-9 rounded-xl"
+                                    :disabled="isSearchingCustomer"
+                                    @click="emit('searchCustomer')"
+                                >
+                                    <Search class="mr-1 size-4 shrink-0" />
+                                    Tìm
+                                </Button>
+                            </div>
+
+                            <div
+                                v-if="
+                                    customerNotFound && !showCreateCustomerForm
                                 "
-                                @keyup.enter="emit('searchCustomer')"
-                                class="h-9 rounded-xl text-xs"
-                            />
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                class="h-9 rounded-xl"
-                                :disabled="isSearchingCustomer"
-                                @click="emit('searchCustomer')"
+                                class="flex flex-col gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs dark:border-rose-900/50 dark:bg-rose-950/20"
                             >
-                                <Search class="mr-1 size-4 shrink-0" />
-                                Tìm
-                            </Button>
+                                <span
+                                    class="font-bold text-rose-700 dark:text-rose-300"
+                                >
+                                    Không tìm thấy khách hàng với số điện thoại
+                                    này.
+                                </span>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="h-9 w-full rounded-xl border-indigo-200 bg-white text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/50 dark:bg-slate-900 dark:text-indigo-300"
+                                    @click="emit('startCreateCustomer')"
+                                >
+                                    + Tạo khách hàng thân quen
+                                </Button>
+                            </div>
+
+                            <div
+                                v-if="showCreateCustomerForm"
+                                class="flex flex-col gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                            >
+                                <span
+                                    class="font-bold text-indigo-700 dark:text-indigo-300"
+                                >
+                                    Tạo khách hàng thân quen
+                                </span>
+                                <div
+                                    class="rounded-lg bg-white/70 px-3 py-2 text-[11px] text-slate-600 dark:bg-slate-900/70 dark:text-slate-300"
+                                >
+                                    Số điện thoại:
+                                    <strong>{{ searchCustomerPhone }}</strong>
+                                </div>
+                                <Input
+                                    type="text"
+                                    placeholder="Nhập tên khách hàng..."
+                                    :value="newCustomerName"
+                                    @input="
+                                        emit(
+                                            'update:newCustomerName',
+                                            ($event.target as HTMLInputElement)
+                                                .value,
+                                        )
+                                    "
+                                    @keyup.enter="emit('createCustomer')"
+                                    class="h-9 rounded-xl text-xs"
+                                    autofocus
+                                />
+                                <div class="flex gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        class="h-8 flex-1 rounded-lg text-xs"
+                                        :disabled="isCreatingCustomer"
+                                        @click="emit('cancelCreateCustomer')"
+                                    >
+                                        Hủy
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        class="h-8 flex-1 rounded-lg bg-indigo-600 text-xs text-white hover:bg-indigo-700"
+                                        :disabled="
+                                            isCreatingCustomer ||
+                                            !newCustomerName.trim() ||
+                                            !searchCustomerPhone.trim()
+                                        "
+                                        @click="emit('createCustomer')"
+                                    >
+                                        <Loader2
+                                            v-if="isCreatingCustomer"
+                                            class="mr-1 size-3.5 animate-spin"
+                                        />
+                                        {{
+                                            isCreatingCustomer
+                                                ? 'Đang tạo...'
+                                                : 'Tạo & gắn vào đơn'
+                                        }}
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
 
                         <div
@@ -528,19 +632,35 @@ const numberFormat = (val: number) =>
                                 @click="
                                     emit(
                                         'update:loyaltyPointsToRedeem',
-                                        foundCustomer.loyalty_points ?? 0,
+                                        Math.min(
+                                            foundCustomer.loyalty_points ?? 0,
+                                            Math.ceil(
+                                                (activeTable?.active_order
+                                                    ?.total_amount ?? 0) / 100,
+                                            ),
+                                        ),
                                     )
                                 "
                             >
-                                Đổi tất cả
+                                Đổi tối đa cho đơn
                             </Button>
                         </div>
                         <p
                             v-if="loyaltyPointsToRedeem > 0"
                             class="text-[10px] text-amber-600 dark:text-amber-400"
                         >
-                            ✓ Đổi {{ loyaltyPointsToRedeem }} điểm → Backend tự
-                            động tính giảm giá tương ứng
+                            ✓ Đổi {{ loyaltyPointsToRedeem }} điểm ≈ Giảm
+                            {{ numberFormat(loyaltyPointsToRedeem * 100) }}đ
+                            <span
+                                v-if="
+                                    loyaltyPointsToRedeem * 100 >=
+                                    (activeTable?.active_order?.total_amount ??
+                                        0)
+                                "
+                                class="font-bold text-emerald-600"
+                            >
+                                (Đủ thanh toán 100% đơn hàng)
+                            </span>
                         </p>
                     </div>
 
@@ -755,7 +875,9 @@ const numberFormat = (val: number) =>
                     </div>
                 </div>
 
-                <div class="flex shrink-0 gap-2 border-t border-slate-100 p-5 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div
+                    class="flex shrink-0 gap-2 border-t border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
+                >
                     <Button
                         variant="outline"
                         class="flex-1 rounded-xl text-xs"

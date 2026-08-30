@@ -1169,9 +1169,9 @@ onUnmounted(() => {
         </div>
 
         <!-- ── THỐNG KÊ TỐC ĐỘ BẾP HÔM NAY ── -->
-        <div class="dashboard-kpi-grid">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div
-                class="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-800/60 dark:bg-slate-900"
+                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
                 <p
                     class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
@@ -1179,13 +1179,13 @@ onUnmounted(() => {
                     Đang chờ làm
                 </p>
                 <p
-                    class="mt-1 text-2xl font-black text-indigo-600 tabular-nums dark:text-indigo-400"
+                    class="mt-0.5 text-xl font-black text-indigo-600 tabular-nums dark:text-indigo-400"
                 >
                     {{ activePendingItems.length }}
                 </p>
             </div>
             <div
-                class="rounded-2xl border p-3.5 transition-colors"
+                class="rounded-xl border p-2.5 px-3.5 shadow-xs transition-colors"
                 :class="
                     lateCount > 0
                         ? 'border-red-300 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20'
@@ -1198,7 +1198,7 @@ onUnmounted(() => {
                     Vượt SLA
                 </p>
                 <p
-                    class="mt-1 text-2xl font-black tabular-nums"
+                    class="mt-0.5 text-xl font-black tabular-nums"
                     :class="
                         lateCount > 0
                             ? 'text-red-600 dark:text-red-400'
@@ -1208,12 +1208,12 @@ onUnmounted(() => {
                     {{ lateCount }}
                     <AlertTriangle
                         v-if="lateCount > 0"
-                        class="-mt-1 inline size-4 animate-pulse"
+                        class="-mt-0.5 inline size-3.5 animate-pulse text-red-500"
                     />
                 </p>
             </div>
             <div
-                class="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-800/60 dark:bg-slate-900"
+                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
                 <p
                     class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
@@ -1221,33 +1221,35 @@ onUnmounted(() => {
                     Đã ra món hôm nay
                 </p>
                 <p
-                    class="mt-1 text-2xl font-black text-emerald-600 tabular-nums dark:text-emerald-400"
+                    class="mt-0.5 text-xl font-black text-emerald-600 tabular-nums dark:text-emerald-400"
                 >
                     {{ props.kitchenStats.done_today }}
                 </p>
             </div>
             <div
-                class="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-800/60 dark:bg-slate-900"
+                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
+                <div class="flex items-center justify-between">
+                    <p
+                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                    >
+                        TB chế biến
+                    </p>
+                    <span
+                        v-if="props.kitchenStats.slowest_prep_minutes !== null"
+                        class="text-[9px] font-medium text-muted-foreground"
+                    >
+                        Chậm: {{ props.kitchenStats.slowest_prep_minutes }}p
+                    </span>
+                </div>
                 <p
-                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                >
-                    TB chế biến
-                </p>
-                <p
-                    class="mt-1 text-2xl font-black text-slate-800 tabular-nums dark:text-slate-100"
+                    class="mt-0.5 text-xl font-black text-slate-800 tabular-nums dark:text-slate-100"
                 >
                     {{
                         props.kitchenStats.avg_prep_minutes !== null
                             ? `${props.kitchenStats.avg_prep_minutes}p`
                             : '—'
                     }}
-                </p>
-                <p
-                    v-if="props.kitchenStats.slowest_prep_minutes !== null"
-                    class="mt-0.5 text-[10px] text-muted-foreground"
-                >
-                    Chậm nhất: {{ props.kitchenStats.slowest_prep_minutes }}p
                 </p>
             </div>
         </div>

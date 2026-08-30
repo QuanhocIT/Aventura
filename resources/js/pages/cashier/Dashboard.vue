@@ -190,6 +190,10 @@ const {
     searchCustomerPhone,
     isSearchingCustomer,
     foundCustomer,
+    customerNotFound,
+    showCreateCustomerForm,
+    newCustomerName,
+    isCreatingCustomer,
     loyaltyPointsToRedeem,
     voucherCode,
     isApplyingVoucher,
@@ -212,6 +216,10 @@ const {
     addMultiPayment,
     removeMultiPayment,
     searchCustomer,
+    clearCustomerSearchStatus,
+    startCreateCustomer,
+    cancelCreateCustomer,
+    createCustomer,
     clearCustomerSelection,
     applyVoucher,
     openPayment,
@@ -352,6 +360,20 @@ const effectiveCancelItemReason = computed(() =>
 
 const openCancelItemModal = (item: OrderItem) => {
     if (!item.id) {
+        return;
+    }
+
+    if (
+        item.started_preparing_at ||
+        item.prepared_at ||
+        item.status === 'preparing' ||
+        item.status === 'served'
+    ) {
+        toast(
+            'Bếp đã bắt đầu chế biến món này, không thể hủy từ thu ngân.',
+            'error',
+        );
+
         return;
     }
 
@@ -849,6 +871,10 @@ onUnmounted(() => {
             v-model:search-customer-phone="searchCustomerPhone"
             :is-searching-customer="isSearchingCustomer"
             :found-customer="foundCustomer"
+            :customer-not-found="customerNotFound"
+            :show-create-customer-form="showCreateCustomerForm"
+            v-model:new-customer-name="newCustomerName"
+            :is-creating-customer="isCreatingCustomer"
             v-model:loyalty-points-to-redeem="loyaltyPointsToRedeem"
             v-model:voucher-code="voucherCode"
             :available-vouchers="availableVouchers"
@@ -867,6 +893,10 @@ onUnmounted(() => {
             :multi-total-paid="multiTotalPaid"
             :multi-remaining-balance="multiRemainingBalance"
             @search-customer="searchCustomer"
+            @clear-customer-search-status="clearCustomerSearchStatus"
+            @start-create-customer="startCreateCustomer"
+            @cancel-create-customer="cancelCreateCustomer"
+            @create-customer="createCustomer"
             @clear-customer-selection="clearCustomerSelection"
             @apply-voucher="applyVoucher"
             @preview-voucher="previewVoucher"

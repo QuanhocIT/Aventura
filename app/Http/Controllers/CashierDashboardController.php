@@ -131,6 +131,7 @@ class CashierDashboardController extends Controller
                                 'quantity' => (float) $item->quantity,
                                 'notes' => $item->notes,
                                 'status' => $item->status,
+                                'started_preparing_at' => $item->started_preparing_at?->toIso8601String(),
                                 'prepared_at' => $item->prepared_at?->toIso8601String(),
                                 'served_at' => $item->served_at?->toIso8601String(),
                             ])->all();
