@@ -43,7 +43,8 @@ class ApprovalAuthorityService
             return AuthorityDecision::deny('Yêu cầu này đã được xử lý trước đó.');
         }
 
-        // 2 ─ Chặn tự duyệt, kể cả gián tiếp.
+        // 2 ─ Chặn tự duyệt của nhân sự; Chủ doanh nghiệp được phép tự duyệt
+        // yêu cầu do mình tạo vì đây là cấp có thẩm quyền cuối cùng.
         if ($selfApproval = $this->selfApprovalReason($actor, $approval)) {
             return AuthorityDecision::deny($selfApproval);
         }
@@ -177,7 +178,7 @@ class ApprovalAuthorityService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Chốt chặn tự duyệt
+    // Chốt chặn tự duyệt của nhân sự
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
@@ -189,6 +190,10 @@ class ApprovalAuthorityService
      */
     private function selfApprovalReason(User $actor, ApprovalRequest $approval): ?string
     {
+        if ($actor->isOwner()) {
+            return null;
+        }
+
         if ((int) $approval->requester_id === (int) $actor->id) {
             return 'Bạn không thể tự phê duyệt yêu cầu của chính mình.';
         }

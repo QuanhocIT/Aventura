@@ -224,6 +224,21 @@ async function addUpsellItem() {
     }
 }
 
+function handleStaffCalled(e: any) {
+    window.dispatchEvent(new CustomEvent('staff-called', { detail: e }));
+    playAlarm('normal');
+    activeNotifications.value.unshift({
+        uid: `call-${Date.now()}`,
+        type: 'call_staff',
+        title: `🔔 Yêu cầu phục vụ`,
+        subtitle: `${e.table_name} (${e.area_name})`,
+        details: e.message,
+        time: e.timestamp,
+        urgency: 'info',
+    });
+    toast.warning(`Bàn ${e.table_name} đang gọi nhân viên!`);
+}
+
 onMounted(() => {
     if (!isStaff.value) {
         return;
@@ -232,6 +247,11 @@ onMounted(() => {
     const restaurantId = user.value.restaurant_id;
 
     if (window.Echo) {
+        window.Echo.private(`App.Models.User.${user.value.id}`).listen(
+            '.staff.called',
+            handleStaffCalled,
+        );
+
         window.Echo.private(`restaurant.${restaurantId}`)
             // 1. Listening to new QR order alerts
             .listen('.temporary_order.created', (e: any) => {
@@ -279,22 +299,7 @@ onMounted(() => {
                 }
             })
 
-            // 3. Listening to calls for help
-            .listen('.staff.called', (e: any) => {
-                playAlarm('normal');
-                activeNotifications.value.unshift({
-                    uid: `call-${Date.now()}`,
-                    type: 'call_staff',
-                    title: `🔔 Yêu cầu phục vụ`,
-                    subtitle: `${e.table_name} (${e.area_name})`,
-                    details: e.message,
-                    time: e.timestamp,
-                    urgency: 'info',
-                });
-                toast.warning(`Bàn ${e.table_name} đang gọi nhân viên!`);
-            })
-
-            // 4. Listening to payment requests
+            // 3. Payment requests remain on the restaurant channel.
             .listen('.payment.requested', (e: any) => {
                 playAlarm('payment');
                 activeNotifications.value.unshift({
@@ -388,6 +393,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (user.value && window.Echo) {
+        window.Echo.leaveChannel(`App.Models.User.${user.value.id}`);
         window.Echo.leaveChannel(`restaurant.${user.value.restaurant_id}`);
     }
 });

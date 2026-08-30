@@ -14,6 +14,9 @@ class StaffCalled implements ShouldBroadcastNow
 
     public function __construct(
         public int $restaurantId,
+        public ?int $branchId,
+        public array $shiftIds,
+        public array $recipientUserIds,
         public string $tableName,
         public string $areaName,
         public string $message = 'Khách gọi nhân viên'
@@ -21,7 +24,10 @@ class StaffCalled implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("restaurant.{$this->restaurantId}")];
+        return collect($this->recipientUserIds)
+            ->unique()
+            ->map(fn (int $userId) => new PrivateChannel("App.Models.User.{$userId}"))
+            ->all();
     }
 
     public function broadcastAs(): string
@@ -32,6 +38,9 @@ class StaffCalled implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
+            'restaurant_id' => $this->restaurantId,
+            'branch_id' => $this->branchId,
+            'shift_ids' => $this->shiftIds,
             'table_name' => $this->tableName,
             'area_name' => $this->areaName,
             'message' => $this->message,

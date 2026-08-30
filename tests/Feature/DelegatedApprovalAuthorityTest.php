@@ -189,11 +189,14 @@ class DelegatedApprovalAuthorityTest extends TestCase
         $this->assertStringContainsString('tự phê duyệt', $decision->reason);
     }
 
-    public function test_owner_cannot_approve_own_request_either(): void
+    public function test_owner_can_approve_own_request(): void
     {
         $request = $this->makeRequest(['requester_id' => $this->owner->id]);
 
-        $this->assertFalse($this->authority->decide($this->owner, $request)->allowed);
+        $decision = $this->authority->decide($this->owner, $request);
+
+        $this->assertTrue($decision->allowed);
+        $this->assertSame('owner_inherent', $decision->basis);
     }
 
     public function test_manager_cannot_approve_request_that_affects_themselves(): void

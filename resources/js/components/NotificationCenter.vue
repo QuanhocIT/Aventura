@@ -292,6 +292,19 @@ watch(
 // ──────────────────────────────────────────────────────────────────────────────
 const panelRef = ref<HTMLElement | null>(null);
 
+function handleRealtimeStaffCall(event: Event) {
+    const payload = (event as CustomEvent).detail ?? {};
+    const tableName = payload.table_name || 'Bàn';
+    const areaName = payload.area_name ? ` (${payload.area_name})` : '';
+    const message = payload.message || 'Khách hàng yêu cầu phục vụ';
+
+    addNotification(
+        'info',
+        'Yêu cầu phục vụ',
+        `${tableName}${areaName}: ${message}`,
+    );
+}
+
 function onClickOutside(e: MouseEvent) {
     if (panelRef.value && !panelRef.value.contains(e.target as Node)) {
         isOpen.value = false;
@@ -300,6 +313,7 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => {
     document.addEventListener('mousedown', onClickOutside);
+    window.addEventListener('staff-called', handleRealtimeStaffCall);
     void loadDatabaseNotifications();
     notificationPollTimer = setInterval(() => {
         void loadDatabaseNotifications();
@@ -329,6 +343,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
     document.removeEventListener('mousedown', onClickOutside);
+    window.removeEventListener('staff-called', handleRealtimeStaffCall);
 
     if (notificationPollTimer) {
         clearInterval(notificationPollTimer);

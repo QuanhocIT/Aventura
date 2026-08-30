@@ -190,11 +190,17 @@ class TablesController extends Controller
 
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:50'],
+            'area_id' => ['sometimes', 'nullable', TenantRule::exists('areas')],
             'capacity' => ['sometimes', 'integer', 'min:1'],
             'status' => ['sometimes', 'in:available,occupied,reserved,inactive,cleaning'],
             'x_pos' => ['sometimes', 'integer', 'min:0', 'max:100'],
             'y_pos' => ['sometimes', 'integer', 'min:0', 'max:100'],
         ]);
+
+        if (! empty($data['area_id'])) {
+            $area = Area::where('restaurant_id', $request->user()->restaurant_id)->findOrFail($data['area_id']);
+            abort_if((int) $area->branch_id !== (int) $table->branch_id, 422, 'Khu vực phải thuộc đúng chi nhánh của bàn.');
+        }
 
         $table->update($data);
 

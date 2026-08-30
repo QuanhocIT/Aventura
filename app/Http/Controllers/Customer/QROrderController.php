@@ -26,6 +26,7 @@ use App\Support\TenantRule;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -689,10 +690,35 @@ class QROrderController extends Controller
             ->with(['area'])
             ->firstOrFail();
 
+        $branchId = $table->branch_id ? (int) $table->branch_id : null;
+        $activeServiceStaff = $branchId
+            ? $this->resolveCurrentShiftServiceStaff($restaurantId, $branchId)
+            : collect();
+        $recipientUserIds = $activeServiceStaff
+            ->map(fn ($assignment) => (int) ($assignment->employee?->user_id ?? 0))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $shiftIds = $activeServiceStaff
+            ->map(fn ($assignment) => (int) $assignment->shift_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         $msg = $data['message'] ?: 'Khách hàng yêu cầu phục vụ tại bàn';
 
         try {
-            event(new StaffCalled($restaurantId, $table->name, $table->area?->name ?? 'Khu vực', $msg));
+            event(new StaffCalled(
+                restaurantId: $restaurantId,
+                branchId: $branchId,
+                shiftIds: $shiftIds,
+                recipientUserIds: $recipientUserIds,
+                tableName: $table->name,
+                areaName: $table->area?->name ?? 'Khu vực',
+                message: $msg,
+            ));
         } catch (\Throwable $e) {
             Log::warning('Broadcast staff called failed: '.$e->getMessage());
         }
@@ -700,6 +726,7 @@ class QROrderController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Đã gửi yêu cầu hỗ trợ, nhân viên sẽ tới bàn của bạn ngay!',
+            'recipients_count' => count($recipientUserIds),
         ]);
     }
 
@@ -801,6 +828,71 @@ class QROrderController extends Controller
             'message' => 'Cảm ơn ý kiến đóng góp quý báu của bạn!',
             'status_url' => route('feedback.status', $feedback->feedback_token),
         ]);
+    }
+
+    /**
+     * Lấy các phân công thu ngân/phục vụ đang làm việc tại một chi nhánh.
+     */
+    private function resolveCurrentShiftServiceStaff(int $restaurantId, int $branchId): Collection
+    {
+        $now = now();
+        $assignments = ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['scheduled', 'checked_in'])
+            ->whereBetween('scheduled_date', [
+                $now->copy()->subDay()->toDateString(),
+                $now->copy()->addDay()->toDateString(),
+            ])
+            ->where(function ($query) use ($branchId): void {
+                $query->where('branch_id', $branchId)
+                    ->orWhereNull('branch_id');
+            })
+            ->whereHas('employee', function ($query) use ($restaurantId, $branchId): void {
+                $query->withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $branchId)
+                    ->where('status', 'active')
+                    ->whereHas('user', function ($userQuery) use ($restaurantId): void {
+                        $userQuery->withoutGlobalScopes()
+                            ->where('restaurant_id', $restaurantId)
+                            ->where('status', 'active');
+                    });
+            })
+            ->whereHas('shift', function ($query) use ($restaurantId, $branchId): void {
+                $query->withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('status', 'active')
+                    ->where(function ($branchQuery) use ($branchId): void {
+                        $branchQuery->where('branch_id', $branchId)
+                            ->orWhereNull('branch_id');
+                    });
+            })
+            ->with([
+                'employee' => fn ($query) => $query->withoutGlobalScopes()->with(['user', 'role', 'roles']),
+                'shift' => fn ($query) => $query->withoutGlobalScopes(),
+            ])
+            ->get();
+
+        return ScheduleAssignment::findEmployeesOnShiftAtFromCollection($assignments, $now)
+            ->filter(function ($assignment): bool {
+                $employee = $assignment->employee;
+                $user = $employee?->user;
+
+                if (! $employee || ! $user) {
+                    return false;
+                }
+
+                $roleNames = collect([$employee->role?->name])
+                    ->merge($employee->roles->pluck('name'))
+                    ->filter()
+                    ->map(fn ($roleName) => (string) $roleName)
+                    ->all();
+
+                return in_array('cashier', $roleNames, true)
+                    || in_array('waiter', $roleNames, true);
+            })
+            ->unique(fn ($assignment) => (int) $assignment->employee->user_id)
+            ->values();
     }
 
     /**

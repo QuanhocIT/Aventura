@@ -940,7 +940,7 @@ class QROrderingLifecycleTest extends TestCase
         $response = $this->get(route('customer.qr-order.show', [
             'restaurant' => $this->restaurant->id,
             'token' => $this->table->qr_token,
-            'session_id' => 'new-guest-session-' . uniqid(),
+            'session_id' => 'new-guest-session-'.uniqid(),
         ]));
 
         $response->assertOk();
@@ -953,5 +953,101 @@ class QROrderingLifecycleTest extends TestCase
             ->where('activeTempOrders.0.items_status.0.status', 'preparing')
         );
     }
-}
 
+    public function test_staff_call_is_sent_only_to_cashier_and_waiter_on_the_current_branch_shift(): void
+    {
+        Event::fake();
+
+        $cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
+        $waiterRole = Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']);
+        $shiftStart = now()->subMinutes(5);
+        $shiftEnd = now()->addMinutes(5);
+
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca hiện tại',
+            'code' => 'CURRENT-'.uniqid(),
+            'start_time' => $shiftStart->format('H:i:s'),
+            'end_time' => $shiftEnd->format('H:i:s'),
+            'is_overnight' => $shiftStart->toDateString() !== $shiftEnd->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $cashier = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $cashier->assignRole($cashierRole);
+        $cashierEmployee = Employee::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $cashier->id,
+            'employee_code' => 'CASHIER-CURRENT',
+            'full_name' => 'Thu ngân hiện tại',
+            'role_id' => $cashierRole->id,
+            'status' => 'active',
+        ]);
+
+        $waiter = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $waiter->assignRole($waiterRole);
+        $waiterEmployee = Employee::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $waiter->id,
+            'employee_code' => 'WAITER-CURRENT',
+            'full_name' => 'Phục vụ hiện tại',
+            'role_id' => $waiterRole->id,
+            'status' => 'active',
+        ]);
+
+        ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $cashierEmployee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $shiftStart->toDateString(),
+            'status' => 'scheduled',
+        ]);
+        ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $waiterEmployee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $shiftStart->toDateString(),
+            'status' => 'checked_in',
+        ]);
+
+        $response = $this->postJson(route('customer.qr-order.call-staff', $this->restaurant->id), [
+            'table_id' => $this->table->id,
+            'message' => 'Cần thêm khăn giấy',
+        ]);
+
+        $response->assertOk()->assertJsonPath('recipients_count', 2);
+        Event::assertDispatched(StaffCalled::class, function (StaffCalled $event) use ($cashier, $waiter, $shift): bool {
+            $expectedRecipients = [$cashier->id, $waiter->id];
+            $actualRecipients = $event->recipientUserIds;
+            sort($expectedRecipients);
+            sort($actualRecipients);
+
+            $channels = array_map(
+                fn ($channel) => $channel->name,
+                $event->broadcastOn(),
+            );
+            sort($channels);
+
+            return $event->branchId === $this->branch->id
+                && $event->shiftIds === [$shift->id]
+                && $actualRecipients === $expectedRecipients
+                && $channels === [
+                    "private-App.Models.User.{$cashier->id}",
+                    "private-App.Models.User.{$waiter->id}",
+                ];
+        });
+    }
+}

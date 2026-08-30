@@ -119,7 +119,20 @@ const tableForm = useForm({
     capacity: '4',
     branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
 });
-const editForm = useForm({ name: '', capacity: '', status: '' });
+const editForm = useForm({ name: '', capacity: '', area_id: '' });
+
+const editingTableAreas = computed(() => {
+    if (!editingTable.value) {
+        return props.areas;
+    }
+
+    const branchAreas = props.areas.filter(
+        (area) =>
+            Number(area.branch_id) === Number(editingTable.value?.branch_id),
+    );
+
+    return branchAreas.length > 0 ? branchAreas : props.areas;
+});
 
 const availableAreas = computed(() =>
     props.areas.filter(
@@ -255,7 +268,7 @@ const openEdit = (t: Table) => {
     editingTable.value = t;
     editForm.name = t.name;
     editForm.capacity = String(t.capacity);
-    editForm.status = t.status;
+    editForm.area_id = t.area?.id ? String(t.area.id) : '';
 };
 
 const submitEdit = () => {
@@ -922,23 +935,21 @@ const vnd = (value: number) => {
                                     />
                                 </div>
                                 <div class="grid gap-1.5">
-                                    <Label>Trạng thái</Label>
+                                    <Label>Khu vực</Label>
                                     <select
-                                        v-model="editForm.status"
-                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                        v-model="editForm.area_id"
+                                        required
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none dark:border-slate-800"
                                     >
-                                        <option value="available">Trống</option>
-                                        <option value="occupied">
-                                            Có khách
+                                        <option value="" disabled>
+                                            -- Chọn khu vực --
                                         </option>
-                                        <option value="reserved">
-                                            Đặt trước
-                                        </option>
-                                        <option value="cleaning">
-                                            Chờ dọn bàn
-                                        </option>
-                                        <option value="inactive">
-                                            Ngưng dùng
+                                        <option
+                                            v-for="area in editingTableAreas"
+                                            :key="area.id"
+                                            :value="String(area.id)"
+                                        >
+                                            {{ area.name }}
                                         </option>
                                     </select>
                                 </div>
