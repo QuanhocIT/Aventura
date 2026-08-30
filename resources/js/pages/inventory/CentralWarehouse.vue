@@ -2554,7 +2554,7 @@ const submitRecall = async () => {
                             >
                                 <span
                                     class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-950/40 text-xs font-bold text-indigo-300"
-                                    >{{ index + 1 }}</span
+                                    >{{ Number(index) + 1 }}</span
                                 >
                                 <div class="min-w-0 flex-1">
                                     <p
