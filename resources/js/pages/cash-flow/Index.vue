@@ -99,6 +99,8 @@ type Shift = {
     id: number;
     name: string;
     code: string;
+    start_time?: string | null;
+    end_time?: string | null;
 };
 
 type Area = {
@@ -1633,7 +1635,7 @@ const chartMaxVal = computed(() => {
                                         :key="s.id"
                                         :value="s.id"
                                     >
-                                        {{ s.name }} ({{ s.code }})
+                                        {{ s.name }}<template v-if="s.start_time && s.end_time"> ({{ s.start_time }} - {{ s.end_time }})</template>
                                     </option>
                                 </select>
                             </div>

@@ -540,7 +540,9 @@ class ScheduleController extends Controller
         }
 
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->when($employee->branch_id, fn ($q, $bId) => $q->where(fn ($sq) => $sq->whereNull('branch_id')->orWhere('branch_id', $bId)))
             ->where('status', 'active')
+            ->orderBy('start_time')
             ->get()
             ->map(fn ($s) => [
                 'id' => $s->id,

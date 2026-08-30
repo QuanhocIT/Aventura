@@ -143,10 +143,21 @@ class CashFlowController extends Controller
         $cashFlowRollup = $this->mvReader->read('cash_flow_30d', $restaurantId, $branchId);
         $chartData = $cashFlowRollup['chart_data'];
 
-        // Active work shifts for opening register selection
+        // Active work shifts for opening register selection (scoped to current branch)
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->where('status', 'active')
-            ->get(['id', 'name', 'code']);
+            ->orderBy('start_time')
+            ->get(['id', 'name', 'code', 'start_time', 'end_time'])
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'code' => $s->code,
+                'start_time' => $s->start_time ? substr($s->start_time, 0, 5) : null,
+                'end_time' => $s->end_time ? substr($s->end_time, 0, 5) : null,
+            ]);
 
         // Cash Flow Forecast calculation
         $forecast = $this->calculateCashForecast($restaurantId, $branchId, $activeRegistersForView, $cashFlowRollup);
