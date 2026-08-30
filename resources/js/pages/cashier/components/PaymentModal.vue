@@ -84,12 +84,12 @@ const numberFormat = (val: number) =>
     <Teleport to="body">
         <div
             v-if="showPaymentModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
         >
             <div
-                class="animate-fade-in flex w-full max-w-md flex-col gap-6 overflow-hidden rounded-3xl border bg-white p-6 shadow-2xl dark:bg-slate-900"
+                class="animate-fade-in my-auto flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border bg-white shadow-2xl dark:bg-slate-900"
             >
-                <div class="flex items-center justify-between">
+                <div class="flex shrink-0 items-center justify-between border-b border-slate-100 p-5 pb-4 dark:border-slate-800">
                     <h3
                         class="flex items-center gap-2 text-base font-black text-slate-800 dark:text-slate-100"
                     >
@@ -107,7 +107,7 @@ const numberFormat = (val: number) =>
                 </div>
 
                 <!-- Nội dung thanh toán -->
-                <div class="flex flex-col gap-4 text-left">
+                <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-4 text-left">
                     <div
                         class="rounded-2xl border bg-slate-50 p-4 dark:bg-slate-950"
                     >
@@ -755,7 +755,7 @@ const numberFormat = (val: number) =>
                     </div>
                 </div>
 
-                <div class="flex gap-2">
+                <div class="flex shrink-0 gap-2 border-t border-slate-100 p-5 bg-white dark:border-slate-800 dark:bg-slate-900">
                     <Button
                         variant="outline"
                         class="flex-1 rounded-xl text-xs"

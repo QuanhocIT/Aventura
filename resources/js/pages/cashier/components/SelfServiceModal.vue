@@ -45,12 +45,12 @@ const emit = defineEmits<{
     <Teleport to="body">
         <div
             v-if="showSelfServiceModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto"
         >
             <div
-                class="animate-fade-in flex w-full max-w-lg flex-col gap-6 overflow-hidden rounded-3xl border bg-white p-6 shadow-2xl dark:bg-slate-900"
+                class="animate-fade-in my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border bg-white shadow-2xl dark:bg-slate-900"
             >
-                <div class="flex items-center justify-between">
+                <div class="flex shrink-0 items-center justify-between border-b border-slate-100 p-5 pb-4 dark:border-slate-800">
                     <h3
                         class="flex items-center gap-2 text-base font-black text-slate-800 dark:text-slate-100"
                     >
@@ -69,7 +69,7 @@ const emit = defineEmits<{
 
                 <!-- Tab Switcher -->
                 <div
-                    class="flex rounded-2xl bg-slate-100 p-1 dark:bg-slate-800"
+                    class="mx-5 mt-4 shrink-0 flex rounded-2xl bg-slate-100 p-1 dark:bg-slate-800"
                 >
                     <button
                         @click="emit('update:selfServiceTab', 'schedule')"
@@ -106,11 +106,13 @@ const emit = defineEmits<{
                     </button>
                 </div>
 
-                <!-- Content Tab Đăng ký ca -->
-                <div
-                    v-if="selfServiceTab === 'schedule'"
-                    class="flex flex-col gap-4 text-left"
-                >
+                <!-- Scrollable Content Area -->
+                <div class="flex-1 overflow-y-auto p-5 pt-3">
+                    <!-- Content Tab Đăng ký ca -->
+                    <div
+                        v-if="selfServiceTab === 'schedule'"
+                        class="flex flex-col gap-4 text-left"
+                    >
                     <div>
                         <label
                             class="mb-1 block text-xs font-bold text-slate-600"
@@ -345,17 +347,18 @@ const emit = defineEmits<{
                         ></textarea>
                     </div>
 
-                    <Button
-                        class="mt-2 rounded-xl bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
-                        :disabled="
-                            !complaintTargetId ||
-                            !complaintType ||
-                            !complaintDescription.trim()
-                        "
-                        @click="emit('handleComplaint')"
-                    >
-                        Gửi Khiếu Nại Ẩn Danh
-                    </Button>
+                        <Button
+                            class="mt-2 rounded-xl bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                            :disabled="
+                                !complaintTargetId ||
+                                !complaintType ||
+                                !complaintDescription.trim()
+                            "
+                            @click="emit('handleComplaint')"
+                        >
+                            Gửi Khiếu Nại Ẩn Danh
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
