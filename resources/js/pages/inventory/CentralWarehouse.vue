@@ -3905,13 +3905,13 @@ const submitRecall = async () => {
 
         <div
             v-if="isTaskModalOpen"
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm overflow-y-auto"
         >
             <div
-                class="w-full max-w-lg overflow-hidden rounded-2xl border border-indigo-500/30 bg-card shadow-2xl"
+                class="my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-indigo-500/30 bg-card shadow-2xl"
             >
                 <div
-                    class="flex items-center justify-between border-b border-border bg-indigo-950/50 px-5 py-4"
+                    class="flex shrink-0 items-center justify-between border-b border-border bg-indigo-950/50 px-5 py-4"
                 >
                     <div>
                         <h3
@@ -3937,7 +3937,7 @@ const submitRecall = async () => {
                         <X class="h-5 w-5" />
                     </button>
                 </div>
-                <div class="space-y-4 p-5 text-xs">
+                <div class="flex-1 space-y-4 overflow-y-auto p-5 text-xs">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
                             <label
@@ -4020,7 +4020,7 @@ const submitRecall = async () => {
                     </div>
                 </div>
                 <div
-                    class="flex justify-end gap-2 border-t border-border bg-muted/20 px-5 py-4"
+                    class="flex shrink-0 justify-end gap-2 border-t border-border bg-muted/20 px-5 py-4"
                 >
                     <Button
                         @click="isTaskModalOpen = false"
