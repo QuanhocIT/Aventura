@@ -1808,14 +1808,14 @@ const compact = (v: number) =>
     >
         <div
             v-if="adjTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
             @click.self="adjTarget = null"
         >
             <Card
-                class="w-full max-w-md animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                class="my-auto flex max-h-[90vh] w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
             >
                 <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    class="flex shrink-0 flex-row items-center justify-between gap-4 border-b pb-3"
                 >
                     <div>
                         <CardTitle
@@ -1839,7 +1839,7 @@ const compact = (v: number) =>
                     </button>
                 </CardHeader>
 
-                <CardContent class="space-y-4 pt-4">
+                <CardContent class="flex-1 overflow-y-auto space-y-4 pt-4">
                     <!-- Type Selection -->
                     <div class="grid gap-1.5">
                         <Label
@@ -1936,31 +1936,31 @@ const compact = (v: number) =>
                             phải là Chủ (Owner) nhà hàng.
                         </p>
                     </div>
-
-                    <!-- Buttons -->
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="adjTarget = null"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="button"
-                            size="sm"
-                            @click="submitAdj"
-                            :disabled="adjForm.processing"
-                            class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
-                        >
-                            {{
-                                adjForm.processing
-                                    ? 'Đang lưu...'
-                                    : 'Xác nhận điều chỉnh'
-                            }}
-                        </Button>
-                    </div>
                 </CardContent>
+
+                <!-- Buttons -->
+                <div class="flex shrink-0 justify-end gap-2 border-t p-4 py-3 bg-slate-50/50 dark:bg-slate-900/50">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="adjTarget = null"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="button"
+                        size="sm"
+                        @click="submitAdj"
+                        :disabled="adjForm.processing"
+                        class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
+                    >
+                        {{
+                            adjForm.processing
+                                ? 'Đang lưu...'
+                                : 'Xác nhận điều chỉnh'
+                        }}
+                    </Button>
+                </div>
             </Card>
         </div>
     </Transition>
@@ -1976,14 +1976,14 @@ const compact = (v: number) =>
     >
         <div
             v-if="showBulkDialog"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
             @click.self="showBulkDialog = false"
         >
             <Card
-                class="w-full max-w-md animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+                class="my-auto flex max-h-[90vh] w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
             >
                 <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    class="flex shrink-0 flex-row items-center justify-between gap-4 border-b pb-3"
                 >
                     <div>
                         <CardTitle
@@ -2006,7 +2006,7 @@ const compact = (v: number) =>
                     </button>
                 </CardHeader>
 
-                <CardContent class="space-y-4 pt-4">
+                <CardContent class="flex-1 overflow-y-auto space-y-4 pt-4">
                     <!-- Type Selection -->
                     <div class="grid gap-1.5">
                         <Label
@@ -2089,31 +2089,31 @@ const compact = (v: number) =>
                             {{ bulkForm.errors.reason }}
                         </p>
                     </div>
-
-                    <!-- Buttons -->
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="showBulkDialog = false"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="button"
-                            size="sm"
-                            @click="submitBulkAdj"
-                            :disabled="bulkForm.processing"
-                            class="bg-rose-600 font-semibold text-white hover:bg-rose-700"
-                        >
-                            {{
-                                bulkForm.processing
-                                    ? 'Đang thực hiện...'
-                                    : 'Xác nhận áp dụng hàng loạt'
-                            }}
-                        </Button>
-                    </div>
                 </CardContent>
+
+                <!-- Buttons -->
+                <div class="flex shrink-0 justify-end gap-2 border-t p-4 py-3 bg-slate-50/50 dark:bg-slate-900/50">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="showBulkDialog = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="button"
+                        size="sm"
+                        @click="submitBulkAdj"
+                        :disabled="bulkForm.processing"
+                        class="bg-rose-600 font-semibold text-white hover:bg-rose-700"
+                    >
+                        {{
+                            bulkForm.processing
+                                ? 'Đang thực hiện...'
+                                : 'Xác nhận áp dụng hàng loạt'
+                        }}
+                    </Button>
+                </div>
             </Card>
         </div>
     </Transition>

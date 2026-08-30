@@ -113,13 +113,13 @@ const submitAdminOverride = () => {
     <Teleport to="body">
         <div
             v-if="isOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
         >
             <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                class="my-auto flex max-h-[90vh] w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
             >
                 <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    class="flex shrink-0 flex-row items-center justify-between gap-4 border-b pb-3"
                 >
                     <div>
                         <CardTitle
@@ -141,7 +141,7 @@ const submitAdminOverride = () => {
                     </button>
                 </CardHeader>
 
-                <CardContent class="space-y-4 pt-4">
+                <CardContent class="flex-1 overflow-y-auto space-y-4 pt-4">
                     <!-- Target Employee Info -->
                     <div
                         class="flex gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/20"
@@ -355,30 +355,31 @@ const submitAdminOverride = () => {
                         </p>
                     </div>
 
-                    <!-- Buttons -->
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="emit('close')"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="button"
-                            size="sm"
-                            @click="submitAdminOverride"
-                            class="cursor-pointer bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
-                            :disabled="processingOverride"
-                        >
-                            {{
-                                processingOverride
-                                    ? 'Đang cập nhật...'
-                                    : 'Xác nhận ghi nhận'
-                            }}
-                        </Button>
-                    </div>
                 </CardContent>
+
+                <!-- Buttons -->
+                <div class="flex shrink-0 justify-end gap-2 border-t p-4 py-3 bg-slate-50/50 dark:bg-slate-900/50">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="emit('close')"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="button"
+                        size="sm"
+                        @click="submitAdminOverride"
+                        class="cursor-pointer bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
+                        :disabled="processingOverride"
+                    >
+                        {{
+                            processingOverride
+                                ? 'Đang cập nhật...'
+                                : 'Xác nhận ghi nhận'
+                        }}
+                    </Button>
+                </div>
             </Card>
         </div>
     </Teleport>

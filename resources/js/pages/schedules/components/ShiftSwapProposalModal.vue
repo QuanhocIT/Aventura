@@ -101,13 +101,13 @@ onMounted(() => {
 <template>
     <Teleport to="body">
         <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden overflow-y-auto"
         >
             <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                class="my-auto flex max-h-[90vh] w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
             >
                 <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    class="flex shrink-0 flex-row items-center justify-between gap-4 border-b pb-3"
                 >
                     <div>
                         <CardTitle
@@ -129,7 +129,7 @@ onMounted(() => {
                     </button>
                 </CardHeader>
 
-                <CardContent class="space-y-4 pt-4">
+                <CardContent class="flex-1 overflow-y-auto space-y-4 pt-4">
                     <!-- Source Shift Info -->
                     <div>
                         <Label
@@ -289,31 +289,31 @@ onMounted(() => {
                             có hiệu lực.
                         </p>
                     </div>
-
-                    <!-- Actions -->
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="emit('close')"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="button"
-                            size="sm"
-                            @click="submitSwapRequest"
-                            class="bg-indigo-650 hover:bg-indigo-755 font-bold text-white"
-                            :disabled="
-                                isSubmittingSwap || !selectedTargetShiftId
-                            "
-                        >
-                            {{
-                                isSubmittingSwap ? 'Đang gửi...' : 'Gửi Yêu Cầu'
-                            }}
-                        </Button>
-                    </div>
                 </CardContent>
+
+                <!-- Actions -->
+                <div class="flex shrink-0 justify-end gap-2 border-t p-4 py-3 bg-slate-50/50 dark:bg-slate-900/50">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="emit('close')"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="button"
+                        size="sm"
+                        @click="submitSwapRequest"
+                        class="bg-indigo-650 hover:bg-indigo-755 font-bold text-white"
+                        :disabled="
+                            isSubmittingSwap || !selectedTargetShiftId
+                        "
+                    >
+                        {{
+                            isSubmittingSwap ? 'Đang gửi...' : 'Gửi Yêu Cầu'
+                        }}
+                    </Button>
+                </div>
             </Card>
         </div>
     </Teleport>

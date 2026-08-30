@@ -1070,13 +1070,13 @@ function submitDispute() {
     <Teleport to="body">
         <div
             v-if="submitTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto"
             @click.self="submitTarget = null"
         >
             <div
-                class="w-full max-w-2xl rounded-2xl border border-indigo-500/20 bg-white p-5 shadow-2xl sm:p-6 dark:bg-slate-900"
+                class="my-auto flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-indigo-500/20 bg-white shadow-2xl dark:bg-slate-900"
             >
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex shrink-0 items-start justify-between gap-3 border-b p-5 sm:p-6 pb-4">
                     <div>
                         <h2
                             class="text-base font-bold text-slate-900 dark:text-slate-100"
@@ -1101,117 +1101,119 @@ function submitDispute() {
                     >
                 </div>
 
-                <div
-                    class="mt-4 grid gap-3 rounded-xl border border-indigo-500/15 bg-indigo-950/5 p-3 text-xs sm:grid-cols-3 dark:bg-indigo-950/20"
-                >
-                    <div>
-                        <p class="text-slate-500 dark:text-slate-400">
-                            Checklist
-                        </p>
-                        <p
-                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                        >
-                            {{ submitTarget.checklist_done }}/{{
-                                submitTarget.checklist_total
-                            }}
-                            mục
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-slate-500 dark:text-slate-400">
-                            Tiền mặt
-                        </p>
-                        <p
-                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                        >
-                            {{ currency.format(submitForm.cash_amount || 0) }}đ
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-slate-500 dark:text-slate-400">Ngày</p>
-                        <p
-                            class="mt-1 font-bold text-slate-800 dark:text-slate-100"
-                        >
-                            {{ submitTarget.handover_date }}
-                        </p>
-                    </div>
-                </div>
-
-                <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                        <Label
-                            class="text-xs font-bold text-slate-500 uppercase"
-                            >Người nhận ca
-                            <span class="text-rose-500">*</span></Label
-                        >
-                        <select
-                            v-model="submitForm.to_user_id"
-                            class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                        >
-                            <option :value="null">— Chọn người nhận —</option>
-                            <option
-                                v-for="c in colleagues"
-                                :key="c.id"
-                                :value="c.id"
+                <div class="flex-1 overflow-y-auto p-5 sm:p-6 pt-4">
+                    <div
+                        class="grid gap-3 rounded-xl border border-indigo-500/15 bg-indigo-950/5 p-3 text-xs sm:grid-cols-3 dark:bg-indigo-950/20"
+                    >
+                        <div>
+                            <p class="text-slate-500 dark:text-slate-400">
+                                Checklist
+                            </p>
+                            <p
+                                class="mt-1 font-bold text-slate-800 dark:text-slate-100"
                             >
-                                {{ c.name }}
-                            </option>
-                        </select>
+                                {{ submitTarget.checklist_done }}/{{
+                                    submitTarget.checklist_total
+                                }}
+                                mục
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 dark:text-slate-400">
+                                Tiền mặt
+                            </p>
+                            <p
+                                class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                            >
+                                {{ currency.format(submitForm.cash_amount || 0) }}đ
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 dark:text-slate-400">Ngày</p>
+                            <p
+                                class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                            >
+                                {{ submitTarget.handover_date }}
+                            </p>
+                        </div>
                     </div>
 
-                    <div>
-                        <Label
-                            class="text-xs font-bold text-slate-500 uppercase"
-                            >Tiền mặt bàn giao</Label
-                        >
-                        <Input
-                            v-model.number="submitForm.cash_amount"
-                            type="number"
-                            min="0"
-                            step="1000"
-                            class="mt-1"
-                        />
-                    </div>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <Label
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Người nhận ca
+                                <span class="text-rose-500">*</span></Label
+                            >
+                            <select
+                                v-model="submitForm.to_user_id"
+                                class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                            >
+                                <option :value="null">— Chọn người nhận —</option>
+                                <option
+                                    v-for="c in colleagues"
+                                    :key="c.id"
+                                    :value="c.id"
+                                >
+                                    {{ c.name }}
+                                </option>
+                            </select>
+                        </div>
 
-                    <div class="sm:col-span-2">
-                        <Label
-                            class="text-xs font-bold text-slate-500 uppercase"
-                            >Thiết bị</Label
-                        >
-                        <textarea
-                            v-model="submitForm.equipment_notes"
-                            rows="2"
-                            placeholder="Máy POS, máy in, tủ mát… có gì bất thường?"
-                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                        ></textarea>
-                    </div>
+                        <div>
+                            <Label
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Tiền mặt bàn giao</Label
+                            >
+                            <Input
+                                v-model.number="submitForm.cash_amount"
+                                type="number"
+                                min="0"
+                                step="1000"
+                                class="mt-1"
+                            />
+                        </div>
 
-                    <div class="sm:col-span-2">
-                        <Label
-                            class="text-xs font-bold text-slate-500 uppercase"
-                            >Sự cố trong ca</Label
-                        >
-                        <textarea
-                            v-model="submitForm.incident_notes"
-                            rows="2"
-                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                        ></textarea>
-                    </div>
+                        <div class="sm:col-span-2">
+                            <Label
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Thiết bị</Label
+                            >
+                            <textarea
+                                v-model="submitForm.equipment_notes"
+                                rows="2"
+                                placeholder="Máy POS, máy in, tủ mát… có gì bất thường?"
+                                class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                            ></textarea>
+                        </div>
 
-                    <div class="sm:col-span-2">
-                        <Label
-                            class="text-xs font-bold text-slate-500 uppercase"
-                            >Công việc còn tồn</Label
-                        >
-                        <textarea
-                            v-model="submitForm.pending_tasks"
-                            rows="2"
-                            class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
-                        ></textarea>
+                        <div class="sm:col-span-2">
+                            <Label
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Sự cố trong ca</Label
+                            >
+                            <textarea
+                                v-model="submitForm.incident_notes"
+                                rows="2"
+                                class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                            ></textarea>
+                        </div>
+
+                        <div class="sm:col-span-2">
+                            <Label
+                                class="text-xs font-bold text-slate-500 uppercase"
+                                >Công việc còn tồn</Label
+                            >
+                            <textarea
+                                v-model="submitForm.pending_tasks"
+                                rows="2"
+                                class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+                            ></textarea>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mt-5 flex justify-end gap-2">
+                <div class="flex shrink-0 justify-end gap-2 border-t p-5 sm:p-6 py-4">
                     <Button variant="outline" @click="submitTarget = null"
                         >Hủy</Button
                     >

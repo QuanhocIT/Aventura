@@ -1182,43 +1182,45 @@ const statusConfig: Record<
     <Teleport to="body">
         <div
             v-if="showResolveModal && selectedReport"
-            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
+            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80 overflow-y-auto"
         >
             <div
-                class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                class="relative my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             >
                 <div
-                    class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
+                    class="flex shrink-0 items-center gap-2 border-b p-6 pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
                 >
                     <Scale class="size-4.5" />
                     <span>Quyết định Xử lý kỷ luật & Áp tiền phạt</span>
                 </div>
 
-                <!-- Empathy message about report details -->
-                <div
-                    class="mb-4 rounded-2xl border border-rose-100/50 bg-rose-50/50 p-3.5 text-xs select-none dark:bg-rose-950/20"
-                >
-                    <div class="font-bold text-slate-800 dark:text-slate-200">
-                        Đối tượng: {{ selectedReport.employee_name }} ({{
-                            selectedReport.employee_code
-                        }})
+                <div class="flex-1 overflow-y-auto p-6 pt-4">
+                    <!-- Empathy message about report details -->
+                    <div
+                        class="mb-4 rounded-2xl border border-rose-100/50 bg-rose-50/50 p-3.5 text-xs select-none dark:bg-rose-950/20"
+                    >
+                        <div class="font-bold text-slate-800 dark:text-slate-200">
+                            Đối tượng: {{ selectedReport.employee_name }} ({{
+                                selectedReport.employee_code
+                            }})
+                        </div>
+                        <div class="mt-1 text-slate-500 dark:text-slate-400">
+                            Hành vi tố cáo:
+                            <span
+                                class="font-bold text-slate-700 dark:text-slate-300"
+                                >{{ selectedReport.violation_type }}</span
+                            >
+                        </div>
+                        <p class="text-slate-450 mt-1 italic dark:text-slate-500">
+                            "{{ selectedReport.description }}"
+                        </p>
                     </div>
-                    <div class="mt-1 text-slate-500 dark:text-slate-400">
-                        Hành vi tố cáo:
-                        <span
-                            class="font-bold text-slate-700 dark:text-slate-300"
-                            >{{ selectedReport.violation_type }}</span
-                        >
-                    </div>
-                    <p class="text-slate-450 mt-1 italic dark:text-slate-500">
-                        "{{ selectedReport.description }}"
-                    </p>
-                </div>
 
-                <form
-                    @submit.prevent="submitResolve"
-                    class="flex flex-col gap-4"
-                >
+                    <form
+                        id="resolveForm"
+                        @submit.prevent="submitResolve"
+                        class="flex flex-col gap-4"
+                    >
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <!-- Severity select -->
                         <div class="flex flex-col gap-1.5">
@@ -1325,25 +1327,28 @@ const statusConfig: Record<
                         ></textarea>
                     </div>
 
-                    <!-- Action button resolvers -->
-                    <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showResolveModal = false"
-                            class="h-9 rounded-xl text-xs"
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="resolveForm.processing"
-                            class="h-9 rounded-xl border-0 bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-rose-700 hover:to-indigo-700"
-                        >
-                            Phê duyệt & Khấu trừ
-                        </Button>
-                    </div>
-                </form>
+                    </form>
+                </div>
+
+                <!-- Action button resolvers -->
+                <div class="flex shrink-0 justify-end gap-2.5 border-t p-6 py-4">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="showResolveModal = false"
+                        class="h-9 rounded-xl text-xs"
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        type="submit"
+                        form="resolveForm"
+                        :disabled="resolveForm.processing"
+                        class="h-9 rounded-xl border-0 bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-rose-700 hover:to-indigo-700"
+                    >
+                        Phê duyệt & Khấu trừ
+                    </Button>
+                </div>
             </div>
         </div>
     </Teleport>
@@ -1352,17 +1357,19 @@ const statusConfig: Record<
 
     <div
         v-if="showAppealModal && selectedReport"
-        class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
+        class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80 overflow-y-auto"
     >
         <div
-            class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            class="relative my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
         >
             <div
-                class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-amber-600 uppercase select-none"
+                class="flex shrink-0 items-center gap-2 border-b p-6 pb-3 text-sm font-extrabold tracking-wider text-amber-600 uppercase select-none"
             >
                 <Scale class="size-4.5" />
                 <span>Gửi đơn kháng cáo</span>
             </div>
+
+            <div class="flex-1 overflow-y-auto p-6 pt-4">
 
             <div
                 class="mb-4 rounded-2xl border border-amber-100/60 bg-amber-50/50 p-3.5 text-xs select-none dark:bg-amber-950/20"
@@ -1443,6 +1450,7 @@ const statusConfig: Record<
                     </Button>
                 </div>
             </form>
+            </div>
         </div>
     </div>
 
@@ -1450,17 +1458,19 @@ const statusConfig: Record<
     <Teleport to="body">
         <div
             v-if="showReviewAppealModal && selectedReport"
-            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
+            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80 overflow-y-auto"
         >
             <div
-                class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                class="relative my-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             >
                 <div
-                    class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-indigo-600 uppercase select-none"
+                    class="flex shrink-0 items-center gap-2 border-b p-6 pb-3 text-sm font-extrabold tracking-wider text-indigo-600 uppercase select-none"
                 >
                     <Scale class="size-4.5" />
                     <span>Xét đơn kháng cáo</span>
                 </div>
+
+                <div class="flex-1 overflow-y-auto p-6 pt-4">
 
                 <div
                     class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5 text-xs dark:bg-slate-800/40"
@@ -1517,24 +1527,25 @@ const statusConfig: Record<
                         ></textarea>
                     </div>
 
-                    <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showReviewAppealModal = false"
-                            class="h-9 rounded-xl text-xs"
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="reviewAppealForm.processing"
-                            class="h-9 rounded-xl border-0 bg-indigo-600 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
-                        >
-                            Lưu quyết định
-                        </Button>
-                    </div>
-                </form>
+                        <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showReviewAppealModal = false"
+                                class="h-9 rounded-xl text-xs"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="reviewAppealForm.processing"
+                                class="h-9 rounded-xl border-0 bg-indigo-600 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
+                            >
+                                Lưu quyết định
+                            </Button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </Teleport>
