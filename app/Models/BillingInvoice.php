@@ -18,6 +18,7 @@ class BillingInvoice extends Model
             'issued_on' => 'date',
             'due_on' => 'date',
             'sent_at' => 'datetime',
+            'paid_at' => 'datetime',
             'meta' => 'array',
         ];
     }

@@ -26,7 +26,7 @@ class CheckoutController extends Controller
         $user = $request->user();
         $restaurant = $user?->restaurant;
 
-        if ($user && $user->isSuperAdmin()) {
+        if ($user && $user->isPlatformAdmin()) {
             return redirect('/super-admin/billing')->with('info', 'Tài khoản SuperAdmin là Quản trị viên hệ thống. Vui lòng truy cập Phân hệ Billing Center tại /super-admin/billing để quản lý cước phí.');
         }
 

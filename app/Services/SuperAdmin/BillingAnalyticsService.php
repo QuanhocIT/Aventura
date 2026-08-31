@@ -26,17 +26,19 @@ class BillingAnalyticsService
      */
     public function analytics(Carbon $now): array
     {
-        $mrr = (float) RestaurantSubscription::query()
+        $mrr = RestaurantSubscription::query()
             ->where('status', 'active')
-            ->where('billing_cycle', 'monthly')
-            ->sum('price');
-
-        $mrrFromYearly = (float) RestaurantSubscription::query()
-            ->where('status', 'active')
-            ->where('billing_cycle', 'yearly')
-            ->sum(DB::raw('price / 12'));
-
-        $mrr += $mrrFromYearly;
+            ->whereHas('plan', fn ($q) => $q->where('price', '>', 0))
+            ->get(['price', 'billing_cycle'])
+            ->sum(function (RestaurantSubscription $subscription): float {
+                return (float) $subscription->price / match (strtolower((string) $subscription->billing_cycle)) {
+                    'quarterly' => 3,
+                    'half_yearly' => 6,
+                    'yearly' => 12,
+                    'biennial' => 24,
+                    default => 1,
+                };
+            });
         $arr = $mrr * 12;
 
         $activeCount = RestaurantSubscription::query()
@@ -60,7 +62,7 @@ class BillingAnalyticsService
 
         $monthlyRevenue = BillingInvoice::query()
             ->where('type', 'payment_success')
-            ->where('status', '!=', 'pending')
+            ->where('payment_status', 'paid')
             ->where('created_at', '>=', $now->copy()->subMonths(12)->startOfMonth())
             ->select(
                 DB::raw("{$yearExpr} as year"),
@@ -96,7 +98,7 @@ class BillingAnalyticsService
             ->join('restaurant_subscriptions', 'billing_invoices.restaurant_subscription_id', '=', 'restaurant_subscriptions.id')
             ->join('subscription_plans', 'restaurant_subscriptions.plan_id', '=', 'subscription_plans.id')
             ->where('billing_invoices.type', 'payment_success')
-            ->where('billing_invoices.status', '!=', 'pending')
+            ->where('billing_invoices.payment_status', 'paid')
             ->select(
                 'subscription_plans.name as plan',
                 DB::raw('SUM(billing_invoices.total) as revenue'),
@@ -472,6 +474,7 @@ class BillingAnalyticsService
             'total_registered' => Restaurant::count(),
             'trial_completed' => RestaurantSubscription::where('status', 'active')
                 ->whereHas('plan', fn ($q) => $q->where('price', '>', 0))
+                ->whereNotNull('last_paid_at')
                 ->distinct('restaurant_id')
                 ->count('restaurant_id'),
             'active_paid' => RestaurantSubscription::where('status', 'active')
@@ -549,11 +552,11 @@ class BillingAnalyticsService
             ->first();
 
         $totalInvoiced = (float) BillingInvoice::where('type', 'payment_success')
-            ->where('status', '!=', 'pending')
+            ->where('payment_status', 'paid')
             ->sum('total');
 
         $totalCollected = (float) BillingInvoice::where('type', 'payment_success')
-            ->where('status', 'processed')
+            ->where('payment_status', 'paid')
             ->sum('total');
 
         $totalAdjustments = (float) BillingAdjustment::sum('discount_amount');

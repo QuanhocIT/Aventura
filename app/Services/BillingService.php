@@ -112,6 +112,8 @@ class BillingService
                 'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
                 'type' => 'payment_success',
                 'status' => 'pending',
+                'payment_status' => 'paid',
+                'paid_at' => $paidAt,
                 'currency' => $restaurant->currency ?? 'VND',
                 'subtotal' => (float) $subscription->price,
                 'discount_amount' => 0,
@@ -155,6 +157,7 @@ class BillingService
             'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
             'type' => $type,
             'status' => 'pending',
+            'payment_status' => 'unpaid',
             'currency' => $restaurant->currency ?? 'VND',
             'subtotal' => (float) $subscription->price,
             'discount_amount' => 0,
@@ -168,35 +171,66 @@ class BillingService
     public function applyManualOverride(Restaurant $restaurant, array $data, ?User $actor = null): RestaurantSubscription
     {
         return DB::transaction(function () use ($restaurant, $data, $actor) {
-            $subscription = $restaurant->activeSubscription ?? $restaurant->subscriptions()->latest('id')->firstOrFail();
+            $subscription = RestaurantSubscription::query()
+                ->where('restaurant_id', $restaurant->id)
+                ->whereIn('status', ['trial', 'active'])
+                ->latest('id')
+                ->lockForUpdate()
+                ->first()
+                ?? RestaurantSubscription::query()
+                    ->where('restaurant_id', $restaurant->id)
+                    ->latest('id')
+                    ->lockForUpdate()
+                    ->firstOrFail();
             $days = (int) ($data['days'] ?? 0);
             $discountAmount = (float) ($data['discount_amount'] ?? 0);
             $type = $data['type'] ?? 'extend';
             $reason = $data['reason'] ?? null;
 
-            $newEndedAt = $subscription->ended_at?->copy() ?? now();
-            if ($days > 0) {
-                $newEndedAt = $newEndedAt->addDays($days);
+            $now = now();
+            $baseEndedAt = $subscription->ended_at && $subscription->ended_at->isFuture()
+                ? $subscription->ended_at->copy()
+                : $now->copy();
+            $newEndedAt = $baseEndedAt->copy()->addDays(max(0, $days));
+            $reactivates = in_array($type, ['trial', 'active', 'extend'], true) && $days > 0;
+
+            $subscriptionMeta = [
+                'type' => $type,
+                'days' => $days,
+                'discount_amount' => $discountAmount,
+                'reason' => $reason,
+                'applied_at' => $now->toIso8601String(),
+            ];
+
+            if ($reactivates) {
+                RestaurantSubscription::query()
+                    ->where('restaurant_id', $restaurant->id)
+                    ->whereIn('status', ['trial', 'active'])
+                    ->where('id', '!=', $subscription->id)
+                    ->update(['status' => 'expired', 'ended_at' => $now]);
+
+                $subscription->update([
+                    'ended_at' => $newEndedAt,
+                    'renewal_at' => $newEndedAt,
+                    'status' => 'active',
+                    'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                        'manual_override' => $subscriptionMeta,
+                    ]),
+                ]);
+
+                $restaurant->update([
+                    'status' => 'active',
+                    'subscription_ends_at' => $newEndedAt->toDateString(),
+                ]);
+            } else {
+                // A discount is an accounting adjustment only. It must not
+                // silently reactivate an expired tenant or move its renewal.
+                $subscription->update([
+                    'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                        'manual_override' => $subscriptionMeta,
+                    ]),
+                ]);
             }
-
-            $subscription->update([
-                'ended_at' => $newEndedAt,
-                'renewal_at' => $newEndedAt,
-                'status' => in_array($type, ['trial', 'active'], true) ? 'active' : $subscription->status,
-                'billing_meta' => array_merge($subscription->billing_meta ?? [], [
-                    'manual_override' => [
-                        'type' => $type,
-                        'days' => $days,
-                        'discount_amount' => $discountAmount,
-                        'reason' => $reason,
-                    ],
-                ]),
-            ]);
-
-            $restaurant->update([
-                'status' => 'active',
-                'subscription_ends_at' => $newEndedAt->toDateString(),
-            ]);
 
             BillingAdjustment::query()->create([
                 'restaurant_id' => $restaurant->id,
@@ -207,7 +241,7 @@ class BillingService
                 'discount_amount' => $discountAmount,
                 'coupon_code' => $data['coupon_code'] ?? null,
                 'reason' => $reason,
-                'meta' => $data,
+                'meta' => Arr::except($data, ['password']),
             ]);
 
             return $subscription;

@@ -18,6 +18,7 @@ class SubscriptionPlanSeeder extends Seeder
                 'max_branches' => 1,
                 'max_tables' => 15,
                 'max_users' => 5,
+                'max_dishes' => 50,
                 'features' => [
                     'kitchen_display' => false,
                     'qr_ordering' => false,
@@ -46,6 +47,7 @@ class SubscriptionPlanSeeder extends Seeder
                 'max_branches' => 3,
                 'max_tables' => 60,
                 'max_users' => 20,
+                'max_dishes' => 300,
                 'features' => [
                     'kitchen_display' => true,
                     'qr_ordering' => true,
@@ -74,6 +76,7 @@ class SubscriptionPlanSeeder extends Seeder
                 'max_branches' => 10,
                 'max_tables' => 200,
                 'max_users' => 60,
+                'max_dishes' => 1000,
                 'features' => [
                     'kitchen_display' => true,
                     'qr_ordering' => true,
@@ -102,6 +105,7 @@ class SubscriptionPlanSeeder extends Seeder
                 'max_branches' => null,
                 'max_tables' => null,
                 'max_users' => null,
+                'max_dishes' => null,
                 'features' => [
                     'kitchen_display' => true,
                     'qr_ordering' => true,
