@@ -5,11 +5,7 @@ import {
     ArrowUp,
     ArrowDown,
     CheckCircle2,
-    Package,
-    Users,
-    Building2,
-    Percent,
-    Target,
+    UtensilsCrossed,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import AnimatedNumber from '@/components/AnimatedNumber.vue';
@@ -20,7 +16,7 @@ const props = defineProps<{
     healthScore: number | null | undefined;
 }>();
 
-const { can, planCode } = useFeatureGate();
+const { can } = useFeatureGate();
 
 // ── Health Score helpers ─────────────────────────────────────────────────────
 const healthScoreColor = computed(() => {
@@ -56,14 +52,8 @@ const healthScoreColor = computed(() => {
 const orders = computed(() => Number(props.stats?.orders_today ?? 0));
 const completed = computed(() => Number(props.stats?.orders_completed ?? 0));
 const products = computed(() => Number(props.stats?.products_count ?? 0));
-const employees = computed(() => Number(props.stats?.employees_count ?? 0));
 const health = computed(() => Number(props.healthScore ?? 0));
 const revenue = computed(() => Number(props.stats?.revenue_today ?? 0));
-const tables = computed(() => Number(props.stats?.tables_count ?? 0));
-const branches = computed(() => Number(props.stats?.branches_count ?? 0));
-const profitMargin = computed(() =>
-    Number(props.stats?.profit_margin_today ?? 0),
-);
 const completionRate = computed(() =>
     Number(props.stats?.completion_rate ?? 0),
 );
@@ -84,274 +74,184 @@ watch(
 
 <template>
     <div class="dashboard-home-kpis space-y-4">
-        <!-- Today's KPI row -->
+        <!-- Today's 4 Primary Executive KPI Cards -->
         <div
             v-if="stats"
-            :class="['dashboard-kpi-grid dashboard-main-kpi-grid']"
+            class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4"
         >
-            <!-- Đơn hàng -->
+            <!-- 1. ĐƠN HÀNG HÔM NAY -->
             <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-indigo-100/90 bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/30 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/10 dark:border-indigo-900/40 dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950/20 dark:to-slate-900 dark:hover:border-indigo-700/60"
             >
-                <div
-                    class="shrink-0 rounded-xl bg-violet-50 p-2 text-violet-500 transition-all group-hover:scale-105 dark:bg-violet-950/30"
-                >
-                    <ShoppingCart class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Đơn hàng
-                    </p>
-                    <p
-                        class="mt-1 text-xl leading-none font-black text-slate-800 tabular-nums dark:text-slate-100"
-                    >
-                        <AnimatedNumber :value="orders" />
-                    </p>
-                </div>
-            </div>
+                <div class="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-indigo-500/10 blur-xl transition-all duration-500 group-hover:scale-150" />
 
-            <!-- Doanh thu + xu hướng -->
-            <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-500/5 p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-emerald-200 hover:shadow-md dark:border-emerald-900/30 dark:bg-emerald-950/10 dark:hover:border-emerald-800/80"
-            >
-                <div
-                    class="dark:text-emerald-455 shrink-0 rounded-xl bg-emerald-500/10 p-2 text-emerald-600 transition-all group-hover:scale-105 dark:bg-emerald-950/30"
-                >
-                    <Banknote class="size-4.5" />
-                </div>
-                <div class="min-w-0 flex-1">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-emerald-600/70 uppercase dark:text-emerald-500/80"
+                <!-- Top row: Icon + Badge -->
+                <div class="flex items-center justify-between">
+                    <div
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25 transition-transform duration-300 group-hover:scale-110"
                     >
-                        Doanh thu
+                        <ShoppingCart class="size-5" />
+                    </div>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/60 dark:text-indigo-300"
+                    >
+                        <span class="size-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                        Hôm nay
+                    </span>
+                </div>
+
+                <!-- Middle row: Value & Title -->
+                <div class="mt-3">
+                    <p class="text-[11px] font-extrabold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                        Đơn hàng hôm nay
                     </p>
-                    <div class="mt-1 flex items-center gap-1.5">
-                        <p
-                            class="truncate text-xl leading-none font-black text-emerald-700 dark:text-emerald-400"
-                        >
-                            <AnimatedNumber
-                                v-if="revenue > 0"
-                                :value="revenue"
-                                compact
-                                suffix="đ"
-                            />
-                            <template v-else>—</template>
+                    <div class="mt-1 flex items-baseline gap-1">
+                        <p class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-white">
+                            <AnimatedNumber :value="orders" />
                         </p>
-                        <span
-                            v-if="stats.revenue_trend !== null"
-                            :class="
-                                stats.revenue_trend >= 0
-                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40'
-                                    : 'bg-rose-50 text-rose-500 dark:bg-rose-950/40'
-                            "
-                            class="flex shrink-0 items-center gap-0.5 rounded-md px-1 py-0.5 text-[9px] font-extrabold"
-                        >
-                            <component
-                                :is="
-                                    stats.revenue_trend >= 0
-                                        ? ArrowUp
-                                        : ArrowDown
-                                "
-                                class="size-2.5"
-                            />
-                            {{ Math.abs(stats.revenue_trend) }}%
-                        </span>
+                        <span class="text-xs font-bold text-slate-400">đơn phát sinh</span>
                     </div>
                 </div>
+
+                <!-- Bottom row: Subtitle context -->
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                    <span class="truncate">Đang phục vụ & Mới tạo</span>
+                    <span class="font-bold text-indigo-600 dark:text-indigo-400">Thời gian thực</span>
+                </div>
             </div>
 
-            <!-- Đơn hoàn thành + xu hướng -->
+            <!-- 2. DOANH THU HÔM NAY -->
             <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-emerald-100/90 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10 dark:border-emerald-900/40 dark:bg-gradient-to-br dark:from-slate-900 dark:via-emerald-950/20 dark:to-slate-900 dark:hover:border-emerald-700/60"
             >
-                <div
-                    class="shrink-0 rounded-xl bg-sky-50 p-2 text-sky-500 transition-all group-hover:scale-105 dark:bg-sky-950/30"
-                >
-                    <CheckCircle2 class="size-4.5" />
-                </div>
-                <div class="min-w-0 flex-1">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                <div class="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-emerald-500/10 blur-xl transition-all duration-500 group-hover:scale-150" />
+
+                <!-- Top row: Icon + Trend Badge -->
+                <div class="flex items-center justify-between">
+                    <div
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25 transition-transform duration-300 group-hover:scale-110"
                     >
-                        Hoàn thành
+                        <Banknote class="size-5" />
+                    </div>
+                    <span
+                        v-if="stats.revenue_trend !== null"
+                        :class="[
+                            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-extrabold shadow-xs',
+                            stats.revenue_trend >= 0
+                                ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                : 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/60 dark:text-rose-300',
+                        ]"
+                    >
+                        <component :is="stats.revenue_trend >= 0 ? ArrowUp : ArrowDown" class="size-2.5" />
+                        {{ Math.abs(stats.revenue_trend) }}% so hôm qua
+                    </span>
+                    <span
+                        v-else
+                        class="inline-flex items-center gap-1 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    >
+                        Thực thu
+                    </span>
+                </div>
+
+                <!-- Middle row: Value & Title -->
+                <div class="mt-3">
+                    <p class="text-[11px] font-extrabold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
+                        Doanh thu hôm nay
                     </p>
-                    <div class="mt-1 flex items-center gap-1.5">
-                        <p
-                            class="text-xl leading-none font-black text-slate-800 tabular-nums dark:text-slate-100"
-                        >
+                    <p class="mt-1 truncate text-2xl font-black tracking-tight text-emerald-700 tabular-nums dark:text-emerald-400">
+                        <AnimatedNumber
+                            v-if="revenue > 0"
+                            :value="revenue"
+                            suffix=" ₫"
+                        />
+                        <template v-else>0 ₫</template>
+                    </p>
+                </div>
+
+                <!-- Bottom row: Subtitle context -->
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                    <span class="truncate">Tổng tiền đã chốt</span>
+                    <span class="font-bold text-emerald-600 dark:text-emerald-400">Sau chiết khấu</span>
+                </div>
+            </div>
+
+            <!-- 3. ĐƠN ĐÃ HOÀN TẤT -->
+            <div
+                class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-sky-100/90 bg-gradient-to-br from-white via-sky-50/20 to-blue-50/30 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg hover:shadow-sky-500/10 dark:border-sky-900/40 dark:bg-gradient-to-br dark:from-slate-900 dark:via-sky-950/20 dark:to-slate-900 dark:hover:border-sky-700/60"
+            >
+                <div class="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-sky-500/10 blur-xl transition-all duration-500 group-hover:scale-150" />
+
+                <!-- Top row: Icon + Completion Rate Badge -->
+                <div class="flex items-center justify-between">
+                    <div
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/25 transition-transform duration-300 group-hover:scale-110"
+                    >
+                        <CheckCircle2 class="size-5" />
+                    </div>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-sky-200/60 bg-sky-50/80 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/60 dark:text-sky-300"
+                    >
+                        Tỉ lệ: {{ completionRate }}%
+                    </span>
+                </div>
+
+                <!-- Middle row: Value & Title -->
+                <div class="mt-3">
+                    <p class="text-[11px] font-extrabold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                        Đơn đã hoàn tất
+                    </p>
+                    <div class="mt-1 flex items-baseline gap-1">
+                        <p class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-white">
                             <AnimatedNumber :value="completed" />
                         </p>
-                        <span
-                            v-if="stats.order_trend !== null"
-                            :class="
-                                stats.order_trend >= 0
-                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40'
-                                    : 'bg-rose-50 text-rose-500 dark:bg-rose-950/40'
-                            "
-                            class="flex shrink-0 items-center gap-0.5 rounded-md px-1 py-0.5 text-[9px] font-extrabold"
-                        >
-                            <component
-                                :is="
-                                    stats.order_trend >= 0 ? ArrowUp : ArrowDown
-                                "
-                                class="size-2.5"
-                            />
-                            {{ Math.abs(stats.order_trend) }}%
-                        </span>
+                        <span class="text-xs font-bold text-slate-400">/ {{ orders }} đơn thành công</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- Sản phẩm -->
-            <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700/80"
-            >
-                <div
-                    class="shrink-0 rounded-xl bg-amber-50 p-2 text-amber-500 transition-all group-hover:scale-105 dark:bg-amber-950/30"
-                >
-                    <Package class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Sản phẩm
-                    </p>
-                    <p
-                        class="mt-1 text-xl leading-none font-black text-slate-800 tabular-nums dark:text-slate-100"
-                    >
-                        <AnimatedNumber :value="products" />
-                    </p>
+                <!-- Bottom row: Subtitle context -->
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                    <span class="truncate">Đã phục vụ xong</span>
+                    <span class="font-bold text-sky-600 dark:text-sky-400">Đã thanh toán</span>
                 </div>
             </div>
 
-            <!-- Nhân viên -->
+            <!-- 4. THỰC ĐƠN KINH DOANH -->
             <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-amber-100/90 bg-gradient-to-br from-white via-amber-50/20 to-orange-50/30 p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-amber-300 hover:shadow-lg hover:shadow-amber-500/10 dark:border-amber-900/40 dark:bg-gradient-to-br dark:from-slate-900 dark:via-amber-950/20 dark:to-slate-900 dark:hover:border-amber-700/60"
             >
-                <div
-                    class="shrink-0 rounded-xl bg-indigo-50 p-2 text-indigo-500 transition-all group-hover:scale-105 dark:bg-indigo-950/30"
-                >
-                    <Users class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Nhân viên
-                    </p>
-                    <p
-                        class="mt-1 text-xl leading-none font-black text-slate-800 tabular-nums dark:text-slate-100"
-                    >
-                        <AnimatedNumber :value="employees" />
-                    </p>
-                </div>
-            </div>
+                <div class="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-amber-500/10 blur-xl transition-all duration-500 group-hover:scale-150" />
 
-            <!-- Chi nhánh / Bàn -->
-            <div
-                class="group relative flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-slate-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700/80"
-            >
-                <div
-                    class="shrink-0 rounded-xl bg-rose-50 p-2 text-rose-500 transition-all group-hover:scale-105 dark:bg-rose-950/30"
-                >
-                    <Building2 class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                <!-- Top row: Icon + Menu Status Badge -->
+                <div class="flex items-center justify-between">
+                    <div
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25 transition-transform duration-300 group-hover:scale-110"
                     >
-                        {{ planCode() === 'free' ? 'Bàn ăn' : 'CN / Bàn' }}
-                    </p>
-                    <p
-                        class="mt-1 text-xl leading-none font-black text-slate-800 tabular-nums dark:text-slate-100"
+                        <UtensilsCrossed class="size-5" />
+                    </div>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-50/80 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/60 dark:text-amber-300"
                     >
-                        <template v-if="planCode() === 'free'">
-                            <AnimatedNumber :value="tables" /> bàn
-                        </template>
-                        <template v-else>
-                            <AnimatedNumber :value="branches" />/<AnimatedNumber
-                                :value="tables"
-                            />
-                        </template>
-                    </p>
+                        Sẵn sàng bán
+                    </span>
                 </div>
-            </div>
 
-            <!-- Biên lợi nhuận hôm nay -->
-            <div
-                v-if="can('advanced_analytics')"
-                class="group dark:hover:border-violet-850/80 relative flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-500/5 p-3 transition-all duration-300 hover:translate-y-[-2px] hover:border-violet-200 hover:shadow-md dark:border-violet-900/30 dark:bg-violet-950/10"
-            >
-                <div
-                    class="shrink-0 rounded-xl bg-violet-500/10 p-2 text-violet-600 transition-all group-hover:scale-105 dark:bg-violet-950/30 dark:text-violet-400"
-                >
-                    <Percent class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        class="text-[10px] font-bold tracking-wider text-violet-600/70 uppercase dark:text-violet-500/80"
-                    >
-                        Biên LN
+                <!-- Middle row: Value & Title -->
+                <div class="mt-3">
+                    <p class="text-[11px] font-extrabold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                        Thực đơn kinh doanh
                     </p>
-                    <p
-                        class="mt-1 text-xl leading-none font-black text-violet-700 dark:text-violet-400"
-                    >
-                        <AnimatedNumber :value="profitMargin" suffix="%" />
-                    </p>
+                    <div class="mt-1 flex items-baseline gap-1">
+                        <p class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-white">
+                            <AnimatedNumber :value="products" />
+                        </p>
+                        <span class="text-xs font-bold text-slate-400">món đang mở bán</span>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Tỉ lệ hoàn thành -->
-            <div
-                :class="[
-                    'group relative flex items-center gap-3 rounded-2xl border p-3 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-md',
-                    stats.completion_rate >= 80
-                        ? 'border-teal-100 bg-teal-500/5 dark:border-teal-900/30 dark:bg-teal-950/10'
-                        : stats.completion_rate >= 50
-                          ? 'border-amber-100 bg-amber-500/5 dark:border-amber-900/30 dark:bg-amber-950/10'
-                          : 'border-rose-100 bg-rose-500/5 dark:border-rose-900/30 dark:bg-rose-950/10',
-                ]"
-            >
-                <div
-                    :class="[
-                        'shrink-0 rounded-xl p-2 transition-all group-hover:scale-105',
-                        stats.completion_rate >= 80
-                            ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
-                            : stats.completion_rate >= 50
-                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                              : 'dark:text-rose-455 bg-rose-500/10 text-rose-600',
-                    ]"
-                >
-                    <Target class="size-4.5" />
-                </div>
-                <div class="min-w-0">
-                    <p
-                        :class="[
-                            'text-[10px] font-bold tracking-wider uppercase',
-                            stats.completion_rate >= 80
-                                ? 'text-teal-600/70'
-                                : stats.completion_rate >= 50
-                                  ? 'text-amber-600/70'
-                                  : 'text-rose-600/70',
-                        ]"
-                    >
-                        Tỉ lệ HT
-                    </p>
-                    <p
-                        :class="[
-                            'mt-1 text-xl leading-none font-black',
-                            stats.completion_rate >= 80
-                                ? 'text-teal-700 dark:text-teal-400'
-                                : stats.completion_rate >= 50
-                                  ? 'text-amber-700 dark:text-amber-400'
-                                  : 'text-rose-700 dark:text-rose-400',
-                        ]"
-                    >
-                        <AnimatedNumber :value="completionRate" suffix="%" />
-                    </p>
+                <!-- Bottom row: Subtitle context -->
+                <div class="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-2 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                    <span class="truncate">Món ăn & Đồ uống</span>
+                    <span class="font-bold text-amber-600 dark:text-amber-400">Sẵn sàng phục vụ</span>
                 </div>
             </div>
         </div>

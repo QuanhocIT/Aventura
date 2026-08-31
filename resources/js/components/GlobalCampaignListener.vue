@@ -27,9 +27,34 @@ const roles = computed(() => {
 });
 const tenant = computed(() => (page.props as any).tenant ?? null);
 
-const isSuperAdmin = computed(
-    () => roles.value.includes('super_admin') || roles.value.includes('admin'),
+const isSuperAdmin = computed(() =>
+    roles.value.some((role) =>
+        ['super_admin', 'system_admin', 'billing_admin', 'support_specialist'].includes(
+            String(role),
+        ),
+    ),
 );
+
+const campaignChannels = computed(() => {
+    if (isSuperAdmin.value) {
+        return ['superadmin.campaigns'];
+    }
+
+    const restaurantId = user.value?.restaurant_id ?? tenant.value?.id;
+
+    if (! restaurantId) {
+        return [];
+    }
+
+    const channels = [`restaurant.${restaurantId}.campaigns.all_staff`];
+
+    if (roles.value.includes('owner')) {
+        channels.push(`restaurant.${restaurantId}.campaigns.owner`);
+    }
+
+    return channels;
+});
+let subscribedChannels: string[] = [];
 
 // Plays a premium double-beeping synthesizer sound
 function playNotificationChime() {
@@ -94,7 +119,7 @@ function handleBroadcast(data: CampaignBroadcastData) {
     if (data.target_type === 'all') {
         matchesGroup = true;
     } else if (data.target_type === 'plan' && tenant.value) {
-        matchesGroup = tenant.value.plan_id == data.target_plan_id;
+        matchesGroup = tenant.value.plan?.id == data.target_plan_id;
     } else if (data.target_type === 'trial' && tenant.value) {
         if (tenant.value.trial_ends_at) {
             matchesGroup = new Date(tenant.value.trial_ends_at) >= new Date();
@@ -137,18 +162,23 @@ function closeNotification() {
 
 onMounted(() => {
     if (window.Echo) {
-        window.Echo.private('global.campaigns').listen(
-            '.campaign.broadcasted',
-            (e: CampaignBroadcastData) => {
-                handleBroadcast(e);
-            },
-        );
+        subscribedChannels = campaignChannels.value;
+        subscribedChannels.forEach((channel) => {
+            window.Echo.private(channel).listen(
+                '.campaign.broadcasted',
+                (e: CampaignBroadcastData) => {
+                    handleBroadcast(e);
+                },
+            );
+        });
     }
 });
 
 onUnmounted(() => {
     if (window.Echo) {
-        window.Echo.leaveChannel('global.campaigns');
+        subscribedChannels.forEach((channel) => {
+            window.Echo.leaveChannel(channel);
+        });
     }
 });
 </script>

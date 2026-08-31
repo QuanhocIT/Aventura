@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage, Deferred } from '@inertiajs/vue3';
+import { Head, Link, Deferred, usePage } from '@inertiajs/vue3';
 import {
     Building2,
     ArrowRight,
@@ -27,7 +27,6 @@ import PeakHoursChart from '@/components/dashboard/charts/PeakHoursChart.vue';
 import RevenueForecastChart from '@/components/dashboard/charts/RevenueForecastChart.vue';
 import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLeaderboard.vue';
 import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
-import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
 import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
 import DashboardShell from '@/components/dashboard/DashboardShell.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
@@ -182,12 +181,6 @@ const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user ?? null);
 const tenant = computed(() => (page.props as any).tenant ?? null);
 const plan = computed(() => tenant.value?.plan ?? null);
-const quota = computed(() => tenant.value?.quota_summary ?? null);
-
-const availablePlans = computed(
-    () => (page.props as any).available_plans ?? [],
-);
-const roles = computed(() => (page.props as any).roles ?? []);
 const { isAllBranches, switchBranch } = useBranchContext();
 
 const currentBranchName = computed(() => {
@@ -255,16 +248,6 @@ function getTableStatusInfo(status: string) {
 
 <template>
     <Head title="Dashboard · Aventura" />
-
-    <!-- ── Trial Countdown Banner & Welcome header ── -->
-    <DashboardHeader
-        :user="user"
-        :tenant="tenant"
-        :plan="plan"
-        :quota="quota"
-        :available-plans="availablePlans"
-        :roles="roles"
-    />
 
     <!-- Main Content Section -->
     <DashboardShell

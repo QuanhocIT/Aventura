@@ -10,8 +10,17 @@ Broadcast::channel('support.announcements', function ($user) {
     return (bool) $user;
 });
 
-Broadcast::channel('global.campaigns', function ($user) {
-    return (bool) $user;
+Broadcast::channel('superadmin.campaigns', function ($user) {
+    return method_exists($user, 'isPlatformAdmin') && $user->isPlatformAdmin();
+});
+
+Broadcast::channel('restaurant.{restaurantId}.campaigns.{audience}', function ($user, $restaurantId, $audience) {
+    if ((int) ($user->restaurant_id ?? 0) !== (int) $restaurantId) {
+        return false;
+    }
+
+    return $audience === 'all_staff'
+        || ($audience === 'owner' && method_exists($user, 'isOwner') && $user->isOwner());
 });
 
 Broadcast::channel('superadmin.dashboard', function ($user) {
