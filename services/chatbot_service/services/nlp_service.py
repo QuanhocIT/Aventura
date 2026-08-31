@@ -403,9 +403,30 @@ def _get_suggestions(current_id: int, row: dict) -> list[str]:
     return same_cat[:max_sug]
 
 
-def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
+def _branch_scope(column: str, branch_id: int | None) -> tuple[str, tuple]:
+    """Return a parameterized branch predicate for owner branch scope."""
+    if branch_id is None:
+        return "", ()
+
+    return f" AND {column} = %s", (branch_id,)
+
+
+def _summary_scope(branch_id: int | None) -> tuple[str, tuple]:
+    """Select the persisted rollup for exactly one reporting scope."""
+    if branch_id is None:
+        return " AND scope_key = 'restaurant' AND branch_id IS NULL", ()
+
+    return " AND scope_key = %s AND branch_id = %s", (f"branch:{branch_id}", branch_id)
+
+
+def match_advisor_query(user_input: str, restaurant_id: int, branch_id: int | None = None) -> dict:
     """Xử lý câu hỏi của Chủ quán bằng cách truy vấn số liệu thời gian thực từ DB."""
     q_norm = _normalize(user_input)
+    order_scope, order_params = _branch_scope("branch_id", branch_id)
+    payment_scope, payment_params = _branch_scope("o.branch_id", branch_id)
+    violation_scope, violation_params = _branch_scope("vr.branch_id", branch_id)
+    inventory_scope, inventory_params = _branch_scope("inv.branch_id", branch_id)
+    summary_scope, summary_params = _summary_scope(branch_id)
 
     # 1. Doanh thu & tài chính
     if any(k in q_norm for k in ["doanh thu", "tien", "doanh so", "tai chinh"]):
@@ -414,37 +435,37 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
             with conn.cursor() as cursor:
                 # Hôm nay
                 cursor.execute(
-                    """
+                    f"""
                     SELECT COALESCE(SUM(total_amount), 0) AS total_revenue, COUNT(*) AS total_orders
                     FROM orders
-                    WHERE restaurant_id = %s AND status = 'completed' AND DATE(created_at) = CURDATE()
+                    WHERE restaurant_id = %s AND status = 'completed' AND DATE(created_at) = CURDATE(){order_scope}
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *order_params)
                 )
                 today = cursor.fetchone()
 
                 # Tuần này
                 cursor.execute(
-                    """
+                    f"""
                     SELECT COALESCE(SUM(total_amount), 0) AS weekly_revenue, COUNT(*) AS weekly_orders
                     FROM orders
-                    WHERE restaurant_id = %s AND status = 'completed' 
+                    WHERE restaurant_id = %s AND status = 'completed'{order_scope}
                       AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *order_params)
                 )
                 weekly = cursor.fetchone()
 
                 # Phương thức thanh toán hôm nay
                 cursor.execute(
-                    """
+                    f"""
                     SELECT payment_method, SUM(amount) as total
                     FROM payments p
                     JOIN orders o ON o.id = p.order_id
-                    WHERE o.restaurant_id = %s AND p.status = 'paid' AND DATE(p.created_at) = CURDATE()
+                    WHERE o.restaurant_id = %s AND p.status = 'paid' AND DATE(p.created_at) = CURDATE(){payment_scope}
                     GROUP BY payment_method
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *payment_params)
                 )
                 pm = cursor.fetchall()
                 pm_str = "\n".join([f"- **{r['payment_method'].upper()}**: {r['total']:,.0f}đ" for r in pm]) if pm else "- Chưa có giao dịch nào."
@@ -486,17 +507,17 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT p.name, SUM(oi.quantity) AS total_qty, SUM(oi.line_total) AS total_revenue
                     FROM order_items oi
                     JOIN orders o ON o.id = oi.order_id
                     JOIN products p ON p.id = oi.product_id
-                    WHERE o.restaurant_id = %s AND o.status = 'completed' AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    WHERE o.restaurant_id = %s AND o.status = 'completed' AND o.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY){payment_scope}
                     GROUP BY p.id, p.name
                     ORDER BY total_qty DESC
                     LIMIT 5
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *payment_params)
                 )
                 rows = cursor.fetchall()
 
@@ -527,15 +548,15 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT vr.violation_type, vr.severity, vr.description, DATE_FORMAT(vr.occurred_at, '%%d/%%m/%%Y') as date_vn, e.full_name
                     FROM violation_reports vr
                     LEFT JOIN employees e ON e.id = vr.employee_id
-                    WHERE vr.restaurant_id = %s AND vr.status = 'open'
+                    WHERE vr.restaurant_id = %s AND vr.status = 'open'{violation_scope}
                     ORDER BY vr.created_at DESC
                     LIMIT 3
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *violation_params)
                 )
                 rows = cursor.fetchall()
 
@@ -573,15 +594,15 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT i.name, inv.quantity_on_hand, i.min_stock_level, u.name AS unit_name
                     FROM inventories inv
                     JOIN ingredients i ON i.id = inv.ingredient_id
                     LEFT JOIN units u ON u.id = i.unit_id
-                    WHERE inv.restaurant_id = %s AND inv.quantity_on_hand <= i.min_stock_level
+                    WHERE inv.restaurant_id = %s AND inv.quantity_on_hand <= i.min_stock_level{inventory_scope}
                     LIMIT 5
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *inventory_params)
                 )
                 rows = cursor.fetchall()
 
@@ -612,14 +633,14 @@ def match_advisor_query(user_input: str, restaurant_id: int) -> dict:
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    """
+                    f"""
                     SELECT summary_date, net_revenue
                     FROM restaurant_revenue_summaries
-                    WHERE restaurant_id = %s AND summary_type = 'daily'
+                    WHERE restaurant_id = %s AND summary_type = 'daily'{summary_scope}
                     ORDER BY summary_date DESC
                     LIMIT 14
                     """,
-                    (restaurant_id,)
+                    (restaurant_id, *summary_params)
                 )
                 rows = cursor.fetchall()
 

@@ -112,15 +112,16 @@ def advisor_chat(payload: AdvisorChatRequest):
     message = payload.message.strip()[:500]
 
     try:
-        result = nlp_service.match_advisor_query(message, payload.restaurant_id)
+        result = nlp_service.match_advisor_query(message, payload.restaurant_id, payload.branch_id)
     except Exception as e:
         logger.error("Advisor NLP error: %s", e)
         raise HTTPException(status_code=500, detail="Lỗi xử lý câu hỏi tư vấn.")
 
     logger.info(
-        "advisor_chat | session=%s restaurant=%d",
+        "advisor_chat | session=%s restaurant=%d branch=%s",
         payload.session_id[:12],
         payload.restaurant_id,
+        payload.branch_id,
     )
 
     return ChatResponse(**result)

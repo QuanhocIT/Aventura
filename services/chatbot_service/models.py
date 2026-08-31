@@ -12,6 +12,7 @@ class AdvisorChatRequest(BaseModel):
     session_id: str
     message: str
     restaurant_id: int
+    branch_id: Optional[int] = None
 
 
 class ChatResponse(BaseModel):
