@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Equipment;
 use App\Models\EquipmentMaintenanceLog;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,11 +14,15 @@ use Inertia\Response;
 
 class EquipmentController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     public function index(Request $request): Response
     {
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $equipment = Equipment::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->withCount('maintenanceLogs')
             ->get()
             ->map(fn ($e) => array_merge($e->toArray(), [
@@ -28,24 +33,35 @@ class EquipmentController extends Controller
             ]));
 
         $recentLogs = EquipmentMaintenanceLog::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->with(['equipment:id,name', 'reporter:id,name'])
             ->latest()
             ->take(20)
             ->get();
 
         $stats = [
-            'total' => Equipment::where('restaurant_id', $restaurantId)->count(),
-            'active' => Equipment::where('restaurant_id', $restaurantId)->where('status', 'active')->count(),
-            'broken' => Equipment::where('restaurant_id', $restaurantId)->where('status', 'broken')->count(),
+            'total' => Equipment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->count(),
+            'active' => Equipment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->where('status', 'active')->count(),
+            'broken' => Equipment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->where('status', 'broken')->count(),
             'pending_maintenance' => EquipmentMaintenanceLog::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->whereIn('status', ['pending', 'in_progress'])->count(),
             'total_cost_ytd' => (float) EquipmentMaintenanceLog::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('status', 'completed')
                 ->whereYear('completed_date', now()->year)
                 ->sum('cost'),
         ];
 
-        return Inertia::render('equipment/Index', compact('equipment', 'recentLogs', 'stats'));
+        return Inertia::render('equipment/Index', [
+            'equipment' => $equipment,
+            'recentLogs' => $recentLogs,
+            'stats' => $stats,
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -67,6 +83,9 @@ class EquipmentController extends Controller
 
         $data['restaurant_id'] = $request->user()->restaurant_id;
         $data['code'] = 'EQ-'.strtoupper(Str::random(6));
+        $data['branch_id'] = $this->tenantContext->isBranchScoped()
+            ? $this->tenantContext->activeBranchId()
+            : null;
 
         Equipment::create($data);
 
@@ -76,6 +95,7 @@ class EquipmentController extends Controller
     public function update(Request $request, Equipment $equipment): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $this->authorizeEquipmentScope($request, $equipment);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -104,9 +124,23 @@ class EquipmentController extends Controller
             'scheduled_date' => ['nullable', 'date'],
         ]);
 
+        $equipment = Equipment::where('restaurant_id', $request->user()->restaurant_id)
+            ->whereKey($data['equipment_id'])
+            ->firstOrFail();
+
+        // Thiết bị được tạo trước khi có branch_id được xem là dữ liệu legacy.
+        // Khi phát sinh báo hỏng từ một chi nhánh cụ thể, gắn nó vào chi nhánh
+        // đang thao tác để không tạo maintenance log ngoài phạm vi hiển thị.
+        if ($this->tenantContext->isBranchScoped() && $equipment->branch_id === null) {
+            $equipment->update(['branch_id' => $this->tenantContext->activeBranchId()]);
+            $equipment->refresh();
+        }
+        $this->authorizeEquipmentScope($request, $equipment);
+
         EquipmentMaintenanceLog::create([
             'restaurant_id' => $request->user()->restaurant_id,
             'equipment_id' => $data['equipment_id'],
+            'branch_id' => $equipment->branch_id,
             'type' => $data['type'],
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
@@ -116,7 +150,7 @@ class EquipmentController extends Controller
             'reported_by' => $request->user()->id,
         ]);
 
-        Equipment::where('id', $data['equipment_id'])->update(['status' => $data['type'] === 'repair' ? 'broken' : 'maintenance']);
+        $equipment->update(['status' => $data['type'] === 'repair' ? 'broken' : 'maintenance']);
 
         return back()->with('success', 'Đã ghi nhận báo cáo bảo trì.');
     }
@@ -124,6 +158,7 @@ class EquipmentController extends Controller
     public function completeLog(Request $request, EquipmentMaintenanceLog $log): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $this->authorizeLogScope($request, $log);
 
         $data = $request->validate([
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -143,6 +178,7 @@ class EquipmentController extends Controller
     public function destroy(Request $request, Equipment $equipment): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $this->authorizeEquipmentScope($request, $equipment);
 
         $equipment->delete();
 
@@ -169,5 +205,26 @@ class EquipmentController extends Controller
             403,
             'Bạn không có quyền báo cáo sự cố thiết bị.'
         );
+    }
+
+    private function authorizeEquipmentScope(Request $request, Equipment $equipment): void
+    {
+        abort_if((int) $equipment->restaurant_id !== (int) $request->user()->restaurant_id, 403);
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if((int) $equipment->branch_id !== (int) $this->tenantContext->activeBranchId(), 403, 'Thiết bị không thuộc chi nhánh đang chọn.');
+        }
+    }
+
+    private function authorizeLogScope(Request $request, EquipmentMaintenanceLog $log): void
+    {
+        abort_if((int) $log->restaurant_id !== (int) $request->user()->restaurant_id, 403);
+        $equipment = $log->equipment;
+        abort_if(! $equipment, 404);
+        $this->authorizeEquipmentScope($request, $equipment);
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if((int) $log->branch_id !== (int) $this->tenantContext->activeBranchId(), 403, 'Nhật ký bảo trì không thuộc chi nhánh đang chọn.');
+        }
     }
 }

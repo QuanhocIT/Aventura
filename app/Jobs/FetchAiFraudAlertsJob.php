@@ -21,7 +21,8 @@ class FetchAiFraudAlertsJob implements ShouldQueue
     public function __construct(
         public int $restaurantId,
         public string $periodStart,
-        public string $periodEnd
+        public string $periodEnd,
+        public ?int $branchId = null,
     ) {}
 
     public function handle(): void
@@ -30,10 +31,12 @@ class FetchAiFraudAlertsJob implements ShouldQueue
             return;
         }
 
-        $cacheKey = "fraud_alerts:{$this->restaurantId}:{$this->periodStart}:{$this->periodEnd}";
+        $scopeKey = $this->branchId === null ? 'all' : 'branch:'.$this->branchId;
+        $cacheKey = "fraud_alerts:{$this->restaurantId}:{$this->periodStart}:{$this->periodEnd}:{$scopeKey}";
 
         // 1. Fetch audit logs from DB
         $logs = AuditLog::where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
             ->latest('created_at')

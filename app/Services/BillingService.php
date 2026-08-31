@@ -7,6 +7,7 @@ use App\Jobs\SendBillingInvoiceEmail;
 use App\Models\BillingAdjustment;
 use App\Models\BillingInvoice;
 use App\Models\CommissionLog;
+use App\Models\Coupon;
 use App\Models\PaymentWebhook;
 use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class BillingService
@@ -151,6 +153,11 @@ class BillingService
 
     public function createUpcomingInvoice(Restaurant $restaurant, RestaurantSubscription $subscription, string $type = 'upcoming_renewal'): BillingInvoice
     {
+        $manualOverride = ($subscription->billing_meta ?? [])['manual_override'] ?? null;
+        $discountAmount = ($manualOverride['type'] ?? null) === 'discount'
+            ? min((float) $subscription->price, max(0, (float) ($manualOverride['discount_amount'] ?? 0)))
+            : 0;
+
         return BillingInvoice::query()->create([
             'restaurant_id' => $restaurant->id,
             'restaurant_subscription_id' => $subscription->id,
@@ -160,11 +167,17 @@ class BillingService
             'payment_status' => 'unpaid',
             'currency' => $restaurant->currency ?? 'VND',
             'subtotal' => (float) $subscription->price,
-            'discount_amount' => 0,
-            'total' => (float) $subscription->price,
+            'discount_amount' => $discountAmount,
+            'total' => max(0, (float) $subscription->price - $discountAmount),
             'issued_on' => now()->toDateString(),
             'due_on' => $subscription->ended_at?->toDateString(),
             'recipient_email' => $restaurant->owner?->email ?? $restaurant->email,
+            'meta' => $discountAmount > 0 ? [
+                'manual_discount' => [
+                    'amount' => $discountAmount,
+                    'applied_at' => now()->toIso8601String(),
+                ],
+            ] : null,
         ]);
     }
 
@@ -186,6 +199,34 @@ class BillingService
             $discountAmount = (float) ($data['discount_amount'] ?? 0);
             $type = $data['type'] ?? 'extend';
             $reason = $data['reason'] ?? null;
+            $coupon = null;
+
+            if (! empty($data['coupon_code'])) {
+                $coupon = Coupon::query()
+                    ->where('code', strtoupper($data['coupon_code']))
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $coupon || ! $coupon->isValid()) {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Coupon không tồn tại hoặc không còn hiệu lực.',
+                    ]);
+                }
+
+                if ($type !== 'discount') {
+                    throw ValidationException::withMessages([
+                        'coupon_code' => 'Coupon chỉ được áp dụng cho thao tác giảm giá.',
+                    ]);
+                }
+
+                $discountAmount = $coupon->getDiscountAmount((float) $subscription->price);
+            }
+
+            if ($type === 'discount' && $discountAmount <= 0) {
+                throw ValidationException::withMessages([
+                    'discount_amount' => 'Điều chỉnh giảm giá phải lớn hơn 0.',
+                ]);
+            }
 
             $now = now();
             $baseEndedAt = $subscription->ended_at && $subscription->ended_at->isFuture()
@@ -220,6 +261,7 @@ class BillingService
 
                 $restaurant->update([
                     'status' => 'active',
+                    'lifecycle_status' => 'active',
                     'subscription_ends_at' => $newEndedAt->toDateString(),
                 ]);
             } else {
@@ -230,6 +272,35 @@ class BillingService
                         'manual_override' => $subscriptionMeta,
                     ]),
                 ]);
+
+                if ($type === 'discount' && $discountAmount > 0) {
+                    $invoice = BillingInvoice::query()
+                        ->where('restaurant_id', $restaurant->id)
+                        ->where('restaurant_subscription_id', $subscription->id)
+                        ->where(function ($query) {
+                            $query->whereNull('payment_status')->orWhere('payment_status', '!=', 'paid');
+                        })
+                        ->where('status', '!=', 'written_off')
+                        ->latest('id')
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($invoice) {
+                        $subtotal = (float) ($invoice->subtotal ?: $subscription->price);
+                        $appliedDiscount = min($subtotal, max((float) $invoice->discount_amount, $discountAmount));
+                        $invoice->update([
+                            'discount_amount' => $appliedDiscount,
+                            'total' => max(0, $subtotal - $appliedDiscount),
+                            'meta' => array_merge($invoice->meta ?? [], [
+                                'manual_discount' => [
+                                    'amount' => $appliedDiscount,
+                                    'applied_at' => $now->toIso8601String(),
+                                    'reason' => $reason,
+                                ],
+                            ]),
+                        ]);
+                    }
+                }
             }
 
             BillingAdjustment::query()->create([
@@ -243,6 +314,10 @@ class BillingService
                 'reason' => $reason,
                 'meta' => Arr::except($data, ['password']),
             ]);
+
+            if ($coupon) {
+                $coupon->increment('uses_count');
+            }
 
             return $subscription;
         });
@@ -289,12 +364,12 @@ class BillingService
         Restaurant::query()
             ->where('status', 'active')
             ->whereDate('subscription_ends_at', '<', $now->toDateString())
-            ->update(['status' => 'expired']);
+            ->update(['status' => 'expired', 'lifecycle_status' => 'expired']);
 
         Restaurant::query()
             ->where('status', 'expired')
             ->whereDate('subscription_ends_at', '<', $graceThreshold->toDateString())
-            ->update(['status' => 'suspended']);
+            ->update(['status' => 'suspended', 'lifecycle_status' => 'suspended']);
 
         RestaurantSubscription::query()
             ->whereHas('restaurant', fn ($query) => $query->where('status', 'active'))
@@ -336,7 +411,7 @@ class BillingService
             ->chunkById(100, function ($subscriptions) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (! $restaurant) {
+                    if (! $restaurant || $this->isDunningPaused($subscription)) {
                         continue;
                     }
 
@@ -394,7 +469,7 @@ class BillingService
             ->chunkById(100, function ($subscriptions) use (&$sent, $now, $stage) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (! $restaurant || ! $restaurant->owner) {
+                    if (! $restaurant || ! $restaurant->owner || $this->isDunningPaused($subscription)) {
                         continue;
                     }
 
@@ -444,7 +519,7 @@ class BillingService
             ->chunkById(100, function ($subscriptions) use (&$sent, $now) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (! $restaurant || ! $restaurant->owner) {
+                    if (! $restaurant || ! $restaurant->owner || $this->isDunningPaused($subscription)) {
                         continue;
                     }
 
@@ -760,5 +835,19 @@ class BillingService
             'subscription_id' => $subscription->id,
             'paused_until' => $pausedUntil->toDateString(),
         ]);
+    }
+
+    private function isDunningPaused(RestaurantSubscription $subscription): bool
+    {
+        $pausedUntil = $subscription->billing_meta['dunning_paused_until'] ?? null;
+        if (! $pausedUntil) {
+            return false;
+        }
+
+        try {
+            return Carbon::parse($pausedUntil)->isFuture();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

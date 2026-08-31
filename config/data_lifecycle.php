@@ -80,6 +80,11 @@ return [
         ],
     ],
 
+    'technical' => [
+        'failed_jobs_retention_days' => (int) env('DATA_FAILED_JOBS_RETENTION_DAYS', 30),
+        'job_batches_retention_days' => (int) env('DATA_JOB_BATCHES_RETENTION_DAYS', 90),
+    ],
+
     'tenant_tables' => [
         'orders',
         'orders_archive',

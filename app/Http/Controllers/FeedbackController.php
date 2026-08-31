@@ -30,6 +30,8 @@ class FeedbackController extends Controller
 {
     use GeneratesSignedCaptcha, VerifiesTurnstile;
 
+    public function __construct(private TenantContext $tenantContext) {}
+
     /**
      * Hiển thị danh sách phản hồi và các phân tích đối chiếu (Chỉ dành cho Owner & Manager).
      */
@@ -38,12 +40,14 @@ class FeedbackController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_feedback'), 403);
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // 1. Lấy danh sách phản hồi kèm bối cảnh truy vết ca trực & món lỗi
         // Phản hồi khách chỉ tăng theo thời gian; ->get() sẽ đổ toàn bộ lịch sử
         // ra một trang. Các chỉ số tổng phía dưới được tính bằng aggregate riêng
         // để không phụ thuộc vào trang đang xem.
         $feedbackPage = CustomerFeedback::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->with(['order.table', 'order.items.product'])
             ->latest()
             ->paginate(25)
@@ -53,6 +57,7 @@ class FeedbackController extends Controller
 
         // Lấy tất cả ca trực hoạt động của nhà hàng một lần duy nhất ngoài vòng lặp
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'active')
             ->get();
 
@@ -64,6 +69,7 @@ class FeedbackController extends Controller
         $assignmentsGrouped = collect();
         if (! empty($orderDates)) {
             $assignmentsGrouped = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where(function ($q) use ($orderDates) {
                     foreach ($orderDates as $date) {
                         $q->orWhereDate('scheduled_date', $date);
@@ -81,8 +87,14 @@ class FeedbackController extends Controller
         }
 
         // Tải sản phẩm và nhân viên của nhà hàng để ánh xạ thông tin đánh giá
-        $products = Product::where('restaurant_id', $restaurantId)->get()->keyBy('id');
-        $employees = Employee::where('restaurant_id', $restaurantId)->with('user')->get()->keyBy('id');
+        $products = Product::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId) {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
+            ->get()->keyBy('id');
+        $employees = Employee::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->with('user')->get()->keyBy('id');
 
         $feedbacks = $feedbackModels->map(function ($fb) use ($shifts, $assignmentsGrouped, $products, $employees) {
             $responsibleShift = null;
@@ -189,7 +201,8 @@ class FeedbackController extends Controller
 
         // 3. Tính toán các KPI Thống kê
         // Đếm trên TOÀN BỘ dữ liệu, không phải trên 25 dòng của trang hiện tại.
-        $statsQuery = fn () => CustomerFeedback::where('restaurant_id', $restaurantId);
+        $statsQuery = fn () => CustomerFeedback::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
 
         $totalFeedback = $statsQuery()->count();
         $newFeedback = $statsQuery()->where('status', 'new')->count();
@@ -224,6 +237,7 @@ class FeedbackController extends Controller
                 'average' => $averageRating,
                 'distribution' => $ratingDistribution,
             ],
+            'branchContext' => $this->tenantContext->toArray(),
         ]);
     }
 
@@ -467,6 +481,7 @@ class FeedbackController extends Controller
 
         // 1. Tìm ca trực hoạt động tại thời điểm này
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->when($feedback->branch_id !== null, fn ($query) => $query->where('branch_id', $feedback->branch_id))
             ->where('status', 'active')
             ->get();
 
@@ -490,6 +505,7 @@ class FeedbackController extends Controller
 
         // Tìm danh sách phân ca trong ngày
         $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->when($feedback->branch_id !== null, fn ($query) => $query->where('branch_id', $feedback->branch_id))
             ->whereDate('scheduled_date', $dateStr)
             ->with(['employee']);
 
@@ -604,6 +620,7 @@ class FeedbackController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_feedback'), 403);
         abort_if($feedback->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertFeedbackScope($feedback);
 
         $data = $request->validate([
             'compensation_voucher' => ['nullable', 'string', 'max:50'],
@@ -708,6 +725,7 @@ class FeedbackController extends Controller
         if ((int) $feedback->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
             abort(403, 'Phản hồi khách hàng không thuộc nhà hàng của bạn.');
         }
+        $this->assertFeedbackScope($feedback);
 
         $data = $request->validate([
             'template_type' => 'required|string|in:apology_voucher,exchange_item,escalate_manager',
@@ -790,6 +808,17 @@ class FeedbackController extends Controller
                 'feedback_id' => $feedback->id,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    private function assertFeedbackScope(CustomerFeedback $feedback): void
+    {
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if(
+                (int) $feedback->branch_id !== (int) $this->tenantContext->activeBranchId(),
+                403,
+                'Phản hồi không thuộc chi nhánh đang chọn.'
+            );
         }
     }
 }

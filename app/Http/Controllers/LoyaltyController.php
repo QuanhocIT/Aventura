@@ -10,6 +10,7 @@ use App\Models\LoyaltyTier;
 use App\Models\LoyaltyTransaction;
 use App\Services\LoyaltyService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +34,10 @@ class LoyaltyController extends Controller implements HasMiddleware
         ];
     }
 
-    public function __construct(private LoyaltyService $loyalty) {}
+    public function __construct(
+        private LoyaltyService $loyalty,
+        private TenantContext $tenantContext,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -52,11 +56,12 @@ class LoyaltyController extends Controller implements HasMiddleware
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $program = $this->loyalty->getProgram($restaurantId);
         $tiers = LoyaltyTier::where('restaurant_id', $restaurantId)->ordered()->get();
         $rewards = LoyaltyReward::where('restaurant_id', $restaurantId)->latest()->get();
-        $metrics = $this->loyalty->getDashboardMetrics($restaurantId);
+        $metrics = $this->loyalty->getDashboardMetrics($restaurantId, $branchId);
 
         return Inertia::render('loyalty/Index', [
             'program' => $program,
@@ -64,6 +69,7 @@ class LoyaltyController extends Controller implements HasMiddleware
             'rewards' => $rewards,
             'metrics' => $metrics,
             'canManageFinancials' => $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            'branchContext' => $this->tenantContext->toArray(),
         ]);
     }
 
@@ -87,6 +93,7 @@ class LoyaltyController extends Controller implements HasMiddleware
             'program' => $program,
             'tiers' => $tiers,
             'canManageFinancials' => $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            'branchContext' => $this->tenantContext->toArray(),
         ]);
     }
 
@@ -234,6 +241,7 @@ class LoyaltyController extends Controller implements HasMiddleware
         ]);
 
         $customer = Customer::findOrFail($data['customer_id']);
+        $this->assertCustomerScope($customer);
 
         $this->loyalty->adjustPoints($customer, $data['points'], $data['reason'], $request->user());
 
@@ -252,6 +260,7 @@ class LoyaltyController extends Controller implements HasMiddleware
         $restaurantId = $request->user()->restaurant_id;
 
         $transactions = LoyaltyTransaction::where('restaurant_id', $restaurantId)
+            ->when($this->tenantContext->isBranchScoped(), fn ($query) => $query->where('branch_id', $this->tenantContext->activeBranchId()))
             ->with('customer:id,full_name,phone')
             ->when($request->customer_id, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($request->type, fn ($q, $t) => $q->where('type', $t))
@@ -263,8 +272,26 @@ class LoyaltyController extends Controller implements HasMiddleware
 
     public function customerLoyaltyQr(Request $request, Customer $customer): JsonResponse
     {
+        abort_unless(
+            $request->user()->isSuperAdmin()
+                || (int) $customer->restaurant_id === (int) $request->user()->restaurant_id,
+            403,
+        );
+        $this->assertCustomerScope($customer);
+
         $svg = $this->loyalty->generateLoyaltyQr($customer);
 
         return response()->json(['svg' => $svg]);
+    }
+
+    private function assertCustomerScope(Customer $customer): void
+    {
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if(
+                (int) $customer->branch_id !== (int) $this->tenantContext->activeBranchId(),
+                403,
+                'Khách hàng không thuộc chi nhánh đang chọn.',
+            );
+        }
     }
 }

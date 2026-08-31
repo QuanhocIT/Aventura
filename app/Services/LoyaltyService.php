@@ -80,6 +80,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $order->branch_id ?? $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'earn',
                 'points' => $pointsEarned,
@@ -133,6 +134,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $order?->branch_id ?? $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'redeem',
                 'points' => -$actual,
@@ -179,6 +181,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $order?->branch_id ?? $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'redeem',
                 'points' => -$totalPointsNeeded,
@@ -218,6 +221,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'redeem',
                 'points' => -$reward->points_cost,
@@ -275,6 +279,7 @@ class LoyaltyService
 
                         LoyaltyTransaction::create([
                             'restaurant_id' => $customer->restaurant_id,
+                            'branch_id' => $customer->branch_id,
                             'customer_id' => $customer->id,
                             'type' => 'expire',
                             'points' => -$pointsToExpire,
@@ -313,6 +318,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'birthday',
                 'points' => $bonus,
@@ -347,6 +353,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'adjust',
                 'points' => $points,
@@ -378,6 +385,7 @@ class LoyaltyService
 
             LoyaltyTransaction::create([
                 'restaurant_id' => $customer->restaurant_id,
+                'branch_id' => $customer->branch_id,
                 'customer_id' => $customer->id,
                 'type' => 'refund',
                 'points' => -$pointsToDeduct,
@@ -441,21 +449,26 @@ class LoyaltyService
         return $qrService->renderSvg($url);
     }
 
-    public function getDashboardMetrics(int $restaurantId): array
+    public function getDashboardMetrics(int $restaurantId, ?int $branchId = null): array
     {
-        return Cache::remember("loyalty_dashboard:{$restaurantId}", 300, function () use ($restaurantId) {
+        $scopeKey = $branchId === null ? 'all' : 'branch:'.$branchId;
+
+        return Cache::remember("loyalty_dashboard:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $branchId) {
             $totalMembers = Customer::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('loyalty_points', '>', 0)
                 ->count();
 
             $totalPointsIssued = (int) LoyaltyTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('type', 'earn')
                 ->sum('points');
 
             $totalPointsRedeemed = (int) abs(LoyaltyTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('type', 'redeem')
                 ->sum('points'));
 
@@ -465,13 +478,14 @@ class LoyaltyService
 
             $tierDistribution = LoyaltyTier::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
-                ->withCount('customers')
+                ->withCount(['customers' => fn ($query) => $query->when($branchId !== null, fn ($customerQuery) => $customerQuery->where('branch_id', $branchId))])
                 ->ordered()
                 ->get()
                 ->map(fn ($t) => ['name' => $t->name, 'color' => $t->color, 'count' => $t->customers_count]);
 
             $recentTransactions = LoyaltyTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->with('customer:id,full_name,phone')
                 ->latest()
                 ->take(20)

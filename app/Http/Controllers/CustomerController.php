@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Services\CdpService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     /**
      * Hiển thị danh sách khách hàng & thống kê CRM.
      */
@@ -25,25 +28,30 @@ class CustomerController extends Controller
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền truy cập trang quản lý khách hàng.');
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // Ensure all customers have RFM records calculated at least once
         $uncalculatedCount = Customer::where('restaurant_id', $restaurantId)
-            ->whereNotExists(function ($query) use ($restaurantId) {
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->whereNotExists(function ($query) use ($restaurantId, $branchId) {
                 $query->select(DB::raw(1))
                     ->from('customer_rfm_analysis')
                     ->whereColumn('customer_rfm_analysis.customer_id', 'customers.id')
-                    ->where('customer_rfm_analysis.restaurant_id', $restaurantId);
+                    ->where('customer_rfm_analysis.restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($rfmQuery) => $rfmQuery->where('customer_rfm_analysis.branch_id', $branchId))
+                    ->when($branchId === null, fn ($rfmQuery) => $rfmQuery->whereNull('customer_rfm_analysis.branch_id'));
             })->count();
 
         if ($uncalculatedCount > 0) {
-            CdpService::calculateRfmForRestaurant($restaurantId);
+            CdpService::calculateRfmForRestaurant($restaurantId, $branchId);
         }
 
         $search = $request->input('search');
         $segment = $request->input('segment', 'all');
         $sort = $request->input('sort', 'default');
 
-        $baseQuery = Customer::query();
+        $baseQuery = Customer::where('restaurant_id', $restaurantId);
+        $this->tenantContext->applyBranchScope($baseQuery);
 
         // Xử lý tìm kiếm động
         if ($search) {
@@ -116,15 +124,18 @@ class CustomerController extends Controller
 
         // Tính toán thống kê CRM
         $restaurantId = $request->user()->restaurant_id;
-        $totalCustomers = Customer::count();
-        $totalPoints = Customer::sum('loyalty_points');
-        $newThisMonth = Customer::where('created_at', '>=', now()->startOfMonth())->count();
+        $scopedCustomers = Customer::where('restaurant_id', $restaurantId);
+        $this->tenantContext->applyBranchScope($scopedCustomers);
+        $totalCustomers = (clone $scopedCustomers)->count();
+        $totalPoints = (clone $scopedCustomers)->sum('loyalty_points');
+        $newThisMonth = (clone $scopedCustomers)->where('created_at', '>=', now()->startOfMonth())->count();
 
         // ── Retention stats ──────────────────────────────────────────────────
         // Khách quay lại: có ít nhất 2 đơn hàng trong 30 ngày qua
         $cutoff = now()->subDays(30);
         $returning = DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
             ->whereNotNull('customer_id')
@@ -133,9 +144,10 @@ class CustomerController extends Controller
             ->having('order_count', '>=', 2)
             ->count();
 
-        $newCustomers30 = Customer::where('created_at', '>=', $cutoff)->count();
+        $newCustomers30 = (clone $scopedCustomers)->where('created_at', '>=', $cutoff)->count();
         $totalOrdering = DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
             ->whereNotNull('customer_id')
@@ -172,6 +184,10 @@ class CustomerController extends Controller
             'tierCounts' => $tierCounts,
             'isOwner' => $request->user()->can('export_customers'),
             'hasRfmFeature' => $hasRfmFeature,
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -238,6 +254,9 @@ class CustomerController extends Controller
     {
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền sửa thông tin khách hàng.');
         abort_if($customer->restaurant_id !== $request->user()->restaurant_id, 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if((int) $customer->branch_id !== (int) $this->tenantContext->activeBranchId(), 403, 'Khách hàng không thuộc chi nhánh đang chọn.');
+        }
 
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
@@ -263,7 +282,9 @@ class CustomerController extends Controller
             return response()->json(['success' => false, 'message' => 'Vui lòng cung cấp số điện thoại tra cứu.']);
         }
 
-        $customer = Customer::where('phone', $phone)->first();
+        $customerQuery = Customer::where('phone', $phone);
+        $this->tenantContext->applyBranchScope($customerQuery);
+        $customer = $customerQuery->first();
 
         if (! $customer) {
             return response()->json(['success' => false, 'message' => 'Không tìm thấy thông tin khách hàng.']);
@@ -302,7 +323,8 @@ class CustomerController extends Controller
             'Expires' => '0',
         ];
 
-        $callback = function () {
+        $branchId = $this->tenantContext->activeBranchId();
+        $callback = function () use ($branchId) {
             $file = fopen('php://output', 'w');
 
             // Thêm UTF-8 BOM để Excel hiển thị đúng tiếng Việt
@@ -321,7 +343,9 @@ class CustomerController extends Controller
             ]);
 
             // Dùng cursor() hoặc chunk() để tối ưu bộ nhớ khi xuất file số lượng lớn
-            Customer::orderBy('id')->chunk(200, function ($customers) use ($file) {
+            $query = Customer::where('restaurant_id', app(TenantContext::class)->restaurantId())
+                ->when($branchId !== null, fn ($customerQuery) => $customerQuery->where('branch_id', $branchId));
+            $query->orderBy('id')->chunk(200, function ($customers) use ($file) {
                 foreach ($customers as $c) {
                     $genderLabel = $c->gender === 'male' ? 'Nam' : ($c->gender === 'female' ? 'Nữ' : ($c->gender === 'other' ? 'Khác' : '—'));
                     fputcsv($file, [

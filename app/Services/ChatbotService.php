@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SystemSetting;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -186,6 +187,7 @@ class ChatbotService
                         'session_id' => $sessionId,
                         'message' => $message,
                         'restaurant_id' => $restaurantId,
+                        'branch_id' => app(TenantContext::class)->activeBranchId(),
                         'mode' => $mode,
                     ]);
 
@@ -220,7 +222,10 @@ class ChatbotService
     private function localAdvisorFallback(string $message, int $restaurantId): array
     {
         try {
-            return app(AdvisorQueryEngine::class, ['restaurantId' => $restaurantId])->handle($message);
+            return app(AdvisorQueryEngine::class, [
+                'restaurantId' => $restaurantId,
+                'branchId' => app(TenantContext::class)->activeBranchId(),
+            ])->handle($message);
         } catch (\Throwable $e) {
             Log::error('AdvisorQueryEngine: lỗi xử lý câu hỏi', ['error' => $e->getMessage()]);
 

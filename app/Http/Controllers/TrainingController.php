@@ -10,6 +10,7 @@ use App\Models\TrainingLesson;
 use App\Models\TrainingQuiz;
 use App\Services\QuotaService;
 use App\Services\TrainingService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,10 @@ use Inertia\Response;
 
 class TrainingController extends Controller
 {
-    public function __construct(private readonly TrainingService $trainingService) {}
+    public function __construct(
+        private readonly TrainingService $trainingService,
+        private readonly TenantContext $tenantContext,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -40,6 +44,7 @@ class TrainingController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
         $this->trainingService->syncDueStatuses($restaurantId);
         $canManage = $request->user()->isOwner()
             || $request->user()->isSuperAdmin()
@@ -50,9 +55,24 @@ class TrainingController extends Controller
             ->withCount(['lessons', 'enrollments'])
             ->with(['quizzes:id,course_id,title,is_required,pass_score,max_attempts', 'lessons:id,course_id,title,content_type,duration_minutes,is_required'])
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->filter(function (TrainingCourse $course) use ($branchId): bool {
+                if ($branchId === null) {
+                    return true;
+                }
+
+                if ($course->branch_id !== null) {
+                    return (int) $course->branch_id === (int) $branchId;
+                }
+
+                $targetBranches = array_map('intval', $course->target_branch_ids ?? []);
+
+                return empty($targetBranches) || in_array((int) $branchId, $targetBranches, true);
+            })
+            ->values();
 
         $enrollments = TrainingEnrollment::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->when(! $canManage, function ($query) use ($request): void {
                 $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('user_id', $request->user()->id));
             })
@@ -62,7 +82,9 @@ class TrainingController extends Controller
             ->get();
 
         $employees = $canManage
-            ? Employee::query()->where('restaurant_id', $restaurantId)->where('status', 'active')->with('branch:id,name', 'user.roles')->orderBy('full_name')->get(['id', 'full_name', 'branch_id', 'user_id'])->map(fn (Employee $employee): array => [
+            ? Employee::query()->where('restaurant_id', $restaurantId)->where('status', 'active')
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                ->with('branch:id,name', 'user.roles')->orderBy('full_name')->get(['id', 'full_name', 'branch_id', 'user_id'])->map(fn (Employee $employee): array => [
                 'id' => $employee->id,
                 'full_name' => $employee->full_name,
                 'branch_id' => $employee->branch_id,
@@ -71,15 +93,17 @@ class TrainingController extends Controller
             ])->values()
             : [];
         $branches = $canManage
-            ? RestaurantBranch::where('restaurant_id', $restaurantId)->where('status', 'active')->orderBy('name')->get(['id', 'name'])
+            ? RestaurantBranch::where('restaurant_id', $restaurantId)->where('status', 'active')
+                ->when($branchId !== null, fn ($query) => $query->whereKey($branchId))
+                ->orderBy('name')->get(['id', 'name'])
             : [];
 
         $stats = [
             'total_courses' => $courses->count(),
-            'total_enrollments' => TrainingEnrollment::where('restaurant_id', $restaurantId)->count(),
-            'completed' => TrainingEnrollment::where('restaurant_id', $restaurantId)->where('status', 'completed')->count(),
-            'in_progress' => TrainingEnrollment::where('restaurant_id', $restaurantId)->where('status', 'in_progress')->count(),
-            ...$this->trainingService->complianceSummary($restaurantId),
+            'total_enrollments' => TrainingEnrollment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->count(),
+            'completed' => TrainingEnrollment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->where('status', 'completed')->count(),
+            'in_progress' => TrainingEnrollment::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->where('status', 'in_progress')->count(),
+            ...$this->trainingService->complianceSummary($restaurantId, $branchId),
         ];
 
         return Inertia::render('training/Index', [
@@ -89,18 +113,21 @@ class TrainingController extends Controller
             'branches' => $branches,
             'stats' => $stats,
             'canManage' => $canManage,
-            'currentEmployeeId' => Employee::where('restaurant_id', $restaurantId)->where('user_id', $request->user()->id)->value('id'),
+            'currentEmployeeId' => Employee::where('restaurant_id', $restaurantId)->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))->where('user_id', $request->user()->id)->value('id'),
+            'branchContext' => $this->tenantContext->toArray(),
         ]);
     }
 
     public function courseContent(Request $request, TrainingCourse $course): JsonResponse
     {
         $this->assertCourseBelongsToTenant($request, $course);
+        $this->assertCourseScope($course);
         $employee = Employee::where('restaurant_id', $request->user()->restaurant_id)
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
         $enrollment = TrainingEnrollment::query()
             ->where('restaurant_id', $request->user()->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($query) => $query->where('branch_id', $this->tenantContext->activeBranchId()))
             ->where('course_id', $course->id)
             ->where('employee_id', $employee->id)
             ->firstOrFail();
@@ -168,6 +195,7 @@ class TrainingController extends Controller
     {
         $this->authorizeManagement($request);
         $this->assertCourseBelongsToTenant($request, $course);
+        $this->assertCourseScope($course);
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -203,6 +231,7 @@ class TrainingController extends Controller
     {
         $this->authorizeManagement($request);
         $this->assertCourseBelongsToTenant($request, $course);
+        $this->assertCourseScope($course);
 
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -245,9 +274,11 @@ class TrainingController extends Controller
         ]);
 
         $course = TrainingCourse::where('restaurant_id', $request->user()->restaurant_id)->findOrFail($data['course_id']);
+        $this->assertCourseScope($course);
 
         $employees = Employee::query()
             ->where('restaurant_id', $request->user()->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($query) => $query->where('branch_id', $this->tenantContext->activeBranchId()))
             ->whereIn('id', $data['employee_ids'])
             ->get(['id', 'branch_id']);
 
@@ -339,6 +370,7 @@ class TrainingController extends Controller
     {
         $this->authorizeManagement($request);
         $this->assertEnrollmentBelongsToTenant($request, $enrollment);
+        $this->assertEnrollmentScope($enrollment);
         $this->trainingService->approveCompletion($enrollment, $request->user());
 
         return back()->with('success', 'Đã ký duyệt hoàn thành đào tạo và phát hành chứng chỉ.');
@@ -348,6 +380,7 @@ class TrainingController extends Controller
     {
         $this->authorizeManagement($request);
         $this->assertEnrollmentBelongsToTenant($request, $enrollment);
+        $this->assertEnrollmentScope($enrollment);
         $data = $request->validate([
             'due_at' => ['required', 'date'],
             'mandatory' => ['boolean'],
@@ -365,6 +398,7 @@ class TrainingController extends Controller
     {
         $this->authorizeManagement($request);
         $this->assertCourseBelongsToTenant($request, $course);
+        $this->assertCourseScope($course);
 
         $course->delete();
 
@@ -392,6 +426,25 @@ class TrainingController extends Controller
         );
     }
 
+    private function assertCourseScope(TrainingCourse $course): void
+    {
+        if (! $this->tenantContext->isBranchScoped()) {
+            return;
+        }
+
+        $branchId = (int) $this->tenantContext->activeBranchId();
+        if ($course->branch_id !== null && (int) $course->branch_id !== $branchId) {
+            abort(403, 'Khóa đào tạo không thuộc chi nhánh đang chọn.');
+        }
+
+        $targetBranches = array_map('intval', $course->target_branch_ids ?? []);
+        abort_if(
+            $course->branch_id === null && ! empty($targetBranches) && ! in_array($branchId, $targetBranches, true),
+            403,
+            'Khóa đào tạo không áp dụng cho chi nhánh đang chọn.',
+        );
+    }
+
     private function assertEnrollmentBelongsToTenant(Request $request, TrainingEnrollment $enrollment): void
     {
         abort_unless(
@@ -402,9 +455,25 @@ class TrainingController extends Controller
         );
     }
 
+    private function assertEnrollmentScope(TrainingEnrollment $enrollment): void
+    {
+        if ($this->tenantContext->isBranchScoped()) {
+            $enrollmentBranchId = $enrollment->branch_id
+                ?? $enrollment->employee?->branch_id
+                ?? $enrollment->employee()->value('branch_id');
+
+            abort_if(
+                (int) $enrollmentBranchId !== (int) $this->tenantContext->activeBranchId(),
+                403,
+                'Đăng ký đào tạo không thuộc chi nhánh đang chọn.',
+            );
+        }
+    }
+
     private function authorizeEnrollmentParticipant(Request $request, TrainingEnrollment $enrollment): void
     {
         $user = $request->user();
+        $this->assertEnrollmentScope($enrollment);
 
         if ($user->isOwner() || $user->isSuperAdmin() || $user->can('training.manage')) {
             return;

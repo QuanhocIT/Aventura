@@ -29,10 +29,13 @@ class GoalTrackingService
         $this->checkMilestones($goal, $percent);
     }
 
-    public function syncAllActive(int $restaurantId): int
+    public function syncAllActive(int $restaurantId, ?int $branchId = null): int
     {
         $goals = BusinessGoal::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId) {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->where('status', 'active')
             ->with('milestones')
             ->get();
@@ -44,10 +47,13 @@ class GoalTrackingService
         return $goals->count();
     }
 
-    public function getHistory(int $restaurantId): array
+    public function getHistory(int $restaurantId, ?int $branchId = null): array
     {
         return BusinessGoal::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId) {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->whereIn('status', ['completed', 'failed'])
             ->latest('end_date')
             ->take(20)
@@ -73,6 +79,7 @@ class GoalTrackingService
         }
 
         $restaurantId = $goal->restaurant_id;
+        $branchId = $goal->branch_id;
         $from = $goal->start_date->copy()->startOfDay();
         $to = $goal->end_date->copy()->endOfDay();
 
@@ -91,48 +98,55 @@ class GoalTrackingService
         return match ($goal->metric) {
             'revenue' => (float) DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->whereBetween('completed_at', [$from, $to])
                 ->sum('total_amount') +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('status', 'completed')
                     ->whereBetween('completed_at', [$from, $to])
                     ->sum('total_amount'),
 
             'orders' => (float) DB::table('orders')
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
                 ->whereBetween('completed_at', [$from, $to])
                 ->count() +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('status', 'completed')
                     ->whereBetween('completed_at', [$from, $to])
                     ->count(),
 
             'customers' => (float) DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->whereBetween('created_at', [$from, $to])
                 ->count(),
 
             'rating' => (float) DB::table('customer_feedback')
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->whereBetween('created_at', [$from, $to])
                 ->avg('rating') ?? 0,
 
-            'cost_saving' => $this->calculateCostSaving($restaurantId, $from, $to),
+            'cost_saving' => $this->calculateCostSaving($restaurantId, $from, $to, $branchId),
 
             default => (float) $goal->current_value,
         };
     }
 
-    private function calculateCostSaving(int $restaurantId, $from, $to): float
+    private function calculateCostSaving(int $restaurantId, $from, $to, ?int $branchId = null): float
     {
         $wasteCost = (float) DB::table('inventory_transactions')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('type', 'waste')
             ->whereBetween('occurred_at', [$from, $to])
             ->sum('total_cost');
@@ -141,6 +155,7 @@ class GoalTrackingService
         $prevFrom = $from->copy()->subDays($periodDays);
         $prevWaste = (float) DB::table('inventory_transactions')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('type', 'waste')
             ->whereBetween('occurred_at', [$prevFrom, $from])
             ->sum('total_cost');

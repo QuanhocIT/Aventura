@@ -11,6 +11,7 @@ use App\Services\FraudDetectionService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use Carbon\Carbon;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class FraudController extends Controller
         private ApprovalService $approvalService,
         private FraudDetectionService $fraudService,
         private ApprovalAuthorityService $authorityService,
+        private TenantContext $tenantContext,
     ) {}
 
     public function index(Request $request): Response
@@ -49,6 +51,7 @@ class FraudController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
         $period = $request->input('period', today()->format('Y-m'));
         $activeTab = $request->input('tab', 'ai');
 
@@ -63,16 +66,17 @@ class FraudController extends Controller
 
         // Lazy-tab: only run the active tab's heavy detail query
         $data = match ($activeTab) {
-            'ai' => $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end),
-            'audit' => $this->fraudService->getAuditLogs($restaurantId),
-            'discount' => $this->fraudService->detectDiscountAnomalies($restaurantId, $start, $end),
-            'cancel' => $this->fraudService->detectSuspiciousCancellations($restaurantId, $start, $end),
-            'waste' => $this->fraudService->detectInventoryWasteSpikes($restaurantId, $start, $end),
-            'revenue' => $this->fraudService->detectRevenueDiscrepancies($restaurantId, $start, $end),
-            default => $this->fraudService->detectCashShortfalls($restaurantId, $start, $end),
+            'ai' => $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end, $branchId),
+            'audit' => $this->fraudService->getAuditLogs($restaurantId, $branchId),
+            'discount' => $this->fraudService->detectDiscountAnomalies($restaurantId, $start, $end, $branchId),
+            'cancel' => $this->fraudService->detectSuspiciousCancellations($restaurantId, $start, $end, $branchId),
+            'waste' => $this->fraudService->detectInventoryWasteSpikes($restaurantId, $start, $end, $branchId),
+            'revenue' => $this->fraudService->detectRevenueDiscrepancies($restaurantId, $start, $end, $branchId),
+            default => $this->fraudService->detectCashShortfalls($restaurantId, $start, $end, $branchId),
         };
 
         $violations = ViolationReport::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->with(['employee', 'reportedBy'])
             ->latest()
             ->get()
@@ -94,11 +98,15 @@ class FraudController extends Controller
         return Inertia::render('fraud/Index', [
             'period' => $period,
             'activeTab' => $activeTab,
-            'summary' => $this->fraudService->getSummary($restaurantId, $start, $end),
+            'summary' => $this->fraudService->getSummary($restaurantId, $start, $end, $branchId),
             'data' => $data,
             'violations' => $violations,
             'canAct' => $user->can('approve_requests') || $user->can('manage_violations'),
             'dateRange' => ['start' => $start, 'end' => $end],
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 

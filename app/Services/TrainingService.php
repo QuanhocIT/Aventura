@@ -302,9 +302,10 @@ class TrainingService
         return $count;
     }
 
-    public function complianceSummary(int $restaurantId): array
+    public function complianceSummary(int $restaurantId, ?int $branchId = null): array
     {
-        $base = TrainingEnrollment::where('restaurant_id', $restaurantId);
+        $base = TrainingEnrollment::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
 
         return [
             'assigned' => (clone $base)->whereIn('status', ['enrolled', 'in_progress'])->count(),
@@ -386,7 +387,8 @@ class TrainingService
         $branches = array_map('intval', array_values(array_filter($course->target_branch_ids ?? [])));
         $employeeRole = $employee->user?->roles?->first()?->name ?? $employee->role?->name;
 
-        return (empty($roles) || in_array($employeeRole, $roles, true))
+        return ($course->branch_id === null || (int) $course->branch_id === (int) $employee->branch_id)
+            && (empty($roles) || in_array($employeeRole, $roles, true))
             && (empty($branches) || in_array((int) $employee->branch_id, $branches, true));
     }
 

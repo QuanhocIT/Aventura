@@ -94,6 +94,22 @@ class TenantContext
         return self::branchScopeKey($this->activeBranchId, $this->scope);
     }
 
+    /**
+     * Serializable context for page props and API responses.
+     * Keeping this shape in one place prevents individual pages from
+     * exposing a different interpretation of the active scope.
+     *
+     * @return array{scope: string, scope_key: string, active_branch_id: ?int}
+     */
+    public function toArray(): array
+    {
+        return [
+            'scope' => $this->scope(),
+            'scope_key' => $this->scopeKey(),
+            'active_branch_id' => $this->activeBranchId(),
+        ];
+    }
+
     public static function branchScopeKey(?int $branchId, ?string $scope = null): string
     {
         if ($scope === self::SCOPE_NONE) {

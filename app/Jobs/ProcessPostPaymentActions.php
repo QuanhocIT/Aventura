@@ -50,7 +50,7 @@ class ProcessPostPaymentActions implements ShouldQueue
                 $loyaltyService->earnPoints($customer, $order, (float) $order->total_amount);
                 $loyaltyService->recalculateTier($customer);
 
-                CdpService::calculateRfmForCustomer($customer);
+                CdpService::calculateRfmForCustomer($customer, $order->branch_id);
             }
         }
     }

@@ -91,11 +91,15 @@ class DataLifecycleService
     private function technicalPreview(): array
     {
         return [
-            'failed_jobs' => Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0,
+            'failed_jobs' => Schema::hasTable('failed_jobs')
+                ? DB::table('failed_jobs')->where('failed_at', '<', now()->subDays((int) config('data_lifecycle.technical.failed_jobs_retention_days', 30)))->count()
+                : 0,
             'finished_job_batches' => Schema::hasTable('job_batches')
-                ? DB::table('job_batches')->where(function ($q) {
-                    $q->whereNotNull('finished_at')->orWhereNotNull('cancelled_at');
-                })->count()
+                ? DB::table('job_batches')
+                    ->where('created_at', '<', now()->subDays((int) config('data_lifecycle.technical.job_batches_retention_days', 90))->timestamp)
+                    ->where(function ($q) {
+                        $q->whereNotNull('finished_at')->orWhereNotNull('cancelled_at');
+                    })->count()
                 : 0,
             'expired_sessions' => Schema::hasTable('sessions')
                 ? DB::table('sessions')->where('last_activity', '<', time() - config('session.lifetime', 120) * 60)->count()

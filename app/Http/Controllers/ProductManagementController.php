@@ -36,8 +36,16 @@ class ProductManagementController extends Controller
         $restaurantId = $user->restaurant_id;
         $context = app(TenantContext::class);
         $scopeKey = $context->scopeKey();
+        $activeBranch = $context->isBranchScoped()
+            ? RestaurantBranch::find($context->activeBranchId())
+            : null;
+        $isWarehouse = $activeBranch && ($activeBranch->is_central_warehouse || $activeBranch->warehouse_type === 'central');
 
-        $categories = Cache::remember("restaurant_{$restaurantId}_categories:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context) {
+        $categories = Cache::remember("restaurant_{$restaurantId}_categories:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context, $isWarehouse) {
+            if ($isWarehouse) {
+                return [];
+            }
+
             return ProductCategory::where('restaurant_id', $restaurantId)
                 ->when($context->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($context) {
                     $q->whereNull('branch_id')->orWhere('branch_id', $context->activeBranchId());
@@ -54,7 +62,11 @@ class ProductManagementController extends Controller
                 ->toArray();
         });
 
-        $products = Cache::remember("restaurant_{$restaurantId}_products:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context) {
+        $products = Cache::remember("restaurant_{$restaurantId}_products:scope:{$scopeKey}", 3600, function () use ($restaurantId, $context, $isWarehouse) {
+            if ($isWarehouse) {
+                return [];
+            }
+
             return Product::where('restaurant_id', $restaurantId)
                 ->when($context->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($context) {
                     $q->whereNull('branch_id')->orWhere('branch_id', $context->activeBranchId());

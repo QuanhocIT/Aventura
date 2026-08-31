@@ -160,10 +160,11 @@ class PromotionController extends Controller
         $start = now()->subDays(30)->toDateString();
         $end = now()->toDateString();
 
-        $fraudAlerts = $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end);
+        $activeBranchId = app(TenantContext::class)->activeBranchId();
+        $fraudAlerts = $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end, $activeBranchId);
 
         // Lọc ngay trong SQL thay vì cắt 100 log gần nhất rồi mới lọc ở PHP.
-        $voucherLogs = $this->fraudService->getVoucherAuditLogs($restaurantId)['logs'] ?? [];
+        $voucherLogs = $this->fraudService->getVoucherAuditLogs($restaurantId, 100, ['discount_applied', 'discount_applied_bypass'], $activeBranchId)['logs'] ?? [];
 
         // 3. Danh sách món ăn đang bán (để map giá thật khi tạo Combo nhanh từ gợi ý AI)
         $products = Product::where('restaurant_id', $restaurantId)
@@ -205,7 +206,7 @@ class PromotionController extends Controller
             'canManagePrices' => $canManagePrices,
             'canCreatePromotions' => $user->can('manage_orders'),
             'canRunAnalytics' => $user->can('view_report'),
-            'activeBranchId' => app(TenantContext::class)->activeBranchId(),
+            'activeBranchId' => $activeBranchId,
         ]);
     }
 

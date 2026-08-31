@@ -212,7 +212,13 @@ class DashboardController extends Controller
             $cancelledToday = $todayLiveStats['cancelled'];
 
             // ── Xu hướng so hôm qua ─────────────────────────────────────────
-            $revenueToday = (float) ($todaySummary?->net_revenue ?? 0);
+            // Ưu tiên doanh thu live cùng phạm vi khi trong ngày đã có đơn
+            // hoàn tất. Nếu chưa có đơn live (hoặc bản ghi test/legacy chỉ có
+            // summary), dùng summary đúng scope làm fallback.
+            $liveNetRevenue = $todayLiveStats['net_revenue'] ?? null;
+            $revenueToday = $liveNetRevenue !== null
+                ? (float) $liveNetRevenue
+                : (float) ($todaySummary?->net_revenue ?? 0);
             $revenueYesterday = (float) ($yesterdaySummary?->net_revenue ?? 0);
             $revTrend = $revenueYesterday > 0
                 ? round(($revenueToday - $revenueYesterday) / $revenueYesterday * 100, 1)
@@ -233,25 +239,44 @@ class DashboardController extends Controller
                 ? round($completedToday / $totalToday * 100, 1)
                 : 0.0;
 
-            // Cache resource counts per branch or consolidated
-            $cacheSuffix = $branchId ? ":{$branchId}" : '';
-            $resourceCounts = Cache::remember("dashboard_counts:{$rid}{$cacheSuffix}", 300, function () use ($restaurant, $branchId) {
-                $productsQuery = $restaurant->products();
-                if ($branchId !== null) {
-                    $productsQuery->where(function ($q) use ($branchId) {
-                        $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
-                    });
-                }
+            // Cache resource counts bằng scope key đầy đủ để "all", branch:X
+            // và các scope đặc biệt không bao giờ dùng chung dữ liệu cũ.
+            $resourceCounts = Cache::remember(
+                "dashboard_counts:v2:{$rid}:{$this->tenantContext->scopeKey()}",
+                300,
+                function () use ($restaurant, $branchId) {
+                    $isWarehouse = false;
+                    if ($branchId !== null) {
+                        $branch = $restaurant->branches()->find($branchId);
+                        $isWarehouse = $branch && ($branch->is_central_warehouse || $branch->warehouse_type === 'central');
+                    }
 
-                return [
-                    // Products with NULL branch_id are chain-wide menu items
-                    // and are visible from every concrete branch.
-                    'products_count' => $productsQuery->count(),
-                    'employees_count' => $restaurant->employees()->where('status', 'active')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
-                    'branches_count' => $restaurant->branches()->count(),
-                    'tables_count' => $restaurant->tables()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
-                ];
-            });
+                    if ($isWarehouse) {
+                        $productsCount = 0;
+                        $tablesCount = 0;
+                    } else {
+                        $productsQuery = $restaurant->products()
+                            ->where('is_active', true)
+                            ->where('is_available', true);
+                        if ($branchId !== null) {
+                            $productsQuery->where(function ($q) use ($branchId) {
+                                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                            });
+                        }
+                        $productsCount = $productsQuery->count();
+                        $tablesCount = $restaurant->tables()->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))->count();
+                    }
+
+                    return [
+                        // Products with NULL branch_id are chain-wide menu items
+                        // and are visible from every concrete dining branch.
+                        'products_count' => $productsCount,
+                        'employees_count' => $restaurant->employees()->where('status', 'active')->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))->count(),
+                        'branches_count' => $restaurant->branches()->count(),
+                        'tables_count' => $tablesCount,
+                    ];
+                },
+            );
 
             $stats = array_merge($resourceCounts, [
                 'orders_today' => $totalToday,

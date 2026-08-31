@@ -112,6 +112,7 @@ class DashboardHealthService
         // NPS
         $npsData = CustomerFeedback::where('restaurant_id', $rid)
             ->where('created_at', '>=', now()->subDays(7))
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
             ->first();
         $npsScore = $npsData && $npsData->cnt > 0
@@ -241,14 +242,14 @@ class DashboardHealthService
             ->groupBy('inventories.branch_id')
             ->pluck('cnt', 'inventories.branch_id');
 
-        // 5. Customer feedback NPS (restaurant-wide, constant across branches)
-        $npsData = CustomerFeedback::where('restaurant_id', $rid)
+        // 5. Customer feedback NPS per branch
+        $npsByBranch = CustomerFeedback::where('restaurant_id', $rid)
             ->where('created_at', '>=', now()->subDays(7))
-            ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as cnt')
-            ->first();
-        $npsScore = $npsData && $npsData->cnt > 0
-            ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100))
-            : 70;
+            ->whereIn('branch_id', $uncachedIds)
+            ->selectRaw('branch_id, AVG(rating) as avg_rating, COUNT(*) as cnt')
+            ->groupBy('branch_id')
+            ->get()
+            ->keyBy('branch_id');
 
         foreach ($uncachedIds as $bId) {
             $todaySum = $summariesToday->get($bId);
@@ -288,6 +289,11 @@ class DashboardHealthService
                 ? ($bSafeIng / $bTotalIng) * 100
                 : 80;
 
+            $npsData = $npsByBranch->get($bId);
+            $npsScoreVal = $npsData && $npsData->cnt > 0
+                ? min(100, max(0, (($npsData->avg_rating - 1) / 4) * 100))
+                : 70;
+
             $score = (int) round(
                 min(100, max(0,
                     ($completionRateVal * 0.25) +
@@ -296,7 +302,7 @@ class DashboardHealthService
                     (min(100, $profitMarginVal * 1.5) * 0.15) +
                     ($punctualityScoreVal * 0.10) +
                     ($inventoryScoreVal * 0.10) +
-                    ($npsScore * 0.05)
+                    ($npsScoreVal * 0.05)
                 ))
             );
 

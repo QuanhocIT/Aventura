@@ -73,15 +73,21 @@ class DatabaseMaintenanceService
     {
         $failedJobsDeleted = 0;
         $batchesDeleted = 0;
+        $failedJobsCutoff = now()->subDays((int) config('data_lifecycle.technical.failed_jobs_retention_days', 30));
+        $batchesCutoff = now()->subDays((int) config('data_lifecycle.technical.job_batches_retention_days', 90))->timestamp;
 
         if (Schema::hasTable('failed_jobs')) {
-            $failedJobsDeleted = DB::table('failed_jobs')->delete();
+            $failedJobsDeleted = DB::table('failed_jobs')
+                ->where('failed_at', '<', $failedJobsCutoff)
+                ->delete();
         }
 
         if (Schema::hasTable('job_batches')) {
             $batchesDeleted = DB::table('job_batches')
-                ->whereNotNull('finished_at')
-                ->orWhereNotNull('cancelled_at')
+                ->where('created_at', '<', $batchesCutoff)
+                ->where(function ($query) {
+                    $query->whereNotNull('finished_at')->orWhereNotNull('cancelled_at');
+                })
                 ->delete();
         }
 

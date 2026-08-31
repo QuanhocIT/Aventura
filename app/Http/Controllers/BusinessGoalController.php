@@ -7,6 +7,7 @@ use App\Models\GoalAction;
 use App\Models\GoalMilestone;
 use App\Services\GoalTrackingService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,10 @@ use Inertia\Response;
 
 class BusinessGoalController extends Controller
 {
-    public function __construct(private GoalTrackingService $tracking) {}
+    public function __construct(
+        private GoalTrackingService $tracking,
+        private TenantContext $tenantContext,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -37,30 +41,37 @@ class BusinessGoalController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
         if (! $restaurantId) {
             return Inertia::render('business-goals/Index', [
                 'activeGoals' => [],
                 'history' => [],
+                'branchContext' => $this->tenantContext->toArray(),
             ]);
         }
 
-        $cooldownKey = "goals_sync_cooldown:{$restaurantId}";
+        $scopeKey = $branchId === null ? 'all' : 'branch:'.$branchId;
+        $cooldownKey = "goals_sync_cooldown:{$restaurantId}:{$scopeKey}";
         if ($request->boolean('refresh') || ! Cache::has($cooldownKey)) {
-            $this->tracking->syncAllActive($restaurantId);
+            $this->tracking->syncAllActive($restaurantId, $branchId);
             Cache::put($cooldownKey, true, 300); // 5 minutes cooldown; users can still force refresh
         }
 
         $activeGoals = BusinessGoal::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId) {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->where('status', 'active')
             ->with(['milestones', 'actions.assignee:id,name'])
             ->orderBy('end_date')
             ->get();
 
-        $history = $this->tracking->getHistory($restaurantId);
+        $history = $this->tracking->getHistory($restaurantId, $branchId);
 
         return Inertia::render('business-goals/Index', [
             'activeGoals' => $activeGoals,
             'history' => $history,
+            'branchContext' => $this->tenantContext->toArray(),
         ]);
     }
 
@@ -84,6 +95,7 @@ class BusinessGoalController extends Controller
 
         $goal = BusinessGoal::create([
             'restaurant_id' => $request->user()->restaurant_id,
+            'branch_id' => $this->tenantContext->activeBranchId(),
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'owner_name' => $data['owner_name'] ?? null,
@@ -164,6 +176,14 @@ class BusinessGoalController extends Controller
                 (int) $goal->restaurant_id === (int) $request->user()->restaurant_id,
                 403,
                 'Mục tiêu không thuộc nhà hàng của bạn.',
+            );
+        }
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_if(
+                $goal->branch_id !== null && (int) $goal->branch_id !== (int) $this->tenantContext->activeBranchId(),
+                403,
+                'Mục tiêu không thuộc chi nhánh đang chọn.',
             );
         }
     }

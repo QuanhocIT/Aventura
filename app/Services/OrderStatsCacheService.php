@@ -14,8 +14,8 @@ use Illuminate\Support\Facades\DB;
  * Order::booted() hook.
  *
  * Cache key pattern:
- *   order_stats:{restaurant_id}:{YYYY-MM-DD}        — all branches
- *   order_stats:{restaurant_id}:{YYYY-MM-DD}:{branch_id} — per branch
+ *   order_stats:v2:{restaurant_id}:{YYYY-MM-DD}:all        — all branches
+ *   order_stats:v2:{restaurant_id}:{YYYY-MM-DD}:branch:{id} — per branch
  */
 class OrderStatsCacheService
 {
@@ -25,7 +25,7 @@ class OrderStatsCacheService
     /**
      * Trả về thống kê đơn hàng hôm nay (có cache).
      *
-     * @return array{total: int, completed: int, cancelled: int, pending: int}
+     * @return array{total: int, completed: int, cancelled: int, pending: int, net_revenue: float|null}
      */
     public function getTodayStats(int $restaurantId, ?int $branchId = null): array
     {
@@ -92,7 +92,7 @@ class OrderStatsCacheService
         $date ??= today()->toDateString();
         $scopeKey = TenantContext::branchScopeKey($branchId);
 
-        return "order_stats:{$restaurantId}:{$date}:{$scopeKey}";
+        return "order_stats:v2:{$restaurantId}:{$date}:{$scopeKey}";
     }
 
     /**
@@ -106,11 +106,39 @@ class OrderStatsCacheService
         $rows = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
             ->whereBetween('created_at', [$start, $end])
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->whereNull('deleted_at')
             ->selectRaw('status, COUNT(*) as cnt')
             ->groupBy('status')
             ->pluck('cnt', 'status');
+
+        // Doanh thu phải dùng cùng phạm vi chi nhánh nhưng theo thời điểm
+        // hoàn tất đơn. Đây là fallback live cho Dashboard khi bản tổng hợp
+        // doanh thu chưa được worker cập nhật kịp.
+        $completedRevenue = DB::table('orders')
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$start, $end])
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereNull('deleted_at')
+            ->selectRaw('COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as gross_revenue')
+            ->first();
+
+        $netRevenue = null;
+        if ((int) ($completedRevenue->order_count ?? 0) > 0) {
+            $refundTotal = DB::table('payments')
+                ->join('orders', 'payments.order_id', '=', 'orders.id')
+                ->where('payments.restaurant_id', $restaurantId)
+                ->where('orders.restaurant_id', $restaurantId)
+                ->where('payments.status', 'refunded')
+                ->whereBetween('payments.created_at', [$start, $end])
+                ->when($branchId !== null, fn ($q) => $q->where('orders.branch_id', $branchId))
+                ->whereNull('payments.deleted_at')
+                ->whereNull('orders.deleted_at')
+                ->sum('payments.amount');
+
+            $netRevenue = max(0.0, (float) $completedRevenue->gross_revenue - (float) $refundTotal);
+        }
 
         $total = $rows->sum();
         $completed = (int) ($rows->get('completed', 0));
@@ -122,6 +150,7 @@ class OrderStatsCacheService
             'completed' => $completed,
             'cancelled' => $cancelled,
             'pending' => $pending,
+            'net_revenue' => $netRevenue,
         ];
     }
 }

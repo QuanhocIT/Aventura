@@ -58,7 +58,28 @@ class SupportController extends Controller
             ->take(10)
             ->get();
 
+        $announcementAudiences = ['all'];
+        if ($user->isOwner()) {
+            $announcementAudiences[] = 'owner';
+        }
+        if ($user->hasAnyRole(['cashier'])) {
+            $announcementAudiences[] = 'cashier';
+        }
+        if ($user->hasAnyRole(['kitchen'])) {
+            $announcementAudiences[] = 'kitchen';
+        }
+        if ($user->hasAnyRole(['manager', 'admin'])) {
+            $announcementAudiences = ['all', 'owner', 'cashier', 'kitchen'];
+        }
+
         $announcements = SupportAnnouncement::where('status', 'published')
+            ->whereIn('audience', array_values(array_unique($announcementAudiences)))
+            ->where(function ($query) {
+                $query->whereNull('starts_at')->orWhere('starts_at', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->whereNull('ends_at')->orWhere('ends_at', '>=', now());
+            })
             ->latest()
             ->take(5)
             ->get();

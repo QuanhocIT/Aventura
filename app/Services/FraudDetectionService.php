@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Support\Tenant\TenantContext;
 
 class FraudDetectionService
 {
@@ -19,9 +20,14 @@ class FraudDetectionService
     /** Số lần áp mã liên tiếp trong 15 phút bị coi là bất thường. */
     public const DISCOUNT_BURST_COUNT = 3;
 
+    private function branchCondition(string $column, ?int $branchId): string
+    {
+        return $branchId === null ? '' : ' AND '.$column.' = '.(int) $branchId;
+    }
+
     // ── Summary (fast COUNT queries for KPI cards) ────────────────────────────
 
-    public function getSummary(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function getSummary(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $startDateTime = $periodStart.' 00:00:00';
         $endDateTime = $periodEnd.' 23:59:59';
@@ -29,15 +35,17 @@ class FraudDetectionService
         $cashCount = DB::selectOne(
             'SELECT COUNT(DISTINCT cashier_user_id) AS cnt
              FROM shift_closings
-             WHERE restaurant_id = ? AND closing_date BETWEEN ? AND ? AND cash_difference < -50000',
+             WHERE restaurant_id = ? AND closing_date BETWEEN ? AND ? AND cash_difference < -50000'
+            .$this->branchCondition('shift_closings.branch_id', $branchId),
             [$restaurantId, $periodStart, $periodEnd]
         );
 
         $discountCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT DATE(created_at)
-                FROM orders
-                WHERE restaurant_id = ? AND status = ? AND created_at BETWEEN ? AND ?
+             FROM orders
+                WHERE restaurant_id = ? AND status = ? AND created_at BETWEEN ? AND ?'
+                .$this->branchCondition('orders.branch_id', $branchId).'
                 GROUP BY DATE(created_at)
                 HAVING SUM(discount_amount)/NULLIF(SUM(subtotal),0)*100 > 20
                     OR SUM(discount_amount) > 2000000
@@ -48,9 +56,10 @@ class FraudDetectionService
         // The returns first row only — use subquery for correct count
         $cancelCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM (
-                SELECT cancelled_by
+             SELECT cancelled_by
                 FROM orders
-                WHERE restaurant_id = ? AND status = ? AND cancelled_at BETWEEN ? AND ?
+                WHERE restaurant_id = ? AND status = ? AND cancelled_at BETWEEN ? AND ?'
+                .$this->branchCondition('orders.branch_id', $branchId).'
                 GROUP BY cancelled_by
                 HAVING COUNT(*) > 3 OR SUM(total_amount) > 1000000
              ) AS t',
@@ -60,7 +69,8 @@ class FraudDetectionService
         $wasteCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM (
                 SELECT id FROM inventory_transactions
-                WHERE restaurant_id = ? AND type = ? AND total_cost > 500000
+                WHERE restaurant_id = ? AND type = ? AND total_cost > 500000'
+                  .$this->branchCondition('inventory_transactions.branch_id', $branchId).'
                   AND occurred_at BETWEEN ? AND ?
              ) AS t',
             [$restaurantId, 'waste', $startDateTime, $endDateTime]
@@ -72,27 +82,31 @@ class FraudDetectionService
                 FROM restaurant_revenue_summaries rrs
                 LEFT JOIN shift_closings sc
                     ON sc.restaurant_id = rrs.restaurant_id
-                   AND sc.closing_date = rrs.summary_date AND sc.status = ?
+                   AND sc.closing_date = rrs.summary_date AND sc.status = ?'
+                   .$this->branchCondition('sc.branch_id', $branchId).'
                 WHERE rrs.restaurant_id = ? AND rrs.summary_type = ?
                   AND rrs.scope_key = ? AND rrs.summary_date BETWEEN ? AND ?
+                  '.$this->branchCondition('rrs.branch_id', $branchId).'
                 GROUP BY rrs.summary_date, rrs.net_revenue
                 HAVING rrs.net_revenue > 0
                    AND ABS(rrs.net_revenue - COALESCE(SUM(sc.expected_cash + sc.transfer_amount),0))
                        / rrs.net_revenue * 100 > 5
              ) AS t',
-            ['confirmed', $restaurantId, 'daily', 'restaurant', $periodStart, $periodEnd]
+            ['confirmed', $restaurantId, 'daily', TenantContext::summaryScopeKey($branchId), $periodStart, $periodEnd]
         );
 
         $aiCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
              WHERE restaurant_id = ? AND action IN (\'order_split\', \'discount_applied\', \'price_modified\')
-               AND created_at BETWEEN ? AND ?',
+               AND created_at BETWEEN ? AND ?'
+               .$this->branchCondition('audit_logs.branch_id', $branchId),
             [$restaurantId, $startDateTime, $endDateTime]
         );
 
         $auditCount = DB::selectOne(
             'SELECT COUNT(*) AS cnt FROM audit_logs
-             WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?',
+             WHERE restaurant_id = ? AND created_at BETWEEN ? AND ?'
+             .$this->branchCondition('audit_logs.branch_id', $branchId),
             [$restaurantId, $startDateTime, $endDateTime]
         );
 
@@ -110,30 +124,32 @@ class FraudDetectionService
     /**
      * Thuật toán AI quét audit_logs phát hiện sửa giá nhiều lần và hủy món sau thanh toán.
      */
-    public function detectAiFraudAlerts(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectAiFraudAlerts(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
-        $cacheKey = "fraud_alerts:{$restaurantId}:{$periodStart}:{$periodEnd}";
+        $scopeKey = $branchId === null ? 'all' : 'branch:'.$branchId;
+        $cacheKey = "fraud_alerts:{$restaurantId}:{$periodStart}:{$periodEnd}:{$scopeKey}";
 
         // 1. Read from Redis Cache
         if (Cache::has($cacheKey)) {
-            return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, Cache::get($cacheKey));
+            return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, Cache::get($cacheKey), $branchId);
         }
 
         // 2. Cache Miss: Dispatch background job to fetch fresh alerts asynchronously
         // We use a lock flag to avoid dispatching multiple duplicate jobs simultaneously
-        $lockKey = "fraud_alerts_job_dispatched:{$restaurantId}";
+        $lockKey = "fraud_alerts_job_dispatched:{$restaurantId}:{$scopeKey}";
         $breakerAvailable = app(CircuitBreaker::class)->for('analytics_service')->isAvailable();
         if ($breakerAvailable && ! Cache::has($lockKey)) {
             Cache::put($lockKey, true, 60); // 1 minute lock
-            dispatch(new FetchAiFraudAlertsJob($restaurantId, $periodStart, $periodEnd));
+            dispatch(new FetchAiFraudAlertsJob($restaurantId, $periodStart, $periodEnd, $branchId));
 
             if (Cache::has($cacheKey)) {
-                return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, Cache::get($cacheKey));
+                return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, Cache::get($cacheKey), $branchId);
             }
         }
 
         // 3. Fallback PHP: Phân tích audit_logs thực tế — KHÔNG dùng dữ liệu giả
         $logs = AuditLog::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereIn('action', ['price_modified', 'discount_applied', 'order_cancelled', 'order_split'])
             ->with(['user'])
             ->latest('created_at')
@@ -187,6 +203,7 @@ class FraudDetectionService
             } elseif ($log->action === 'order_cancelled') {
                 $cancelValue = (float) ($log->old_values['total_amount'] ?? $log->new_values['total_amount'] ?? 0);
                 $cancelCount = $cancelCountsByUser[$log->user_id] ??= AuditLog::where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('user_id', $log->user_id)
                     ->where('action', 'order_cancelled')
                     ->where('created_at', '>=', $log->created_at->copy()->subHours(2))
@@ -232,6 +249,7 @@ class FraudDetectionService
                 $ratio = $beforeTotal > 0 ? ($discount / $beforeTotal) * 100 : 0.0;
 
                 $burstCount = $burstCountsByUser[$log->user_id] ??= AuditLog::where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->where('user_id', $log->user_id)
                     ->where('action', 'discount_applied')
                     ->where('created_at', '>=', $log->created_at->copy()->subMinutes(15))
@@ -268,12 +286,13 @@ class FraudDetectionService
             }
         }
 
-        return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, $alerts);
+        return $this->mergePoDiscrepancies($restaurantId, $periodStart, $periodEnd, $alerts, $branchId);
     }
 
-    private function mergePoDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd, array $alerts): array
+    private function mergePoDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd, array $alerts, ?int $branchId = null): array
     {
         $poLogs = AuditLog::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('action', 'po_discrepancy')
             ->whereBetween('created_at', [$periodStart.' 00:00:00', $periodEnd.' 23:59:59'])
             ->latest('created_at')
@@ -325,15 +344,16 @@ class FraudDetectionService
     /**
      * Lấy toàn bộ danh sách Nhật ký kiểm toán phân trang cho Quản lý.
      */
-    public function getAuditLogs(int $restaurantId): array
+    public function getAuditLogs(int $restaurantId, ?int $branchId = null): array
     {
         $logs = AuditLog::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->with(['user'])
             ->latest('created_at')
             ->take(100)
             ->get();
 
-        return $this->buildAuditLogPayload($restaurantId, $logs);
+        return $this->buildAuditLogPayload($restaurantId, $logs, $branchId);
     }
 
     /**
@@ -346,22 +366,23 @@ class FraudDetectionService
      *
      * @param  list<string>  $actions
      */
-    public function getVoucherAuditLogs(int $restaurantId, int $limit = 100, array $actions = ['discount_applied', 'discount_applied_bypass']): array
+    public function getVoucherAuditLogs(int $restaurantId, int $limit = 100, array $actions = ['discount_applied', 'discount_applied_bypass'], ?int $branchId = null): array
     {
         $logs = AuditLog::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereIn('action', $actions)
             ->with(['user'])
             ->latest('created_at')
             ->take($limit)
             ->get();
 
-        return $this->buildAuditLogPayload($restaurantId, $logs);
+        return $this->buildAuditLogPayload($restaurantId, $logs, $branchId);
     }
 
     /**
      * @param  Collection<int, AuditLog>  $logs
      */
-    private function buildAuditLogPayload(int $restaurantId, $logs): array
+    private function buildAuditLogPayload(int $restaurantId, $logs, ?int $branchId = null): array
     {
         $assignments = collect();
         if ($logs->isNotEmpty()) {
@@ -370,6 +391,7 @@ class FraudDetectionService
             $maxDate = $timestamps->max()->copy()->addDay()->toDateString();
 
             $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
                 ->whereBetween('scheduled_date', [$minDate, $maxDate])
                 ->with(['employee', 'shift'])
@@ -419,7 +441,7 @@ class FraudDetectionService
 
     // ── 1. Cash Shortfalls ────────────────────────────────────────────────────
 
-    public function detectCashShortfalls(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectCashShortfalls(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $rows = DB::select(
             'SELECT sc.cashier_user_id, u.name AS cashier_name,
@@ -428,7 +450,8 @@ class FraudDetectionService
              FROM shift_closings sc
              JOIN users u ON u.id = sc.cashier_user_id
              WHERE sc.restaurant_id = ? AND sc.closing_date BETWEEN ? AND ?
-               AND sc.cash_difference < -50000
+               AND sc.cash_difference < -50000'
+               .$this->branchCondition('sc.branch_id', $branchId).'
              GROUP BY sc.cashier_user_id, u.name
              ORDER BY total_difference ASC',
             [$restaurantId, $periodStart, $periodEnd]
@@ -443,7 +466,8 @@ class FraudDetectionService
                  FROM shift_closings sc
                  LEFT JOIN work_shifts ws ON ws.id = sc.shift_id
                  WHERE sc.restaurant_id = ? AND sc.cashier_user_id = ?
-                   AND sc.closing_date BETWEEN ? AND ? AND sc.cash_difference < -50000
+                   AND sc.closing_date BETWEEN ? AND ? AND sc.cash_difference < -50000'
+                   .$this->branchCondition('sc.branch_id', $branchId).'
                  ORDER BY sc.closing_date DESC',
                 [$restaurantId, $row->cashier_user_id, $periodStart, $periodEnd]
             );
@@ -482,7 +506,7 @@ class FraudDetectionService
 
     // ── 2. Discount Anomalies ─────────────────────────────────────────────────
 
-    public function detectDiscountAnomalies(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectDiscountAnomalies(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $startDateTime = $periodStart.' 00:00:00';
         $endDateTime = $periodEnd.' 23:59:59';
@@ -495,7 +519,8 @@ class FraudDetectionService
                     SUM(o.discount_amount)/NULLIF(SUM(o.subtotal),0)*100 AS discount_rate_pct
              FROM orders o
              WHERE o.restaurant_id = ? AND o.status = ?
-               AND o.created_at BETWEEN ? AND ?
+               AND o.created_at BETWEEN ? AND ?'
+               .$this->branchCondition('o.branch_id', $branchId).'
              GROUP BY DATE(o.created_at)
              HAVING (SUM(o.discount_amount)/NULLIF(SUM(o.subtotal),0)*100) > 20
                  OR SUM(o.discount_amount) > 2000000
@@ -517,7 +542,8 @@ class FraudDetectionService
              WHERE o.restaurant_id = ? AND o.status = ?
                AND o.discount_amount > 0 AND o.subtotal > 0
                AND (o.discount_amount/o.subtotal) > 0.15
-               AND o.created_at BETWEEN ? AND ?
+               AND o.created_at BETWEEN ? AND ?'
+               .$this->branchCondition('o.branch_id', $branchId).'
              ORDER BY (o.discount_amount/o.subtotal) DESC
              LIMIT 200',
             [$restaurantId, 'completed', $startDateTime, $endDateTime]
@@ -570,7 +596,7 @@ class FraudDetectionService
 
     // ── 3. Suspicious Cancellations ───────────────────────────────────────────
 
-    public function detectSuspiciousCancellations(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectSuspiciousCancellations(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $startDateTime = $periodStart.' 00:00:00';
         $endDateTime = $periodEnd.' 23:59:59';
@@ -582,7 +608,8 @@ class FraudDetectionService
              FROM orders o
              LEFT JOIN users u ON u.id = o.cancelled_by
              WHERE o.restaurant_id = ? AND o.status = ?
-               AND o.cancelled_at BETWEEN ? AND ?
+               AND o.cancelled_at BETWEEN ? AND ?'
+               .$this->branchCondition('o.branch_id', $branchId).'
              GROUP BY o.cancelled_by, u.name
              HAVING COUNT(*) > 3 OR SUM(o.total_amount) > 1000000
              ORDER BY total_value_cancelled DESC',
@@ -597,7 +624,8 @@ class FraudDetectionService
              LEFT JOIN users u ON u.id = o.cancelled_by
              WHERE o.restaurant_id = ? AND o.status = ?
                AND o.total_amount > 500000
-               AND o.cancelled_at BETWEEN ? AND ?
+               AND o.cancelled_at BETWEEN ? AND ?'
+               .$this->branchCondition('o.branch_id', $branchId).'
              ORDER BY o.total_amount DESC
              LIMIT 100',
             [$restaurantId, 'cancelled', $startDateTime, $endDateTime]
@@ -651,7 +679,7 @@ class FraudDetectionService
 
     // ── 4. Inventory Waste Spikes ─────────────────────────────────────────────
 
-    public function detectInventoryWasteSpikes(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectInventoryWasteSpikes(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $startDateTime = $periodStart.' 00:00:00';
         $endDateTime = $periodEnd.' 23:59:59';
@@ -663,7 +691,8 @@ class FraudDetectionService
              FROM inventory_transactions it
              LEFT JOIN users u ON u.id = it.performed_by
              WHERE it.restaurant_id = ? AND it.type = ?
-               AND it.occurred_at BETWEEN ? AND ?
+               AND it.occurred_at BETWEEN ? AND ?'
+               .$this->branchCondition('it.branch_id', $branchId).'
              GROUP BY it.performed_by, u.name
              ORDER BY total_waste_cost DESC',
             [$restaurantId, 'waste', $startDateTime, $endDateTime]
@@ -679,7 +708,8 @@ class FraudDetectionService
              LEFT JOIN users u ON u.id = it.performed_by
              WHERE it.restaurant_id = ? AND it.type = ?
                AND it.total_cost > 500000
-               AND it.occurred_at BETWEEN ? AND ?
+               AND it.occurred_at BETWEEN ? AND ?'
+               .$this->branchCondition('it.branch_id', $branchId).'
              ORDER BY it.total_cost DESC
              LIMIT 200',
             [$restaurantId, 'waste', $startDateTime, $endDateTime]
@@ -691,7 +721,8 @@ class FraudDetectionService
                      COUNT(*) AS entry_count
              FROM inventory_transactions
              WHERE restaurant_id = ? AND type = ?
-               AND occurred_at BETWEEN ? AND ?
+               AND occurred_at BETWEEN ? AND ?'
+               .$this->branchCondition('inventory_transactions.branch_id', $branchId).'
              GROUP BY DATE(occurred_at)
              HAVING SUM(total_cost) > 1000000
              ORDER BY daily_waste_cost DESC',
@@ -705,6 +736,7 @@ class FraudDetectionService
             $maxDate = Carbon::parse($occurredTimes->max())->copy()->addDay()->toDateString();
 
             $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
                 ->whereBetween('scheduled_date', [$minDate, $maxDate])
                 ->with(['employee', 'shift'])
@@ -742,7 +774,7 @@ class FraudDetectionService
 
     // ── 5. Revenue Discrepancies ──────────────────────────────────────────────
 
-    public function detectRevenueDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd): array
+    public function detectRevenueDiscrepancies(int $restaurantId, string $periodStart, string $periodEnd, ?int $branchId = null): array
     {
         $rows = DB::select(
             'SELECT rrs.summary_date,
@@ -758,13 +790,15 @@ class FraudDetectionService
              LEFT JOIN shift_closings sc
                  ON sc.restaurant_id = rrs.restaurant_id
                 AND sc.closing_date = rrs.summary_date
-                AND sc.status = ?
+                AND sc.status = ?'
+                .$this->branchCondition('sc.branch_id', $branchId).'
              WHERE rrs.restaurant_id = ? AND rrs.summary_type = ?
-               AND rrs.scope_key = ? AND rrs.summary_date BETWEEN ? AND ?
+               AND rrs.scope_key = ? AND rrs.summary_date BETWEEN ? AND ?'
+               .$this->branchCondition('rrs.branch_id', $branchId).'
              GROUP BY rrs.summary_date, rrs.net_revenue, rrs.gross_revenue
              HAVING difference_pct > 5
              ORDER BY difference_pct DESC',
-            ['confirmed', $restaurantId, 'daily', 'restaurant', $periodStart, $periodEnd]
+            ['confirmed', $restaurantId, 'daily', TenantContext::summaryScopeKey($branchId), $periodStart, $periodEnd]
         );
 
         $maxPct = 0.0;

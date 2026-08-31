@@ -177,10 +177,15 @@ class DailyReportService
         $taxTotal = $orders->sum('tax_amount');
 
         $refundTotal = (float) Payment::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('status', 'refunded')
-            ->whereBetween('created_at', [$start, $end])
-            ->sum('amount');
+            ->join('orders', 'payments.order_id', '=', 'orders.id')
+            ->where('payments.restaurant_id', $restaurantId)
+            ->where('orders.restaurant_id', $restaurantId)
+            ->where('payments.status', 'refunded')
+            ->whereBetween('payments.created_at', [$start, $end])
+            ->when($branchId !== null, fn ($q) => $q->where('orders.branch_id', $branchId))
+            ->whereNull('payments.deleted_at')
+            ->whereNull('orders.deleted_at')
+            ->sum('payments.amount');
 
         $netRevenue = max(0.0, $grossRevenue - $refundTotal);
         $completedCount = $orders->count();

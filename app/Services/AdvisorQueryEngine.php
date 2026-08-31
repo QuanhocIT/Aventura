@@ -23,9 +23,12 @@ class AdvisorQueryEngine
 {
     private int $restaurantId;
 
-    public function __construct(int $restaurantId)
+    private ?int $branchId;
+
+    public function __construct(int $restaurantId, ?int $branchId = null)
     {
         $this->restaurantId = $restaurantId;
+        $this->branchId = $branchId;
     }
 
     /**
@@ -100,6 +103,7 @@ class AdvisorQueryEngine
         $rows = Order::query()
             ->select('branch_id', DB::raw('SUM(total_amount) as total'), DB::raw('COUNT(*) as orders'))
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$from, $to])
             ->groupBy('branch_id')
@@ -129,6 +133,7 @@ class AdvisorQueryEngine
         if (! $isYesterday && ! $isWeek && ! $isMonth) {
             $yesterday = (float) Order::query()
                 ->where('restaurant_id', $this->restaurantId)
+                ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
                 ->where('payment_status', 'paid')
                 ->whereBetween('created_at', [now()->subDay()->startOfDay(), now()->subDay()->endOfDay()])
                 ->sum('total_amount');
@@ -162,6 +167,7 @@ class AdvisorQueryEngine
             ->select('product_id', DB::raw('SUM(quantity) as qty'), DB::raw('SUM(line_total) as revenue'))
             ->whereHas('order', fn ($q) => $q
                 ->where('restaurant_id', $this->restaurantId)
+                ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
                 ->where('payment_status', 'paid')
                 ->where('created_at', '>=', $from)
             )
@@ -189,6 +195,7 @@ class AdvisorQueryEngine
     {
         $openInfringements = OperationalInfringementReport::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->whereNotIn('status', ['closed', 'passed', 'rejected'])
             ->orderByDesc('created_at')
             ->limit(5)
@@ -255,6 +262,7 @@ class AdvisorQueryEngine
         $lowStock = Inventory::query()
             ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
             ->where('inventories.restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('inventories.branch_id', $this->branchId))
             ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
             ->selectRaw('ingredients.id as ingredient_id, ingredients.name as ingredient_name,
                 SUM(inventories.quantity_on_hand) as quantity_on_hand,
@@ -291,6 +299,7 @@ class AdvisorQueryEngine
     {
         $today = CashRegister::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->where('opened_at', '>=', now()->startOfDay())
             ->with('branch:id,name')
             ->get();
@@ -316,6 +325,7 @@ class AdvisorQueryEngine
     {
         $branches = RestaurantBranch::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->whereKey($this->branchId))
             ->get();
 
         if ($branches->isEmpty()) {
@@ -354,6 +364,7 @@ class AdvisorQueryEngine
             $date = now()->subDays($i);
             $rev = (float) Order::query()
                 ->where('restaurant_id', $this->restaurantId)
+                ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
                 ->where('payment_status', 'paid')
                 ->whereBetween('created_at', [$date->copy()->startOfDay(), $date->copy()->endOfDay()])
                 ->sum('total_amount');
@@ -386,24 +397,28 @@ class AdvisorQueryEngine
     {
         $todayRev = (float) Order::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', now()->startOfDay())
             ->sum('total_amount');
 
         $todayOrders = Order::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->where('payment_status', 'paid')
             ->where('created_at', '>=', now()->startOfDay())
             ->count();
 
         $openAlerts = OperationalInfringementReport::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->whereNotIn('status', ['closed', 'passed', 'rejected'])
             ->count();
 
         $lowStock = Inventory::query()
             ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
             ->where('inventories.restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('inventories.branch_id', $this->branchId))
             ->select('inventories.ingredient_id')
             ->groupBy('inventories.ingredient_id')
             ->havingRaw('SUM(inventories.quantity_on_hand) <= MAX(ingredients.min_stock_level)')
@@ -430,6 +445,9 @@ class AdvisorQueryEngine
     {
         $goals = BusinessGoal::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where(function ($scope) {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $this->branchId);
+            }))
             ->where('status', 'active')
             ->orderBy('end_date')
             ->limit(5)
@@ -470,11 +488,13 @@ class AdvisorQueryEngine
 
         $expenses = (float) OperatingExpense::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->whereBetween('expense_date', [$startOfMonth, $endOfMonth])
             ->sum('amount');
 
         $revenue = (float) Order::query()
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->where('payment_status', 'paid')
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->sum('total_amount');
@@ -482,6 +502,7 @@ class AdvisorQueryEngine
         $categories = OperatingExpense::query()
             ->select('category_id', DB::raw('SUM(amount) as total'))
             ->where('restaurant_id', $this->restaurantId)
+            ->when($this->branchId !== null, fn ($query) => $query->where('branch_id', $this->branchId))
             ->whereBetween('expense_date', [$startOfMonth, $endOfMonth])
             ->groupBy('category_id')
             ->with('category:id,name')
@@ -512,7 +533,7 @@ class AdvisorQueryEngine
     private function handleWaste(): array
     {
         try {
-            $dashboard = app(WasteAnalyticsService::class)->getDashboard($this->restaurantId, 30);
+            $dashboard = app(WasteAnalyticsService::class)->getDashboard($this->restaurantId, 30, $this->branchId);
             $totalCost = (float) ($dashboard['total_waste_cost'] ?? 0);
             $ratio = $dashboard['waste_ratio'] ?? 0;
             $statusLabel = $dashboard['benchmark_label'] ?? '';
