@@ -66,7 +66,7 @@ return [
             // CdpRfmBuilder để biết vì sao an toàn khi chuyển ra job nền.
             'cron' => env('MV_CDP_RFM_CRON', '30 3 * * *'),
             'stale_after' => 129600, // 36h — đủ dung sai nếu job chạy trễ 1 đêm
-            'branch_scoped' => false,
+            'branch_scoped' => true,
             'enabled' => (bool) env('MV_CDP_RFM_ENABLED', true),
         ],
 
@@ -78,7 +78,7 @@ return [
             // KHÔNG cache — xem GeoAnalyticsBuilder về giới hạn phạm vi days=30.
             'cron' => env('MV_GEO_ANALYTICS_CRON', '0 4 * * *'),
             'stale_after' => 129600,
-            'branch_scoped' => false,
+            'branch_scoped' => true,
             'enabled' => (bool) env('MV_GEO_ANALYTICS_ENABLED', true),
         ],
 

@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Services\MenuInsightService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MenuInsightController extends Controller
 {
-    public function __construct(private MenuInsightService $service) {}
+    public function __construct(
+        private MenuInsightService $service,
+        private TenantContext $tenantContext,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -27,11 +31,16 @@ class MenuInsightController extends Controller
 
         $restaurantId = $user->restaurant_id;
         $days = (int) $request->input('days', 30);
+        $branchId = $this->tenantContext->activeBranchId();
 
         return response()->json([
-            'insights' => $this->service->getInsights($restaurantId, $days),
-            'bcg' => $this->service->getBcgData($restaurantId, $days),
-            'margins' => $this->service->getProductMargins($restaurantId, $days),
+            'insights' => $this->service->getInsights($restaurantId, $days, $branchId),
+            'bcg' => $this->service->getBcgData($restaurantId, $days, $branchId),
+            'margins' => $this->service->getProductMargins($restaurantId, $days, $branchId),
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 }

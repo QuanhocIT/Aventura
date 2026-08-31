@@ -10,6 +10,7 @@ use App\Services\CdpService;
 use App\Services\MaterializedViewRefresher;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\MaterializedViewReader;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ class CdpController extends Controller
 {
     public function __construct(
         private MaterializedViewReader $mvReader,
+        private TenantContext $tenantContext,
     ) {}
 
     /**
@@ -37,10 +39,11 @@ class CdpController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         // Đọc từ materialized view 'cdp_rfm' — không còn tự đồng bộ RFM đồng bộ
         // ngay trên request, xem CdpRfmBuilder.
-        $metrics = $this->mvReader->read('cdp_rfm', $restaurantId);
+        $metrics = $this->mvReader->read('cdp_rfm', $restaurantId, $branchId);
 
         // Phân trang phía server (giống customers/Index): trước đây ->get() tải
         // TOÀN BỘ khách hàng kèm rfmAnalysis rồi mới lọc ở trình duyệt — với vài
@@ -49,6 +52,7 @@ class CdpController extends Controller
         $segment = (string) $request->input('segment', 'all');
 
         $query = Customer::where('restaurant_id', $restaurantId)->with('rfmAnalysis');
+        $this->tenantContext->applyBranchScope($query);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -86,6 +90,10 @@ class CdpController extends Controller
             'metrics' => $metrics,
             'customers' => $customers,
             'filters' => ['search' => $search, 'segment' => $segment],
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -102,7 +110,8 @@ class CdpController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
-        CdpService::calculateRfmForRestaurant($restaurantId);
+        $branchId = $this->tenantContext->activeBranchId();
+        CdpService::calculateRfmForRestaurant($restaurantId, $branchId);
 
         // Refresh ngay dòng tổng hợp 'cdp_rfm' để trang thấy kết quả mới ngay,
         // không phải chờ tới lượt chạy theo lịch (hàng ngày).
@@ -124,9 +133,13 @@ class CdpController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
 
         $customers = Customer::where('customers.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('customers.branch_id', $branchId))
             ->join('customer_rfm_analysis', 'customers.id', '=', 'customer_rfm_analysis.customer_id')
+            ->when($branchId !== null, fn ($query) => $query->where('customer_rfm_analysis.branch_id', $branchId))
+            ->when($branchId === null, fn ($query) => $query->whereNull('customer_rfm_analysis.branch_id'))
             ->where('customer_rfm_analysis.rfm_segment', $segment)
             ->select('customers.*', 'customer_rfm_analysis.rfm_score_code', 'customer_rfm_analysis.monetary_amount', 'customer_rfm_analysis.frequency_count', 'customer_rfm_analysis.recency_days')
             ->latest('customers.id')
@@ -212,6 +225,7 @@ class CdpController extends Controller
 
         // Query customers in the target segment
         $query = Customer::where('restaurant_id', $restaurantId);
+        $this->tenantContext->applyBranchScope($query);
         if ($data['segment'] !== 'all') {
             $query->whereHas('rfmAnalysis', function ($q) use ($data) {
                 $q->where('rfm_segment', $data['segment']);

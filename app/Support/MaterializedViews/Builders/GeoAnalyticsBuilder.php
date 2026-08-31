@@ -16,7 +16,7 @@ use Carbon\CarbonInterface;
  * (giá trị mặc định của trang). Controller tự phát hiện days=30 thì đọc rollup,
  * ngoài ra vẫn gọi trực tiếp GeoAnalyticsService (y hệt hành vi cũ, không đổi).
  * branch_suggestions không phụ thuộc $days (cửa sổ 90 ngày cố định trong chính
- * GeoAnalyticsService::getBranchSuggestions()) nên luôn lấy từ rollup.
+ * GeoAnalyticsService::getBranchSuggestions()) nhưng vẫn được materialize theo scope.
  */
 class GeoAnalyticsBuilder implements MaterializedViewBuilder
 {
@@ -28,16 +28,16 @@ class GeoAnalyticsBuilder implements MaterializedViewBuilder
 
     public function scopeKey(?int $branchId): string
     {
-        return 'restaurant';
+        return $branchId === null ? 'restaurant' : 'branch:'.$branchId;
     }
 
     public function build(int $restaurantId, ?int $branchId, CarbonInterface $date): array
     {
         return [
-            'zone_stats' => $this->geo->getDeliveryZoneStats($restaurantId, self::MATERIALIZED_DAYS),
-            'top_areas' => $this->geo->getTopAreas($restaurantId, self::MATERIALIZED_DAYS),
-            'channel_breakdown' => $this->geo->getChannelBreakdown($restaurantId, self::MATERIALIZED_DAYS),
-            'branch_suggestions' => $this->geo->getBranchSuggestions($restaurantId),
+            'zone_stats' => $this->geo->getDeliveryZoneStats($restaurantId, self::MATERIALIZED_DAYS, $branchId),
+            'top_areas' => $this->geo->getTopAreas($restaurantId, self::MATERIALIZED_DAYS, $branchId),
+            'channel_breakdown' => $this->geo->getChannelBreakdown($restaurantId, self::MATERIALIZED_DAYS, $branchId),
+            'branch_suggestions' => $this->geo->getBranchSuggestions($restaurantId, $branchId),
         ];
     }
 }

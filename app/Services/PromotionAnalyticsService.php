@@ -9,10 +9,11 @@ use Illuminate\Support\Collection;
 
 class PromotionAnalyticsService
 {
-    public function calculateDailySnapshot(int $restaurantId, string $date): void
+    public function calculateDailySnapshot(int $restaurantId, string $date, ?int $branchId = null): void
     {
         $orders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereDate('created_at', $date)
             ->where('discount_amount', '>', 0)
             ->where('status', 'completed');
@@ -24,11 +25,12 @@ class PromotionAnalyticsService
         $customerIds = (clone $orders)->whereNotNull('customer_id')->distinct()->pluck('customer_id');
         $uniqueCustomers = $customerIds->count();
 
-        [$newCustomers, $repeatRate] = $this->calculateCustomerAcquisition($restaurantId, $date, $customerIds);
+        [$newCustomers, $repeatRate] = $this->calculateCustomerAcquisition($restaurantId, $date, $customerIds, $branchId);
 
         PromotionAnalyticsSnapshot::withoutGlobalScopes()->updateOrCreate(
-            ['restaurant_id' => $restaurantId, 'promotion_id' => null, 'snapshot_date' => $date],
+            ['restaurant_id' => $restaurantId, 'promotion_id' => null, 'snapshot_date' => $date, 'branch_id' => $branchId],
             [
+                'branch_id' => $branchId,
                 'total_uses' => $totalUses,
                 'total_discount_given' => $totalDiscount,
                 'total_revenue_with_promo' => $totalRevenue,
@@ -46,7 +48,7 @@ class PromotionAnalyticsService
      *
      * @return array{0: int, 1: float}
      */
-    private function calculateCustomerAcquisition(int $restaurantId, string $date, Collection $customerIds): array
+    private function calculateCustomerAcquisition(int $restaurantId, string $date, Collection $customerIds, ?int $branchId = null): array
     {
         if ($customerIds->isEmpty()) {
             return [0, 0.0];
@@ -54,6 +56,7 @@ class PromotionAnalyticsService
 
         $firstOrderDates = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->whereIn('customer_id', $customerIds)
             ->selectRaw('customer_id, MIN(DATE(created_at)) as first_order_date')
@@ -68,10 +71,12 @@ class PromotionAnalyticsService
         return [$newCustomers, $repeatRate];
     }
 
-    public function getDashboardMetrics(int $restaurantId, string $startDate, string $endDate): array
+    public function getDashboardMetrics(int $restaurantId, string $startDate, string $endDate, ?int $branchId = null): array
     {
         $snapshots = PromotionAnalyticsSnapshot::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->when($branchId === null, fn ($query) => $query->whereNull('branch_id'))
             ->whereNull('promotion_id')
             ->whereBetween('snapshot_date', [$startDate, $endDate])
             ->orderBy('snapshot_date')
@@ -79,10 +84,12 @@ class PromotionAnalyticsService
 
         // Nếu chưa có snapshot nào (do chưa chạy cron job), tính toán trực tiếp từ bảng orders & promotion_usages
         if ($snapshots->isEmpty()) {
-            $this->generateSnapshotsForPeriod($restaurantId, $startDate, $endDate);
+            $this->generateSnapshotsForPeriod($restaurantId, $startDate, $endDate, $branchId);
 
             $snapshots = PromotionAnalyticsSnapshot::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                ->when($branchId === null, fn ($query) => $query->whereNull('branch_id'))
                 ->whereNull('promotion_id')
                 ->whereBetween('snapshot_date', [$startDate, $endDate])
                 ->orderBy('snapshot_date')
@@ -102,12 +109,14 @@ class PromotionAnalyticsService
         // Tính AOV Đơn có KM vs Đơn không KM
         $promoOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereBetween('created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
             ->where('status', 'completed')
             ->where('discount_amount', '>', 0);
 
         $regularOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereBetween('created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
             ->where('status', 'completed')
             ->where('discount_amount', '<=', 0);
@@ -124,7 +133,7 @@ class PromotionAnalyticsService
             ? round((($aovWithPromo - $aovWithoutPromo) / $aovWithoutPromo) * 100, 1)
             : 0.0;
 
-        $perPromotion = $this->getPerPromotionBreakdown($restaurantId, $startDate, $endDate);
+        $perPromotion = $this->getPerPromotionBreakdown($restaurantId, $startDate, $endDate, $branchId);
 
         $insights = $this->generateInsights($totalDiscount, $totalRevenue, $roi, $basketLift, $perPromotion);
 
@@ -151,13 +160,13 @@ class PromotionAnalyticsService
         ];
     }
 
-    public function generateSnapshotsForPeriod(int $restaurantId, string $startDate, string $endDate): void
+    public function generateSnapshotsForPeriod(int $restaurantId, string $startDate, string $endDate, ?int $branchId = null): void
     {
         $start = \Carbon\Carbon::parse($startDate);
         $end = \Carbon\Carbon::parse($endDate);
 
         while ($start->lte($end)) {
-            $this->calculateDailySnapshot($restaurantId, $start->toDateString());
+            $this->calculateDailySnapshot($restaurantId, $start->toDateString(), $branchId);
             $start->addDay();
         }
     }
@@ -218,10 +227,11 @@ class PromotionAnalyticsService
      *
      * @return list<array<string, mixed>>
      */
-    private function getPerPromotionBreakdown(int $restaurantId, string $startDate, string $endDate): array
+    private function getPerPromotionBreakdown(int $restaurantId, string $startDate, string $endDate, ?int $branchId = null): array
     {
         return PromotionUsage::withoutGlobalScopes()
             ->where('promotion_usages.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('promotion_usages.branch_id', $branchId))
             ->whereBetween('promotion_usages.created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
             ->join('promotions', 'promotions.id', '=', 'promotion_usages.promotion_id')
             ->groupBy('promotions.id', 'promotions.name', 'promotions.code', 'promotions.type', 'promotions.value')

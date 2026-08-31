@@ -8,12 +8,15 @@ use Illuminate\Support\Facades\DB;
 
 class GeoAnalyticsService
 {
-    public function getOrderHeatmap(int $restaurantId, int $days = 30): array
+    public function getOrderHeatmap(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
-        return Cache::remember("geo_heatmap:{$restaurantId}:{$days}", 300, function () use ($restaurantId, $days) {
+        $scopeKey = $branchId === null ? 'all' : 'branch:'.$branchId;
+
+        return Cache::remember("geo_heatmap:{$restaurantId}:{$days}:{$scopeKey}", 300, function () use ($restaurantId, $days, $branchId) {
             $data = DB::table('delivery_details')
                 ->join('orders', 'delivery_details.order_id', '=', 'orders.id')
                 ->where('delivery_details.restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
                 ->where('orders.status', 'completed')
                 ->where('orders.completed_at', '>=', now()->subDays($days))
                 ->whereNotNull('delivery_details.latitude')
@@ -36,7 +39,7 @@ class GeoAnalyticsService
                 ])
                 ->all();
 
-            if (empty($data)) {
+            if (empty($data) && (bool) config('services.geo_analytics.demo_fallback', false)) {
                 $restaurant = Restaurant::find($restaurantId);
                 $rLat = (float) ($restaurant->latitude ?? 10.776889);
                 $rLng = (float) ($restaurant->longitude ?? 106.700806);
@@ -73,7 +76,7 @@ class GeoAnalyticsService
         });
     }
 
-    public function getDeliveryZoneStats(int $restaurantId, int $days = 30): array
+    public function getDeliveryZoneStats(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         $restaurant = Restaurant::find($restaurantId);
         $rLat = (float) ($restaurant->latitude ?? 10.776889);
@@ -86,6 +89,7 @@ class GeoAnalyticsService
         $deliveries = DB::table('delivery_details')
             ->join('orders', 'delivery_details.order_id', '=', 'orders.id')
             ->where('delivery_details.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->where('orders.completed_at', '>=', now()->subDays($days))
             ->whereNotNull('delivery_details.latitude')
@@ -97,7 +101,7 @@ class GeoAnalyticsService
         $distances = [];
 
         if ($deliveries->isEmpty()) {
-            $heatmap = $this->getOrderHeatmap($restaurantId, $days);
+            $heatmap = $this->getOrderHeatmap($restaurantId, $days, $branchId);
             $mockDeliveries = [];
             foreach ($heatmap as $h) {
                 for ($i = 0; $i < $h['count']; $i++) {
@@ -147,11 +151,12 @@ class GeoAnalyticsService
         ];
     }
 
-    public function getTopAreas(int $restaurantId, int $days = 30): array
+    public function getTopAreas(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         $data = DB::table('delivery_details')
             ->join('orders', 'delivery_details.order_id', '=', 'orders.id')
             ->where('delivery_details.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->where('orders.completed_at', '>=', now()->subDays($days))
             ->whereNotNull('delivery_details.address')
@@ -172,7 +177,7 @@ class GeoAnalyticsService
             ])
             ->all();
 
-        if (empty($data)) {
+        if (empty($data) && (bool) config('services.geo_analytics.demo_fallback', false)) {
             $data = [
                 ['area' => 'Quận 1', 'orders' => 45, 'revenue' => 6750000],
                 ['area' => 'Quận 3', 'orders' => 38, 'revenue' => 5700000],
@@ -192,9 +197,9 @@ class GeoAnalyticsService
         return $data;
     }
 
-    public function getBranchSuggestions(int $restaurantId): array
+    public function getBranchSuggestions(int $restaurantId, ?int $branchId = null): array
     {
-        $heatmap = $this->getOrderHeatmap($restaurantId, 90);
+        $heatmap = $this->getOrderHeatmap($restaurantId, 90, $branchId);
         $restaurant = Restaurant::find($restaurantId);
         $rLat = (float) ($restaurant->latitude ?? 10.776889);
         $rLng = (float) ($restaurant->longitude ?? 106.700806);
@@ -225,10 +230,11 @@ class GeoAnalyticsService
         return $suggestions;
     }
 
-    public function getChannelBreakdown(int $restaurantId, int $days = 30): array
+    public function getChannelBreakdown(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         $data = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->where('completed_at', '>=', now()->subDays($days))
             ->select(
@@ -250,7 +256,7 @@ class GeoAnalyticsService
             ])
             ->all();
 
-        if (empty($data)) {
+        if (empty($data) && (bool) config('services.geo_analytics.demo_fallback', false)) {
             $data = [
                 ['channel' => 'dine_in', 'label' => 'Tại chỗ', 'orders' => 124, 'revenue' => 18600000],
                 ['channel' => 'takeaway', 'label' => 'Mang về', 'orders' => 86, 'revenue' => 12900000],

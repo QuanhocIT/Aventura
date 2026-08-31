@@ -6,6 +6,7 @@ use App\Services\GeoAnalyticsService;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\Builders\GeoAnalyticsBuilder;
 use App\Support\MaterializedViews\MaterializedViewReader;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,6 +17,7 @@ class GeoAnalyticsController extends Controller
     public function __construct(
         private GeoAnalyticsService $geo,
         private MaterializedViewReader $mvReader,
+        private TenantContext $tenantContext,
     ) {}
 
     public function index(Request $request): Response
@@ -37,6 +39,7 @@ class GeoAnalyticsController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         $restaurant = $request->user()->restaurant;
@@ -53,23 +56,27 @@ class GeoAnalyticsController extends Controller
                 'lng' => $lng,
                 'name' => $restaurant->name,
             ],
-            'heatmap' => Inertia::defer(fn () => $this->geo->getOrderHeatmap($restaurantId, $days)),
+            'heatmap' => Inertia::defer(fn () => $this->geo->getOrderHeatmap($restaurantId, $days, $branchId)),
             // zoneStats/topAreas/channels chỉ đọc rollup khi đúng khung mặc định
             // (days=30) — GeoAnalyticsBuilder chỉ materialize cho khung đó, các
             // lựa chọn "days" khác vẫn tính live y hệt hành vi cũ.
             'zoneStats' => Inertia::defer(fn () => $days === GeoAnalyticsBuilder::MATERIALIZED_DAYS
-                ? $this->mvReader->read('geo_analytics', $restaurantId)['zone_stats']
-                : $this->geo->getDeliveryZoneStats($restaurantId, $days)),
+                ? $this->mvReader->read('geo_analytics', $restaurantId, $branchId)['zone_stats']
+                : $this->geo->getDeliveryZoneStats($restaurantId, $days, $branchId)),
             'topAreas' => Inertia::defer(fn () => $days === GeoAnalyticsBuilder::MATERIALIZED_DAYS
-                ? $this->mvReader->read('geo_analytics', $restaurantId)['top_areas']
-                : $this->geo->getTopAreas($restaurantId, $days)),
+                ? $this->mvReader->read('geo_analytics', $restaurantId, $branchId)['top_areas']
+                : $this->geo->getTopAreas($restaurantId, $days, $branchId)),
             'channels' => Inertia::defer(fn () => $days === GeoAnalyticsBuilder::MATERIALIZED_DAYS
-                ? $this->mvReader->read('geo_analytics', $restaurantId)['channel_breakdown']
-                : $this->geo->getChannelBreakdown($restaurantId, $days)),
+                ? $this->mvReader->read('geo_analytics', $restaurantId, $branchId)['channel_breakdown']
+                : $this->geo->getChannelBreakdown($restaurantId, $days, $branchId)),
             // branch_suggestions không phụ thuộc $days (cửa sổ 90 ngày cố định
-            // trong GeoAnalyticsService::getBranchSuggestions()) nên luôn đọc rollup.
-            'branchSuggestions' => Inertia::defer(fn () => $this->mvReader->read('geo_analytics', $restaurantId)['branch_suggestions']),
+            // trong GeoAnalyticsService::getBranchSuggestions()) nhưng vẫn theo scope.
+            'branchSuggestions' => Inertia::defer(fn () => $this->mvReader->read('geo_analytics', $restaurantId, $branchId)['branch_suggestions']),
             'days' => $days,
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
         ]);
     }
 
@@ -79,6 +86,6 @@ class GeoAnalyticsController extends Controller
 
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
-        return response()->json($this->geo->getOrderHeatmap($request->user()->restaurant_id, $days));
+        return response()->json($this->geo->getOrderHeatmap($request->user()->restaurant_id, $days, $this->tenantContext->activeBranchId()));
     }
 }

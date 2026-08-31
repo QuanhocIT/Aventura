@@ -4,13 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Services\PromotionAnalyticsService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PromotionAnalyticsController extends Controller
 {
     public function __construct(
-        private PromotionAnalyticsService $analytics
+        private PromotionAnalyticsService $analytics,
+        private TenantContext $tenantContext,
     ) {}
 
     public function index(Request $request)
@@ -39,12 +41,17 @@ class PromotionAnalyticsController extends Controller
         $metrics = $this->analytics->getDashboardMetrics(
             $user->restaurant_id,
             $startDate,
-            $endDate
+            $endDate,
+            $this->tenantContext->activeBranchId(),
         );
 
         return Inertia::render('promotions/Analytics', [
             'metrics' => $metrics,
             'filters' => ['start_date' => $startDate, 'end_date' => $endDate],
+            'branchContext' => [
+                'scope' => $this->tenantContext->scope(),
+                'active_branch_id' => $this->tenantContext->activeBranchId(),
+            ],
         ]);
     }
 
@@ -56,7 +63,12 @@ class PromotionAnalyticsController extends Controller
         $startDate = $request->input('start_date', now()->subDays(30)->toDateString());
         $endDate = $request->input('end_date', now()->toDateString());
 
-        $this->analytics->generateSnapshotsForPeriod($user->restaurant_id, $startDate, $endDate);
+        $this->analytics->generateSnapshotsForPeriod(
+            $user->restaurant_id,
+            $startDate,
+            $endDate,
+            $this->tenantContext->activeBranchId(),
+        );
 
         return back()->with('success', 'Đã cập nhật & tính toán lại toàn bộ dữ liệu phân tích khuyến mãi.');
     }

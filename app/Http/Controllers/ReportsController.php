@@ -33,10 +33,12 @@ class ReportsController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $date = $request->input('date', today()->toDateString());
+        $branchId = $this->tenantContext->activeBranchId();
 
         app(DailyReportService::class)->generateForRestaurant(
             $request->user()->restaurant_id,
             $date,
+            $branchId,
         );
 
         return back()->with('success', 'Đã tạo báo cáo ngày '.Carbon::parse($date)->format('d/m/Y').'.');
@@ -47,7 +49,7 @@ class ReportsController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner']), 403);
 
         $date = $request->input('date', today()->toDateString());
-        SendDailyReportEmail::dispatch($request->user()->restaurant_id, $date);
+        SendDailyReportEmail::dispatch($request->user()->restaurant_id, $date, $this->tenantContext->activeBranchId());
 
         return back()->with('success', 'Đã gửi email báo cáo vào hàng đợi.');
     }

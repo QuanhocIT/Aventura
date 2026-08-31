@@ -29,11 +29,11 @@ class CdpRfmBuilder implements MaterializedViewBuilder
 {
     public function scopeKey(?int $branchId): string
     {
-        return 'restaurant';
+        return $branchId === null ? 'restaurant' : 'branch:'.$branchId;
     }
 
     public function build(int $restaurantId, ?int $branchId, CarbonInterface $date): array
     {
-        return CdpService::getRfmMetrics($restaurantId);
+        return CdpService::getRfmMetrics($restaurantId, $branchId);
     }
 }

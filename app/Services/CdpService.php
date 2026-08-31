@@ -44,21 +44,30 @@ class CdpService
     /**
      * Calculate and cache RFM score for a specific customer.
      */
-    public static function calculateRfmForCustomer(Customer $customer): void
+    public static function calculateRfmForCustomer(Customer $customer, ?int $branchId = null): void
     {
         $restaurantId = $customer->restaurant_id;
 
         // Fetch completed orders
         $orders = Order::where('customer_id', $customer->id)
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->get();
 
         $frequencyCount = $orders->count();
         $monetaryAmount = (float) $orders->sum('total_amount');
 
-        // Update total spent and recalculate tier via LoyaltyService
-        $customer->update(['total_spent' => $monetaryAmount]);
+        // Customer.total_spent and membership tier are chain-wide master
+        // values. The RFM row may be branch-specific, but a payment in one
+        // branch must still update the customer's global loyalty balance.
+        $globalMonetaryAmount = $branchId === null
+            ? $monetaryAmount
+            : (float) Order::where('customer_id', $customer->id)
+                ->where('restaurant_id', $restaurantId)
+                ->where('status', 'completed')
+                ->sum('total_amount');
+        $customer->update(['total_spent' => $globalMonetaryAmount]);
         app(LoyaltyService::class)->recalculateTier($customer);
 
         // Recency calculation
@@ -140,6 +149,7 @@ class CdpService
             [
                 'restaurant_id' => $restaurantId,
                 'customer_id' => $customer->id,
+                'branch_id' => $branchId,
             ],
             [
                 'recency_days' => $recencyDays,
@@ -158,11 +168,13 @@ class CdpService
     /**
      * Calculate RFM scores for all customers in a restaurant.
      */
-    public static function calculateRfmForRestaurant(int $restaurantId): void
+    public static function calculateRfmForRestaurant(int $restaurantId, ?int $branchId = null): void
     {
-        Customer::where('restaurant_id', $restaurantId)->chunk(100, function ($customers) {
+        Customer::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->chunk(100, function ($customers) use ($branchId) {
             foreach ($customers as $customer) {
-                self::calculateRfmForCustomer($customer);
+                self::calculateRfmForCustomer($customer, $branchId);
             }
         });
     }
@@ -170,23 +182,28 @@ class CdpService
     /**
      * Get RFM dashboard metrics.
      */
-    public static function getRfmMetrics(int $restaurantId): array
+    public static function getRfmMetrics(int $restaurantId, ?int $branchId = null): array
     {
         // First ensure all customers have their RFM records
         $uncalculatedCount = Customer::where('restaurant_id', $restaurantId)
-            ->whereNotExists(function ($query) use ($restaurantId) {
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->whereNotExists(function ($query) use ($restaurantId, $branchId) {
                 $query->select(DB::raw(1))
                     ->from('customer_rfm_analysis')
                     ->whereColumn('customer_rfm_analysis.customer_id', 'customers.id')
-                    ->where('customer_rfm_analysis.restaurant_id', $restaurantId);
+                    ->where('customer_rfm_analysis.restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($rfmQuery) => $rfmQuery->where('customer_rfm_analysis.branch_id', $branchId))
+                    ->when($branchId === null, fn ($rfmQuery) => $rfmQuery->whereNull('customer_rfm_analysis.branch_id'));
             })->count();
 
         if ($uncalculatedCount > 0) {
-            self::calculateRfmForRestaurant($restaurantId);
+            self::calculateRfmForRestaurant($restaurantId, $branchId);
         }
 
         // Load segments counts
         $segments = CustomerRfmAnalysis::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->when($branchId === null, fn ($query) => $query->whereNull('branch_id'))
             ->select('rfm_segment', DB::raw('COUNT(*) as count'), DB::raw('SUM(monetary_amount) as total_revenue'))
             ->groupBy('rfm_segment')
             ->get()
@@ -215,6 +232,8 @@ class CdpService
         $avgCLV = $totalCustomers > 0 ? round($totalRevenue / $totalCustomers, 2) : 0.0;
 
         $avgFrequency = (float) CustomerRfmAnalysis::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+            ->when($branchId === null, fn ($query) => $query->whereNull('branch_id'))
             ->avg('frequency_count') ?? 0.0;
 
         // Recent behaviors
@@ -227,6 +246,7 @@ class CdpService
                 'customers.phone as customer_phone',
                 'products.name as product_name'
             )
+            ->when($branchId !== null, fn ($query) => $query->where('customers.branch_id', $branchId))
             ->latest()
             ->limit(50)
             ->get()
