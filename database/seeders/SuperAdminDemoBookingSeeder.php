@@ -31,7 +31,7 @@ class SuperAdminDemoBookingSeeder extends Seeder
             ['Cao Anh Khoa', '0901000015', 'anh.khoa@demo.local', 'Bếp Phố Cổ', 1, '09:00 - 10:00', 'Đăng ký để trải nghiệm gói miễn phí.', 'cancelled'],
         ];
 
-        $superAdminId = User::where('email', 'superadmin@aventura.local')->value('id');
+        $superAdminId = User::where('email', env('SUPERADMIN_EMAIL', 'superadmin@aventura.local'))->value('id');
 
         foreach ($bookings as $index => [$name, $phone, $email, $restaurant, $branchCount, $preferredTime, $notes, $status]) {
             $createdAt = now()->subDays(20 - $index)->setTime(8 + ($index % 8), 30);

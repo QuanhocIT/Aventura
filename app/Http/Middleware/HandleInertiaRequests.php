@@ -45,7 +45,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $tenantContext = app(TenantContext::class);
-        $isSuperAdmin = $user?->isSuperAdmin() ?? false;
+        $isSuperAdmin = $user?->isPlatformAdmin() ?? false;
 
         // Spatie tự động invalidate cache khi roles/permissions thay đổi
         // Không cần forgetCachedPermissions() trên mỗi request

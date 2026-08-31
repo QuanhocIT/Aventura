@@ -47,7 +47,7 @@ class SuperAdminBillingDemoSeeder extends Seeder
 
         $now = now();
         $superAdminId = User::query()
-            ->where('email', 'superadmin@aventura.local')
+            ->where('email', env('SUPERADMIN_EMAIL', 'superadmin@aventura.local'))
             ->value('id');
         $recipientEmail = $restaurant->owner?->email ?? $restaurant->email;
 
@@ -123,6 +123,8 @@ class SuperAdminBillingDemoSeeder extends Seeder
                 'restaurant_subscription_id' => $subscription->id,
                 'type' => $type,
                 'status' => $status,
+                'payment_status' => $type === 'payment_success' ? 'paid' : 'unpaid',
+                'paid_at' => $type === 'payment_success' ? $createdAt : null,
                 'currency' => $restaurant->currency ?? 'VND',
                 'subtotal' => $total + $discount,
                 'discount_amount' => $discount,

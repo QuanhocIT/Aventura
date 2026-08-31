@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\WithdrawalRequest;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class SuperAdminReferralDemoSeeder extends Seeder
 {
@@ -82,7 +83,7 @@ class SuperAdminReferralDemoSeeder extends Seeder
                 ['email' => $email],
                 [
                     'name' => $name,
-                    'password' => Hash::make('Aventura@2026!'),
+                    'password' => Hash::make(Str::password(32)),
                     'email_verified_at' => now(),
                     'status' => 'active',
                     'commission_balance' => 500000 + ($sequence * 175000),

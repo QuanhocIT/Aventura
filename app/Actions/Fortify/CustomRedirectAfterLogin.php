@@ -8,7 +8,7 @@ class CustomRedirectAfterLogin
 {
     public function __invoke(User $user)
     {
-        if ($user->isSuperAdmin()) {
+        if ($user->isPlatformAdmin()) {
             return '/super-admin/dashboard';
         }
 

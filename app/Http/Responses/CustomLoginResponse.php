@@ -27,6 +27,11 @@ class CustomLoginResponse implements LoginResponseContract
 
         $user->forceFill(['last_login_at' => now()])->save();
 
+        if ($user->must_change_password) {
+            return redirect()->route('profile.edit', ['tab' => 'security'])
+                ->with('warning', 'Vui lòng đổi mật khẩu trước khi tiếp tục sử dụng tài khoản.');
+        }
+
         session()->flash('success', 'Đăng nhập thành công!');
 
         if (session()->has('multi_tenant_users') && count(session('multi_tenant_users')) > 1) {
@@ -69,7 +74,7 @@ class CustomLoginResponse implements LoginResponseContract
             //
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->isPlatformAdmin()) {
             return redirect('/super-admin/dashboard');
         }
 

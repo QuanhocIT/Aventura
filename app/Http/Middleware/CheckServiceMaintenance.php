@@ -18,7 +18,7 @@ class CheckServiceMaintenance
     public function handle(Request $request, Closure $next): Response
     {
         // Bypass checks for super-admin or public status routes
-        if ($request->is('super-admin*') || $request->user()?->isSuperAdmin() || $request->is('status') || $request->is('api/status-data') || $request->is('impersonate*')) {
+        if ($request->is('super-admin*') || $request->user()?->isPlatformAdmin() || $request->is('status') || $request->is('api/status-data') || $request->is('impersonate*')) {
             return $next($request);
         }
 

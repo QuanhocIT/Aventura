@@ -166,6 +166,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasAnyRole(config('auth.super_admin_roles', ['super_admin']));
     }
 
+    /**
+     * Any account that is allowed to enter the platform administration portal.
+     * This is intentionally broader than isSuperAdmin(): the latter is the
+     * legacy break-glass role and must not bypass granular permissions.
+     */
+    public function isPlatformAdmin(): bool
+    {
+        return $this->hasAnyRole(config('auth.platform_admin_roles', ['super_admin']));
+    }
+
     public function isOwner(): bool
     {
         return $this->hasRole('owner');
@@ -337,7 +347,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function hasVerifiedEmail(): bool
     {
-        if (! $this->isSuperAdmin()) {
+        if (! $this->isPlatformAdmin()) {
             return true;
         }
 
@@ -351,7 +361,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function sendEmailVerificationNotification(): void
     {
-        if (! $this->isSuperAdmin()) {
+        if (! $this->isPlatformAdmin()) {
             return;
         }
 

@@ -16,7 +16,8 @@ class CheckSuperAdminPermission
             abort(403);
         }
 
-        // Legacy super_admin role bypasses all permission checks
+        // Only the explicitly legacy break-glass role bypasses permissions.
+        // Platform sub-roles must always use the permission matrix.
         if ($user->hasRole('super_admin')) {
             return $next($request);
         }

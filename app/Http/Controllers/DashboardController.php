@@ -77,7 +77,7 @@ class DashboardController extends Controller
         $user = $request->user();
         $restaurant = $user?->restaurant;
 
-        if ($user && $user->isSuperAdmin()) {
+        if ($user && $user->isPlatformAdmin()) {
             return redirect('/super-admin/dashboard');
         }
 

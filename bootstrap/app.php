@@ -10,6 +10,7 @@ use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\EnforceImpersonateReadOnly;
 use App\Http\Middleware\EnsureBranchContext;
 use App\Http\Middleware\EnsureSecuritySessionFresh;
+use App\Http\Middleware\ForcePasswordChange;
 use App\Http\Middleware\EnsureSupplierPortalEnabled;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
@@ -57,7 +58,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(SecurityFirewallMiddleware::class);
         $middleware->prepend(ValidatePayloadSize::class);
 
-        $middleware->trustProxies(at: '*');
+        // Trust only deployment-configured proxies. Trusting '*' would allow
+        // a client-controlled X-Forwarded-For to bypass the IP whitelist.
+        $trustedProxies = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('TRUSTED_PROXIES', '')),
+        )));
+        $middleware->trustProxies(at: $trustedProxies ?: null);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
@@ -76,6 +83,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SecurityHeaders::class,
             EnsureSecuritySessionFresh::class,
+            ForcePasswordChange::class,
             CheckServiceMaintenance::class,
             CompressResponse::class,
             EnforceImpersonateReadOnly::class,
@@ -102,6 +110,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin.permission' => CheckSuperAdminPermission::class,
             'superadmin.stepup' => RequireSuperAdminStepUp::class,
             'superadmin.ip_whitelist' => SuperAdminIpWhitelistMiddleware::class,
+            'force.password.change' => ForcePasswordChange::class,
             'shift.schedule' => CheckShiftSchedule::class,
             'prevent_self_approval' => PreventSelfApproval::class,
         ]);

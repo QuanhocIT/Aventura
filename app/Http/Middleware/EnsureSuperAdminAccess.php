@@ -12,7 +12,7 @@ class EnsureSuperAdminAccess
     {
         $user = $request->user();
 
-        if (! $user || ! $user->isSuperAdmin()) {
+        if (! $user || ! $user->isPlatformAdmin()) {
             abort(403);
         }
 

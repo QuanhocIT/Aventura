@@ -114,6 +114,12 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
-    'super_admin_roles' => ['super_admin', 'system_admin', 'billing_admin', 'support_specialist'],
+    // The legacy super_admin role is the only break-glass role. Platform
+    // sub-roles still enter the SuperAdmin portal, but must pass permissions.
+    'super_admin_roles' => ['super_admin'],
+
+    'platform_admin_roles' => ['super_admin', 'system_admin', 'billing_admin', 'support_specialist'],
+
+    'superadmin_allowed_ips' => env('SUPERADMIN_ALLOWED_IPS', ''),
 
 ];

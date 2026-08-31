@@ -33,8 +33,8 @@ class ProductionSeeder extends Seeder
         $this->command->newLine();
         $this->command->alert('⚠️  BẢO MẬT: Đổi mật khẩu Super Admin NGAY sau khi đăng nhập lần đầu!');
         $this->command->line('   URL đăng nhập : '.config('app.url').'/super-admin/login');
-        $this->command->line('   Email mặc định: superadmin@aventura.local');
-        $this->command->line('   Mật khẩu tạm  : Aventura@2026!');
+        $this->command->line('   Email          : giá trị SUPERADMIN_EMAIL trong môi trường triển khai');
+        $this->command->line('   Mật khẩu       : không in ra log; dùng SUPERADMIN_BOOTSTRAP_PASSWORD hoặc quy trình reset an toàn');
         $this->command->newLine();
     }
 }

@@ -17,7 +17,7 @@ class RequireSuperAdminTwoFactor
         $user = $request->user();
 
         // 1. Chỉ áp dụng kiểm tra đối với tài khoản Super Admin
-        if ($user && $user->isSuperAdmin()) {
+        if ($user && $user->isPlatformAdmin()) {
             // 2. Nếu Super Admin chưa hoàn thành/xác thực mã bảo mật 2FA
             if (is_null($user->two_factor_confirmed_at)) {
 

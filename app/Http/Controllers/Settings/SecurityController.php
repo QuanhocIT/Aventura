@@ -18,6 +18,9 @@ class SecurityController extends Controller
         $user = $request->user();
         $user->update([
             'password' => $request->password,
+            'must_change_password' => false,
+            'activation_token' => null,
+            'activation_expires_at' => null,
         ]);
         $user->increment('security_session_version');
         $request->session()->put('security_session_version', (int) $user->fresh()->security_session_version);
