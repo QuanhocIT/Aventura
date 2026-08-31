@@ -27,6 +27,7 @@ class SubscriptionPlanController extends Controller
             'max_branches' => $p->max_branches,
             'max_tables' => $p->max_tables,
             'max_users' => $p->max_users,
+            'max_dishes' => $p->max_dishes,
             'features' => $p->features ?? [],
             'status' => $p->trashed() ? 'inactive' : $p->status,
             'is_deleted' => $p->trashed(),
@@ -58,11 +59,12 @@ class SubscriptionPlanController extends Controller
             'code' => 'required|string|max:50|unique:subscription_plans,code|alpha_dash',
             'name' => 'required|string|max:100',
             'description' => 'nullable|string|max:255',
-            'billing_cycle' => 'required|in:monthly,yearly,quarterly',
+            'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,biennial',
             'price' => 'required|integer|min:0',
             'max_branches' => 'required|integer|min:-1',
             'max_tables' => 'required|integer|min:-1',
             'max_users' => 'required|integer|min:-1',
+            'max_dishes' => 'required|integer|min:-1',
             'max_areas' => 'required|integer|min:-1',
             'max_storage_mb' => 'required|integer|min:1',
             'api_rate_limit' => 'required|integer|min:10',
@@ -91,6 +93,7 @@ class SubscriptionPlanController extends Controller
             'max_branches' => $toNull($validated['max_branches']),
             'max_tables' => $toNull($validated['max_tables']),
             'max_users' => $toNull($validated['max_users']),
+            'max_dishes' => $toNull($validated['max_dishes']),
             'status' => 'active',
             'features' => $features,
         ]);
@@ -105,7 +108,7 @@ class SubscriptionPlanController extends Controller
             'subject_type' => SubscriptionPlan::class,
             'subject_id' => $plan->id,
             'old_values' => [],
-            'new_values' => $plan->only(['code', 'name', 'price', 'billing_cycle', 'max_branches', 'max_tables', 'max_users', 'features']),
+            'new_values' => $plan->only(['code', 'name', 'price', 'billing_cycle', 'max_branches', 'max_tables', 'max_users', 'max_dishes', 'features']),
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
@@ -127,6 +130,7 @@ class SubscriptionPlanController extends Controller
             'max_branches' => 'required|integer|min:-1',
             'max_tables' => 'required|integer|min:-1',
             'max_users' => 'required|integer|min:-1',
+            'max_dishes' => 'required|integer|min:-1',
             'max_areas' => 'required|integer|min:-1',
             'max_storage_mb' => 'required|integer|min:1',
             'api_rate_limit' => 'required|integer|min:10',
@@ -137,7 +141,7 @@ class SubscriptionPlanController extends Controller
         $toNull = fn ($v) => $v === -1 ? null : $v;
 
         $existingFeatures = $plan->features ?? [];
-        $oldValues = ['name' => $plan->name, 'price' => $plan->price, 'max_branches' => $plan->max_branches, 'max_tables' => $plan->max_tables, 'max_users' => $plan->max_users, 'features' => $existingFeatures];
+        $oldValues = ['name' => $plan->name, 'price' => $plan->price, 'max_branches' => $plan->max_branches, 'max_tables' => $plan->max_tables, 'max_users' => $plan->max_users, 'max_dishes' => $plan->max_dishes, 'features' => $existingFeatures];
 
         $newFeatures = array_merge($existingFeatures, [
             'description' => $validated['description'] ?? null,
@@ -156,6 +160,7 @@ class SubscriptionPlanController extends Controller
             'max_branches' => $toNull($validated['max_branches']),
             'max_tables' => $toNull($validated['max_tables']),
             'max_users' => $toNull($validated['max_users']),
+            'max_dishes' => $toNull($validated['max_dishes']),
             'features' => $newFeatures,
         ]);
 
@@ -169,7 +174,7 @@ class SubscriptionPlanController extends Controller
             'subject_type' => SubscriptionPlan::class,
             'subject_id' => $plan->id,
             'old_values' => $oldValues,
-            'new_values' => $plan->only(['name', 'price', 'max_branches', 'max_tables', 'max_users', 'features']),
+            'new_values' => $plan->only(['name', 'price', 'max_branches', 'max_tables', 'max_users', 'max_dishes', 'features']),
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);

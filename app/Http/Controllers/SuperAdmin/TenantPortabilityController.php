@@ -35,7 +35,7 @@ class TenantPortabilityController extends Controller
             $sandbox = $this->dataService->cloneSandbox($restaurant);
 
             return redirect()->back()->with('flash', [
-                'success' => "Đã nhân bản sandbox thành công: '{$sandbox->name}' (Mã: {$sandbox->code}). Tài khoản nhân viên sandbox được reset mật khẩu về: password123",
+                'success' => "Đã nhân bản sandbox thành công: '{$sandbox->name}' (Mã: {$sandbox->code}). Các tài khoản sandbox phải dùng quy trình đặt lại mật khẩu trước khi đăng nhập.",
             ]);
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([

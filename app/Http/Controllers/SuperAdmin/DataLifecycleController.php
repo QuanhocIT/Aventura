@@ -8,6 +8,7 @@ use App\Models\Restaurant;
 use App\Services\DataLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -75,17 +76,43 @@ class DataLifecycleController extends Controller
 
     public function approve(Request $request, DataCleanupRun $run): RedirectResponse
     {
-        if ($run->status !== 'pending') {
+        $actorId = (int) $request->user()->id;
+        if ($run->status !== 'pending' || ! $run->dry_run || ! $run->approval_required) {
             return back()->with('error', "Cleanup run #{$run->id} không còn ở trạng thái chờ phê duyệt.");
         }
 
-        $run->forceFill([
-            'status' => 'running',
-            'dry_run' => false,
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-            'started_at' => now(),
-        ])->save();
+        if ((int) $run->requested_by === $actorId) {
+            return back()->with('error', 'Người tạo cleanup không được tự phê duyệt chính yêu cầu của mình.');
+        }
+
+        if ($run->requested_at && $run->requested_at->lt(now()->subDay())) {
+            $run->forceFill(['status' => 'expired'])->save();
+
+            return back()->with('error', "Cleanup run #{$run->id} đã hết hạn phê duyệt và cần tạo preview mới.");
+        }
+
+        $claimed = DB::transaction(function () use ($run, $actorId): bool {
+            $locked = DataCleanupRun::query()->lockForUpdate()->find($run->id);
+            if (! $locked || $locked->status !== 'pending' || ! $locked->dry_run || (int) $locked->requested_by === $actorId) {
+                return false;
+            }
+
+            $locked->forceFill([
+                'status' => 'running',
+                'dry_run' => false,
+                'approved_by' => $actorId,
+                'approved_at' => now(),
+                'started_at' => now(),
+            ])->save();
+
+            return true;
+        });
+
+        if (! $claimed) {
+            return back()->with('error', "Cleanup run #{$run->id} vừa được xử lý bởi phiên khác.");
+        }
+
+        $run->refresh();
 
         try {
             $result = $this->lifecycle->execute($run);

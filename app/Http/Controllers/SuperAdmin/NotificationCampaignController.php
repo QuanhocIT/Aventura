@@ -59,7 +59,11 @@ class NotificationCampaignController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string'],
             'target_type' => ['required', 'in:all,plan,trial'],
-            'target_plan_id' => ['nullable', 'exists:subscription_plans,id'],
+            'target_plan_id' => [
+                'nullable',
+                'exists:subscription_plans,id',
+                'required_if:target_type,plan',
+            ],
             'target_role' => ['required', 'in:owner,all_staff'],
             'channels' => ['required', 'array', 'min:1'],
             'channels.*' => ['in:websocket,email,push'],
@@ -88,7 +92,7 @@ class NotificationCampaignController extends Controller
 
     public function send(NotificationCampaign $campaign): RedirectResponse
     {
-        if ($campaign->status === 'sending') {
+        if (in_array($campaign->status, ['sending', 'sent'], true)) {
             return back()->with('error', 'Chiến dịch đang được gửi rồi.');
         }
 

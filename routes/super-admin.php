@@ -329,6 +329,8 @@ Route::prefix('super-admin')
         });
         Route::middleware(['superadmin.permission:superadmin.audit.export', 'superadmin.stepup:always'])->group(function () {
             Route::get('audit-logs/export', [AuditLogController::class, 'export'])->name('audit-logs.export');
+        });
+        Route::middleware(['superadmin.permission:superadmin.audit.manage', 'superadmin.stepup:always'])->group(function () {
             Route::post('audit-logs/retention', [AuditLogController::class, 'updateRetention'])->name('audit-logs.retention.update');
             Route::post('audit-logs/retention/prune', [AuditLogController::class, 'pruneRetention'])->name('audit-logs.retention.prune');
         });

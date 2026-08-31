@@ -203,7 +203,7 @@ class TenantHealthController extends Controller
             ->values();
 
         $ownerCandidates = $users
-            ->filter(fn (User $user) => $user->status === 'active' && ! $user->isSuperAdmin())
+            ->filter(fn (User $user) => $user->status === 'active' && ! $user->isPlatformAdmin())
             ->map(fn (User $user) => [
                 'id' => $user->id,
                 'tenant_id' => $user->restaurant_id,
@@ -378,7 +378,7 @@ class TenantHealthController extends Controller
     {
         $tenant = $this->tenant($data);
         $user = User::where('restaurant_id', $tenant->id)->findOrFail($this->required($data, 'user_id'));
-        if ($user->status !== 'active' || $user->isSuperAdmin()) {
+        if ($user->status !== 'active' || $user->isPlatformAdmin()) {
             throw ValidationException::withMessages(['user_id' => 'Owner phải là tài khoản tenant active, không phải platform-admin.']);
         }
 
@@ -403,7 +403,7 @@ class TenantHealthController extends Controller
         $branch = RestaurantBranch::where('restaurant_id', $tenant->id)->where('status', 'active')->findOrFail($this->required($data, 'branch_id'));
         $user = User::where('restaurant_id', $tenant->id)->findOrFail($this->required($data, 'user_id'));
 
-        if ($user->isSuperAdmin() || $user->status !== 'active') {
+        if ($user->isPlatformAdmin() || $user->status !== 'active') {
             throw ValidationException::withMessages(['user_id' => 'Chỉ tài khoản tenant active mới được gán branch.']);
         }
         if ($user->isBranchManager() && $branch->manager_user_id && (int) $branch->manager_user_id !== $user->id) {

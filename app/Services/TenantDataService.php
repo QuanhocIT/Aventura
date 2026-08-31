@@ -131,8 +131,11 @@ class TenantDataService
                         $newUser = User::create([
                             'name' => '[SB] '.$origUser->name,
                             'email' => $sandboxEmail,
-                            'password' => bcrypt('password123'), // Mật khẩu mặc định sandbox
-                            'email_verified_at' => now(),
+                            'password' => bcrypt(Str::password(32)),
+                            'email_verified_at' => null,
+                            'must_change_password' => true,
+                            'activation_token' => Str::random(40),
+                            'activation_expires_at' => now()->addDays(7),
                             'restaurant_id' => $sandbox->id,
                         ]);
                         // Assign the same roles if possible

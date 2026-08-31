@@ -18,7 +18,13 @@ class QuotaService
         }
 
         // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ khỏi xung đột khi sửa Gói Master)
-        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $subscription = $restaurant->subscriptions()
+            ->whereIn('status', ['trial', 'active'])
+            ->where(function ($query) {
+                $query->whereNull('ended_at')->orWhere('ended_at', '>=', now());
+            })
+            ->latest('id')
+            ->first();
         $snapshot = $subscription?->meta['snapshot'] ?? null;
 
         if ($snapshot) {
@@ -108,7 +114,13 @@ class QuotaService
         }
 
         // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ)
-        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $subscription = $restaurant->subscriptions()
+            ->whereIn('status', ['trial', 'active'])
+            ->where(function ($query) {
+                $query->whereNull('ended_at')->orWhere('ended_at', '>=', now());
+            })
+            ->latest('id')
+            ->first();
         $snapshot = $subscription?->meta['snapshot'] ?? null;
 
         if ($snapshot && isset($snapshot['features'])) {
@@ -126,6 +138,18 @@ class QuotaService
 
     public function getRateLimit(Restaurant $restaurant): int
     {
+        $subscription = $restaurant->subscriptions()
+            ->whereIn('status', ['trial', 'active'])
+            ->where(function ($query) {
+                $query->whereNull('ended_at')->orWhere('ended_at', '>=', now());
+            })
+            ->latest('id')
+            ->first();
+        $snapshot = $subscription?->meta['snapshot'] ?? null;
+        if ($snapshot) {
+            return (int) ($snapshot['features']['api_rate_limit'] ?? 60);
+        }
+
         $plan = $restaurant->plan;
 
         if (! $plan) {

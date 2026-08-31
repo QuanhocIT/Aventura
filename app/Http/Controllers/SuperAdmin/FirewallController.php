@@ -19,7 +19,7 @@ class FirewallController extends Controller
     {
         $user = $request->user();
         // Super Admin access authorization is handled by middleware, but we double check
-        abort_unless($user->isSuperAdmin() || $user->hasRole('super_admin'), 403);
+        abort_unless($user->isPlatformAdmin(), 403);
 
         // 1. Process Blocked IPs
         $blockedList = Cache::get('waf:blocked_list', []);

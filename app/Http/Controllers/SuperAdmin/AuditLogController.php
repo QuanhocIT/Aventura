@@ -170,6 +170,8 @@ class AuditLogController extends Controller
 
     public function pruneRetention(Request $request): RedirectResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('audit.manage'), 403);
+
         $retentionMonths = max(1, (int) SystemSetting::get('audit_retention_months', 6));
         $cutoff = now()->subMonths($retentionMonths);
         $count = AuditLog::where('created_at', '<', $cutoff)->count();

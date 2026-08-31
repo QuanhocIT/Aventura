@@ -11,20 +11,27 @@ use App\Models\SubscriptionPlan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class GlobalRevenueController extends Controller
 {
     public function index(Request $request)
     {
-        $range = $request->input('range', '30');
+        $validated = $request->validate([
+            'range' => ['nullable', 'integer', Rule::in([7, 30, 90, 365])],
+            'plan' => ['nullable', 'string', 'max:50'],
+            'restaurant_id' => ['nullable', 'integer'],
+        ]);
+        $range = (string) ($validated['range'] ?? 30);
         $startDate = now()->subDays((int) $range)->startOfDay();
-        $planFilter = $request->input('plan');
-        $restaurantFilter = $request->input('restaurant_id');
+        $planFilter = $validated['plan'] ?? null;
+        $restaurantFilter = $validated['restaurant_id'] ?? null;
 
         // Base query for orders
         $orderQuery = Order::withoutGlobalScopes()
             ->where('orders.status', 'completed')
+            ->where('orders.payment_status', 'paid')
             ->where('orders.created_at', '>=', $startDate);
 
         if ($request->filled('plan')) {
@@ -94,6 +101,7 @@ class GlobalRevenueController extends Controller
         $prevStartDate = now()->subDays((int) $range * 2)->startOfDay();
         $compareOrderQuery = Order::withoutGlobalScopes()
             ->where('orders.status', 'completed')
+            ->where('orders.payment_status', 'paid')
             ->whereBetween('orders.created_at', [$prevStartDate, $startDate]);
 
         if ($request->filled('plan')) {
@@ -171,16 +179,18 @@ class GlobalRevenueController extends Controller
         $repeatCustomers = $customerStats->where('order_count', '>', 1)->count();
         $retentionRate = $totalUniqueCustomers > 0 ? round(($repeatCustomers / $totalUniqueCustomers) * 100, 1) : 0;
 
-        if ($retentionRate == 0) {
-            $seed = (clone $orderQuery)->count();
-            $retentionRate = 25.0 + ($seed % 15) + ($seed % 10) / 10.0;
-        }
-
         // 7. Total metrics
         $totalRevenue = (clone $orderQuery)->sum('total_amount');
         $totalOrders = (clone $orderQuery)->count();
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
-        $activeRestaurants = (clone $orderQuery)->distinct('restaurant_id')->count('restaurant_id');
+        $activeRestaurantQuery = Restaurant::query()->where('status', 'active');
+        if ($planFilter) {
+            $activeRestaurantQuery->whereHas('plan', fn ($q) => $q->where('code', $planFilter));
+        }
+        if ($restaurantFilter) {
+            $activeRestaurantQuery->whereKey($restaurantFilter);
+        }
+        $activeRestaurants = $activeRestaurantQuery->count();
 
         // 8. AI Forecast: weighted moving average (7 days ahead)
         $forecastRevenue = [];
@@ -253,13 +263,18 @@ class GlobalRevenueController extends Controller
 
     public function exportCsv(Request $request)
     {
-        $range = $request->input('range', '30');
+        $range = $request->validate([
+            'range' => ['nullable', 'integer', Rule::in([7, 30, 90, 365])],
+            'plan' => ['nullable', 'string', 'max:50'],
+            'restaurant_id' => ['nullable', 'integer'],
+        ])['range'] ?? 30;
         $startDate = now()->subDays((int) $range)->startOfDay();
         $planFilter = $request->input('plan');
         $restaurantFilter = $request->input('restaurant_id');
 
         $query = Order::withoutGlobalScopes()
             ->where('orders.status', 'completed')
+            ->where('orders.payment_status', 'paid')
             ->where('orders.created_at', '>=', $startDate)
             ->with(['restaurant', 'restaurant.plan']);
 

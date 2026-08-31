@@ -38,11 +38,12 @@ class GlobalCustomersController extends Controller
         $restaurantCache = $restaurants->pluck('name', 'id')->all();
         $restaurantCodeCache = $restaurants->pluck('code', 'id')->all();
 
+        $canViewPii = $request->user()?->isSuperAdmin() === true;
         $customers = $query->latest()->paginate(20)->through(fn (Customer $c) => [
             'id' => $c->id,
             'name' => $c->full_name ?? '—',
-            'phone' => $c->phone,
-            'email' => $c->email,
+            'phone' => $canViewPii ? $c->phone : $this->maskPhone($c->phone),
+            'email' => $canViewPii ? $c->email : $this->maskEmail($c->email),
             'restaurant' => $restaurantCache[$c->restaurant_id] ?? '—',
             'restaurant_code' => $restaurantCodeCache[$c->restaurant_id] ?? '',
             'is_vip' => $c->is_vip,
@@ -65,5 +66,25 @@ class GlobalCustomersController extends Controller
             'restaurants' => $restaurants,
             'filters' => $filters,
         ]);
+    }
+
+    private function maskPhone(?string $phone): ?string
+    {
+        if (! $phone) {
+            return null;
+        }
+
+        return mb_substr($phone, 0, 3).'****'.mb_substr($phone, -2);
+    }
+
+    private function maskEmail(?string $email): ?string
+    {
+        if (! $email || ! str_contains($email, '@')) {
+            return $email;
+        }
+
+        [$local, $domain] = explode('@', $email, 2);
+
+        return mb_substr($local, 0, 1).'***@'.$domain;
     }
 }

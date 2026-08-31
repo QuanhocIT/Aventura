@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\SuperAdminAuditStream;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,7 +19,7 @@ class ImpersonateController extends Controller
         $currentUser = $request->user();
 
         // 1. Chỉ Super Admin mới được bắt đầu sắm vai
-        if (! $currentUser || ! $currentUser->isSuperAdmin()) {
+        if (! $currentUser || ! $currentUser->isPlatformAdmin()) {
             abort(403, 'Chỉ tài khoản Super Admin mới được phép thực hiện hành động này.');
         }
 
@@ -28,8 +29,12 @@ class ImpersonateController extends Controller
         }
 
         // 3. Không được sắm vai một Super Admin khác để tránh leo thang đặc quyền trái phép
-        if ($user->isSuperAdmin()) {
+        if ($user->isPlatformAdmin()) {
             return back()->with('error', 'Không thể sắm vai một tài khoản Super Admin khác.');
+        }
+
+        if (($user->status ?? 'active') !== 'active' || ! $user->restaurant_id) {
+            return back()->with('error', 'Chỉ có thể sắm vai tài khoản người dùng đang hoạt động trong một nhà hàng.');
         }
 
         // 4. Bắt buộc nhập lý do sắm vai (Tối thiểu 10 ký tự) hoặc Ticket ID
@@ -50,6 +55,7 @@ class ImpersonateController extends Controller
 
         // 6. Đăng nhập dưới danh nghĩa User mục tiêu
         Auth::login($user);
+        $request->session()->regenerate();
 
         SuperAdminAuditStream::record('impersonate_start', [
             'target_user_email' => $user->email,
@@ -73,27 +79,51 @@ class ImpersonateController extends Controller
      */
     public function requestWrite(Request $request): Response
     {
-        if (! $request->session()->has('impersonate_original_user_id')) {
+        $originalAdminId = $request->session()->get('impersonate_original_user_id');
+        if (! $originalAdminId) {
             abort(403, 'Bạn không ở trong chế độ đăng nhập sắm vai.');
+        }
+
+        /** @var User|null $originalAdmin */
+        $originalAdmin = User::find($originalAdminId);
+        $currentUser = $request->user();
+
+        if (! $originalAdmin
+            || ! $originalAdmin->isPlatformAdmin()
+            || ($originalAdmin->status ?? 'active') !== 'active'
+            || ! $currentUser
+            || (int) $currentUser->id === (int) $originalAdmin->id) {
+            abort(403, 'Phiên sắm vai không còn hợp lệ.');
         }
 
         $validated = $request->validate([
             'write_reason' => 'required|string|min:10',
+            'original_password' => 'required|string|min:1',
         ], [
             'write_reason.required' => 'Bạn phải cung cấp lý do cần thao tác ghi dữ liệu.',
             'write_reason.min' => 'Lý do xin quyền ghi phải từ 10 ký tự trở lên.',
+            'original_password.required' => 'Cần xác nhận mật khẩu tài khoản quản trị gốc.',
         ]);
+
+        if (! Hash::check($validated['original_password'], $originalAdmin->password)) {
+            SuperAdminAuditStream::record('impersonate_request_write_denied', [
+                'write_reason' => $validated['write_reason'],
+                'reason' => 'invalid_original_password',
+            ], User::class, $currentUser->id, 'critical');
+
+            return back()->withErrors([
+                'original_password' => 'Mật khẩu tài khoản quản trị gốc không chính xác.',
+            ]);
+        }
 
         // Cấp quyền Ghi trong 15 phút
         $expiresAt = now()->addMinutes(15)->timestamp;
         $request->session()->put('impersonate_write_until', $expiresAt);
 
-        /** @var User $currentUser */
-        $currentUser = $request->user();
-
         SuperAdminAuditStream::record('impersonate_request_write', [
             'write_reason' => $validated['write_reason'],
             'expires_at' => date('Y-m-d H:i:s', $expiresAt),
+            'approved_by' => $originalAdmin->id,
         ], User::class, $currentUser?->id, 'warning');
 
         return back()->with('success', 'Đã cấp quyền Write-Mode thành công trong 15 phút. Mọi thao tác ghi dữ liệu sẽ được giám sát chặt chẽ.');
@@ -109,11 +139,14 @@ class ImpersonateController extends Controller
         $originalAdminId = $request->session()->get('impersonate_original_user_id');
         $originalAdmin = User::findOrFail($originalAdminId);
 
+        abort_unless($originalAdmin->isPlatformAdmin() && ($originalAdmin->status ?? 'active') === 'active', 403);
+
         /** @var User $impersonatedUser */
         $impersonatedUser = $request->user();
 
         // 2. Đăng nhập lại tài khoản Super Admin gốc
         Auth::login($originalAdmin);
+        $request->session()->regenerate();
 
         // 3. Xóa thông tin sắm vai khỏi Session
         $request->session()->forget([

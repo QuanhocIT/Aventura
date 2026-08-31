@@ -798,7 +798,7 @@ class EmployeeManagementController extends Controller
             return back()->with('error', 'Đã tạo hồ sơ nhưng không gửi được email kích hoạt. Vui lòng kiểm tra cấu hình mail và gửi lại lời mời.');
         }
 
-        return back()->with('success', "Đã tạo tài khoản nhân viên thành công với mật khẩu mặc định là 'password'.");
+        return back()->with('success', 'Đã tạo tài khoản nhân viên. Email kích hoạt đã được gửi; nhân viên phải đặt mật khẩu mới trước khi đăng nhập.');
     }
 
     /**
@@ -831,6 +831,9 @@ class EmployeeManagementController extends Controller
                 'password' => $data['password'],
                 'status' => 'active',
                 'email_verified_at' => now(),
+                'must_change_password' => false,
+                'activation_token' => null,
+                'activation_expires_at' => null,
             ]);
 
             $employee = $user->employee;

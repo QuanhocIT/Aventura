@@ -77,7 +77,11 @@ class CampaignTemplateController extends Controller
             'season' => ['required', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'discount_type' => ['required', 'in:percent,fixed'],
-            'discount_value' => ['required', 'numeric', 'min:0'],
+            'discount_value' => ['required', 'numeric', 'min:0', function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                if ($request->input('discount_type') === 'percent' && (float) $value > 100) {
+                    $fail('Giá trị giảm theo phần trăm không được vượt quá 100.');
+                }
+            }],
             'default_duration_days' => ['required', 'integer', 'min:1'],
             'default_budget_cap' => ['nullable', 'numeric', 'min:0'],
             'default_max_uses' => ['nullable', 'integer', 'min:1'],
@@ -99,7 +103,11 @@ class CampaignTemplateController extends Controller
             'season' => ['required', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'discount_type' => ['required', 'in:percent,fixed'],
-            'discount_value' => ['required', 'numeric', 'min:0'],
+            'discount_value' => ['required', 'numeric', 'min:0', function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                if ($request->input('discount_type') === 'percent' && (float) $value > 100) {
+                    $fail('Giá trị giảm theo phần trăm không được vượt quá 100.');
+                }
+            }],
             'default_duration_days' => ['required', 'integer', 'min:1'],
             'default_budget_cap' => ['nullable', 'numeric', 'min:0'],
             'default_max_uses' => ['nullable', 'integer', 'min:1'],

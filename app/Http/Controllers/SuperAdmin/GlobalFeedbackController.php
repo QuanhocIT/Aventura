@@ -22,11 +22,6 @@ class GlobalFeedbackController extends Controller
         $activeTab = $request->query('tab', 'platform'); // 'platform' (Chủ doanh nghiệp) hoặc 'customer' (Thực khách)
         $filters = $request->only(['restaurant_id', 'rating', 'search', 'category', 'plan_code']);
 
-        // Nếu chưa có phản hồi hệ thống nào, seed dữ liệu mẫu phản hồi từ chủ doanh nghiệp
-        if (PlatformFeedback::count() === 0) {
-            $this->seedSamplePlatformFeedbacks();
-        }
-
         if ($activeTab === 'platform') {
             return $this->renderPlatformFeedbacks($filters, $activeTab);
         } else {

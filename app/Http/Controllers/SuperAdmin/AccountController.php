@@ -20,10 +20,12 @@ class AccountController extends Controller
 
     public function index(Request $request): Response
     {
-        $superAdminRoles = config('auth.super_admin_roles', ['super_admin']);
+        $platformAdminRoles = config('auth.platform_admin_roles', ['super_admin']);
 
-        // Show both regular users AND admin sub-role accounts
-        $query = User::with(['roles', 'restaurant']);
+        // This page manages platform identities only. Tenant owners, staff and
+        // customers must be managed from their own tenant workflows.
+        $query = User::with(['roles', 'restaurant'])
+            ->whereHas('roles', fn ($q) => $q->whereIn('name', $platformAdminRoles));
 
         if ($request->filled('search')) {
             $s = $request->search;
@@ -82,10 +84,23 @@ class AccountController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => bcrypt($tempPassword),
-            'email_verified_at' => now(),
+            'email_verified_at' => null,
+            'must_change_password' => true,
+            'activation_token' => Str::random(40),
+            'activation_expires_at' => now()->addDays(7),
+            'status' => 'active',
         ]);
 
         $user->assignRole($data['role']);
+
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            logger()->warning('Could not send platform admin verification email.', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         AuditLog::create([
             'restaurant_id' => null,
@@ -113,13 +128,13 @@ class AccountController extends Controller
             return back()->with('error', 'Không thể thay đổi role của tài khoản Super Admin gốc.');
         }
 
+        if (! $user->isPlatformAdmin()) {
+            return back()->with('error', 'Chỉ được thay đổi role cho tài khoản platform-admin.');
+        }
+
         $data = $request->validate([
             'role' => ['required', 'string', 'in:'.implode(',', self::ADMIN_SUB_ROLES)],
         ]);
-
-        if (! $user->isSuperAdmin()) {
-            return back()->with('error', 'Chi duoc thay doi role cho tai khoan platform-admin. Khong the nang owner/manager tenant thanh Superadmin.');
-        }
 
         $oldRoles = $user->getRoleNames()->values()->all();
 
@@ -185,8 +200,17 @@ class AccountController extends Controller
             return back()->with('error', 'Không thể reset mật khẩu tài khoản Super Admin gốc.');
         }
 
+        if (! $user->isPlatformAdmin()) {
+            return back()->with('error', 'Chỉ được reset mật khẩu cho tài khoản platform-admin.');
+        }
+
         $tempPassword = Str::random(10).rand(10, 99).'!';
-        $user->forceFill(['password' => bcrypt($tempPassword)])->save();
+        $user->forceFill([
+            'password' => bcrypt($tempPassword),
+            'must_change_password' => true,
+            'activation_token' => Str::random(40),
+            'activation_expires_at' => now()->addDays(7),
+        ])->save();
         $user->increment('security_session_version');
 
         $this->writeAuditLog('reset_password', $user);
@@ -200,6 +224,10 @@ class AccountController extends Controller
     {
         if ($user->hasRole('super_admin')) {
             return back()->with('error', 'Không thể tắt 2FA của tài khoản Super Admin gốc.');
+        }
+
+        if (! $user->isPlatformAdmin()) {
+            return back()->with('error', 'Chỉ được tắt 2FA cho tài khoản platform-admin.');
         }
 
         if (is_null($user->two_factor_confirmed_at)) {
@@ -223,10 +251,18 @@ class AccountController extends Controller
             return back()->with('error', 'Không thể thay đổi trạng thái tài khoản Super Admin gốc.');
         }
 
+        if (! $user->isPlatformAdmin()) {
+            return back()->with('error', 'Chỉ được thay đổi trạng thái tài khoản platform-admin.');
+        }
+
         $request->validate(['status' => 'required|in:active,suspended']);
 
         $old = $user->status ?? 'active';
-        $user->forceFill(['status' => $request->status])->save();
+        $user->forceFill([
+            'status' => $request->status,
+            'security_session_version' => (int) ($user->security_session_version ?? 0) + 1,
+            'force_logout_at' => now(),
+        ])->save();
 
         AuditLog::create([
             'restaurant_id' => null,

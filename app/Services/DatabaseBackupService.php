@@ -244,6 +244,7 @@ class DatabaseBackupService
      */
     public function downloadBackup(string $filename, string $disk)
     {
+        $filename = $this->safeBackupFilename($filename);
         $path = 'backups/'.$filename;
         if (! Storage::disk($disk)->exists($path)) {
             abort(404, 'Tệp sao lưu không tồn tại.');
@@ -257,12 +258,23 @@ class DatabaseBackupService
      */
     public function deleteBackup(string $filename, string $disk): bool
     {
+        $filename = $this->safeBackupFilename($filename);
         $path = 'backups/'.$filename;
         if (Storage::disk($disk)->exists($path)) {
             return Storage::disk($disk)->delete($path);
         }
 
         return false;
+    }
+
+    private function safeBackupFilename(string $filename): string
+    {
+        $basename = basename($filename);
+        if ($basename !== $filename || ! preg_match('/\A[a-zA-Z0-9._-]+\.(sql|gz|zip)\z/i', $basename)) {
+            abort(400, 'Tên tệp sao lưu không hợp lệ.');
+        }
+
+        return $basename;
     }
 
     /**

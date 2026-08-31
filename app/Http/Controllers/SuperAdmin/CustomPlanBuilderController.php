@@ -27,7 +27,7 @@ class CustomPlanBuilderController extends Controller
         $validated = $request->validate([
             'name' => 'nullable|string|max:100',
             'price' => 'required|integer|min:0',
-            'billing_cycle' => 'required|string|max:50',
+            'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,biennial',
             'max_branches' => 'required|integer|min:-1',
             'max_tables' => 'required|integer|min:-1',
             'max_users' => 'required|integer|min:-1',
@@ -100,7 +100,16 @@ class CustomPlanBuilderController extends Controller
                 'price' => $plan->price,
                 'original_price' => $plan->price,
                 'billing_cycle' => $plan->billing_cycle,
-                'meta' => ['source' => 'custom_plan_builder'],
+                'meta' => [
+                    'source' => 'custom_plan_builder',
+                    'snapshot' => [
+                        'max_branches' => $plan->max_branches,
+                        'max_tables' => $plan->max_tables,
+                        'max_users' => $plan->max_users,
+                        'max_dishes' => $plan->max_dishes,
+                        'features' => $plan->features ?? [],
+                    ],
+                ],
             ]);
 
             // 5. Cập nhật Restaurant

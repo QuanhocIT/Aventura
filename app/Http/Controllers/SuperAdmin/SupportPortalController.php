@@ -6,6 +6,7 @@ use App\Events\SuperAdmin\DashboardMetricsUpdated;
 use App\Events\Support\SupportAnnouncementPublished;
 use App\Http\Controllers\Controller;
 use App\Mail\SupportTicketEscalationMail;
+use App\Models\AuditLog;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\Restaurant;
 use App\Models\SupportAnnouncement;
@@ -21,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -114,7 +116,7 @@ class SupportPortalController extends Controller
             ]),
             'restaurants' => Restaurant::query()->orderBy('name')->get(['id', 'name']),
             'staff' => User::query()
-                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['admin', 'super_admin']))
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', config('auth.platform_admin_roles', ['super_admin'])))
                 ->orderBy('name')
                 ->get(['id', 'name']),
             'filters' => $request->only(['status', 'severity', 'restaurant_id']),
@@ -179,6 +181,10 @@ class SupportPortalController extends Controller
         }
 
         if (array_key_exists('assigned_to', $data)) {
+            $assignee = $data['assigned_to'] ? User::find($data['assigned_to']) : null;
+            if ($assignee && ! $assignee->isPlatformAdmin()) {
+                return back()->withErrors(['assigned_to' => 'Chỉ được phân công ticket cho nhân sự quản trị platform.']);
+            }
             $ticket->assigned_to = $data['assigned_to'];
         }
 
@@ -190,9 +196,26 @@ class SupportPortalController extends Controller
 
         if ($ticket->status === 'resolved' && ! $ticket->resolved_at) {
             $ticket->resolved_at = now();
+        } elseif ($ticket->status !== 'resolved') {
+            $ticket->resolved_at = null;
         }
 
         $ticket->save();
+
+        AuditLog::create([
+            'restaurant_id' => $ticket->restaurant_id,
+            'branch_id' => null,
+            'user_id' => $request->user()?->id,
+            'user_role' => 'admin',
+            'event' => 'updated',
+            'action' => 'support_ticket_update',
+            'subject_type' => SupportTicket::class,
+            'subject_id' => $ticket->id,
+            'old_values' => [],
+            'new_values' => $data,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return back()->with('success', 'Đã cập nhật ticket.');
     }
@@ -243,11 +266,38 @@ class SupportPortalController extends Controller
         }
 
         if (array_key_exists('assigned_to', $data)) {
+            $assignee = $data['assigned_to'] ? User::find($data['assigned_to']) : null;
+            if ($assignee && ! $assignee->isPlatformAdmin()) {
+                return back()->withErrors(['assigned_to' => 'Chỉ được phân công ticket cho nhân sự quản trị platform.']);
+            }
             $updates['assigned_to'] = $data['assigned_to'];
         }
 
         if (! empty($updates)) {
-            SupportTicket::whereIn('id', $data['ticket_ids'])->update($updates);
+            SupportTicket::whereIn('id', $data['ticket_ids'])->get()->each(function (SupportTicket $ticket) use ($updates, $request): void {
+                $ticket->fill($updates);
+                if ($ticket->status === 'resolved') {
+                    $ticket->resolved_at ??= now();
+                } else {
+                    $ticket->resolved_at = null;
+                }
+                $ticket->save();
+
+                AuditLog::create([
+                    'restaurant_id' => $ticket->restaurant_id,
+                    'branch_id' => null,
+                    'user_id' => $request->user()?->id,
+                    'user_role' => 'admin',
+                    'event' => 'updated',
+                    'action' => 'support_ticket_bulk_update',
+                    'subject_type' => SupportTicket::class,
+                    'subject_id' => $ticket->id,
+                    'old_values' => [],
+                    'new_values' => $updates,
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            });
         }
 
         return back()->with('success', 'Đã cập nhật '.count($data['ticket_ids']).' ticket.');
@@ -325,8 +375,8 @@ class SupportPortalController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'message' => ['required', 'string'],
-            'audience' => ['required', 'string', 'max:50'],
-            'level' => ['required', 'string', 'max:50'],
+            'audience' => ['required', Rule::in(['all', 'cashier', 'owner', 'kitchen'])],
+            'level' => ['required', Rule::in(['info', 'warning', 'critical'])],
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'publish_now' => ['nullable', 'boolean'],

@@ -24,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -141,7 +142,7 @@ class RestaurantController extends Controller
                 'is_inactive_flagged' => (bool) $r->is_inactive_flagged,
                 'last_active_at' => $r->last_active_at?->format('d/m/Y H:i') ?? '—',
             ]),
-            'plans' => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
+            'plans' => SubscriptionPlan::where('status', 'active')->where('is_custom', false)->get(['id', 'code', 'name']),
             'filters' => $request->only(['status', 'plan', 'search', 'flagged']),
             'stats' => $stats,
             'aiInsights' => $aiInsights,
@@ -353,7 +354,7 @@ class RestaurantController extends Controller
             'invoices' => $invoices,
             'adjustments' => $adjustments,
             'webhooks' => $webhooks,
-            'plans' => SubscriptionPlan::where('status', 'active')->get(['id', 'code', 'name']),
+            'plans' => SubscriptionPlan::where('status', 'active')->where('is_custom', false)->get(['id', 'code', 'name']),
             'crm_notes' => $crmNotes,
             'crm_tags' => $crmTags,
             'crm_followups' => $crmFollowups,
@@ -372,59 +373,81 @@ class RestaurantController extends Controller
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
-            'plan_id' => 'required|exists:subscription_plans,id',
+            'plan_id' => 'required|integer',
             'owner_name' => 'required|string|max:255',
             'owner_email' => 'required|email|unique:users,email',
             'timezone' => 'nullable|string|max:50',
             'currency' => 'nullable|string|max:10',
         ]);
 
-        $owner = User::create([
-            'name' => $validated['owner_name'],
-            'email' => $validated['owner_email'],
-            'password' => bcrypt(Str::random(16)),
-            'email_verified_at' => now(),
-        ]);
+        $plan = SubscriptionPlan::query()
+            ->whereKey($validated['plan_id'])
+            ->where('status', 'active')
+            ->where('is_custom', false)
+            ->first();
 
-        $plan = SubscriptionPlan::findOrFail($validated['plan_id']);
+        if (! $plan) {
+            return back()->withErrors(['plan_id' => 'Gói tiêu chuẩn không tồn tại hoặc đã ngừng cung cấp.']);
+        }
 
-        $restaurant = Restaurant::create([
-            'name' => $validated['name'],
-            'code' => strtoupper(Str::random(6)),
-            'slug' => Str::slug($validated['name']).'-'.Str::random(4),
-            'tax_code' => $validated['tax_code'] ?? null,
-            'phone' => $validated['phone'] ?? null,
-            'email' => $validated['email'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'plan_id' => $plan->id,
-            'owner_user_id' => $owner->id,
-            'status' => 'active',
-            'timezone' => $validated['timezone'] ?? 'Asia/Ho_Chi_Minh',
-            'currency' => $validated['currency'] ?? 'VND',
-            'subscription_started_at' => now(),
-            'trial_ends_at' => now()->addDays(14),
-            'subscription_ends_at' => now()->addDays(14),
-        ]);
+        $ownerTempPassword = Str::password(32);
+        $now = now();
+        $restaurant = DB::transaction(function () use ($validated, $plan, $ownerTempPassword, $now) {
+            $owner = User::create([
+                'name' => $validated['owner_name'],
+                'email' => $validated['owner_email'],
+                'password' => bcrypt($ownerTempPassword),
+                'email_verified_at' => null,
+                'must_change_password' => true,
+                'activation_token' => Str::random(40),
+                'activation_expires_at' => $now->copy()->addDays(7),
+                'status' => 'active',
+            ]);
 
-        $owner->update(['restaurant_id' => $restaurant->id]);
+            $restaurant = Restaurant::create([
+                'name' => $validated['name'],
+                'code' => strtoupper(Str::random(6)),
+                'slug' => Str::slug($validated['name']).'-'.Str::random(4),
+                'tax_code' => $validated['tax_code'] ?? null,
+                'phone' => $validated['phone'] ?? null,
+                'email' => $validated['email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'plan_id' => $plan->id,
+                'owner_user_id' => $owner->id,
+                'status' => 'active',
+                'timezone' => $validated['timezone'] ?? 'Asia/Ho_Chi_Minh',
+                'currency' => $validated['currency'] ?? 'VND',
+                'subscription_started_at' => $now,
+                'trial_ends_at' => $now->copy()->addDays(14),
+                'subscription_ends_at' => $now->copy()->addDays(14),
+            ]);
 
-        RestaurantSubscription::create([
-            'restaurant_id' => $restaurant->id,
-            'plan_id' => $plan->id,
-            'status' => 'trial',
-            'started_at' => now(),
-            'ended_at' => now()->addDays(14),
-            'renewal_at' => now()->addDays(14),
-            'price' => $plan->price,
-        ]);
+            $owner->update(['restaurant_id' => $restaurant->id]);
 
-        $this->seedDemoData($restaurant);
+            RestaurantSubscription::create([
+                'restaurant_id' => $restaurant->id,
+                'plan_id' => $plan->id,
+                'status' => 'trial',
+                'started_at' => $now,
+                'ended_at' => $now->copy()->addDays(14),
+                'renewal_at' => $now->copy()->addDays(14),
+                'price' => $plan->price,
+                'original_price' => $plan->price,
+                'billing_cycle' => $plan->billing_cycle,
+                'meta' => ['source' => 'superadmin_tenant_create', 'snapshot' => $this->planSnapshot($plan)],
+            ]);
+
+            $this->seedDemoData($restaurant);
+
+            return $restaurant;
+        });
 
         Cache::forget('superadmin_ai_insights');
         DashboardController::forgetCache();
 
         return redirect()->route('superadmin.restaurants.show', $restaurant)
-            ->with('success', "Đã tạo nhà hàng \"{$restaurant->name}\" thành công.");
+            ->with('owner_temp_password', $ownerTempPassword)
+            ->with('success', "Đã tạo nhà hàng \"{$restaurant->name}\" thành công. Hãy bàn giao mật khẩu tạm cho chủ nhà hàng qua kênh an toàn.");
     }
 
     public function updateStatus(Request $request, Restaurant $restaurant): RedirectResponse
@@ -435,12 +458,23 @@ class RestaurantController extends Controller
         ]);
 
         $oldStatus = $restaurant->status;
-        $restaurant->update([
+        DB::transaction(function () use ($restaurant, $request): void {
+            $restaurant->update([
             'status' => $request->status,
             ...in_array($request->status, ['active', 'suspended'], true)
                 ? ['lifecycle_status' => $request->status]
                 : [],
-        ]);
+            ]);
+
+            // Suspended tenants keep billing history; only an explicit expiry
+            // closes the current subscription. This keeps service state and
+            // billing state from silently contradicting one another.
+            if ($request->status === 'expired') {
+                $restaurant->subscriptions()
+                    ->whereIn('status', ['trial', 'active'])
+                    ->update(['status' => 'expired']);
+            }
+        });
 
         $labels = [
             'active' => 'kích hoạt',
@@ -471,23 +505,54 @@ class RestaurantController extends Controller
 
     public function updatePlan(Request $request, Restaurant $restaurant): RedirectResponse
     {
-        $request->validate([
-            'plan_id' => 'required|exists:subscription_plans,id',
-        ]);
+        $request->validate(['plan_id' => 'required|integer']);
 
         $oldPlan = $restaurant->plan;
-        $plan = SubscriptionPlan::findOrFail($request->plan_id);
-        $restaurant->update(['plan_id' => $plan->id]);
+        $plan = SubscriptionPlan::query()
+            ->whereKey($request->plan_id)
+            ->where('status', 'active')
+            ->where('is_custom', false)
+            ->first();
 
-        RestaurantSubscription::create([
-            'restaurant_id' => $restaurant->id,
-            'plan_id' => $plan->id,
-            'status' => 'active',
-            'started_at' => now(),
-            'ended_at' => now()->addMonth(),
-            'renewal_at' => now()->addMonth(),
-            'price' => $plan->price,
-        ]);
+        if (! $plan) {
+            return back()->withErrors(['plan_id' => 'Chỉ được chuyển sang gói tiêu chuẩn đang hoạt động.']);
+        }
+
+        $now = now();
+        $days = match ($plan->billing_cycle) {
+            'quarterly' => 90,
+            'half_yearly' => 180,
+            'yearly' => 365,
+            'biennial' => 730,
+            default => 30,
+        };
+        $endedAt = $now->copy()->addDays($days);
+
+        DB::transaction(function () use ($restaurant, $plan, $now, $endedAt): void {
+            $restaurant->subscriptions()
+                ->whereIn('status', ['trial', 'active'])
+                ->update(['status' => 'expired', 'ended_at' => $now]);
+
+            $restaurant->update([
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'subscription_started_at' => $now,
+                'subscription_ends_at' => $endedAt,
+            ]);
+
+            RestaurantSubscription::create([
+                'restaurant_id' => $restaurant->id,
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'started_at' => $now,
+                'ended_at' => $endedAt,
+                'renewal_at' => $endedAt,
+                'price' => $plan->price,
+                'original_price' => $plan->price,
+                'billing_cycle' => $plan->billing_cycle,
+                'meta' => ['source' => 'superadmin_plan_change', 'snapshot' => $this->planSnapshot($plan)],
+            ]);
+        });
 
         AuditLog::create([
             'restaurant_id' => $restaurant->id,
@@ -561,6 +626,17 @@ class RestaurantController extends Controller
                 'status' => 'active',
             ]);
         }
+    }
+
+    private function planSnapshot(SubscriptionPlan $plan): array
+    {
+        return [
+            'max_branches' => $plan->max_branches,
+            'max_tables' => $plan->max_tables,
+            'max_users' => $plan->max_users,
+            'max_dishes' => $plan->max_dishes,
+            'features' => $plan->features ?? [],
+        ];
     }
 
     public function unflag(Restaurant $restaurant): RedirectResponse
