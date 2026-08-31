@@ -2,10 +2,12 @@
 import { Link } from '@inertiajs/vue3';
 import {
     BarChart3,
+    Building2,
     CheckSquare,
     ChevronDown,
     ClipboardCheck,
     Gift,
+    Headset,
     LayoutGrid,
     Package,
     Search,
@@ -275,6 +277,54 @@ const groupDefinitions: {
     },
 ];
 
+// SuperAdmin có hệ thống chức năng khác với chủ doanh nghiệp nên không dùng
+// bộ tự nhận diện nhóm của tenant (tránh các từ như "tài khoản" bị khớp với
+// "khoản"/"kho"). Các mục SuperAdmin được gán nhóm tường minh từ AppSidebar.
+const superAdminGroupDefinitions: typeof groupDefinitions = [
+    {
+        key: 'superadmin_overview',
+        label: 'Tổng quan & Phân tích',
+        icon: BarChart3,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_tenants',
+        label: 'Nhà hàng & Tenants',
+        icon: Building2,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_finance',
+        label: 'Tài chính & Thương mại',
+        icon: Wallet,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_growth',
+        label: 'Khách hàng & Tăng trưởng',
+        icon: Gift,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_support',
+        label: 'Hỗ trợ & AI',
+        icon: Headset,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_operations',
+        label: 'Vận hành & Cấu hình nền tảng',
+        icon: Settings,
+        matches: () => false,
+    },
+    {
+        key: 'superadmin_security',
+        label: 'Quản trị & Bảo mật',
+        icon: ShieldCheck,
+        matches: () => false,
+    },
+];
+
 const shouldGroup = computed(() => {
     if (props.disableGrouping) {
         return false;
@@ -291,6 +341,7 @@ type NavigationGroup = {
 };
 
 const expandedGroupKeys = ref<Set<string>>(new Set());
+const hasInitializedSuperAdminGroups = ref(false);
 
 const toggleGroup = (groupKey: string) => {
     const nextExpandedGroupKeys = new Set(expandedGroupKeys.value);
@@ -332,12 +383,22 @@ const filteredItems = computed(() => {
     );
 });
 
+const isSuperAdminNavigation = computed(() =>
+    props.items.some((item) => String(item.href).startsWith('/super-admin')),
+);
+
+const activeGroupDefinitions = computed(() =>
+    isSuperAdminNavigation.value
+        ? superAdminGroupDefinitions
+        : groupDefinitions,
+);
+
 const groupedSections = computed(() => {
     if (!shouldGroup.value) {
         return [];
     }
 
-    const sections: NavigationGroup[] = groupDefinitions.map((def) => ({
+    const sections: NavigationGroup[] = activeGroupDefinitions.value.map((def) => ({
         key: def.key,
         label: def.label,
         icon: def.icon,
@@ -353,8 +414,8 @@ const groupedSections = computed(() => {
 
     filteredItems.value.forEach((item) => {
         const matchedSection = item.section
-            ? groupDefinitions.find((def) => def.key === item.section)
-            : groupDefinitions.find((def) =>
+            ? activeGroupDefinitions.value.find((def) => def.key === item.section)
+            : activeGroupDefinitions.value.find((def) =>
                   def.matches(item.title, String(item.href)),
               );
 
@@ -399,26 +460,43 @@ onBeforeUnmount(() =>
     window.removeEventListener('keydown', handleGlobalKeydown),
 );
 
-watch(
-    currentUrl,
-    () => {
-        if (!props.collapsibleGroups) {
-            return;
-        }
+const syncActiveGroup = () => {
+    if (!props.collapsibleGroups) {
+        return;
+    }
 
-        const activeGroup = groupedSections.value.find(isGroupActive);
+    const activeGroup = groupedSections.value.find(isGroupActive);
 
-        if (!activeGroup || expandedGroupKeys.value.has(activeGroup.key)) {
-            return;
-        }
+    if (
+        isSuperAdminNavigation.value &&
+        !hasInitializedSuperAdminGroups.value &&
+        groupedSections.value.length > 0
+    ) {
+        expandedGroupKeys.value = new Set(
+            groupedSections.value.map((group) => group.key),
+        );
+        hasInitializedSuperAdminGroups.value = true;
 
-        expandedGroupKeys.value = new Set([
-            ...expandedGroupKeys.value,
-            activeGroup.key,
-        ]);
-    },
-    { immediate: true },
-);
+        return;
+    }
+
+    if (!activeGroup || expandedGroupKeys.value.has(activeGroup.key)) {
+        return;
+    }
+
+    expandedGroupKeys.value = new Set([
+        ...expandedGroupKeys.value,
+        activeGroup.key,
+    ]);
+};
+
+// The navigation can receive its filtered items after the first render when
+// permissions are hydrated. Re-sync on both URL and item changes so the
+// current section is never left empty/collapsed on initial page load.
+watch([currentUrl, () => props.items], syncActiveGroup, {
+    immediate: true,
+    deep: true,
+});
 </script>
 
 <template>

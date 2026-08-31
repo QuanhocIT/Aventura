@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Plus,
     Search,
@@ -142,6 +142,20 @@ const props = defineProps<{
     registrationGrowth: Array<{ label: string; value: number }>;
 }>();
 
+const page = usePage();
+watch(
+    () => page.props.flash,
+    (flash: any) => {
+        if (flash?.owner_temp_password) {
+            toast.warning(
+                `Mật khẩu tạm của chủ nhà hàng (chỉ hiển thị lần này): ${flash.owner_temp_password}`,
+                { duration: 15000 },
+            );
+        }
+    },
+    { immediate: true, deep: true },
+);
+
 const search = ref(props.filters.search ?? '');
 const status = ref(props.filters.status || 'all');
 const planFilter = ref(props.filters.plan || 'all');
@@ -213,7 +227,16 @@ async function impersonateUser(ownerId: number | undefined) {
             variant: 'default',
         })
     ) {
-        router.post(`/super-admin/impersonate/${ownerId}`);
+        const reason = window.prompt(
+            'Nhập lý do sắm vai (tối thiểu 10 ký tự):',
+            'Hỗ trợ xử lý ticket của tenant',
+        );
+        if (!reason || reason.trim().length < 10) {
+            toast.error('Lý do sắm vai phải có ít nhất 10 ký tự.');
+            return;
+        }
+
+        router.post(`/super-admin/impersonate/${ownerId}`, { reason });
     }
 }
 

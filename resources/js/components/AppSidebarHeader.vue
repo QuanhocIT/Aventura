@@ -49,6 +49,15 @@ const warehouseStaffNavItems = [
     { label: 'Hỗ trợ', href: '/support' },
 ];
 
+const superAdminNavItems = [
+    { label: 'Tổng quan SaaS', href: '/super-admin/dashboard' },
+    { label: 'Nhà hàng & Tenants', href: '/super-admin/restaurants' },
+    { label: 'Doanh thu & Cước phí', href: '/super-admin/revenue' },
+    { label: 'Sức khỏe hệ thống', href: '/super-admin/service-monitor' },
+    { label: 'Hỗ trợ & Ticket', href: '/super-admin/support' },
+    { label: 'Cài đặt SaaS', href: '/super-admin/settings' },
+];
+
 const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
 
 const roles = computed(() => {
@@ -107,6 +116,24 @@ const showPolicyModal = ref(false);
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
             <nav
+                v-else-if="user && isSuperAdminRoute"
+                class="hidden shrink-0 items-center gap-0.5 md:flex"
+            >
+                <Link
+                    v-for="item in superAdminNavItems"
+                    :key="item.href"
+                    :href="item.href"
+                    class="shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
+                    :class="
+                        page.url.startsWith(item.href)
+                            ? 'bg-muted font-medium text-foreground'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
+                >
+                    {{ item.label }}
+                </Link>
+            </nav>
+            <nav
                 v-else-if="
                     user &&
                     !isSuperAdminRoute &&
@@ -155,9 +182,9 @@ const showPolicyModal = ref(false);
         </div>
 
         <div class="flex items-center gap-4">
-            <!-- Nút Tra cứu nhanh Quy Định & Tiêu Chuẩn dành cho nhân viên (Ẩn ở tài khoản Chủ doanh nghiệp) -->
+            <!-- Nút Tra cứu nhanh Quy Định & Tiêu Chuẩn dành cho nhân viên (Ẩn ở tài khoản Chủ doanh nghiệp & SuperAdmin) -->
             <button
-                v-if="user && !isOwner"
+                v-if="user && !isOwner && !isSuperAdminRoute"
                 @click="showPolicyModal = true"
                 class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs transition-all hover:scale-[1.02] hover:bg-indigo-500/20 dark:text-indigo-300"
                 title="Tra cứu Bộ Quy Định & Tiêu Chuẩn Vận Hành Nhà Hàng"
@@ -169,13 +196,13 @@ const showPolicyModal = ref(false);
             </button>
 
             <!-- The only global branch selector. Non-owners see a read-only context. -->
-            <BranchContextSelector v-if="!isEmployee" class="mr-2" />
+            <BranchContextSelector v-if="!isEmployee && !isSuperAdminRoute" class="mr-2" />
 
             <AppearanceToggleInline />
 
             <!-- SaaS Service Feedback button (Dành riêng cho Chủ doanh nghiệp / Tenant users) -->
             <button
-                v-if="user && isOwner"
+                v-if="user && isOwner && !isSuperAdminRoute"
                 @click="showFeedbackModal = true"
                 class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 shadow-2xs transition-all hover:scale-[1.02] hover:bg-amber-500/20 dark:text-amber-400"
                 title="Gửi đánh giá gói dịch vụ & hệ thống Aventura"

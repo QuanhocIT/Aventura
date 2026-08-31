@@ -47,6 +47,7 @@ interface OrderItemData {
     plan_name: string;
     billing_cycle: string;
     status: string;
+    payment_status: string;
     total_amount: string;
     total_raw: number;
     type: string;
@@ -70,10 +71,8 @@ interface Stats {
     revenue_today: number;
     completed_today: number;
     cancelled_today: number;
-    pos_today: number;
-    qr_today: number;
-    online_today: number;
-    delivery_today: number;
+    unpaid_today: number;
+    plan_counts_today: Array<{ code: string; name: string; count: number }>;
     revenue_trend: RevenueTrendPoint[];
 }
 
@@ -90,6 +89,7 @@ const props = defineProps<{
     filters: {
         restaurant_id?: string;
         status?: string;
+        payment_status?: string;
         type?: string;
         search?: string;
         date_from?: string;
@@ -99,6 +99,7 @@ const props = defineProps<{
 
 const restaurantId = ref(props.filters.restaurant_id || 'all');
 const status = ref(props.filters.status || 'all');
+const paymentStatus = ref(props.filters.payment_status || 'all');
 const type = ref(props.filters.type || 'all');
 const search = ref(props.filters.search ?? '');
 const dateFrom = ref(props.filters.date_from ?? '');
@@ -122,6 +123,10 @@ function applyFilter() {
                 status.value && status.value !== 'all'
                     ? status.value
                     : undefined,
+            payment_status:
+                paymentStatus.value && paymentStatus.value !== 'all'
+                    ? paymentStatus.value
+                    : undefined,
             type: type.value && type.value !== 'all' ? type.value : undefined,
             search: search.value || undefined,
             date_from: dateFrom.value || undefined,
@@ -135,6 +140,7 @@ function hasActiveFilter() {
     return !!(
         (restaurantId.value && restaurantId.value !== 'all') ||
         (status.value && status.value !== 'all') ||
+        (paymentStatus.value && paymentStatus.value !== 'all') ||
         (type.value && type.value !== 'all') ||
         search.value ||
         dateFrom.value ||
@@ -145,6 +151,7 @@ function hasActiveFilter() {
 function resetFilters() {
     restaurantId.value = 'all';
     status.value = 'all';
+    paymentStatus.value = 'all';
     type.value = 'all';
     search.value = '';
     dateFrom.value = '';
@@ -184,12 +191,15 @@ const averageOrderValue = computed(() => {
 const statusLabel: Record<string, string> = {
     paid: 'Đã thanh toán',
     unpaid: 'Chưa thanh toán',
-    draft: 'Bản nháp',
-    void: 'Đã hủy bỏ',
-    write_off: 'Bỏ ghi',
+    pending: 'Đang tạo chứng từ',
+    generated: 'Đã tạo chứng từ',
+    sent: 'Đã gửi chứng từ',
+    written_off: 'Đã xóa nợ',
 };
 
 const typeLabel: Record<string, string> = {
+    payment_success: 'Thanh toán thành công',
+    upcoming_renewal: 'Hóa đơn gia hạn sắp tới',
     registration: 'Đăng ký mới',
     renewal: 'Gia hạn',
     upgrade: 'Nâng cấp',
@@ -198,7 +208,10 @@ const typeLabel: Record<string, string> = {
 
 const billingCycleLabel: Record<string, string> = {
     monthly: 'Hàng tháng',
+    quarterly: 'Hàng quý',
+    half_yearly: 'Nửa năm',
     yearly: 'Hàng năm',
+    biennial: 'Hai năm',
 };
 
 // Order Details Modal State
@@ -216,72 +229,34 @@ const closeOrderDetails = () => {
 
 // SVG Donut slices for channels breakdown
 const channelSlices = computed(() => {
-    const total =
-        props.stats.pos_today +
-        props.stats.qr_today +
-        props.stats.online_today +
-        props.stats.delivery_today;
+    const colors = [
+        'stroke-blue-500',
+        'stroke-purple-500',
+        'stroke-emerald-500',
+        'stroke-orange-500',
+        'stroke-pink-500',
+    ];
+    const planCounts = props.stats.plan_counts_today ?? [];
+    const total = planCounts.reduce((sum, item) => sum + item.count, 0);
 
     if (total === 0) {
         return [];
     }
 
-    const posPct = (props.stats.pos_today / total) * 100;
-    const qrPct = (props.stats.qr_today / total) * 100;
-    const onlinePct = (props.stats.online_today / total) * 100;
-    const deliveryPct = (props.stats.delivery_today / total) * 100;
-
     let currentOffset = 0;
-    const slices = [];
-
-    if (posPct > 0) {
-        slices.push({
-            percentage: posPct,
-            dashArray: `${posPct} ${100 - posPct}`,
+    return planCounts.map((item, index) => {
+        const percentage = (item.count / total) * 100;
+        const slice = {
+            percentage,
+            dashArray: `${percentage} ${100 - percentage}`,
             dashOffset: 100 - currentOffset,
-            color: 'stroke-blue-500',
-            label: 'POS',
-            value: props.stats.pos_today,
-        });
-        currentOffset += posPct;
-    }
-
-    if (qrPct > 0) {
-        slices.push({
-            percentage: qrPct,
-            dashArray: `${qrPct} ${100 - qrPct}`,
-            dashOffset: 100 - currentOffset,
-            color: 'stroke-purple-500',
-            label: 'QR Order',
-            value: props.stats.qr_today,
-        });
-        currentOffset += qrPct;
-    }
-
-    if (onlinePct > 0) {
-        slices.push({
-            percentage: onlinePct,
-            dashArray: `${onlinePct} ${100 - onlinePct}`,
-            dashOffset: 100 - currentOffset,
-            color: 'stroke-emerald-500',
-            label: 'Trực tuyến',
-            value: props.stats.online_today,
-        });
-        currentOffset += onlinePct;
-    }
-
-    if (deliveryPct > 0) {
-        slices.push({
-            percentage: deliveryPct,
-            dashArray: `${deliveryPct} ${100 - deliveryPct}`,
-            dashOffset: 100 - currentOffset,
-            color: 'stroke-orange-500',
-            label: 'Giao hàng',
-            value: props.stats.delivery_today,
-        });
-    }
-
-    return slices;
+            color: colors[index % colors.length],
+            label: item.name,
+            value: item.count,
+        };
+        currentOffset += percentage;
+        return slice;
+    });
 });
 
 // SVG Area Chart points for 7-day revenue trend
@@ -730,16 +705,23 @@ const chartAreaPath = computed(() => {
                     >
                 </SelectContent>
             </Select>
-            <Select v-model="status" @update:model-value="applyFilter">
+            <Select v-model="paymentStatus" @update:model-value="applyFilter">
                 <SelectTrigger class="w-[160px]">
-                    <SelectValue placeholder="Trạng thái" />
+                    <SelectValue placeholder="Thanh toán" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="all">Tất cả thanh toán</SelectItem>
                     <SelectItem value="paid">Đã thanh toán</SelectItem>
                     <SelectItem value="unpaid">Chưa thanh toán</SelectItem>
-                    <SelectItem value="draft">Bản nháp</SelectItem>
-                    <SelectItem value="void">Đã hủy bỏ</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select v-model="status" @update:model-value="applyFilter">
+                <SelectTrigger class="w-[160px]"><SelectValue placeholder="Chứng từ" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Tất cả chứng từ</SelectItem>
+                    <SelectItem value="pending">Đang tạo</SelectItem>
+                    <SelectItem value="generated">Đã tạo</SelectItem>
+                    <SelectItem value="sent">Đã gửi</SelectItem>
                 </SelectContent>
             </Select>
             <Select v-model="type" @update:model-value="applyFilter">
@@ -748,10 +730,8 @@ const chartAreaPath = computed(() => {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Tất cả loại</SelectItem>
-                    <SelectItem value="registration">Đăng ký mới</SelectItem>
-                    <SelectItem value="renewal">Gia hạn</SelectItem>
-                    <SelectItem value="upgrade">Nâng cấp</SelectItem>
-                    <SelectItem value="adjustment">Điều chỉnh</SelectItem>
+                    <SelectItem value="payment_success">Thanh toán thành công</SelectItem>
+                    <SelectItem value="upcoming_renewal">Hóa đơn gia hạn sắp tới</SelectItem>
                 </SelectContent>
             </Select>
             <Input
@@ -843,16 +823,16 @@ const chartAreaPath = computed(() => {
                                 <span
                                     class="inline-block rounded-lg border px-2 py-0.5 text-[10px] font-bold"
                                     :class="[
-                                        order.status === 'paid'
+                                        order.payment_status === 'paid'
                                             ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
-                                            : order.status === 'unpaid'
+                                            : order.payment_status === 'unpaid'
                                               ? 'animate-pulse border-rose-500/20 bg-rose-500/10 text-rose-600'
                                               : 'border-amber-500/20 bg-amber-500/10 text-amber-600',
                                     ]"
                                 >
                                     {{
-                                        statusLabel[order.status] ??
-                                        order.status
+                                        statusLabel[order.payment_status] ??
+                                        order.payment_status
                                     }}
                                 </span>
                             </td>
@@ -1132,15 +1112,15 @@ const chartAreaPath = computed(() => {
                             <span
                                 class="mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold"
                                 :class="
-                                    selectedOrder?.status === 'paid'
+                                    selectedOrder?.payment_status === 'paid'
                                         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
                                         : 'border-rose-500/20 bg-rose-500/10 text-rose-600'
                                 "
                             >
                                 {{
-                                    (selectedOrder?.status &&
-                                        statusLabel[selectedOrder.status]) ??
-                                    selectedOrder?.status
+                                    (selectedOrder?.payment_status &&
+                                        statusLabel[selectedOrder.payment_status]) ??
+                                    selectedOrder?.payment_status
                                 }}
                             </span>
                         </div>

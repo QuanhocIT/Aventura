@@ -78,6 +78,7 @@ interface Plan {
     max_branches: number;
     max_tables: number;
     max_users: number;
+    max_dishes: number | null;
     features: Record<string, any>;
     status: string;
     is_deleted?: boolean;
@@ -173,6 +174,7 @@ const createForm = useForm({
     max_branches: 1,
     max_tables: 15,
     max_users: 5,
+    max_dishes: 50,
     max_areas: 2,
     max_storage_mb: 500,
     api_rate_limit: 30,
@@ -223,6 +225,7 @@ const form = useForm({
     max_branches: 1,
     max_tables: 15,
     max_users: 5,
+    max_dishes: 50,
     max_areas: 2,
     max_storage_mb: 500,
     api_rate_limit: 30,
@@ -266,6 +269,7 @@ function startEdit(plan: Plan) {
     form.max_branches = toForm(plan.max_branches);
     form.max_tables = toForm(plan.max_tables);
     form.max_users = toForm(plan.max_users);
+    form.max_dishes = toForm(plan.max_dishes);
     form.max_areas = plan.features?.max_areas ?? 2;
     form.max_storage_mb = plan.features?.max_storage_mb ?? 500;
     form.api_rate_limit = plan.features?.api_rate_limit ?? 30;
@@ -1485,6 +1489,13 @@ const planIcon: Record<string, any> = {
                                     </div>
                                 </div>
 
+                                <!-- Dishes Limit -->
+                                <div class="col-span-2 grid gap-1.5 sm:col-span-1">
+                                    <Label class="text-[11px] font-semibold text-muted-foreground">MÓN ĂN TỐI ĐA</Label>
+                                    <Input v-model.number="form.max_dishes" type="number" min="-1" class="rounded-xl border-border bg-background/50" />
+                                    <p class="text-[10px] text-muted-foreground">Nhập -1 nếu không giới hạn.</p>
+                                </div>
+
                                 <!-- Areas Limit -->
                                 <div
                                     class="col-span-2 grid gap-1.5 sm:col-span-1"
@@ -2221,6 +2232,13 @@ const planIcon: Record<string, any> = {
                                             }}
                                         </button>
                                     </div>
+                                </div>
+
+                                <!-- Dishes Limit -->
+                                <div class="col-span-2 grid gap-1.5 sm:col-span-1">
+                                    <Label class="text-[11px] font-semibold text-muted-foreground">MÓN ĂN TỐI ĐA</Label>
+                                    <Input v-model.number="createForm.max_dishes" type="number" min="-1" class="rounded-xl border-border bg-background/50" />
+                                    <p class="text-[10px] text-muted-foreground">Nhập -1 nếu không giới hạn.</p>
                                 </div>
 
                                 <!-- Areas Limit -->

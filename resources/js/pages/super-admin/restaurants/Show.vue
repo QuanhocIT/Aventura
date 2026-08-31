@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     Building2,
@@ -25,7 +25,7 @@ import {
     MessageSquare,
     Database,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { StatusBadge, AlertBanner } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
@@ -159,6 +159,20 @@ const props = defineProps<{
         chatbot: boolean;
     };
 }>();
+
+const page = usePage();
+watch(
+    () => page.props.flash,
+    (flash: any) => {
+        if (flash?.owner_temp_password) {
+            toast.warning(
+                `Mật khẩu tạm của chủ nhà hàng (chỉ hiển thị lần này): ${flash.owner_temp_password}`,
+                { duration: 15000 },
+            );
+        }
+    },
+    { immediate: true, deep: true },
+);
 
 const statusForm = useForm({ status: props.restaurant.status, reason: '' });
 function updateStatus() {

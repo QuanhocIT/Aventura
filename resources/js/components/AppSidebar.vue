@@ -129,6 +129,7 @@ const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const usesManagementSidebar = computed(
     () =>
+        isSuperAdmin.value ||
         isOwner.value ||
         isManager.value ||
         isWarehouseManager.value ||
@@ -168,6 +169,7 @@ const superAdminNav = computed<NavItem[]>(() => {
             title: 'Tổng quan',
             href: superAdminDashboard().url,
             icon: LayoutGrid,
+            section: 'superadmin_overview',
             perm: 'superadmin.dashboard.view',
             prefetch: true,
         },
@@ -175,192 +177,224 @@ const superAdminNav = computed<NavItem[]>(() => {
             title: 'Sức khỏe nhà hàng & chi nhánh',
             href: '/super-admin/tenant-health',
             icon: Activity,
+            section: 'superadmin_overview',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Nhà hàng',
             href: '/super-admin/restaurants',
             icon: Building2,
+            section: 'superadmin_tenants',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Đơn hàng hệ thống',
             href: '/super-admin/orders',
             icon: ShoppingCart,
+            section: 'superadmin_tenants',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Doanh thu hệ thống',
             href: '/super-admin/revenue',
             icon: Wallet,
+            section: 'superadmin_overview',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Khách hàng',
             href: '/super-admin/customers',
             icon: Users,
+            section: 'superadmin_growth',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Phản hồi',
             href: '/super-admin/feedback',
             icon: MessageSquare,
+            section: 'superadmin_growth',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Dự đoán rời bỏ',
             href: '/super-admin/churn-prediction',
             icon: ShieldAlert,
+            section: 'superadmin_overview',
             perm: 'superadmin.tenant.view',
         },
         {
             title: 'Banner & trình chiếu',
             href: '/super-admin/banners',
             icon: Image,
+            section: 'superadmin_growth',
             perm: 'superadmin.content.manage',
         },
         {
             title: 'Tin tức',
             href: '/super-admin/news',
             icon: Newspaper,
+            section: 'superadmin_growth',
             perm: 'superadmin.content.manage',
         },
         {
             title: 'Trung tâm thanh toán',
             href: '/super-admin/billing',
             icon: BadgeDollarSign,
+            section: 'superadmin_finance',
             perm: 'superadmin.billing.view',
         },
         {
             title: 'Gói dịch vụ',
             href: '/super-admin/plans',
             icon: BadgeDollarSign,
+            section: 'superadmin_finance',
             perm: 'superadmin.billing.view',
         },
         {
             title: 'Mã giảm giá',
             href: '/super-admin/coupons',
             icon: Tag,
+            section: 'superadmin_finance',
             perm: 'superadmin.billing.view',
         },
         {
             title: 'Chiến dịch thanh toán',
             href: '/super-admin/campaign-templates',
             icon: Gift,
+            section: 'superadmin_finance',
             perm: 'superadmin.billing.view',
         },
         {
             title: 'Hoa hồng & Rút tiền',
             href: '/super-admin/referrals',
             icon: Crown,
+            section: 'superadmin_finance',
             perm: 'superadmin.billing.view',
         },
         {
             title: 'Hỗ trợ kỹ thuật',
             href: '/super-admin/support',
             icon: Headset,
+            section: 'superadmin_support',
             perm: 'superadmin.support.manage',
         },
         {
             title: 'Trợ lý AI',
             href: '/super-admin/chatbot',
             icon: Bot,
+            section: 'superadmin_support',
             perm: 'superadmin.support.manage',
         },
         {
             title: 'Chẩn đoán trợ lý AI',
             href: '/super-admin/chatbot-diagnostics',
             icon: Brain,
+            section: 'superadmin_support',
             perm: 'superadmin.support.manage',
         },
         {
             title: 'Chiến dịch thông báo',
             href: '/super-admin/campaigns',
             icon: Megaphone,
+            section: 'superadmin_growth',
             perm: 'superadmin.support.manage',
         },
         {
             title: 'Tài khoản nền tảng',
             href: '/super-admin/accounts',
             icon: Users,
+            section: 'superadmin_security',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Nhật ký hệ thống',
             href: '/super-admin/audit-logs',
             icon: FileSearch2,
+            section: 'superadmin_security',
             perm: 'superadmin.audit.view',
         },
         {
             title: 'Quản lý Tường lửa',
             href: '/super-admin/firewall',
             icon: ShieldCheck,
+            section: 'superadmin_security',
             perm: 'superadmin.security.manage',
         },
         {
             title: 'Cấu hình hệ thống',
             href: '/super-admin/settings',
             icon: Settings,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Giám sát Dịch vụ',
             href: '/super-admin/service-monitor',
             icon: Activity,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Trung tâm vận hành',
             href: '/super-admin/operations',
             icon: ServerCog,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Lịch bảo trì hệ thống',
             href: '/super-admin/maintenance-schedules',
             icon: CalendarDays,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Sao lưu & tối ưu cơ sở dữ liệu',
             href: '/super-admin/backup-maintenance',
             icon: Database,
+            section: 'superadmin_operations',
             perm: 'superadmin.backup.manage',
         },
         {
             title: 'Vòng đời dữ liệu & dung lượng',
             href: '/super-admin/data-lifecycle',
             icon: Database,
+            section: 'superadmin_operations',
             perm: 'superadmin.backup.manage',
         },
         {
             title: 'Dọn dẹp rác',
             href: '/super-admin/garbage-collector',
             icon: Trash2,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Bảng điều khiển tìm kiếm',
             href: '/super-admin/meilisearch-console',
             icon: Database,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Giám sát tài nguyên',
             href: '/super-admin/resource-limits',
             icon: Activity,
+            section: 'superadmin_operations',
             perm: 'superadmin.system.manage',
         },
         {
             title: 'Trung tâm bảo mật',
             href: '/super-admin/security-center',
             icon: ShieldCheck,
+            section: 'superadmin_security',
             perm: 'superadmin.security.manage',
         },
         {
             title: 'Lịch demo tư vấn',
             href: '/super-admin/demo-bookings',
             icon: CalendarDays,
+            section: 'superadmin_growth',
             perm: 'superadmin.system.manage',
         },
     ];
@@ -1693,7 +1727,13 @@ const footerNavItems: NavItem[] = [];
                             as-child
                             class="min-w-0 flex-1 rounded-xl px-2 hover:bg-sidebar-accent/50"
                         >
-                            <Link :href="dashboard()">
+                            <Link
+                                :href="
+                                    isSuperAdmin
+                                        ? superAdminDashboard().url
+                                        : dashboard()
+                                "
+                            >
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
