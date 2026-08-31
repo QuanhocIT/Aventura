@@ -25,7 +25,6 @@ import {
     ShoppingBag,
     Coins,
     Gift,
-    ImageIcon,
     Save,
     Building2,
     Layers,
@@ -438,6 +437,10 @@ const submitCategory = () => {
         onSuccess: () => {
             categoryForm.reset();
             showAddCategory.value = false;
+            toast.success('Đã thêm nhóm món mới thành công!');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi tạo nhóm món.'));
         },
     });
 };
@@ -505,6 +508,10 @@ const submitEdit = () => {
             onSuccess: () => {
                 editingProduct.value = null;
                 editForm.reset();
+                toast.success('Đã cập nhật món ăn thành công!');
+            },
+            onError: (errs: any) => {
+                toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi cập nhật món ăn.'));
             },
         },
     );
@@ -522,6 +529,10 @@ const submitDelete = () => {
     router.delete(`/products/${deletingProduct.value.id}`, {
         onSuccess: () => {
             deletingProduct.value = null;
+            toast.success('Đã xóa món ăn thành công!');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi xóa món ăn.'));
         },
     });
 };

@@ -249,6 +249,10 @@ const submitArea = () =>
         onSuccess: () => {
             areaForm.reset();
             showAddArea.value = false;
+            toast.success('Đã thêm khu vực mới thành công!');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi thêm khu vực.'));
         },
     });
 
@@ -257,6 +261,10 @@ const submitTable = () =>
         onSuccess: () => {
             tableForm.reset('name');
             showAddTable.value = false;
+            toast.success('Đã thêm bàn mới thành công!');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi thêm bàn mới.'));
         },
     });
 
@@ -279,6 +287,10 @@ const submitEdit = () => {
     editForm.patch(`/tables/${editingTable.value.id}`, {
         onSuccess: () => {
             editingTable.value = null;
+            toast.success('Đã cập nhật thông tin bàn thành công!');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Lỗi khi cập nhật bàn.'));
         },
     });
 };

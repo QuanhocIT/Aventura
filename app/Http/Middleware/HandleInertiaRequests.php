@@ -102,11 +102,8 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
-        // Super Admin không hiển thị subscription widget nên không cần đọc và
-        // serialize toàn bộ danh sách plan vào mọi response Inertia.
-        // Subscription plans chỉ cần thiết ở các trang thanh toán/nâng cấp/chọn nhà hàng
-        $needsPlans = $request->is('billing*') || $request->is('choose-restaurant*');
-        $availablePlans = ($isSuperAdmin || ! $needsPlans) ? [] : Cache::remember('subscription_plans_active', 3600, function () {
+        // Danh sách subscription plans được cache 1 giờ để phục vụ SubscriptionWidget & nâng cấp gói trên toàn bộ hệ thống
+        $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
             $plans = SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()

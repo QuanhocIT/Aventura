@@ -25,6 +25,7 @@ import {
     ChevronRight,
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -483,12 +484,29 @@ const submitEditEmployee = () => {
             onSuccess: () => {
                 editingEmployee.value = null;
                 editForm.reset();
+                toast.success('Đã cập nhật thông tin nhân viên thành công!');
+            },
+            onError: (errors: any) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi cập nhật thông tin nhân viên.';
+                toast.error(msg as string);
             },
         });
 };
 
 const toggleEmployeeStatus = (emp: Employee) => {
-    router.patch(`/employees/${emp.id}/toggle-status`);
+    const nextStatus = emp.status === 'active' ? 'ngừng hoạt động' : 'kích hoạt';
+    router.patch(
+        `/employees/${emp.id}/toggle-status`,
+        {},
+        {
+            onSuccess: () => {
+                toast.success(`Đã chuyển trạng thái nhân viên sang ${nextStatus}!`);
+            },
+            onError: () => {
+                toast.error('Không thể thay đổi trạng thái nhân viên.');
+            },
+        },
+    );
 };
 
 const handleRoleChange = (e: Event) => {
@@ -528,6 +546,11 @@ const submitEmployee = () => {
         onSuccess: () => {
             employeeForm.reset();
             showAddEmployee.value = false;
+            toast.success('Đã thêm nhân viên mới thành công!');
+        },
+        onError: (errors: any) => {
+            const msg = Object.values(errors)[0] || 'Lỗi khi tạo nhân viên mới.';
+            toast.error(msg as string);
         },
     });
 };
@@ -859,6 +882,14 @@ const handleToggleAutoSchedule = async () => {
         {
             onSuccess: () => {
                 isAutoSchedule.value = targetState;
+                toast.success(
+                    targetState
+                        ? 'Đã bật Chế độ xếp lịch tự động!'
+                        : 'Đã tắt Chế độ xếp lịch tự động!',
+                );
+            },
+            onError: () => {
+                toast.error('Không thể thay đổi trạng thái xếp lịch tự động.');
             },
         },
     );
@@ -905,6 +936,11 @@ function submitEmergencyReplace() {
         onSuccess: () => {
             emergencyForm.reset();
             showEmergencyReplace.value = false;
+            toast.success('Đã thay ca khẩn cấp thành công!');
+        },
+        onError: (errs: any) => {
+            const msg = Object.values(errs)[0] || 'Lỗi khi thay ca khẩn cấp.';
+            toast.error(msg as string);
         },
     });
 }
@@ -953,16 +989,13 @@ function openLeaveModal() {
 function submitLeaveRequest() {
     leaveForm.post('/employees/leaves', {
         onSuccess: () => {
-            import('vue-sonner').then((m) =>
-                m.toast.success('Đã nộp đơn xin nghỉ thành công!'),
-            );
+            toast.success('Đã nộp đơn xin nghỉ thành công!');
             showLeaveModal.value = false;
             leaveForm.reset('reason');
         },
-        onError: () =>
-            import('vue-sonner').then((m) =>
-                m.toast.error('Không thể nộp đơn.'),
-            ),
+        onError: () => {
+            toast.error('Không thể nộp đơn xin nghỉ.');
+        },
     });
 }
 
@@ -1170,25 +1203,25 @@ const assignForm = ref({
 const addShift = () => {
     const tempId = Date.now();
     const count = shiftsState.value.length + 1;
+    const newShiftName = `Ca Mới ${count}`;
     shiftsState.value.push({
         id: tempId,
-        name: `Ca Mới ${count}`,
+        name: newShiftName,
         start: '09:00',
         end: '17:00',
     });
+    toast.success(`Đã thêm ${newShiftName}. Vui lòng chỉnh thời gian và bấm "Lưu cấu hình" để lưu lại.`);
 };
 
 const deleteShift = (id: number) => {
+    const shift = shiftsState.value.find((s) => s.id === id);
     shiftsState.value = shiftsState.value.filter((s) => s.id !== id);
+    toast.info(`Đã xóa ca "${shift?.name ?? ''}". Bấm "Lưu cấu hình" để hoàn tất.`);
 };
 
 const saveShiftsConfig = () => {
     if (!props.isOwner && !props.canConfigureShifts) {
-        import('vue-sonner').then((m) =>
-            m.toast.error(
-                'Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.',
-            ),
-        );
+        toast.error('Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.');
 
         return;
     }
@@ -1199,6 +1232,10 @@ const saveShiftsConfig = () => {
         {
             onSuccess: () => {
                 showShiftConfigModal.value = false;
+                toast.success('Đã lưu cấu hình ca làm việc thành công!');
+            },
+            onError: () => {
+                toast.error('Có lỗi xảy ra khi lưu cấu hình ca làm việc.');
             },
         },
     );
@@ -1226,13 +1263,13 @@ const submitQuickSchedule = async () => {
         {
             onSuccess: () => {
                 showQuickScheduleModal.value = false;
+                toast.success('Đã hoàn tất xếp ca tự động nhanh!');
             },
-            onError: (errors: any) =>
-                import('vue-sonner').then((m) =>
-                    m.toast.error(
-                        errors.quick_schedule || 'Không thể xếp ca nhanh.',
-                    ),
-                ),
+            onError: (errors: any) => {
+                toast.error(
+                    errors.quick_schedule || 'Không thể xếp ca nhanh.',
+                );
+            },
         },
     );
 };
@@ -1330,12 +1367,13 @@ const submitAssignment = async () => {
         {
             onSuccess: () => {
                 showAssignModal.value = false;
+                toast.success('Đã phân ca làm việc thành công!');
             },
             onError: (errors: Record<string, string>) => {
                 const msg = Object.values(errors)[0];
 
                 if (msg) {
-                    import('vue-sonner').then((m) => m.toast.error(msg));
+                    toast.error(msg);
                 }
             },
         },
@@ -1357,12 +1395,15 @@ const removeAssignment = (
             shift_id: shiftId ?? null,
         },
         {
+            onSuccess: () => {
+                toast.success('Đã xóa phân ca thành công!');
+            },
             onError: (errors: any) => {
                 const msg =
                     errors.shift_name ||
                     errors.employee_name ||
                     'Không thể xóa ca làm việc.';
-                import('vue-sonner').then((m) => m.toast.error(msg));
+                toast.error(msg);
             },
         },
     );

@@ -48,7 +48,7 @@ const planRank = computed(() => {
     }
 
     const idx = availablePlans.value.findIndex(
-        (p) => p.code === currentPlanCode.value,
+        (p) => p.code?.toLowerCase() === currentPlanCode.value,
     );
 
     return idx === -1 ? 0 : idx;
