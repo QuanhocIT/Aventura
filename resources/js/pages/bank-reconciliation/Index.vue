@@ -18,6 +18,7 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -334,6 +335,12 @@ function onImportFileChange(event: Event) {
 
 function submitImport() {
     if (!importForm.file || !importForm.financial_bank_account_id) {
+        toast.error(
+            !importForm.file
+                ? 'Vui lòng chọn tệp sao kê trước khi nhập.'
+                : 'Vui lòng chọn tài khoản ngân hàng cần nhập sao kê.',
+        );
+
         return;
     }
 
@@ -351,6 +358,8 @@ function submitImport() {
 
 function submitSepaySync() {
     if (!sepayForm.financial_bank_account_id) {
+        toast.error('Vui lòng chọn tài khoản ngân hàng để đồng bộ SePay.');
+
         return;
     }
 

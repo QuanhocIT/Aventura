@@ -17,6 +17,7 @@ import {
     AlertCircle,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -161,6 +162,8 @@ const submitTicket = () => {
 
 const submitReply = (ticketId: number) => {
     if (!replyForm.message.trim()) {
+        toast.error('Vui lòng nhập nội dung phản hồi trước khi gửi.');
+
         return;
     }
 
@@ -187,6 +190,8 @@ const availableSlots = [
 
 const submitBooking = () => {
     if (!bookingForm.date || !bookingForm.time_slot) {
+        toast.error('Vui lòng chọn ngày và khung giờ muốn đặt lịch.');
+
         return;
     }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import FlashToast from '@/components/FlashToast.vue';
 import { Toaster } from '@/components/ui/sonner';
 
 const page = usePage();
@@ -11,5 +12,6 @@ const page = usePage();
         <slot />
     </div>
     <Toaster />
+    <FlashToast />
     <ConfirmDialog />
 </template>

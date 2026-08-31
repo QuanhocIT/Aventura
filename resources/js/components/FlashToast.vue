@@ -30,6 +30,7 @@ function removeToast(id: number) {
 let lastSuccessMsg = '';
 let lastErrorMsg = '';
 let lastInfoMsg = '';
+let lastWarningMsg = '';
 
 watch(
     () => (page.props as any).flash,
@@ -60,25 +61,17 @@ watch(
         } else {
             lastInfoMsg = '';
         }
-    },
-    { deep: true },
-);
 
-watch(
-    () => (page.props as any).errors,
-    (errors) => {
-        if (errors && Object.keys(errors).length > 0) {
-            Object.values(errors).forEach((msg) => {
-                if (msg) {
-                    addToast(
-                        'error',
-                        Array.isArray(msg) ? msg.join(', ') : String(msg),
-                    );
-                }
-            });
+        if (flash?.warning) {
+            if (flash.warning !== lastWarningMsg) {
+                lastWarningMsg = flash.warning;
+                addToast('info', flash.warning);
+            }
+        } else {
+            lastWarningMsg = '';
         }
     },
-    { deep: true },
+    { deep: true, immediate: true },
 );
 </script>
 

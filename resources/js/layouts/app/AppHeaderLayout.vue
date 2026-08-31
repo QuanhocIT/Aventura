@@ -2,6 +2,7 @@
 import AppContent from '@/components/AppContent.vue';
 import AppHeader from '@/components/AppHeader.vue';
 import AppShell from '@/components/AppShell.vue';
+import FlashToast from '@/components/FlashToast.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
 import { Toaster } from '@/components/ui/sonner';
@@ -23,6 +24,7 @@ withDefaults(defineProps<Props>(), {
             <slot />
         </AppContent>
         <Toaster />
+        <FlashToast />
         <QROrderAlertCenter />
         <GlobalCampaignListener />
     </AppShell>

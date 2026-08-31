@@ -171,6 +171,8 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
+                'info' => $request->session()->get('info'),
+                'warning' => $request->session()->get('warning'),
                 'temp_password' => $request->session()->get('temp_password'),
                 'webhook_secret' => $request->session()->get('webhook_secret'),
             ],

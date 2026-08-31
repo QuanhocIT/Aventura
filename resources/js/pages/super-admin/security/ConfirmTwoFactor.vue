@@ -6,6 +6,7 @@ import {
     LockKeyhole,
     ShieldCheck,
 } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,13 @@ const form = useForm({
 });
 
 const submit = (): void => {
+    if (form.code.trim().length !== 6) {
+        form.setError('code', 'Vui lòng nhập đủ mã xác thực 6 chữ số.');
+        toast.error('Vui lòng nhập đủ mã xác thực 6 chữ số.');
+
+        return;
+    }
+
     form.post('/super-admin/security/confirm-2fa', {
         preserveScroll: true,
     });

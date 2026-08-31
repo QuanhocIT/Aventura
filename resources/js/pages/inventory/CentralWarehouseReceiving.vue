@@ -915,7 +915,18 @@ const validateGrn = () => {
 };
 
 const submitGrn = async () => {
-    if (isSubmittingGrn.value || !validateGrn()) {
+    if (isSubmittingGrn.value) {
+        return;
+    }
+
+    if (!validateGrn()) {
+        const issueCount = grnErrors.value.length;
+        toast.error(
+            issueCount === 1
+                ? `Chưa thể tạo phiếu: ${grnErrors.value[0]}`
+                : `Chưa thể tạo phiếu. Vui lòng bổ sung hoặc sửa ${issueCount} mục trong khung cảnh báo.`,
+        );
+
         return;
     }
 
@@ -1106,6 +1117,9 @@ const submitGrn = async () => {
                   error.response?.data?.message ??
                       'Không thể tạo phiếu nhận hàng.',
               ];
+        toast.error(
+            grnErrors.value[0] ?? 'Không thể tạo phiếu nhận hàng.',
+        );
     } finally {
         isSubmittingGrn.value = false;
     }

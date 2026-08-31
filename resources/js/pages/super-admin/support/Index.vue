@@ -32,6 +32,7 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { toast } from 'vue-sonner';
 import { PageHeader, StatCard, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -210,6 +211,13 @@ function replyForm(ticketId: number) {
 
 function submitReply(ticketId: number) {
     const form = replyForm(ticketId);
+
+    if (!form.message.trim()) {
+        toast.error('Vui lòng nhập nội dung phản hồi trước khi gửi.');
+
+        return;
+    }
+
     form.post(`/super-admin/support/tickets/${ticketId}/replies`, {
         preserveScroll: true,
         onSuccess: () => form.reset('message'),
@@ -459,6 +467,8 @@ const bulkAssigned = ref('');
 
 function submitBulk() {
     if (selectedTicketIds.value.size === 0) {
+        toast.error('Vui lòng chọn ít nhất một ticket để thao tác hàng loạt.');
+
         return;
     }
 

@@ -392,7 +392,19 @@ const submitCancelItem = () => {
     const item = cancelItemTarget.value;
     const reason = effectiveCancelItemReason.value;
 
-    if (!orderId || !item?.id || reason.length < 3 || isCancellingItem.value) {
+    if (isCancellingItem.value) {
+        return;
+    }
+
+    if (!orderId || !item?.id) {
+        toast('Không tìm thấy món cần hủy. Vui lòng mở lại bàn.', 'error');
+
+        return;
+    }
+
+    if (reason.length < 3) {
+        toast('Vui lòng nhập lý do hủy món (tối thiểu 3 ký tự).', 'error');
+
         return;
     }
 
@@ -491,6 +503,11 @@ const handleComplaint = () => {
         !complaintType.value ||
         !complaintDescription.value
     ) {
+        toast(
+            'Vui lòng chọn nhân viên, loại phản ánh và nhập nội dung.',
+            'error',
+        );
+
         return;
     }
 

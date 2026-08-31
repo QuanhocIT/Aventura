@@ -22,6 +22,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Toaster } from '@/components/ui/sonner';
 import { useInitials } from '@/composables/useInitials';
 import type { User } from '@/types';
 
@@ -451,6 +452,7 @@ const handleLogout = () => {
     <ChatbotWidget v-if="showChatbot" source="widget" />
     <MobileBottomNav v-if="user" />
     <FlashToast />
+    <Toaster />
     <ConfirmDialog />
     <GlobalCampaignListener />
 </template>
