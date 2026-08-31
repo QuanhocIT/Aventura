@@ -204,6 +204,30 @@ async function disable2FA(account: { id: number; name: string }) {
     );
 }
 
+const processingResendVerification = ref<number | null>(null);
+async function resendVerification(account: { id: number; name: string }) {
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thao tác',
+            description: `Gửi lại email xác thực cho "${account.name}"?`,
+            variant: 'default',
+        }))
+    ) {
+        return;
+    }
+
+    processingResendVerification.value = account.id;
+    router.post(
+        `/super-admin/accounts/${account.id}/resend-verification`,
+        {},
+        {
+            onFinish: () => {
+                processingResendVerification.value = null;
+            },
+        },
+    );
+}
+
 async function impersonateUser(account: any) {
     if (
         !(await confirmDialog({
@@ -219,8 +243,10 @@ async function impersonateUser(account: any) {
         'Nhập lý do sắm vai (tối thiểu 10 ký tự):',
         'Hỗ trợ xử lý ticket của tenant',
     );
+
     if (!reason || reason.trim().length < 10) {
         toast.error('Lý do sắm vai phải có ít nhất 10 ký tự.');
+
         return;
     }
 
@@ -780,6 +806,14 @@ const columns: Column[] = [
                                 class="cursor-pointer text-orange-600 focus:bg-orange-500/10 focus:text-orange-700"
                             >
                                 <ShieldX class="mr-2 h-4 w-4" /> Tắt 2FA
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                v-if="!row.email_verified"
+                                @click="resendVerification(row)"
+                                :disabled="processingResendVerification === row.id"
+                                class="cursor-pointer text-amber-600 focus:bg-amber-500/10 focus:text-amber-700"
+                            >
+                                <Mail class="mr-2 h-4 w-4" /> Gửi lại email xác thực
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

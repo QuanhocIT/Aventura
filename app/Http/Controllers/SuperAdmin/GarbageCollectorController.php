@@ -14,7 +14,7 @@ class GarbageCollectorController extends Controller
 {
     public function __construct(protected MediaCleanupService $mediaCleanup) {}
 
-    protected function getOrphansQuery(bool $respectGracePeriod = false)
+    protected function getOrphansQuery(bool $respectGracePeriod = true)
     {
         return $this->mediaCleanup->orphanQuery(null, $respectGracePeriod);
     }

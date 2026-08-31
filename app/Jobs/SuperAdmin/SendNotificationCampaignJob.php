@@ -10,28 +10,42 @@ use App\Services\EmailMicroserviceClient;
 use App\Services\PushNotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class SendNotificationCampaignJob implements ShouldQueue
+class SendNotificationCampaignJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 600; // 10 minutes timeout for bulk operations
+    public int $uniqueFor = 900;
 
     public function __construct(protected NotificationCampaign $campaign) {}
+
+    public function uniqueId(): string
+    {
+        return 'notification-campaign:'.$this->campaign->getKey();
+    }
 
     public function handle(
         EmailMicroserviceClient $emailClient,
         PushNotificationService $pushService
     ): void {
+        $this->campaign->refresh();
+        if ($this->campaign->status !== 'sending') {
+            return;
+        }
+
         $this->campaign->update(['status' => 'sending']);
 
         try {
             // 1. Resolve Target Restaurants
-            $restaurantQuery = Restaurant::query()->whereNull('deleted_at');
+            $restaurantQuery = Restaurant::query()
+                ->whereNull('deleted_at')
+                ->where('status', 'active');
 
             if ($this->campaign->target_type === 'plan') {
                 $restaurantQuery->where('plan_id', $this->campaign->target_plan_id);
@@ -46,7 +60,9 @@ class SendNotificationCampaignJob implements ShouldQueue
                 ->toArray();
 
             // 2. Resolve Target Users
-            $userQuery = User::query();
+            $userQuery = User::query()
+                ->where('status', 'active')
+                ->whereNotNull('restaurant_id');
 
             // Target by role inside target restaurants
             if ($this->campaign->target_role === 'owner') {
@@ -56,21 +72,15 @@ class SendNotificationCampaignJob implements ShouldQueue
                         ->orWhere(function ($sq) {
                             $sq->whereHas('roles', function ($rq) {
                                 $rq->where('name', 'owner');
-                            });
-                        });
+                    });
+                });
                 });
 
                 // Restrict to targeted restaurants if target_type is not 'all'
-                if ($this->campaign->target_type !== 'all') {
-                    $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
-                }
+                $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
             } else {
                 // All staff/employees
-                if ($this->campaign->target_type !== 'all') {
-                    $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
-                } else {
-                    $userQuery->whereNotNull('restaurant_id');
-                }
+                $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
             }
 
             $targetUsers = $userQuery->get();
@@ -80,10 +90,9 @@ class SendNotificationCampaignJob implements ShouldQueue
             Log::info("SendNotificationCampaignJob: Campaign #{$this->campaign->id} resolved target users: ".$targetUsers->count());
 
             // 3. Deliver Websocket (Real-time Laravel Reverb)
-            // Since this is a broadcast, we dispatch the event once to the public channel.
-            // Active clients will listen to this channel and render popups if they match targeting.
+            // Broadcast only to tenant channels that are already in the campaign audience.
             if (in_array('websocket', $channels)) {
-                broadcast(new NotificationCampaignBroadcasted($this->campaign))->toOthers();
+                broadcast(new NotificationCampaignBroadcasted($this->campaign, $targetRestaurantIds))->toOthers();
                 Log::info("SendNotificationCampaignJob: Broadcasted websocket event for Campaign #{$this->campaign->id}");
             }
 

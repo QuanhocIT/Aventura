@@ -188,6 +188,10 @@ class BillingController extends Controller
             return back()->withErrors(['reason' => 'Hóa đơn này đã được đánh dấu nợ xấu trước đó.']);
         }
 
+        if ($invoice->payment_status === 'paid' || $invoice->status === 'paid') {
+            return back()->withErrors(['reason' => 'Không thể write-off hóa đơn đã thanh toán. Hãy dùng quy trình hoàn tiền/credit note.']);
+        }
+
         $invoice->update([
             'status' => 'written_off',
             'meta' => array_merge($invoice->meta ?? [], [
@@ -384,7 +388,7 @@ class BillingController extends Controller
      */
     public function sendDunning(Request $request, RestaurantSubscription $subscription): RedirectResponse
     {
-        $stage = $request->input('stage', 'd7');
+        $stage = $request->validate(['stage' => 'nullable|in:d7,d3,d0,overdue'])['stage'] ?? 'd7';
         $this->billing->manualSendDunning($subscription, $stage);
 
         return back()->with('success', 'Đã gửi email nhắc gia hạn thành công.');

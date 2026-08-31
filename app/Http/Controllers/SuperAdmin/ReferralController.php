@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WithdrawalRequest;
@@ -34,6 +35,9 @@ class ReferralController extends Controller
                 'bank_account_number' => $req->bank_account_number,
                 'bank_account_name' => $req->bank_account_name,
                 'status' => $req->status,
+                'approved_at' => $req->approved_at?->format('d/m/Y H:i'),
+                'paid_at' => $req->paid_at?->format('d/m/Y H:i'),
+                'payout_reference' => $req->payout_reference,
                 'notes' => $req->notes,
                 'created_at' => $req->created_at->format('d/m/Y H:i'),
             ]);
@@ -84,9 +88,66 @@ class ReferralController extends Controller
             $lockedWithdrawal->update([
                 'status' => 'approved',
                 'notes' => $request->input('notes') ?? 'Phê duyệt bởi Super Admin',
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
             ]);
 
-            return back()->with('success', 'Đã phê duyệt yêu cầu rút tiền thành công.');
+            AuditLog::create([
+                'restaurant_id' => null,
+                'branch_id' => null,
+                'user_id' => $request->user()->id,
+                'user_role' => 'admin',
+                'event' => 'updated',
+                'action' => 'referral_withdrawal_approve',
+                'subject_type' => WithdrawalRequest::class,
+                'subject_id' => $lockedWithdrawal->id,
+                'old_values' => ['status' => 'pending'],
+                'new_values' => ['status' => 'approved', 'notes' => $lockedWithdrawal->notes],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return back()->with('success', 'Đã duyệt yêu cầu. Cần ghi nhận giao dịch thực tế bằng thao tác Đã thanh toán.');
+        });
+    }
+
+    public function markPaid(Request $request, WithdrawalRequest $withdrawal): RedirectResponse
+    {
+        $data = $request->validate([
+            'payout_reference' => ['required', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        return DB::transaction(function () use ($withdrawal, $request, $data) {
+            $lockedWithdrawal = WithdrawalRequest::whereKey($withdrawal->id)->lockForUpdate()->firstOrFail();
+            if ($lockedWithdrawal->status !== 'approved') {
+                return back()->with('error', 'Chỉ yêu cầu đã duyệt mới được ghi nhận đã thanh toán.');
+            }
+
+            $lockedWithdrawal->update([
+                'status' => 'paid',
+                'paid_by' => $request->user()->id,
+                'paid_at' => now(),
+                'payout_reference' => $data['payout_reference'],
+                'notes' => $data['notes'] ?? $lockedWithdrawal->notes,
+            ]);
+
+            AuditLog::create([
+                'restaurant_id' => null,
+                'branch_id' => null,
+                'user_id' => $request->user()->id,
+                'user_role' => 'admin',
+                'event' => 'updated',
+                'action' => 'referral_withdrawal_paid',
+                'subject_type' => WithdrawalRequest::class,
+                'subject_id' => $lockedWithdrawal->id,
+                'old_values' => ['status' => 'approved'],
+                'new_values' => ['status' => 'paid', 'payout_reference' => $data['payout_reference']],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return back()->with('success', 'Đã ghi nhận giao dịch thanh toán referral.');
         });
     }
 
@@ -110,6 +171,21 @@ class ReferralController extends Controller
             $lockedWithdrawal->update([
                 'status' => 'rejected',
                 'notes' => $request->input('notes'),
+            ]);
+
+            AuditLog::create([
+                'restaurant_id' => null,
+                'branch_id' => null,
+                'user_id' => $request->user()->id,
+                'user_role' => 'admin',
+                'event' => 'updated',
+                'action' => 'referral_withdrawal_reject',
+                'subject_type' => WithdrawalRequest::class,
+                'subject_id' => $lockedWithdrawal->id,
+                'old_values' => ['status' => 'pending'],
+                'new_values' => ['status' => 'rejected', 'notes' => $lockedWithdrawal->notes],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
             ]);
 
             // Refund the user's commission balance

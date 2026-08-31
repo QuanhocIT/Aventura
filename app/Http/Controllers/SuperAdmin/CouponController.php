@@ -186,10 +186,19 @@ class CouponController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'code_prefix' => ['required', 'string', 'max:20'],
+            'code_prefix' => ['required', 'string', 'max:20', 'alpha_dash'],
             'code_count' => ['required', 'integer', 'min:1', 'max:1000'],
             'discount_type' => ['required', 'in:percent,fixed'],
-            'discount_value' => ['required', 'numeric', 'min:0'],
+            'discount_value' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                function (string $attribute, mixed $value, \Closure $fail) use ($request): void {
+                    if ($request->input('discount_type') === 'percent' && (float) $value > 100) {
+                        $fail('Phần trăm giảm giá không được vượt quá 100%.');
+                    }
+                },
+            ],
             'max_uses_per_code' => ['nullable', 'integer', 'min:1'],
             'starts_at' => ['nullable', 'date'],
             'expires_at' => ['nullable', 'date', 'after_or_equal:starts_at'],

@@ -609,13 +609,13 @@ const healthScoreDistribution = computed(() => {
 <template>
     <Head title="Chăm sóc khách hàng & dự đoán rời bỏ" />
 
-    <div class="dashboard-shell flex flex-col gap-5 px-6 py-5">
+    <div class="dashboard-shell churn-dashboard-shell flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
+            class="churn-page-header"
             title="Dự Đoán Rời Bỏ & Chăm Sóc Khách Hàng"
             subtitle="Chủ động phát hiện nhà hàng sắp ngừng sử dụng qua điểm sức khỏe nhà hàng."
             :icon="ShieldAlert"
-            back-href="/super-admin/dashboard"
         >
             <template #actions>
                 <button
@@ -635,11 +635,30 @@ const healthScoreDistribution = computed(() => {
             </template>
         </PageHeader>
 
+        <section class="churn-signal-strip" aria-label="Tình trạng giám sát">
+            <div class="flex items-center gap-3">
+                <span class="churn-live-dot" aria-hidden="true"></span>
+                <div>
+                    <p class="text-xs font-black tracking-[0.14em] text-foreground uppercase">
+                        Giám sát sức khỏe theo thời gian thực
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                        Dữ liệu đang theo dõi {{ stats.total_checked }} nhà hàng và phát hiện tín hiệu sụt giảm.
+                    </p>
+                </div>
+            </div>
+            <div class="churn-signal-strip__summary">
+                <span class="churn-signal-strip__summary-label">Rủi ro cần quan tâm</span>
+                <strong>{{ stats.system_risk_ratio }}%</strong>
+                <span class="text-[11px] text-muted-foreground">Cao + trung bình</span>
+            </div>
+        </section>
+
         <!-- Overviews Metric Cards (Responsive Grid 7 Columns) -->
-        <div class="dashboard-kpi-grid">
+        <div class="dashboard-kpi-grid churn-kpi-grid">
             <!-- Avg health score -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--score border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -660,7 +679,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- High Risk -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--high border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -682,7 +701,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- Med Risk -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--medium border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -703,7 +722,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- Healthy -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--healthy border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -725,7 +744,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- System risk ratio (NEW) -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--ratio border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -747,7 +766,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- Urgent action required (NEW) -->
             <Card
-                class="border border-red-500/20 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--urgent border border-red-500/20 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -771,7 +790,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- Emails sent -->
             <Card
-                class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
+                class="churn-kpi churn-kpi--emails border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
             >
                 <CardContent class="space-y-2 p-4 text-center">
                     <p
@@ -793,10 +812,10 @@ const healthScoreDistribution = computed(() => {
         </div>
 
         <!-- Visual Analytics Charts Row (Donut Risk Distribution + Band Distribution Chart) -->
-        <div class="dashboard-grid">
+        <div class="dashboard-grid churn-chart-row">
             <!-- Pie/Donut Risk Distribution -->
             <Card
-                class="border border-border/40 bg-card/50 shadow-xs backdrop-blur-md"
+                class="churn-panel border border-border/40 bg-card/50 shadow-xs backdrop-blur-md"
             >
                 <CardContent
                     class="flex flex-col items-center justify-around gap-6 p-5 sm:flex-row"
@@ -887,7 +906,7 @@ const healthScoreDistribution = computed(() => {
 
             <!-- Health Score Range Distribution -->
             <Card
-                class="border border-border/40 bg-card/50 shadow-xs backdrop-blur-md"
+                class="churn-panel border border-border/40 bg-card/50 shadow-xs backdrop-blur-md"
             >
                 <CardContent class="space-y-3 p-5">
                     <h3
@@ -932,7 +951,7 @@ const healthScoreDistribution = computed(() => {
         </div>
 
         <!-- Filters Block -->
-        <Card class="bg-card/50">
+        <Card class="churn-filter-card bg-card/50">
             <CardContent
                 class="flex flex-col items-center gap-3 p-4 sm:flex-row"
             >
@@ -1021,7 +1040,7 @@ const healthScoreDistribution = computed(() => {
         </Card>
 
         <!-- Tenants List Table -->
-        <Card class="overflow-hidden border border-border/60 shadow-xs">
+        <Card class="churn-table-card overflow-hidden border border-border/60 shadow-xs">
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-left">
                     <thead>
@@ -1914,6 +1933,332 @@ const healthScoreDistribution = computed(() => {
 </template>
 
 <style scoped>
+.churn-dashboard-shell {
+    --churn-surface: color-mix(in srgb, var(--card) 92%, transparent);
+    --churn-line: color-mix(in srgb, var(--border) 72%, transparent);
+    position: relative;
+    max-width: 1680px;
+    gap: 1.25rem;
+    padding: clamp(1rem, 2vw, 1.75rem) clamp(1rem, 2.4vw, 2.5rem) 2rem;
+    isolation: isolate;
+}
+
+.churn-dashboard-shell::before {
+    position: absolute;
+    z-index: -1;
+    top: -5rem;
+    right: 4%;
+    width: 32rem;
+    height: 20rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, #f97316 9%, transparent);
+    content: '';
+    filter: blur(70px);
+    pointer-events: none;
+}
+
+.churn-page-header {
+    border: 1px solid var(--churn-line);
+    border-radius: 1.5rem;
+    background:
+        radial-gradient(circle at 88% 12%, color-mix(in srgb, #f97316 14%, transparent), transparent 28%),
+        linear-gradient(135deg, color-mix(in srgb, var(--card) 98%, transparent), color-mix(in srgb, var(--primary) 4%, var(--card)));
+    padding: 1.35rem 1.5rem 1.45rem;
+    box-shadow: 0 18px 50px rgb(15 23 42 / 0.08);
+}
+
+.churn-page-header :deep(> div:last-child) {
+    display: none;
+}
+
+.churn-page-header :deep(h1) {
+    font-size: clamp(1.35rem, 2.2vw, 2.15rem);
+    letter-spacing: -0.04em;
+}
+
+.churn-page-header :deep(p) {
+    max-width: 48rem;
+    line-height: 1.6;
+}
+
+.churn-page-header :deep(button) {
+    min-height: 2.75rem;
+    border-radius: 0.9rem;
+    padding-inline: 1rem;
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.churn-signal-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid color-mix(in srgb, #f97316 24%, var(--border));
+    border-radius: 1rem;
+    background: linear-gradient(90deg, color-mix(in srgb, #f97316 9%, var(--card)), var(--churn-surface));
+    padding: 0.85rem 1.1rem;
+}
+
+.churn-live-dot {
+    position: relative;
+    display: inline-flex;
+    width: 0.65rem;
+    height: 0.65rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #10b981;
+    box-shadow: 0 0 0 0.25rem color-mix(in srgb, #10b981 15%, transparent);
+}
+
+.churn-live-dot::after {
+    position: absolute;
+    inset: -0.35rem;
+    border: 1px solid #10b981;
+    border-radius: inherit;
+    content: '';
+    opacity: 0.45;
+    animation: churn-pulse 2s ease-out infinite;
+}
+
+.churn-signal-strip__summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    white-space: nowrap;
+}
+
+.churn-signal-strip__summary-label {
+    color: var(--muted-foreground);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.churn-signal-strip__summary strong {
+    color: #f97316;
+    font-family: var(--font-mono);
+    font-size: 1.2rem;
+}
+
+.churn-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.churn-kpi {
+    --churn-accent: #6366f1;
+    position: relative;
+    min-height: 9.75rem !important;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--churn-accent) 22%, var(--border)) !important;
+    border-radius: 1.25rem !important;
+    background: var(--churn-surface) !important;
+    box-shadow: 0 12px 32px rgb(15 23 42 / 0.06);
+}
+
+.churn-kpi::before {
+    position: absolute;
+    top: 0;
+    left: 1.35rem;
+    width: 2.8rem;
+    height: 0.2rem;
+    border-radius: 0 0 999px 999px;
+    background: var(--churn-accent);
+    content: '';
+}
+
+.churn-kpi::after {
+    position: absolute;
+    right: -2.5rem;
+    bottom: -3rem;
+    width: 8rem;
+    height: 8rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--churn-accent) 9%, transparent);
+    content: '';
+    pointer-events: none;
+}
+
+.churn-kpi:hover {
+    border-color: color-mix(in srgb, var(--churn-accent) 45%, var(--border)) !important;
+    box-shadow: 0 18px 42px color-mix(in srgb, var(--churn-accent) 12%, transparent);
+    transform: translateY(-2px);
+}
+
+.churn-kpi :deep([data-slot='card-content']) {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 9.75rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 1.15rem 1.3rem;
+    text-align: left;
+}
+
+.churn-kpi :deep([data-slot='card-content'] > p:first-child) {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+}
+
+.churn-kpi :deep(.text-2xl) {
+    font-size: clamp(1.65rem, 2.4vw, 2.35rem);
+    letter-spacing: -0.05em;
+}
+
+.churn-kpi :deep([data-slot='card-content'] > p:last-child) {
+    font-size: 0.68rem;
+}
+
+.churn-kpi--score {
+    --churn-accent: #14b8a6;
+    grid-column: span 2;
+    background:
+        radial-gradient(circle at 88% 15%, color-mix(in srgb, #14b8a6 18%, transparent), transparent 34%),
+        var(--churn-surface) !important;
+}
+
+.churn-kpi--score :deep([data-slot='card-content']) {
+    min-height: 9.75rem;
+    padding: 1.35rem 1.6rem;
+}
+
+.churn-kpi--score :deep(.text-2xl) {
+    font-size: clamp(2.15rem, 4vw, 3.5rem);
+}
+
+.churn-kpi--high,
+.churn-kpi--urgent {
+    --churn-accent: #f43f5e;
+}
+
+.churn-kpi--medium {
+    --churn-accent: #f59e0b;
+}
+
+.churn-kpi--healthy {
+    --churn-accent: #10b981;
+}
+
+.churn-kpi--ratio {
+    --churn-accent: #f97316;
+}
+
+.churn-kpi--emails {
+    --churn-accent: #3b82f6;
+}
+
+.churn-chart-row {
+    gap: 1rem;
+}
+
+.churn-panel,
+.churn-filter-card,
+.churn-table-card {
+    border-color: var(--churn-line) !important;
+    border-radius: 1.25rem !important;
+    background: var(--churn-surface) !important;
+    box-shadow: 0 12px 34px rgb(15 23 42 / 0.055);
+}
+
+.churn-panel {
+    min-height: 20rem !important;
+}
+
+.churn-panel :deep([data-slot='card-content']) {
+    min-height: 100%;
+    padding: 1.35rem;
+}
+
+.churn-filter-card :deep([data-slot='card-content']) {
+    padding: 0.85rem;
+}
+
+.churn-filter-card :deep(input),
+.churn-filter-card :deep(button),
+.churn-filter-card :deep([data-slot='select-trigger']) {
+    min-height: 2.65rem;
+    border-radius: 0.8rem;
+}
+
+.churn-table-card :deep(thead) {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    background: var(--card);
+}
+
+.churn-table-card :deep(tbody tr) {
+    transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.churn-table-card :deep(tbody tr:hover) {
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+
+@keyframes churn-pulse {
+    0% {
+        transform: scale(0.65);
+        opacity: 0.65;
+    }
+
+    70%,
+    100% {
+        transform: scale(1.25);
+        opacity: 0;
+    }
+}
+
+@media (max-width: 1100px) {
+    .churn-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .churn-kpi--score {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 640px) {
+    .churn-page-header {
+        padding: 1.1rem;
+    }
+
+    .churn-signal-strip {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .churn-signal-strip__summary {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .churn-kpi-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .churn-kpi--score {
+        grid-column: span 1;
+    }
+
+    .churn-panel {
+        min-height: 17rem !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .churn-live-dot::after,
+    .churn-kpi,
+    .churn-table-card :deep(tbody tr) {
+        animation: none;
+        transition: none;
+    }
+}
+
 .donut-segment {
     transform-origin: center;
 }

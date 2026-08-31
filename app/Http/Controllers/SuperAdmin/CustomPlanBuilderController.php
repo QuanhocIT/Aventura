@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class CustomPlanBuilderController extends Controller
 {
@@ -58,7 +59,7 @@ class CustomPlanBuilderController extends Controller
 
         DB::transaction(function () use ($restaurant, $request, $validated, $features, $toNull) {
             // 1. Tạo Gói dịch vụ Custom (Ad-hoc)
-            $planCode = 'custom_'.$restaurant->id.'_'.time();
+            $planCode = 'custom_'.$restaurant->id.'_'.Str::lower(Str::random(12));
             $planName = $validated['name'] ?: 'Gói Custom - '.$restaurant->name;
 
             $plan = SubscriptionPlan::create([
@@ -87,7 +88,7 @@ class CustomPlanBuilderController extends Controller
             $endedAt = now()->addDays($days);
 
             // 3. Vô hiệu hóa/đánh dấu hết hạn các subscription cũ
-            $restaurant->subscriptions()->where('status', 'active')->update(['status' => 'expired']);
+            $restaurant->subscriptions()->whereIn('status', ['trial', 'active'])->update(['status' => 'expired']);
 
             // 4. Tạo Subscription mới hoạt động
             RestaurantSubscription::create([
@@ -116,6 +117,7 @@ class CustomPlanBuilderController extends Controller
             $restaurant->update([
                 'plan_id' => $plan->id,
                 'status' => 'active',
+                'lifecycle_status' => 'active',
                 'subscription_ends_at' => $endedAt->toDateString(),
                 'subscription_started_at' => now()->toDateString(),
             ]);

@@ -13,11 +13,24 @@ class NotificationCampaignBroadcasted implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public NotificationCampaign $campaign) {}
+    public function __construct(
+        public NotificationCampaign $campaign,
+        public array $restaurantIds = [],
+    ) {}
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('global.campaigns')];
+        $channels = [new PrivateChannel('superadmin.campaigns')];
+
+        foreach (array_unique(array_map('intval', $this->restaurantIds)) as $restaurantId) {
+            if ($restaurantId > 0) {
+                $channels[] = new PrivateChannel(
+                    "restaurant.{$restaurantId}.campaigns.{$this->campaign->target_role}",
+                );
+            }
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

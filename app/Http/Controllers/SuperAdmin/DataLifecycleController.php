@@ -4,12 +4,14 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DataCleanupRun;
+use App\Models\AuditLog;
 use App\Models\Restaurant;
 use App\Services\DataLifecycleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -142,8 +144,15 @@ class DataLifecycleController extends Controller
     {
         $data = $request->validate([
             'enabled' => ['required', 'boolean'],
-            'reason' => ['nullable', 'string', 'max:2000'],
+            'reason' => [
+                Rule::requiredIf(fn (): bool => ! $request->boolean('enabled')),
+                'nullable',
+                'string',
+                'max:2000',
+            ],
         ]);
+
+        $oldLegalHold = (bool) $restaurant->data_legal_hold;
 
         if ($data['enabled']) {
             $restaurant->forceFill([
@@ -162,6 +171,21 @@ class DataLifecycleController extends Controller
             ])->save();
             $message = "Đã tắt legal hold cho {$restaurant->name}.";
         }
+
+        AuditLog::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+            'user_id' => $request->user()->id,
+            'user_role' => 'admin',
+            'event' => 'updated',
+            'action' => 'data_legal_hold_update',
+            'subject_type' => Restaurant::class,
+            'subject_id' => $restaurant->id,
+            'old_values' => ['data_legal_hold' => $oldLegalHold],
+            'new_values' => ['data_legal_hold' => $data['enabled'], 'reason' => $data['reason'] ?? null],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         return back()->with('success', $message);
     }

@@ -180,7 +180,21 @@ function updateStatus() {
 }
 
 const planForm = useForm({ plan_id: String(props.restaurant.plan.id) });
-function updatePlan() {
+async function updatePlan() {
+    if (planForm.plan_id === String(props.restaurant.plan.id)) {
+        return;
+    }
+
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận chuyển gói',
+            description: 'Thao tác này kết thúc subscription hiện tại và kích hoạt chu kỳ mới ngay lập tức. Hãy chỉ dùng cho điều chỉnh đã được phê duyệt.',
+            variant: 'default',
+        }))
+    ) {
+        return;
+    }
+
     planForm.patch(`/super-admin/restaurants/${props.restaurant.id}/plan`);
 }
 

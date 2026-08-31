@@ -48,6 +48,7 @@ const props = defineProps<{
         waf_login_block_minutes: number;
         rate_limit_global_max: number;
         rate_limit_global_decay: number;
+        superadmin_allowed_ips: string;
         telegram_bot_token: string;
         telegram_chat_id: string;
         turnstile_site_key: string;
@@ -131,6 +132,7 @@ const settingsForm = useForm({
     waf_login_block_minutes: props.settings.waf_login_block_minutes,
     rate_limit_global_max: props.settings.rate_limit_global_max,
     rate_limit_global_decay: props.settings.rate_limit_global_decay,
+    superadmin_allowed_ips: props.settings.superadmin_allowed_ips,
     telegram_bot_token: props.settings.telegram_bot_token,
     telegram_chat_id: props.settings.telegram_chat_id,
     turnstile_site_key: props.settings.turnstile_site_key,
@@ -625,6 +627,31 @@ const formatRemainingTime = (seconds: number) => {
                                             hạn per minute).</span
                                         >
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Section: SuperAdmin access -->
+                            <div class="space-y-4">
+                                <h3
+                                    class="flex items-center gap-1.5 border-b border-border/30 pb-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
+                                >
+                                    <Shield class="size-4 text-primary" /> IP truy cập SuperAdmin
+                                </h3>
+                                <div class="grid gap-2">
+                                    <Label
+                                        for="superadmin-allowed-ips"
+                                        class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                    >Danh sách IP được phép</Label>
+                                    <Input
+                                        id="superadmin-allowed-ips"
+                                        type="text"
+                                        v-model="settingsForm.superadmin_allowed_ips"
+                                        placeholder="Để trống = không giới hạn; nhiều IP cách nhau bằng dấu phẩy"
+                                        class="h-9 rounded-xl border-border bg-background font-mono text-xs font-semibold focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+                                    />
+                                    <span class="text-[9px] font-semibold text-muted-foreground"
+                                        >Danh sách này được middleware SuperAdmin áp dụng trực tiếp. Whitelist WAF bên trên chỉ bỏ qua giới hạn truy cập, không tự cấp quyền vào trang SuperAdmin.</span
+                                    >
                                 </div>
                             </div>
 

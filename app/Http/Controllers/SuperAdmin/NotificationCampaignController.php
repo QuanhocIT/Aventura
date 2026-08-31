@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -37,7 +38,10 @@ class NotificationCampaignController extends Controller
                 'created_at' => $c->created_at->format('d/m/Y H:i'),
             ]);
 
-        $plans = SubscriptionPlan::where('status', 'active')->orderBy('price')->get(['id', 'name', 'code']);
+        $plans = SubscriptionPlan::where('status', 'active')
+            ->where('is_custom', false)
+            ->orderBy('price')
+            ->get(['id', 'name', 'code']);
 
         $stats = [
             'total' => NotificationCampaign::count(),
@@ -61,7 +65,9 @@ class NotificationCampaignController extends Controller
             'target_type' => ['required', 'in:all,plan,trial'],
             'target_plan_id' => [
                 'nullable',
-                'exists:subscription_plans,id',
+                Rule::exists('subscription_plans', 'id')->where(fn ($query) => $query
+                    ->where('status', 'active')
+                    ->where('is_custom', false)),
                 'required_if:target_type,plan',
             ],
             'target_role' => ['required', 'in:owner,all_staff'],
@@ -96,20 +102,40 @@ class NotificationCampaignController extends Controller
             return back()->with('error', 'Chiến dịch đang được gửi rồi.');
         }
 
-        $campaign->update(['status' => 'sending']);
+        $claimed = NotificationCampaign::query()
+            ->whereKey($campaign->id)
+            ->whereIn('status', ['draft', 'failed'])
+            ->update(['status' => 'sending']);
 
-        SendNotificationCampaignJob::dispatch($campaign);
+        if ($claimed !== 1) {
+            return back()->with('error', 'Chiến dịch vừa được xử lý bởi phiên khác.');
+        }
+
+        try {
+            SendNotificationCampaignJob::dispatch($campaign->fresh());
+        } catch (\Throwable $e) {
+            $campaign->update(['status' => 'failed']);
+            throw $e;
+        }
 
         return back()->with('success', 'Đã bắt đầu gửi chiến dịch quảng bá.');
     }
 
     public function previewAudience(Request $request): JsonResponse
     {
-        $targetType = $request->string('target_type');
-        $targetPlanId = $request->integer('target_plan_id');
-        $targetRole = $request->string('target_role');
+        $request->validate([
+            'target_type' => ['required', Rule::in(['all', 'plan', 'trial'])],
+            'target_plan_id' => ['nullable', 'integer'],
+            'target_role' => ['required', Rule::in(['owner', 'all_staff'])],
+        ]);
 
-        $restaurantQuery = Restaurant::query()->whereNull('deleted_at');
+        $targetType = (string) $request->string('target_type');
+        $targetPlanId = $request->integer('target_plan_id');
+        $targetRole = (string) $request->string('target_role');
+
+        $restaurantQuery = Restaurant::query()
+            ->whereNull('deleted_at')
+            ->where('status', 'active');
 
         if ($targetType === 'plan') {
             $restaurantQuery->where('plan_id', $targetPlanId);
@@ -123,7 +149,9 @@ class NotificationCampaignController extends Controller
             ->pluck('owner_user_id')
             ->toArray();
 
-        $userQuery = User::query();
+        $userQuery = User::query()
+            ->where('status', 'active')
+            ->whereNotNull('restaurant_id');
 
         if ($targetRole === 'owner') {
             $userQuery->where(function ($q) use ($targetOwnerIds) {
@@ -135,15 +163,9 @@ class NotificationCampaignController extends Controller
                     });
             });
 
-            if ($targetType !== 'all') {
-                $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
-            }
+            $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
         } else {
-            if ($targetType !== 'all') {
-                $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
-            } else {
-                $userQuery->whereNotNull('restaurant_id');
-            }
+            $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
         }
 
         return response()->json([

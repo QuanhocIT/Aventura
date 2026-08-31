@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SystemSetting;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,10 +15,16 @@ class SuperAdminIpWhitelistMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $allowedIpsConfig = config('auth.superadmin_allowed_ips', '');
+        $allowedIpsConfig = SystemSetting::get(
+            'superadmin_allowed_ips',
+            config('auth.superadmin_allowed_ips', ''),
+        );
 
         if (! empty($allowedIpsConfig)) {
-            $allowedIps = array_values(array_filter(array_map('trim', explode(',', $allowedIpsConfig))));
+            $allowedIps = array_values(array_filter(
+                preg_split('/[\s,]+/', (string) $allowedIpsConfig) ?: [],
+                static fn (string $ip): bool => $ip !== '',
+            ));
             $clientIp = $request->ip();
 
             if ($clientIp === null || ! in_array($clientIp, $allowedIps, true)) {

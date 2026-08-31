@@ -21,6 +21,7 @@ use App\Services\SupportPortalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -176,13 +177,29 @@ class SupportPortalController extends Controller
             'severity' => ['nullable', 'in:low,medium,high,critical'],
         ]);
 
+        if (isset($data['status']) && $data['status'] !== $ticket->status) {
+            $allowedTransitions = [
+                'open' => ['in_progress', 'waiting_restaurant', 'resolved'],
+                'in_progress' => ['waiting_restaurant', 'resolved'],
+                'waiting_restaurant' => ['in_progress', 'resolved'],
+                'resolved' => ['in_progress', 'closed'],
+                'closed' => [],
+            ];
+
+            if (! in_array($data['status'], $allowedTransitions[$ticket->status] ?? [], true)) {
+                return back()->withErrors([
+                    'status' => "Không thể chuyển ticket từ {$ticket->status} sang {$data['status']}.",
+                ]);
+            }
+        }
+
         if (isset($data['status'])) {
             $ticket->status = $data['status'];
         }
 
         if (array_key_exists('assigned_to', $data)) {
             $assignee = $data['assigned_to'] ? User::find($data['assigned_to']) : null;
-            if ($assignee && ! $assignee->isPlatformAdmin()) {
+            if ($assignee && (($assignee->status ?? 'active') !== 'active' || ! $assignee->isPlatformAdmin())) {
                 return back()->withErrors(['assigned_to' => 'Chỉ được phân công ticket cho nhân sự quản trị platform.']);
             }
             $ticket->assigned_to = $data['assigned_to'];
@@ -230,6 +247,8 @@ class SupportPortalController extends Controller
 
     public function updateReply(Request $request, SupportTicket $ticket, SupportTicketReply $reply): RedirectResponse
     {
+        abort_unless((int) $reply->support_ticket_id === (int) $ticket->id, 404);
+
         $data = $request->validate([
             'message' => ['required', 'string'],
             'is_internal' => ['nullable', 'boolean'],
@@ -245,6 +264,8 @@ class SupportPortalController extends Controller
 
     public function destroyReply(Request $request, SupportTicket $ticket, SupportTicketReply $reply): RedirectResponse
     {
+        abort_unless((int) $reply->support_ticket_id === (int) $ticket->id, 404);
+
         $reply->delete();
 
         return back()->with('success', 'Đã xóa phản hồi.');
@@ -267,14 +288,33 @@ class SupportPortalController extends Controller
 
         if (array_key_exists('assigned_to', $data)) {
             $assignee = $data['assigned_to'] ? User::find($data['assigned_to']) : null;
-            if ($assignee && ! $assignee->isPlatformAdmin()) {
+            if ($assignee && (($assignee->status ?? 'active') !== 'active' || ! $assignee->isPlatformAdmin())) {
                 return back()->withErrors(['assigned_to' => 'Chỉ được phân công ticket cho nhân sự quản trị platform.']);
             }
             $updates['assigned_to'] = $data['assigned_to'];
         }
 
         if (! empty($updates)) {
-            SupportTicket::whereIn('id', $data['ticket_ids'])->get()->each(function (SupportTicket $ticket) use ($updates, $request): void {
+            $tickets = SupportTicket::whereIn('id', $data['ticket_ids'])->get();
+            if (! empty($updates['status'])) {
+                foreach ($tickets as $ticket) {
+                    $allowedTransitions = [
+                        'open' => ['in_progress', 'waiting_restaurant', 'resolved'],
+                        'in_progress' => ['waiting_restaurant', 'resolved'],
+                        'waiting_restaurant' => ['in_progress', 'resolved'],
+                        'resolved' => ['in_progress', 'closed'],
+                        'closed' => [],
+                    ];
+                    if ($updates['status'] !== $ticket->status
+                        && ! in_array($updates['status'], $allowedTransitions[$ticket->status] ?? [], true)) {
+                        return back()->withErrors([
+                            'status' => "Không thể chuyển ticket #{$ticket->id} từ {$ticket->status} sang {$updates['status']}.",
+                        ]);
+                    }
+                }
+            }
+
+            $tickets->each(function (SupportTicket $ticket) use ($updates, $request): void {
                 $ticket->fill($updates);
                 if ($ticket->status === 'resolved') {
                     $ticket->resolved_at ??= now();
@@ -312,6 +352,7 @@ class SupportPortalController extends Controller
             'threshold' => ['required', 'numeric'],
             'cooldown_minutes' => ['required', 'integer', 'min:1'],
             'channels' => ['nullable', 'array'],
+            'channels.*' => ['in:email,telegram,websocket'],
         ]);
 
         $rule->update([
@@ -357,7 +398,7 @@ class SupportPortalController extends Controller
             'message' => $data['message'],
         ]);
 
-        if (! $ticket->first_response_at) {
+        if (! $isInternal && ! $ticket->first_response_at) {
             $ticket->first_response_at = now();
         }
 
@@ -382,6 +423,10 @@ class SupportPortalController extends Controller
             'publish_now' => ['nullable', 'boolean'],
         ]);
 
+        $startsAt = ! empty($data['starts_at']) ? Carbon::parse($data['starts_at']) : null;
+        $publishNow = ! empty($data['publish_now']);
+        $publicationAt = $startsAt && $startsAt->isFuture() ? $startsAt : now();
+
         $announcement = SupportAnnouncement::create([
             'created_by' => $request->user()?->id,
             'title' => $data['title'],
@@ -389,14 +434,14 @@ class SupportPortalController extends Controller
             'scope' => 'global',
             'audience' => $data['audience'],
             'level' => $data['level'],
-            'status' => ! empty($data['publish_now']) ? 'published' : 'draft',
+            'status' => $publishNow ? 'published' : 'draft',
             'starts_at' => $data['starts_at'] ?? null,
             'ends_at' => $data['ends_at'] ?? null,
-            'published_at' => ! empty($data['publish_now']) ? now() : null,
+            'published_at' => $publishNow ? $publicationAt : null,
             'meta' => ['delivery' => 'reverb-ready'],
         ]);
 
-        if ($announcement->status === 'published') {
+        if ($announcement->status === 'published' && (! $startsAt || ! $startsAt->isFuture())) {
             broadcast(new SupportAnnouncementPublished($announcement))->toOthers();
         }
 
@@ -438,6 +483,7 @@ class SupportPortalController extends Controller
             'threshold' => ['required', 'numeric'],
             'cooldown_minutes' => ['required', 'integer', 'min:1'],
             'channels' => ['nullable', 'array'],
+            'channels.*' => ['in:email,telegram,websocket'],
         ]);
 
         SystemAlertRule::create([
@@ -463,7 +509,7 @@ class SupportPortalController extends Controller
 
     public function unpublishAnnouncement(Request $request, SupportAnnouncement $announcement): RedirectResponse
     {
-        $announcement->update(['status' => 'draft']);
+        $announcement->update(['status' => 'draft', 'published_at' => null]);
 
         return back()->with('success', 'Đã gỡ đăng thông báo.');
     }
@@ -527,9 +573,14 @@ class SupportPortalController extends Controller
 
     public function escalateTicket(Request $request, SupportTicket $ticket): RedirectResponse
     {
-        $superAdmins = User::whereHas('roles', function ($query) {
-            $query->where('name', 'super_admin');
-        })->get();
+        if ($ticket->escalated_at && $ticket->escalated_at->gt(now()->subMinutes(15))) {
+            return back()->with('error', 'Ticket này vừa được leo thang; vui lòng kiểm tra trước khi gửi lại cảnh báo.');
+        }
+
+        $superAdmins = User::where('status', 'active')
+            ->whereHas('roles', function ($query) {
+                $query->whereIn('name', ['super_admin', 'system_admin', 'billing_admin', 'support_specialist']);
+            })->get();
 
         foreach ($superAdmins as $admin) {
             if ($admin->email) {

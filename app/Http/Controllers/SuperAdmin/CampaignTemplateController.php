@@ -130,6 +130,10 @@ class CampaignTemplateController extends Controller
 
     public function generate(Request $request, CampaignTemplate $campaignTemplate)
     {
+        if (! $campaignTemplate->is_active) {
+            return back()->withErrors(['template' => 'Không thể phát hành coupon từ campaign template đang tạm dừng.']);
+        }
+
         $data = $request->validate([
             'code_count' => ['required', 'integer', 'min:1', 'max:1000'],
             'starts_at' => ['nullable', 'date'],
@@ -219,7 +223,7 @@ class CampaignTemplateController extends Controller
         ];
 
         foreach ($defaults as $data) {
-            CampaignTemplate::updateOrCreate(
+            CampaignTemplate::firstOrCreate(
                 ['slug' => $data['slug']],
                 $data
             );

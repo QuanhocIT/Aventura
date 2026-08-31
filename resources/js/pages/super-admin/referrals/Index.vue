@@ -26,8 +26,9 @@ type WithdrawalRequest = {
     bank_name: string;
     bank_account_number: string;
     bank_account_name: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'approved' | 'rejected' | 'paid';
     notes: string | null;
+    payout_reference: string | null;
     created_at: string;
 };
 
@@ -61,18 +62,20 @@ const saveSettings = (percentage: number) => {
 
 // --- Xử lý duyệt rút tiền ---
 const selectedRequest = ref<WithdrawalRequest | null>(null);
-const actionType = ref<'approve' | 'reject' | null>(null);
+const actionType = ref<'approve' | 'reject' | 'paid' | null>(null);
 const actionForm = useForm({
     notes: '',
+    payout_reference: '',
 });
 
 const openActionModal = (
     req: WithdrawalRequest,
-    type: 'approve' | 'reject',
+    type: 'approve' | 'reject' | 'paid',
 ) => {
     selectedRequest.value = req;
     actionType.value = type;
     actionForm.notes = type === 'approve' ? 'Phê duyệt bởi Super Admin' : '';
+    actionForm.payout_reference = '';
     actionForm.clearErrors();
 };
 
@@ -346,6 +349,12 @@ const formatCurrency = (value: number) => {
                                     Đã duyệt
                                 </span>
                                 <span
+                                    v-else-if="req.status === 'paid'"
+                                    class="inline-flex items-center rounded-full border border-blue-200/50 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-600 uppercase dark:bg-blue-950/30 dark:text-blue-400"
+                                >
+                                    Đã thanh toán
+                                </span>
+                                <span
                                     v-else-if="req.status === 'rejected'"
                                     class="inline-flex items-center rounded-full border border-rose-200/50 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600 uppercase dark:bg-rose-950/30 dark:text-rose-400"
                                 >
@@ -373,6 +382,19 @@ const formatCurrency = (value: number) => {
                                         @click="openActionModal(req, 'reject')"
                                     >
                                         Từ chối
+                                    </Button>
+                                </div>
+                                <div
+                                    v-else-if="req.status === 'approved'"
+                                    class="flex items-center justify-end gap-2"
+                                >
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        class="h-8 cursor-pointer rounded-xl bg-blue-600 px-3.5 font-bold text-white hover:bg-blue-700"
+                                        @click="openActionModal(req, 'paid')"
+                                    >
+                                        Ghi nhận đã thanh toán
                                     </Button>
                                 </div>
                                 <div
@@ -413,7 +435,10 @@ const formatCurrency = (value: number) => {
     >
         <DialogContent class="rounded-3xl sm:max-w-md">
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-foreground">
+                <DialogTitle v-if="actionType === 'paid'" class="flex items-center gap-2 text-foreground">
+                    Ghi nhận đã thanh toán
+                </DialogTitle>
+                <DialogTitle v-else class="flex items-center gap-2 text-foreground">
                     <AlertTriangle
                         v-if="actionType === 'reject'"
                         class="h-5 w-5 text-rose-500 dark:text-rose-400"
@@ -428,7 +453,10 @@ const formatCurrency = (value: number) => {
                             : 'Từ chối yêu cầu rút tiền'
                     }}
                 </DialogTitle>
-                <DialogDescription class="text-xs">
+                <DialogDescription v-if="actionType === 'paid'" class="text-xs">
+                    Nhập mã giao dịch ngân hàng để hoàn tất đối soát.
+                </DialogDescription>
+                <DialogDescription v-else class="text-xs">
                     {{
                         actionType === 'approve'
                             ? 'Xác nhận bạn đã chuyển khoản số tiền này tới tài khoản của thành viên thành công.'
@@ -474,6 +502,19 @@ const formatCurrency = (value: number) => {
             </div>
 
             <form @submit.prevent="submitAction" class="space-y-4">
+                <div v-if="actionType === 'paid'" class="grid gap-1.5">
+                    <Label for="payout_reference" class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                        Mã giao dịch (Bắt buộc)
+                    </Label>
+                    <Input
+                        id="payout_reference"
+                        v-model="actionForm.payout_reference"
+                        required
+                        placeholder="Ví dụ: FT123456789"
+                        class="rounded-xl border-zinc-200 dark:border-zinc-800"
+                    />
+                    <InputError :message="actionForm.errors.payout_reference" />
+                </div>
                 <div class="grid gap-1.5">
                     <Label
                         for="notes"
@@ -502,6 +543,14 @@ const formatCurrency = (value: number) => {
 
                 <DialogFooter class="gap-2 sm:gap-0">
                     <Button
+                        v-if="actionType === 'paid'"
+                        type="submit"
+                        class="cursor-pointer rounded-xl"
+                        :disabled="actionForm.processing"
+                    >
+                        Xác nhận đã thanh toán
+                    </Button>
+                    <Button
                         type="button"
                         variant="ghost"
                         class="cursor-pointer rounded-xl"
@@ -510,6 +559,7 @@ const formatCurrency = (value: number) => {
                         Hủy
                     </Button>
                     <Button
+                        v-if="actionType !== 'paid'"
                         type="submit"
                         class="cursor-pointer rounded-xl"
                         :variant="

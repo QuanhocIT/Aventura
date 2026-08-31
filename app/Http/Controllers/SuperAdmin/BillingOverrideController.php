@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Coupon;
 use App\Models\Restaurant;
 use App\Services\BillingService;
 use Illuminate\Http\RedirectResponse;
@@ -30,6 +31,29 @@ class BillingOverrideController extends Controller
         // Xác nhận mật khẩu hiện tại của Super Admin
         if (! Hash::check($validated['password'], $request->user()->password)) {
             return back()->withErrors(['password' => 'Mật khẩu xác nhận không chính xác.']);
+        }
+
+        if (in_array($validated['type'], ['trial', 'extend'], true) && (int) ($validated['days'] ?? 0) < 1) {
+            return back()->withErrors(['days' => 'Gia hạn hoặc dùng thử phải có ít nhất 1 ngày.']);
+        }
+
+        $coupon = null;
+        if (! empty($validated['coupon_code'])) {
+            $coupon = Coupon::query()->where('code', strtoupper($validated['coupon_code']))->first();
+            if ($validated['type'] !== 'discount') {
+                return back()->withErrors(['coupon_code' => 'Coupon chỉ được áp dụng cho thao tác giảm giá.']);
+            }
+
+            if (! $coupon || ! $coupon->isValid()) {
+                return back()->withErrors(['coupon_code' => 'Coupon không tồn tại hoặc không còn hiệu lực.']);
+            }
+
+            $basePrice = (float) ($restaurant->activeSubscription?->price ?? $restaurant->plan?->price ?? 0);
+            $validated['discount_amount'] = $coupon->getDiscountAmount($basePrice);
+        }
+
+        if ($validated['type'] === 'discount' && (float) ($validated['discount_amount'] ?? 0) <= 0) {
+            return back()->withErrors(['discount_amount' => 'Điều chỉnh giảm giá phải lớn hơn 0 hoặc cung cấp coupon còn hiệu lực.']);
         }
 
         $this->billingService->applyManualOverride($restaurant, $validated, $request->user());

@@ -19,6 +19,7 @@ use App\Models\TableReservation;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\AiInsightsClient;
+use App\Services\EmailMicroserviceClient;
 use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -32,7 +33,10 @@ use Inertia\Response;
 
 class RestaurantController extends Controller
 {
-    public function __construct(private readonly QuotaService $quota) {}
+    public function __construct(
+        private readonly QuotaService $quota,
+        private readonly EmailMicroserviceClient $emailClient,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -423,6 +427,8 @@ class RestaurantController extends Controller
             ]);
 
             $owner->update(['restaurant_id' => $restaurant->id]);
+            // Tenant owner authorization is role-based, not relation-only.
+            $owner->assignRole('owner');
 
             RestaurantSubscription::create([
                 'restaurant_id' => $restaurant->id,
@@ -445,25 +451,63 @@ class RestaurantController extends Controller
         Cache::forget('superadmin_ai_insights');
         DashboardController::forgetCache();
 
+        $owner = $restaurant->owner;
+        $ownerInvitationSent = false;
+        try {
+            $ownerInvitationSent = $owner
+                && $this->emailClient->sendWelcome([
+                    'recipient_email' => $owner->email,
+                    'recipient_name' => $owner->name,
+                    'restaurant_name' => $restaurant->name,
+                    'login_url' => route('login'),
+                ]);
+        } catch (\Throwable $e) {
+            logger()->warning('Could not send tenant owner welcome email.', [
+                'restaurant_id' => $restaurant->id,
+                'owner_id' => $owner?->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return redirect()->route('superadmin.restaurants.show', $restaurant)
             ->with('owner_temp_password', $ownerTempPassword)
-            ->with('success', "Đã tạo nhà hàng \"{$restaurant->name}\" thành công. Hãy bàn giao mật khẩu tạm cho chủ nhà hàng qua kênh an toàn.");
+            ->with('success', $ownerInvitationSent
+                ? "Đã tạo nhà hàng \"{$restaurant->name}\" thành công và gửi email chào mừng cho owner."
+                : "Đã tạo nhà hàng \"{$restaurant->name}\" thành công, nhưng email chào mừng chưa gửi được. Hãy bàn giao mật khẩu tạm qua kênh an toàn.");
     }
 
     public function updateStatus(Request $request, Restaurant $restaurant): RedirectResponse
     {
         $request->validate([
             'status' => ['required', Rule::in(['active', 'suspended', 'expired'])],
-            'reason' => 'nullable|string|max:500',
+            'reason' => [
+                Rule::requiredIf(fn (): bool => in_array($request->input('status'), ['suspended', 'expired'], true)),
+                'nullable',
+                'string',
+                'max:500',
+            ],
         ]);
 
         $oldStatus = $restaurant->status;
+        if ($request->status === 'active' && $oldStatus === 'expired') {
+            $hasCurrentAccess = $restaurant->subscriptions()
+                ->whereIn('status', ['trial', 'active'])
+                ->where(function ($query) {
+                    $query->whereNull('ended_at')->orWhere('ended_at', '>', now());
+                })
+                ->exists();
+
+            if (! $hasCurrentAccess) {
+                return back()->withErrors([
+                    'status' => 'Không thể kích hoạt tenant hết hạn khi chưa có subscription còn hiệu lực.',
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($restaurant, $request): void {
             $restaurant->update([
-            'status' => $request->status,
-            ...in_array($request->status, ['active', 'suspended'], true)
-                ? ['lifecycle_status' => $request->status]
-                : [],
+                'status' => $request->status,
+                'lifecycle_status' => $request->status,
             ]);
 
             // Suspended tenants keep billing history; only an explicit expiry
@@ -536,6 +580,7 @@ class RestaurantController extends Controller
             $restaurant->update([
                 'plan_id' => $plan->id,
                 'status' => 'active',
+                'lifecycle_status' => 'active',
                 'subscription_started_at' => $now,
                 'subscription_ends_at' => $endedAt,
             ]);

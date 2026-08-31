@@ -8,6 +8,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantFollowup;
 use App\Models\RestaurantInternalNote;
 use App\Models\RestaurantTag;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -129,6 +130,18 @@ class RestaurantCrmController extends Controller
             'remind_at' => ['required', 'date', 'after:now'],
             'assigned_to' => ['required', 'exists:users,id'],
         ]);
+
+        $assignee = User::query()
+            ->whereKey($validated['assigned_to'])
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                'super_admin', 'system_admin', 'billing_admin', 'support_specialist', 'admin',
+            ]))
+            ->exists();
+
+        if (! $assignee) {
+            return back()->withErrors(['assigned_to' => 'Chỉ được phân công cho nhân sự platform đang hoạt động.']);
+        }
 
         $followup = $restaurant->followups()->create([
             'note' => $validated['note'],

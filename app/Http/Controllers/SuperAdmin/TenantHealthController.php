@@ -287,7 +287,7 @@ class TenantHealthController extends Controller
                 'key' => $feature,
                 'label' => TenantFeatureFlags::label($feature),
             ])->values()->all(),
-            'lifecycle_statuses' => ['active', 'suspended', 'archived', 'sandbox'],
+            'lifecycle_statuses' => ['active', 'suspended', 'expired', 'archived', 'sandbox'],
         ]);
     }
 
@@ -301,7 +301,7 @@ class TenantHealthController extends Controller
             'tenant_id' => ['nullable', 'integer', 'exists:restaurants,id'],
             'branch_id' => ['nullable', 'integer', 'exists:restaurant_branches,id'],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'lifecycle_status' => ['nullable', Rule::in(['active', 'suspended', 'archived', 'sandbox'])],
+            'lifecycle_status' => ['nullable', Rule::in(['active', 'suspended', 'expired', 'archived', 'sandbox'])],
             'feature' => ['nullable', Rule::in(TenantFeatureFlags::keys())],
             'enabled' => ['nullable', 'boolean'],
             'mode' => ['nullable', Rule::in(['override', 'inherit'])],
@@ -386,6 +386,14 @@ class TenantHealthController extends Controller
             'owner_user_id' => $tenant->owner_user_id,
             'user_roles' => $user->getRoleNames()->values()->all(),
         ];
+
+        if ($tenant->owner_user_id && (int) $tenant->owner_user_id !== $user->id) {
+            $previousOwner = User::whereKey($tenant->owner_user_id)->lockForUpdate()->first();
+            if ($previousOwner && (int) $previousOwner->restaurant_id === $tenant->id) {
+                $previousOwner->removeRole('owner');
+            }
+        }
+
         $user->syncRoles(['owner']);
         $tenant->forceFill(['owner_user_id' => $user->id])->saveQuietly();
         $after = [
@@ -432,9 +440,9 @@ class TenantHealthController extends Controller
 
     private function clearBranch(Request $request, array $data): RedirectResponse
     {
-        $user = User::findOrFail($this->required($data, 'user_id'));
-        $tenant = $user->restaurant;
-        abort_unless($tenant, 422, 'User chưa thuộc tenant.');
+        $tenant = $this->tenant($data);
+        $user = User::where('restaurant_id', $tenant->id)
+            ->findOrFail($this->required($data, 'user_id'));
 
         $before = [
             'user_branch_id' => $user->getRawOriginal('branch_id'),

@@ -189,6 +189,7 @@ Route::prefix('super-admin')
             Route::post('restaurants/{restaurant}/custom-plan', [CustomPlanBuilderController::class, 'store'])->name('restaurants.custom-plan.store');
             Route::post('referrals/settings', [ReferralController::class, 'updateSettings'])->name('referrals.settings.update');
             Route::post('referrals/withdrawals/{withdrawal}/approve', [ReferralController::class, 'approveWithdrawal'])->name('referrals.withdrawals.approve');
+            Route::post('referrals/withdrawals/{withdrawal}/paid', [ReferralController::class, 'markPaid'])->name('referrals.withdrawals.paid');
             Route::post('referrals/withdrawals/{withdrawal}/reject', [ReferralController::class, 'rejectWithdrawal'])->name('referrals.withdrawals.reject');
         });
 
@@ -239,6 +240,7 @@ Route::prefix('super-admin')
         Route::middleware(['superadmin.permission:superadmin.system.manage', 'superadmin.stepup'])->group(function () {
             Route::get('accounts', [AccountController::class, 'index'])->name('accounts.index');
             Route::post('accounts', [AccountController::class, 'store'])->name('accounts.store');
+            Route::post('accounts/{user}/resend-verification', [AccountController::class, 'resendVerification'])->name('accounts.resend-verification');
             Route::post('accounts/{user}/reset-password', [AccountController::class, 'resetPassword'])->name('accounts.reset-password');
             Route::post('accounts/{user}/disable-2fa', [AccountController::class, 'disable2FA'])->name('accounts.disable-2fa');
             Route::patch('accounts/{user}/status', [AccountController::class, 'toggleStatus'])->name('accounts.status');

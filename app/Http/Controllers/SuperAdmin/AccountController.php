@@ -93,12 +93,19 @@ class AccountController extends Controller
 
         $user->assignRole($data['role']);
 
+        $verificationSent = false;
         try {
-            $user->sendEmailVerificationNotification();
+            $verificationSent = $user->sendEmailVerificationNotification();
         } catch (\Throwable $e) {
             logger()->warning('Could not send platform admin verification email.', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
+            ]);
+        }
+
+        if (! $verificationSent) {
+            logger()->warning('Platform admin verification email was not delivered.', [
+                'user_id' => $user->id,
             ]);
         }
 
@@ -119,7 +126,45 @@ class AccountController extends Controller
 
         return back()
             ->with('temp_password', $tempPassword)
-            ->with('success', "Đã tạo tài khoản {$user->name} với vai trò {$data['role']}.");
+            ->with('success', $verificationSent
+                ? "Đã tạo tài khoản {$user->name} với vai trò {$data['role']}."
+                : "Đã tạo tài khoản {$user->name}, nhưng email xác thực chưa gửi được. Hãy dùng chức năng gửi lại email.");
+    }
+
+    public function resendVerification(Request $request, User $user): RedirectResponse
+    {
+        if ($user->hasRole('super_admin')) {
+            return back()->with('error', 'Không thể gửi lại email xác thực cho tài khoản Super Admin gốc.');
+        }
+
+        if (! $user->isPlatformAdmin()) {
+            return back()->with('error', 'Chỉ được gửi email xác thực cho tài khoản platform-admin.');
+        }
+
+        if (($user->status ?? 'active') !== 'active') {
+            return back()->with('error', 'Chỉ được gửi email xác thực cho tài khoản đang hoạt động.');
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('error', 'Tài khoản này đã xác thực email.');
+        }
+
+        try {
+            if (! $user->sendEmailVerificationNotification()) {
+                return back()->with('error', 'Không gửi được email xác thực. Vui lòng kiểm tra cấu hình email rồi thử lại.');
+            }
+        } catch (\Throwable $e) {
+            logger()->warning('Could not resend platform admin verification email.', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Không gửi được email xác thực. Vui lòng kiểm tra cấu hình email rồi thử lại.');
+        }
+
+        $this->writeAuditLog('resend_admin_verification', $user);
+
+        return back()->with('success', "Đã gửi lại email xác thực cho {$user->email}.");
     }
 
     public function updateRole(Request $request, User $user): RedirectResponse
@@ -238,6 +283,8 @@ class AccountController extends Controller
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
+            'security_session_version' => (int) ($user->security_session_version ?? 0) + 1,
+            'force_logout_at' => now(),
         ])->save();
 
         $this->writeAuditLog('disable_2fa', $user);
