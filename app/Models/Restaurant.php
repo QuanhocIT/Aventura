@@ -207,8 +207,19 @@ class Restaurant extends Model
 
     public function lifecycleStatus(): string
     {
-        return $this->lifecycle_status
-            ?: ($this->sandbox_mode ? 'sandbox' : ($this->status === 'suspended' ? 'suspended' : 'active'));
+        if ($this->lifecycle_status) {
+            return $this->lifecycle_status;
+        }
+
+        if ($this->sandbox_mode) {
+            return 'sandbox';
+        }
+
+        return match ($this->status) {
+            'suspended' => 'suspended',
+            'expired' => 'expired',
+            default => 'active',
+        };
     }
 
     public function isArchived(): bool

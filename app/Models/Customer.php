@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use App\Support\Tenant\TenantContext;
 use Database\Factories\Restaurant\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -36,7 +37,14 @@ class Customer extends Model
 
     public function rfmAnalysis()
     {
-        return $this->hasOne(CustomerRfmAnalysis::class);
+        $relation = $this->hasOne(CustomerRfmAnalysis::class);
+        $context = app(TenantContext::class);
+
+        if ($context->isBranchScoped()) {
+            return $relation->where('customer_rfm_analysis.branch_id', $context->activeBranchId());
+        }
+
+        return $relation->whereNull('customer_rfm_analysis.branch_id');
     }
 
     public function behaviorLogs()

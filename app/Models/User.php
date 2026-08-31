@@ -359,13 +359,13 @@ class User extends Authenticatable implements MustVerifyEmail
      * không gửi được thư thật) thay vì dùng notification "mail" channel có sẵn.
      * Chỉ gửi cho Super Admin — các tài khoản khác không cần xác thực nên không gửi.
      */
-    public function sendEmailVerificationNotification(): void
+    public function sendEmailVerificationNotification(): bool
     {
         if (! $this->isPlatformAdmin()) {
-            return;
+            return false;
         }
 
-        app(EmailVerificationService::class)->send($this);
+        return app(EmailVerificationService::class)->send($this);
     }
 
     public function getBranchIdAttribute($value)

@@ -13,9 +13,22 @@ class WithdrawalRequest extends Model
         'bank_name',
         'bank_account_number',
         'bank_account_name',
-        'status', // pending, approved, rejected
+        'status', // pending, approved, paid, rejected
         'notes',
+        'approved_by',
+        'approved_at',
+        'paid_by',
+        'paid_at',
+        'payout_reference',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'approved_at' => 'datetime',
+            'paid_at' => 'datetime',
+        ];
+    }
 
     public function user(): BelongsTo
     {
