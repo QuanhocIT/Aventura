@@ -93,7 +93,7 @@ class BackupMaintenanceTest extends TestCase
                 'queue' => 'default',
                 'payload' => '{}',
                 'exception' => 'Test exception',
-                'failed_at' => now(),
+                'failed_at' => now()->subDays((int) config('data_lifecycle.technical.failed_jobs_retention_days', 30) + 1),
             ]);
             $this->assertEquals(1, DB::table('failed_jobs')->count());
         }

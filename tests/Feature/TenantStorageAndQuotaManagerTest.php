@@ -206,6 +206,7 @@ class TenantStorageAndQuotaManagerTest extends TestCase
 
         // Create physical file mock
         Storage::disk('public')->put('orphans/dummy.png', 'file content');
+        $orphanCutoff = now()->subDays((int) config('data_lifecycle.storage.orphan_grace_days', 30) + 1);
 
         // 1. Create an orphan asset (no attachable link)
         $orphan = MediaAsset::create([
@@ -214,6 +215,7 @@ class TenantStorageAndQuotaManagerTest extends TestCase
             'file_path' => 'orphans/dummy.png',
             'disk' => 'public',
             'size_bytes' => 1000,
+            'created_at' => $orphanCutoff,
         ]);
 
         // 2. Create a non-orphan asset linked to a Product
@@ -245,6 +247,7 @@ class TenantStorageAndQuotaManagerTest extends TestCase
             'size_bytes' => 3000,
             'attachable_type' => Product::class,
             'attachable_id' => 999999, // Non-existent ID
+            'created_at' => $orphanCutoff,
         ]);
 
         // Verify index page lists the 2 orphans

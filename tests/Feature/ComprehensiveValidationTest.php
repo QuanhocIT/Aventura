@@ -531,15 +531,23 @@ class ComprehensiveValidationTest extends TestCase
 
     public function test_self_approval_prevention_on_approval_requests(): void
     {
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole('manager');
+
         $approval = ApprovalRequest::create([
             'restaurant_id' => $this->restaurant->id,
-            'requester_id' => $this->owner->id,
+            'branch_id' => $this->branch->id,
+            'requester_id' => $manager->id,
             'operation_type' => 'inventory_purchase',
             'operation_data' => ['ingredient_id' => 1, 'quantity' => 5, 'unit_cost' => 100],
             'status' => 'pending',
         ]);
 
-        $this->actingAs($this->owner);
+        $this->actingAs($manager);
         $response = $this->patch(route('approvals.approve', $approval->id));
         $response->assertStatus(403);
     }

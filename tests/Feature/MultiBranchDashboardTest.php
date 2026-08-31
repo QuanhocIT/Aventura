@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Order;
+use App\Models\Product;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -157,6 +160,97 @@ class MultiBranchDashboardTest extends TestCase
 
         $this->assertNull($allAgain['branchId']);
         $this->assertSame(300000.0, $allAgain['stats']['revenue_today']);
+    }
+
+    public function test_primary_cards_follow_the_selected_scope(): void
+    {
+        Queue::fake();
+
+        Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => null,
+            'category_id' => null,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+        Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch1->id,
+            'category_id' => null,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+        Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch2->id,
+            'category_id' => null,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+        Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch1->id,
+            'category_id' => null,
+            'is_active' => false,
+            'is_available' => true,
+        ]);
+        Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch2->id,
+            'category_id' => null,
+            'is_active' => true,
+            'is_available' => false,
+        ]);
+
+        $this->createDashboardOrder($this->branch1, 'completed', 100000);
+        $this->createDashboardOrder($this->branch1, 'pending', 50000);
+        $this->createDashboardOrder($this->branch2, 'completed', 200000);
+
+        $all = $this->actingAs($this->owner)
+            ->get(route('dashboard'))
+            ->original
+            ->getData()['page']['props'];
+
+        $this->assertSame(3, $all['stats']['orders_today']);
+        $this->assertSame(2, $all['stats']['orders_completed']);
+        $this->assertSame(300000.0, $all['stats']['revenue_today']);
+        $this->assertSame(3, $all['stats']['products_count']);
+
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch1->id])
+            ->assertRedirect();
+
+        $branch = $this->actingAs($this->owner)
+            ->get(route('dashboard'))
+            ->original
+            ->getData()['page']['props'];
+
+        $this->assertSame($this->branch1->id, $branch['branchId']);
+        $this->assertSame(2, $branch['stats']['orders_today']);
+        $this->assertSame(1, $branch['stats']['orders_completed']);
+        $this->assertSame(100000.0, $branch['stats']['revenue_today']);
+        $this->assertSame(2, $branch['stats']['products_count']);
+    }
+
+    private function createDashboardOrder(RestaurantBranch $branch, string $status, float $total): Order
+    {
+        $now = now();
+
+        return Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch->id,
+            'table_id' => null,
+            'customer_id' => null,
+            'created_by' => $this->owner->id,
+            'cashier_user_id' => $this->owner->id,
+            'status' => $status,
+            'payment_status' => $status === 'completed' ? 'paid' : 'unpaid',
+            'subtotal' => $total,
+            'discount_amount' => 0,
+            'total_amount' => $total,
+            'created_at' => $now,
+            'updated_at' => $now,
+            'completed_at' => $status === 'completed' ? $now : null,
+        ]);
     }
 
     public function test_employee_restricted_to_assigned_branch(): void
