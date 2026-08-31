@@ -206,10 +206,14 @@ const showGrnForm = ref(
 );
 const isSubmittingGrn = ref(false);
 const grnErrors = ref<string[]>([]);
+const grnErrorSummary = ref<HTMLElement | null>(null);
 const grnFiles = ref<File[]>([]);
 const grnDocumentType = ref<
     'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other'
 >('other');
+const receivedAtPicker = ref<HTMLInputElement | null>(null);
+const invoiceDatePicker = ref<HTMLInputElement | null>(null);
+const rowDatePickers = ref<Record<string, HTMLInputElement | null>>({});
 
 const emptyLine = (): GrnLine => ({
     ingredient_id: null,
@@ -721,6 +725,60 @@ const expiryAfter = (days: number | null | undefined) => {
     return date.toISOString().slice(0, 10);
 };
 
+const normalizeDate = (value: string) => {
+    const trimmed = value.trim();
+    const match = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+
+    if (!match) {
+        return trimmed;
+    }
+
+    return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`;
+};
+
+const normalizeDateTime = (value: string) => {
+    const trimmed = value.trim();
+    const match = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T]+)(\d{1,2}):(\d{2})$/.exec(trimmed);
+
+    if (!match) {
+        return trimmed.replace('T', ' ');
+    }
+
+    return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')} ${match[4].padStart(2, '0')}:${match[5]}`;
+};
+
+const displayDateValue = (value: string) => value.replace('T', ' ');
+
+const setRowDatePickerRef = (key: string, element: unknown | null) => {
+    rowDatePickers.value[key] = element as HTMLInputElement | null;
+};
+
+const openDatePicker = (picker: HTMLInputElement | null | undefined) => {
+    if (!picker) {
+        return;
+    }
+
+    const pickerWithShowPicker = picker as HTMLInputElement & {
+        showPicker?: () => void;
+    };
+
+    try {
+        if (typeof pickerWithShowPicker.showPicker === 'function') {
+            pickerWithShowPicker.showPicker();
+
+            return;
+        }
+    } catch {
+        // Fall back to the native input click on browsers that restrict showPicker().
+    }
+
+    picker.click();
+};
+
+const openRowDatePicker = (key: string) => {
+    openDatePicker(rowDatePickers.value[key]);
+};
+
 const onIngredientChange = (line: GrnLine) => {
     const ingredient = props.ingredients.find(
         (item) => item.id === line.ingredient_id,
@@ -844,6 +902,15 @@ const validateGrn = () => {
 
     grnErrors.value = errors;
 
+    if (errors.length > 0) {
+        requestAnimationFrame(() => {
+            grnErrorSummary.value?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        });
+    }
+
     return errors.length === 0;
 };
 
@@ -854,7 +921,7 @@ const submitGrn = async () => {
 
     isSubmittingGrn.value = true;
     const formData = new FormData();
-    formData.append('received_at', grnForm.value.received_at);
+    formData.append('received_at', normalizeDateTime(grnForm.value.received_at));
 
     if (grnForm.value.purchase_order_id) {
         formData.append(
@@ -885,7 +952,7 @@ const submitGrn = async () => {
     }
 
     if (grnForm.value.invoice_date) {
-        formData.append('invoice_date', grnForm.value.invoice_date);
+        formData.append('invoice_date', normalizeDate(grnForm.value.invoice_date));
     }
 
     if (grnForm.value.invoice_total_amount !== '') {
@@ -955,13 +1022,16 @@ const submitGrn = async () => {
         }
 
         if (line.expiry_date) {
-            formData.append(`items[${index}][expiry_date]`, line.expiry_date);
+            formData.append(
+                `items[${index}][expiry_date]`,
+                normalizeDate(line.expiry_date),
+            );
         }
 
         if (line.manufactured_date) {
             formData.append(
                 `items[${index}][manufactured_date]`,
-                line.manufactured_date,
+                normalizeDate(line.manufactured_date),
             );
         }
 
@@ -2427,10 +2497,32 @@ const documentTypeLabel = (type: string) =>
                     <div class="grid gap-3 md:grid-cols-3">
                         <div class="flex flex-col gap-1.5">
                             <Label>Thời điểm nhận</Label
-                            ><Input
-                                v-model="grnForm.received_at"
-                                type="datetime-local"
-                            />
+                            ><div class="relative">
+                                <Input
+                                    :model-value="displayDateValue(grnForm.received_at)"
+                                    type="text"
+                                    readonly
+                                    class="cursor-default pr-10"
+                                    placeholder="YYYY-MM-DD HH:mm"
+                                />
+                                <button
+                                    type="button"
+                                    class="absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-orange-400"
+                                    title="Chọn thời điểm nhận"
+                                    aria-label="Chọn thời điểm nhận"
+                                    @click="openDatePicker(receivedAtPicker)"
+                                >
+                                    <CalendarDays class="size-4" />
+                                </button>
+                                <input
+                                    ref="receivedAtPicker"
+                                    v-model="grnForm.received_at"
+                                    type="datetime-local"
+                                    tabindex="-1"
+                                    aria-hidden="true"
+                                    class="pointer-events-none absolute top-0 right-0 h-9 w-9 opacity-0"
+                                />
+                            </div>
                         </div>
                         <div class="flex flex-col gap-1.5 md:col-span-2">
                             <Label>Đối chiếu đơn mua hàng (khuyến nghị)</Label
@@ -2460,7 +2552,32 @@ const documentTypeLabel = (type: string) =>
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <Label>Ngày hóa đơn</Label>
-                            <Input v-model="grnForm.invoice_date" type="date" />
+                            <div class="relative">
+                                <Input
+                                    :model-value="displayDateValue(grnForm.invoice_date)"
+                                    type="text"
+                                    readonly
+                                    class="cursor-default pr-10"
+                                    placeholder="Chọn ngày"
+                                />
+                                <button
+                                    type="button"
+                                    class="absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-orange-400"
+                                    title="Chọn ngày hóa đơn"
+                                    aria-label="Chọn ngày hóa đơn"
+                                    @click="openDatePicker(invoiceDatePicker)"
+                                >
+                                    <CalendarDays class="size-4" />
+                                </button>
+                                <input
+                                    ref="invoiceDatePicker"
+                                    v-model="grnForm.invoice_date"
+                                    type="date"
+                                    tabindex="-1"
+                                    aria-hidden="true"
+                                    class="pointer-events-none absolute top-0 right-0 h-9 w-9 opacity-0"
+                                />
+                            </div>
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <Label>Tổng tiền hóa đơn (đ)</Label>
@@ -2599,23 +2716,23 @@ const documentTypeLabel = (type: string) =>
                                     class="text-[10px] text-muted-foreground"
                                 >
                                     <tr>
-                                        <th class="p-2 text-left">
+                                        <th class="w-80 min-w-[280px] p-2 text-left">
                                             Nguyên liệu
                                         </th>
-                                        <th class="w-28 p-2 text-right">
+                                        <th class="w-24 min-w-[90px] p-2 text-right">
                                             Dự kiến
                                         </th>
-                                        <th class="w-28 p-2 text-right">
+                                        <th class="w-24 min-w-[90px] p-2 text-right">
                                             Thực nhận
                                         </th>
-                                        <th class="w-32 p-2 text-right">
+                                        <th class="w-28 min-w-[110px] p-2 text-right">
                                             Đơn giá
                                         </th>
-                                        <th class="w-36 p-2">Số lô</th>
-                                        <th class="w-36 p-2">NSX</th>
-                                        <th class="w-36 p-2">HSD</th>
-                                        <th class="w-52 p-2">Vị trí cất</th>
-                                        <th class="w-56 p-2">
+                                        <th class="w-28 min-w-[110px] p-2">Số lô</th>
+                                        <th class="w-36 min-w-[140px] p-2">NSX</th>
+                                        <th class="w-36 min-w-[140px] p-2">HSD</th>
+                                        <th class="w-44 min-w-[160px] p-2">Vị trí cất</th>
+                                        <th class="min-w-[180px] p-2">
                                             Lý do chênh lệch
                                         </th>
                                         <th class="w-12 p-2"></th>
@@ -2626,7 +2743,7 @@ const documentTypeLabel = (type: string) =>
                                         v-for="(line, index) in grnForm.items"
                                         :key="index"
                                     >
-                                        <td class="p-2">
+                                        <td class="w-80 min-w-[280px] p-2">
                                             <select
                                                 v-model="line.ingredient_id"
                                                 class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -2694,18 +2811,60 @@ const documentTypeLabel = (type: string) =>
                                             />
                                         </td>
                                         <td class="p-2">
-                                            <Input
-                                                v-model="line.manufactured_date"
-                                                type="date"
-                                                class="h-9 text-xs"
-                                            />
+                                            <div class="relative">
+                                                <Input
+                                                    :model-value="displayDateValue(line.manufactured_date)"
+                                                    type="text"
+                                                    readonly
+                                                    placeholder="YYYY-MM-DD"
+                                                    class="h-9 cursor-default pr-8 text-xs"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="absolute inset-y-0 right-0 z-10 flex w-8 items-center justify-center text-muted-foreground transition-colors hover:text-orange-400"
+                                                    title="Chọn ngày sản xuất"
+                                                    aria-label="Chọn ngày sản xuất"
+                                                    @click="openRowDatePicker(`manufactured-${index}`)"
+                                                >
+                                                    <CalendarDays class="size-3.5" />
+                                                </button>
+                                                <input
+                                                    :ref="(element) => setRowDatePickerRef(`manufactured-${index}`, element)"
+                                                    v-model="line.manufactured_date"
+                                                    type="date"
+                                                    tabindex="-1"
+                                                    aria-hidden="true"
+                                                    class="pointer-events-none absolute top-0 right-0 h-9 w-8 opacity-0"
+                                                />
+                                            </div>
                                         </td>
                                         <td class="p-2">
-                                            <Input
-                                                v-model="line.expiry_date"
-                                                type="date"
-                                                class="h-9 text-xs"
-                                            />
+                                            <div class="relative">
+                                                <Input
+                                                    :model-value="displayDateValue(line.expiry_date)"
+                                                    type="text"
+                                                    readonly
+                                                    placeholder="YYYY-MM-DD"
+                                                    class="h-9 cursor-default pr-8 text-xs"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="absolute inset-y-0 right-0 z-10 flex w-8 items-center justify-center text-muted-foreground transition-colors hover:text-orange-400"
+                                                    title="Chọn hạn sử dụng"
+                                                    aria-label="Chọn hạn sử dụng"
+                                                    @click="openRowDatePicker(`expiry-${index}`)"
+                                                >
+                                                    <CalendarDays class="size-3.5" />
+                                                </button>
+                                                <input
+                                                    :ref="(element) => setRowDatePickerRef(`expiry-${index}`, element)"
+                                                    v-model="line.expiry_date"
+                                                    type="date"
+                                                    tabindex="-1"
+                                                    aria-hidden="true"
+                                                    class="pointer-events-none absolute top-0 right-0 h-9 w-8 opacity-0"
+                                                />
+                                            </div>
                                         </td>
                                         <td class="p-2">
                                             <select
@@ -2811,6 +2970,7 @@ const documentTypeLabel = (type: string) =>
                     </div>
                     <div
                         v-if="grnErrors.length"
+                        ref="grnErrorSummary"
                         class="rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs text-rose-200"
                     >
                         <p class="mb-2 flex items-center gap-2 font-bold">

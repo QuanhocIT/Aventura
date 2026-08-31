@@ -31,16 +31,30 @@ const weekDays = [
 
 const weekDaysWithDates = computed(() => {
     const current = new Date();
-    const day = current.getDay();
-    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(current.setDate(diff));
+    const day = current.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+    // Distance to this week's Monday
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const thisMonday = new Date(
+        current.getFullYear(),
+        current.getMonth(),
+        current.getDate() + diffToMonday,
+    );
+    // Next week Monday (+7 days)
+    const nextMonday = new Date(
+        thisMonday.getFullYear(),
+        thisMonday.getMonth(),
+        thisMonday.getDate() + 7,
+    );
 
     return weekDays.map((wd, index) => {
-        const nextDay = new Date(monday);
-        nextDay.setDate(monday.getDate() + index);
-        const yyyy = nextDay.getFullYear();
-        const mm = String(nextDay.getMonth() + 1).padStart(2, '0');
-        const dd = String(nextDay.getDate()).padStart(2, '0');
+        const targetDay = new Date(
+            nextMonday.getFullYear(),
+            nextMonday.getMonth(),
+            nextMonday.getDate() + index,
+        );
+        const yyyy = targetDay.getFullYear();
+        const mm = String(targetDay.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDay.getDate()).padStart(2, '0');
 
         return {
             ...wd,
@@ -79,7 +93,7 @@ const saveRegistrations = () => {
         {
             onSuccess: () => {
                 import('vue-sonner').then((m) =>
-                    m.toast.success('Đã lưu đăng ký ca làm rảnh thành công!'),
+                    m.toast.success('Đã lưu đăng ký ca làm rảnh tuần tới thành công!'),
                 );
             },
             onError: () => {
@@ -116,12 +130,11 @@ onMounted(() => {
                     <Clock
                         class="text-emerald-650 dark:text-emerald-455 size-5"
                     />
-                    Đăng Ký Ca Làm Việc Rảnh Tuần Này
+                    Đăng Ký Ca Làm Việc Rảnh Tuần Tới
                 </CardTitle>
-                <CardDescription
-                    >Chọn các ca trực rảnh trong tuần của bạn. Chủ quán sẽ dựa
-                    trên thông tin này để xếp lịch phù hợp.</CardDescription
-                >
+                <CardDescription>
+                    Chọn các ca trực rảnh trong tuần tới (từ Thứ Hai {{ weekDaysWithDates[0]?.dateLabel }} đến Chủ Nhật {{ weekDaysWithDates[6]?.dateLabel }}). Quản lý sẽ dựa trên thông tin này để xếp lịch phù hợp.
+                </CardDescription>
             </div>
             <Button
                 @click="saveRegistrations"

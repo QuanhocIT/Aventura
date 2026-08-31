@@ -551,8 +551,12 @@ class ScheduleController extends Controller
                 'end' => substr($s->end_time, 0, 5),
             ]);
 
+        // Đăng ký ca làm việc rảnh áp dụng cho tuần tới (next week)
+        $nextWeekStart = Carbon::now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $nextWeekEnd = Carbon::now()->addWeek()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
         $myRegistrations = ScheduleRegistration::where('employee_id', $employee->id)
-            ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+            ->whereBetween('scheduled_date', [$nextWeekStart, $nextWeekEnd])
             ->get()
             ->map(fn ($r) => [
                 'shift_id' => $r->shift_id,
@@ -748,13 +752,14 @@ class ScheduleController extends Controller
             'registrations.*.date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
-        $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
+        // Đăng ký ca làm việc rảnh cho tuần tới
+        $nextWeekStart = Carbon::now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $nextWeekEnd = Carbon::now()->addWeek()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
-        DB::transaction(function () use ($employee, $data, $startOfWeek, $endOfWeek) {
-            // Xóa toàn bộ đăng ký trong tuần này của nhân viên trước khi lưu mới
+        DB::transaction(function () use ($employee, $data, $nextWeekStart, $nextWeekEnd) {
+            // Xóa toàn bộ đăng ký ca rảnh tuần tới của nhân viên trước khi lưu mới
             ScheduleRegistration::where('employee_id', $employee->id)
-                ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
+                ->whereBetween('scheduled_date', [$nextWeekStart, $nextWeekEnd])
                 ->delete();
 
             if (! empty($data['registrations'])) {
@@ -770,7 +775,7 @@ class ScheduleController extends Controller
             }
         });
 
-        return back()->with('success', 'Đã lưu đăng ký ca làm việc khả dụng thành công!');
+        return back()->with('success', 'Đã lưu đăng ký ca làm việc khả dụng cho tuần tới thành công!');
     }
 
     /**
