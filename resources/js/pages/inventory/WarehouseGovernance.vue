@@ -202,11 +202,13 @@ const reviewReceivingReport = async (report: any) => {
     const notes = prompt(
         `Nhập kết luận xử lý biên bản ${report.report_code} (hàng lỗi đã cách ly, phương án trả/tiêu hủy/bồi thường...):`,
     );
+
     if (!notes?.trim()) {
         return;
     }
 
     isProcessing.value = true;
+
     try {
         const { data } = await axios.post(
             `/api/receiving-reports/${report.id}/review`,

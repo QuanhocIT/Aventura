@@ -25,7 +25,6 @@ import {
     Truck,
     TrendingUp,
     UserCheck,
-    UserRound,
     Warehouse,
     X,
     XCircle,
@@ -98,7 +97,6 @@ const priceRows = ref(
     })),
 );
 
-const taskAssignments = ref<Array<any>>([...props.warehouseTasks]);
 const isTaskModalOpen = ref(false);
 const isTaskProcessing = ref(false);
 const taskForm = ref({
@@ -109,36 +107,6 @@ const taskForm = ref({
     due_at: '',
     notes: '',
 });
-
-const taskSummary = computed(() => ({
-    total: taskAssignments.value.length,
-    assigned: taskAssignments.value.filter((task) => task.status === 'assigned')
-        .length,
-    in_progress: taskAssignments.value.filter(
-        (task) => task.status === 'in_progress',
-    ).length,
-    completed: taskAssignments.value.filter(
-        (task) => task.status === 'completed',
-    ).length,
-    unassigned: taskAssignments.value.filter(
-        (task) => !task.assigned_to && task.status !== 'completed',
-    ).length,
-}));
-
-const staffWorkload = computed(() =>
-    props.warehouseStaff.map((staff) => ({
-        ...staff,
-        activeTasks: taskAssignments.value.filter(
-            (task) =>
-                task.assigned_to === staff.id &&
-                ['assigned', 'in_progress'].includes(task.status),
-        ).length,
-        completedTasks: taskAssignments.value.filter(
-            (task) =>
-                task.assigned_to === staff.id && task.status === 'completed',
-        ).length,
-    })),
-);
 
 // Filtered Requests
 const filteredRequests = computed(() => {
@@ -286,90 +254,6 @@ const pipelineStages = computed(() => [
     },
 ]);
 
-const filterTabs = computed(() => [
-    {
-        key: 'all' as const,
-        label: 'Tất cả',
-        count: stats.value.total,
-        activeClass:
-            'bg-background text-foreground shadow-xs ring-1 ring-border/60 font-bold',
-        activeBadge:
-            'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold',
-    },
-    {
-        key: 'pending' as const,
-        label: 'Chờ duyệt',
-        count: stats.value.pending,
-        activeClass:
-            'bg-amber-500/15 text-amber-600 dark:text-amber-300 ring-1 ring-amber-500/30 font-bold',
-        activeBadge:
-            'bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold',
-    },
-    {
-        key: 'approved' as const,
-        label: 'Đã duyệt',
-        count: stats.value.approved,
-        activeClass:
-            'bg-blue-500/15 text-blue-600 dark:text-blue-300 ring-1 ring-blue-500/30 font-bold',
-        activeBadge:
-            'bg-blue-500/25 text-blue-800 dark:text-blue-300 font-bold',
-    },
-    {
-        key: 'preparing' as const,
-        label: 'Đang soạn',
-        count: stats.value.preparing,
-        activeClass:
-            'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-500/30 font-bold',
-        activeBadge:
-            'bg-indigo-500/25 text-indigo-800 dark:text-indigo-300 font-bold',
-    },
-    {
-        key: 'dispatch_pending_approval' as const,
-        label: 'Chờ duyệt xuất',
-        count: stats.value.dispatch_pending,
-        activeClass:
-            'bg-violet-500/15 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/30 font-bold',
-        activeBadge:
-            'bg-violet-500/25 text-violet-800 dark:text-violet-300 font-bold',
-    },
-    {
-        key: 'dispatched' as const,
-        label: 'Đang giao',
-        count: stats.value.dispatched,
-        activeClass:
-            'bg-sky-500/15 text-sky-600 dark:text-sky-300 ring-1 ring-sky-500/30 font-bold',
-        activeBadge:
-            'bg-sky-500/25 text-sky-800 dark:text-sky-300 font-bold',
-    },
-    {
-        key: 'partial_received' as const,
-        label: 'Nhận 1 phần',
-        count: stats.value.partial_received,
-        activeClass:
-            'bg-orange-500/15 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/30 font-bold',
-        activeBadge:
-            'bg-orange-500/25 text-orange-800 dark:text-orange-300 font-bold',
-    },
-    {
-        key: 'disputed' as const,
-        label: 'Tranh chấp',
-        count: stats.value.disputed,
-        activeClass:
-            'bg-rose-500/15 text-rose-600 dark:text-rose-300 ring-1 ring-rose-500/30 font-bold',
-        activeBadge:
-            'bg-rose-500/25 text-rose-800 dark:text-rose-300 font-bold',
-    },
-    {
-        key: 'completed' as const,
-        label: 'Hoàn thành',
-        count: stats.value.completed,
-        activeClass:
-            'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 ring-1 ring-emerald-500/30 font-bold',
-        activeBadge:
-            'bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 font-bold',
-    },
-]);
-
 const operationalSummary = computed(
     () => props.supplyAnalytics?.operations ?? {},
 );
@@ -449,29 +333,6 @@ const saveLocation = async () => {
     }
 };
 
-const openPickingModal = (req: any) => {
-    selectedRequest.value = req;
-    pickingItems.value = req.items.map((item: any) => ({
-        id: item.id,
-        ingredient_name: item.ingredient?.name,
-        unit_symbol: item.unit_symbol || item.ingredient?.unit?.symbol || 'đv',
-        requested_quantity: Number(item.requested_quantity),
-        approved_quantity: Number(
-            item.approved_quantity ?? item.requested_quantity,
-        ),
-        actual_dispatched_quantity: Number(
-            item.actual_dispatched_quantity ??
-                item.approved_quantity ??
-                item.requested_quantity,
-        ),
-        batch_id: item.batch_id || null,
-        warehouse_location_id: item.warehouse_location_id || null,
-        non_fefo_reason: item.non_fefo_reason || '',
-        notes: item.shortage_notes || '',
-    }));
-    isPickingModalOpen.value = true;
-};
-
 const submitPreparePicking = async () => {
     if (!selectedRequest.value) {
         return;
@@ -504,6 +365,7 @@ const submitPreparePicking = async () => {
             toast.success(res.data.message || 'Đã hoàn thành bước soạn hàng. Chờ Trưởng kho duyệt xuất.');
             isPickingModalOpen.value = false;
             const newStatus = res.data.data?.status || 'prepared';
+
             if (res.data.data) {
                 selectedRequest.value = {
                     ...selectedRequest.value,
@@ -513,10 +375,13 @@ const submitPreparePicking = async () => {
             } else {
                 selectedRequest.value.status = newStatus;
             }
+
             const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+
             if (found) {
                 Object.assign(found, selectedRequest.value);
             }
+
             router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
@@ -544,6 +409,7 @@ const approveDispatchManager = async () => {
             toast.success('Đã duyệt lệnh xuất kho! Mở form bàn giao xuất kho.');
             const newStatus =
                 res.data.data?.status || 'dispatch_pending_approval';
+
             if (res.data.data) {
                 selectedRequest.value = {
                     ...selectedRequest.value,
@@ -553,9 +419,11 @@ const approveDispatchManager = async () => {
             } else {
                 selectedRequest.value.status = newStatus;
             }
+
             const found = props.supplyRequests.find(
                 (r) => r.id === selectedRequest.value.id,
             );
+
             if (found) {
                 Object.assign(found, selectedRequest.value);
             }
@@ -772,6 +640,7 @@ const approveRequest = async () => {
         if (res.data.success) {
             toast.success('Đã duyệt đơn cấp phát thành công.');
             const newStatus = res.data.data?.status || 'approved';
+
             if (res.data.data) {
                 selectedRequest.value = {
                     ...selectedRequest.value,
@@ -781,10 +650,13 @@ const approveRequest = async () => {
             } else {
                 selectedRequest.value.status = newStatus;
             }
+
             const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+
             if (found) {
                 Object.assign(found, selectedRequest.value);
             }
+
             router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
@@ -871,6 +743,7 @@ const submitDispatchModal = async () => {
             );
             isDispatchModalOpen.value = false;
             const newStatus = res.data.data?.status || selectedRequest.value.status;
+
             if (res.data.data) {
                 selectedRequest.value = {
                     ...selectedRequest.value,
@@ -880,10 +753,13 @@ const submitDispatchModal = async () => {
             } else {
                 selectedRequest.value.status = newStatus;
             }
+
             const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+
             if (found) {
                 Object.assign(found, selectedRequest.value);
             }
+
             router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
@@ -916,9 +792,11 @@ const rejectRequest = async () => {
             toast.success('Đã từ chối đơn yêu cầu.');
             selectedRequest.value.status = 'rejected';
             const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+
             if (found) {
                 found.status = 'rejected';
             }
+
             router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics'] });
         }
     } catch (e: any) {
@@ -1034,38 +912,6 @@ const exportWarehouseReport = () => {
     window.location.href = '/inventory/central-warehouse/export';
 };
 
-const taskTypeLabel = (type: string) => {
-    if (type === 'delivery') {
-        return 'Giao hàng tới chi nhánh';
-    }
-
-    return type === 'handover' ? 'Bàn giao / xuất xe' : 'Soạn hàng FEFO';
-};
-
-const taskStatusLabel = (status: string) => {
-    switch (status) {
-        case 'in_progress':
-            return 'Đang làm';
-        case 'completed':
-            return 'Hoàn tất';
-        case 'cancelled':
-            return 'Đã hủy';
-        default:
-            return 'Chờ nhận việc';
-    }
-};
-
-const taskPriorityLabel = (priority: string) => {
-    switch (priority) {
-        case 'urgent':
-            return 'Khẩn';
-        case 'high':
-            return 'Cao';
-        default:
-            return 'Bình thường';
-    }
-};
-
 const getAssignedStaffName = (request: any, taskType = 'picking') => {
     if (!request?.warehouse_tasks || request.warehouse_tasks.length === 0) {
         return null;
@@ -1163,6 +1009,7 @@ const submitTaskAssignment = async () => {
                 if (!selectedRequest.value.warehouse_tasks) {
                     selectedRequest.value.warehouse_tasks = [];
                 }
+
                 const existingTaskIndex = selectedRequest.value.warehouse_tasks.findIndex(
                     (t: any) => t.task_type === taskForm.value.task_type,
                 );
@@ -1180,6 +1027,7 @@ const submitTaskAssignment = async () => {
                     priority: taskForm.value.priority,
                     due_at: taskForm.value.due_at,
                 };
+
                 if (existingTaskIndex >= 0) {
                     selectedRequest.value.warehouse_tasks[existingTaskIndex] = {
                         ...selectedRequest.value.warehouse_tasks[existingTaskIndex],
@@ -1192,10 +1040,12 @@ const submitTaskAssignment = async () => {
 
             // Update in props.supplyRequests
             const targetReq = props.supplyRequests.find((r) => r.id === reqId);
+
             if (targetReq) {
                 if (!targetReq.warehouse_tasks) {
                     targetReq.warehouse_tasks = [];
                 }
+
                 const existingTaskIndex = targetReq.warehouse_tasks.findIndex(
                     (t: any) => t.task_type === taskForm.value.task_type,
                 );
@@ -1211,6 +1061,7 @@ const submitTaskAssignment = async () => {
                         : null,
                     status: 'assigned',
                 };
+
                 if (existingTaskIndex >= 0) {
                     targetReq.warehouse_tasks[existingTaskIndex] = {
                         ...targetReq.warehouse_tasks[existingTaskIndex],
@@ -1231,23 +1082,6 @@ const submitTaskAssignment = async () => {
         );
     } finally {
         isTaskProcessing.value = false;
-    }
-};
-
-const updateTaskStatus = async (task: any, status: string) => {
-    try {
-        const res = await axios.post(`/api/warehouse/tasks/${task.id}/status`, {
-            status,
-        });
-
-        if (res.data.success) {
-            task.status = status;
-            toast.success(res.data.message || 'Đã cập nhật tiến độ nhiệm vụ.');
-        }
-    } catch (e: any) {
-        toast.error(
-            e.response?.data?.message || 'Không thể cập nhật nhiệm vụ.',
-        );
     }
 };
 

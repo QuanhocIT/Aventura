@@ -4,9 +4,7 @@ import axios from 'axios';
 import {
     AlertTriangle,
     ArrowLeft,
-    ArrowRight,
     CheckCircle2,
-    ChevronRight,
     ClipboardCheck,
     Clock3,
     FileWarning,

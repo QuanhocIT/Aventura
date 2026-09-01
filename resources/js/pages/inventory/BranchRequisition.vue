@@ -265,6 +265,7 @@ const openDetailModal = (req: any) => {
 
         return;
     }
+
     setupSelectedRequest(req);
     receivingStage.value = 'input';
     selectedReceivingReport.value = null;
@@ -278,6 +279,7 @@ const openReceiveModal = (req: any) => {
 
         return;
     }
+
     setupSelectedRequest(req);
     receivingStage.value = 'input';
     selectedReceivingReport.value = null;
@@ -301,9 +303,11 @@ const loadReportIntoReceiveForm = () => {
         const reportItem = reportItems.find(
             (row: any) => Number(row.supply_request_item_id) === Number(item.id),
         );
+
         if (!reportItem) {
             return;
         }
+
         item.received_good_quantity = Number(reportItem.submitted_good_quantity || 0);
         item.received_damaged_quantity = Number(reportItem.submitted_damaged_quantity || 0);
         item.received_expired_quantity = Number(reportItem.submitted_expired_quantity || 0);
@@ -325,10 +329,12 @@ const confirmReceivingReport = async () => {
     }
 
     isProcessing.value = true;
+
     try {
         const res = await axios.post(
             `/api/supply-requests/${selectedRequest.value.id}/receiving-report/confirm`,
         );
+
         if (res.data.success) {
             toast.success(res.data.message || 'Đã xác nhận biên bản nhận hàng.');
             isDetailModalOpen.value = false;
@@ -639,6 +645,7 @@ const getStatusBadge = (status: string, req?: any) => {
                     color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
                 };
             }
+
             return {
                 label: 'Đã giao tới (Chờ nhận)',
                 color: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
@@ -685,16 +692,20 @@ const isReadyForReceiving = (req: any): boolean => {
     if (!props.canReceiveRequests) {
         return false;
     }
+
     if (['partial_received', 'disputed'].includes(req.status)) {
         return true;
     }
+
     if (req.status === 'dispatched') {
         // Nếu có tài xế/nhân viên giao hàng, phải chờ họ bấm "Giao hàng thành công" (đã có delivery_confirmed_at)
         if (req.transporter_id) {
             return !!req.delivery_confirmed_at;
         }
+
         return true;
     }
+
     return false;
 };
 

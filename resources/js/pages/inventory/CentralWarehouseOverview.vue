@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import {
-    Activity,
     AlertTriangle,
     ArrowRight,
     BarChart3,
@@ -9,24 +8,17 @@ import {
     BrainCircuit,
     Building2,
     CalendarDays,
-    CheckCircle2,
     ChevronRight,
     ClipboardCheck,
     Clock3,
-    FileText,
     Gauge,
-    Info,
-    Layers,
     Lightbulb,
     PackageCheck,
     PackageSearch,
-    RefreshCw,
     ShieldAlert,
     ShieldCheck,
     Sparkles,
-    TrendingDown,
     TrendingUp,
-    Truck,
     Warehouse,
     Zap,
 } from 'lucide-vue-next';
@@ -34,8 +26,6 @@ import { computed, ref } from 'vue';
 
 import DashboardShell from '@/components/dashboard/DashboardShell.vue';
 import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -358,7 +348,11 @@ const activeKpi = computed(
 
 const displayAiScore = computed(() => {
     const rawScore = Number(aiAssessment.value.score);
-    if (!isNaN(rawScore) && rawScore > 0) return rawScore;
+
+    if (!isNaN(rawScore) && rawScore > 0) {
+return rawScore;
+}
+
     return 88;
 });
 
@@ -394,14 +388,26 @@ const healthMetrics = computed(() => [
 ]);
 
 const metricStatus = (metric: any) => {
-    if (metric.value >= 90) return 'Tốt';
-    if (metric.value >= 75) return 'Khá';
+    if (metric.value >= 90) {
+return 'Tốt';
+}
+
+    if (metric.value >= 75) {
+return 'Khá';
+}
+
     return 'Cần cải thiện';
 };
 
 const metricStatusClass = (metric: any) => {
-    if (metric.value >= 90) return 'text-emerald-600 dark:text-emerald-400 font-bold';
-    if (metric.value >= 75) return 'text-amber-600 dark:text-amber-400 font-bold';
+    if (metric.value >= 90) {
+return 'text-emerald-600 dark:text-emerald-400 font-bold';
+}
+
+    if (metric.value >= 75) {
+return 'text-amber-600 dark:text-amber-400 font-bold';
+}
+
     return 'text-rose-600 dark:text-rose-400 font-bold';
 };
 

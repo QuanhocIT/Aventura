@@ -244,6 +244,7 @@ const channelSlices = computed(() => {
     }
 
     let currentOffset = 0;
+
     return planCounts.map((item, index) => {
         const percentage = (item.count / total) * 100;
         const slice = {
@@ -255,6 +256,7 @@ const channelSlices = computed(() => {
             value: item.count,
         };
         currentOffset += percentage;
+
         return slice;
     });
 });

@@ -231,8 +231,10 @@ async function impersonateUser(ownerId: number | undefined) {
             'Nhập lý do sắm vai (tối thiểu 10 ký tự):',
             'Hỗ trợ xử lý ticket của tenant',
         );
+
         if (!reason || reason.trim().length < 10) {
             toast.error('Lý do sắm vai phải có ít nhất 10 ký tự.');
+
             return;
         }
 

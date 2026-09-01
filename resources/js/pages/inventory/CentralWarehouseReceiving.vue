@@ -749,6 +749,7 @@ const onIngredientChange = (line: GrnLine) => {
     if (!line.unit_label.trim()) {
         line.unit_label = ingredient.unit?.symbol ?? '';
     }
+
     line.unit_cost = Number(ingredient.average_cost || 0);
 
     if (!line.expiry_date) {

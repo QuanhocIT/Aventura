@@ -502,6 +502,7 @@ async function startTask(taskOrId: any) {
         // Khi giao xong tới chi nhánh, tài xế/nhân viên mới ấn nút "Ấn giao hàng thành công" để xác nhận/hoàn thành.
         const currentTask =
             (idx !== -1 ? taskList.value[idx] : task) || { id: taskId };
+
         if (currentTask.task_type === 'picking') {
             openTaskCompletion(currentTask);
         }
@@ -541,6 +542,7 @@ async function completeTask(taskId: number) {
     if (isProcessingTask.value) {
         return;
     }
+
     isProcessingTask.value = true;
     const formData = new FormData();
     const idempotencyKey =
@@ -633,6 +635,7 @@ function closeVerification() {
 
 async function submitVerification() {
     const voucher = activeVerificationVoucher.value;
+
     if (!voucher || isSubmittingVerification.value) {
         return;
     }
@@ -648,11 +651,13 @@ async function submitVerification() {
 
         return Math.abs(Number(item.actual_qty) - Number(sourceItem?.expected_qty ?? 0)) > 0.0005;
     });
+
     if (hasDiscrepancy && !verificationNotes.value.trim()) {
         toast.error('Số lượng lệch với khai báo của Trưởng kho; cần ghi chú giải trình.');
 
         return;
     }
+
     if (verificationQualityStatus.value === 'conditional' && !verificationQualityNotes.value.trim()) {
         toast.error('Hàng đạt có điều kiện phải có ghi chú xử lý chất lượng.');
 
@@ -660,6 +665,7 @@ async function submitVerification() {
     }
 
     isSubmittingVerification.value = true;
+
     try {
         const { data } = await axios.post(
             `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
@@ -755,13 +761,17 @@ async function submitGrn() {
     formData.append('received_at', grnForm.value.received_at);
     formData.append('external_receipt_reason', grnForm.value.external_receipt_reason);
     formData.append('external_source_name', grnForm.value.external_source_name.trim());
+
     if (grnForm.value.verification_assigned_to) {
         formData.append('verification_assigned_to', String(grnForm.value.verification_assigned_to));
     }
+
     formData.append('invoice_total_amount', String(totalReceiptValue.value));
+
     if (grnForm.value.external_reference.trim()) {
         formData.append('external_reference', grnForm.value.external_reference.trim());
     }
+
     const idempotencyKey =
         typeof crypto !== 'undefined' && crypto.randomUUID
             ? crypto.randomUUID()
@@ -1008,6 +1018,7 @@ async function confirmReceivingReport(report: any) {
     const notes = prompt(
         `Xác nhận bạn đã đọc biên bản ${report.report_code}. Có thể ghi chú thêm (không bắt buộc):`,
     );
+
     if (notes === null) {
         return;
     }
@@ -1046,15 +1057,6 @@ async function confirmHandover(handoverId: number) {
         toast.error(
             e.response?.data?.message ?? 'Không thể xác nhận bàn giao ca.',
         );
-    }
-}
-
-async function loadHistory() {
-    try {
-        const { data } = await axios.get('/api/warehouse/my-history');
-        historyList.value = data.history ?? [];
-    } catch {
-        toast.error('Không thể tải lịch sử thao tác.');
     }
 }
 
@@ -1124,6 +1126,7 @@ async function openPickingModal(task: any) {
             const { data } = await axios.get(
                 `/api/supply-requests/${task.supply_request.id}`,
             );
+
             if (data.data?.items) {
                 items = data.data.items;
                 task.supply_request.items = items;
@@ -1398,6 +1401,7 @@ onMounted(() => {
     }
 
     const requestedTab = new URLSearchParams(window.location.search).get('tab');
+
     if (
         requestedTab &&
         ['today', 'receiving', 'putaway', 'picking', 'packing', 'counting', 'incident', 'handover', 'delivery'].includes(requestedTab)
@@ -3317,7 +3321,7 @@ onBeforeUnmount(() => {
                                     <td class="p-3 text-slate-600 dark:text-slate-300">{{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}</td>
                                     <td class="p-3">
                                         <Input
-                                            v-model.number="verificationItems[index].actual_qty"
+                                            v-model.number="verificationItems[Number(index)].actual_qty"
                                             type="number"
                                             min="0.001"
                                             step="0.001"
@@ -3325,7 +3329,7 @@ onBeforeUnmount(() => {
                                         />
                                     </td>
                                     <td class="p-3 text-right">{{ formatCurrency(item.unit_cost) }}</td>
-                                    <td class="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(Number(verificationItems[index]?.actual_qty || 0) * Number(item.unit_cost || 0)) }}</td>
+                                    <td class="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(Number(verificationItems[Number(index)]?.actual_qty || 0) * Number(item.unit_cost || 0)) }}</td>
                                 </tr>
                             </tbody>
                         </table>
