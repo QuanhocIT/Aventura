@@ -125,7 +125,8 @@ const groupDefinitions: {
         key: 'supply',
         label: 'Kho & Cung ứng',
         icon: Package,
-        matches: (title) =>
+        matches: (title, href) =>
+            !href.includes('/warehouse/team') &&
             [
                 'kho',
                 'tồn',
@@ -171,7 +172,8 @@ const groupDefinitions: {
         key: 'people',
         label: 'Nhân sự & Hiệu suất',
         icon: Users,
-        matches: (title) =>
+        matches: (title, href) =>
+            href.includes('/warehouse/team') ||
             [
                 'nhân sự',
                 'nhân viên',
@@ -184,6 +186,7 @@ const groupDefinitions: {
                 'thưởng',
                 'đào tạo',
                 'kpi',
+                'đội ngũ',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {

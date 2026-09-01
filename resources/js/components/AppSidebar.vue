@@ -540,13 +540,6 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Đội ngũ Kho Tổng',
-            href: '/warehouse/team',
-            icon: Users,
-            permission: 'warehouse.staff.view',
-            feature: 'inventory_basic',
-        },
-        {
             title: 'Kiểm kê & Điều chỉnh',
             href: '/inventory/count-sessions',
             icon: ClipboardCheck,
@@ -613,12 +606,22 @@ const ownerNav = computed<NavItem[]>(() => {
             href: '/employees',
             icon: UserCheck,
             feature: 'hr_timekeeping',
+            section: 'people',
+        },
+        {
+            title: 'Điều phối & Đội ngũ Kho',
+            href: '/warehouse/team',
+            icon: Users,
+            permission: 'warehouse.staff.view',
+            feature: 'inventory_basic',
+            section: 'people',
         },
         {
             title: 'Chấm công & Lịch',
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
+            section: 'people',
         },
         {
             title: 'Bảng lương',
@@ -944,6 +947,13 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Nhận hàng Kho Tổng',
+            href: '/inventory/branch-requisition',
+            icon: PackageCheck,
+            permission: 'supply_requests.receive',
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Xử lý âm nguyên liệu',
             href: '/inventory/negative-stock',
             icon: ShieldAlert,
@@ -957,7 +967,7 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Xin điều chuyển kho',
+            title: 'Điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
             feature: 'inventory_basic',
@@ -1289,6 +1299,13 @@ const inventoryNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Nhận hàng Kho Tổng',
+            href: '/inventory/branch-requisition',
+            icon: PackageCheck,
+            permission: 'supply_requests.receive',
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Xử lý âm nguyên liệu',
             href: '/inventory/negative-stock',
             icon: ShieldAlert,
@@ -1424,7 +1441,7 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Đội ngũ Kho Tổng',
+            title: 'Điều phối & Đội ngũ Kho',
             href: '/warehouse/team',
             icon: Users,
             permission: 'warehouse.staff.view',
@@ -1508,6 +1525,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             icon: ArrowLeftRight,
             feature: 'inventory_basic',
         },
+        {
+            title: 'Vi phạm nội bộ',
+            href: '/violations',
+            icon: FileSearch2,
+            feature: 'fraud_detection',
+        },
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];
 
@@ -1577,6 +1600,13 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
             feature: 'hr_timekeeping',
             section: 'people',
         },
+        {
+            title: 'Tố cáo ẩn danh',
+            href: '/violations',
+            icon: ShieldAlert,
+            feature: 'fraud_detection',
+            section: 'people',
+        },
         // ─── Hỗ trợ ───────────────────────────────────────────────────────────
         {
             title: 'Liên hệ & Hỗ trợ',
@@ -1595,6 +1625,7 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
         '/inventory/delivery-manifests': 'supply',
         '/inventory/central-kitchen': 'supply',
         '/overtime-requests': 'people',
+        '/violations': 'people',
         '/support': 'settings',
     };
 

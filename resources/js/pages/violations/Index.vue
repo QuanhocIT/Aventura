@@ -53,6 +53,7 @@ interface Report {
     appeal_reviewed_by_name: string | null;
     appeal_reviewed_at_display: string | null;
     is_offender: boolean;
+    can_resolve?: boolean;
     can_appeal: boolean;
     can_review_appeal: boolean;
 }
@@ -87,24 +88,30 @@ const showResolveModal = ref(false);
 const selectedReport = ref<Report | null>(null);
 const searchQuery = ref('');
 
-const switchTab = (tab: 'reports' | 'submit') => {
+const switchTab = (tab: 'reports' | 'submit', isAnonymousMode = false) => {
     activeTab.value = tab;
 
     if (tab === 'reports') {
         searchQuery.value = '';
         activeFilter.value = 'all';
-    } else if (tab === 'submit' && isOwner.value) {
-        reportForm.is_anonymous = false;
+    } else if (tab === 'submit') {
+        if (!isManagerOrOwner.value) {
+            reportForm.is_anonymous = true;
+        } else {
+            reportForm.is_anonymous = isAnonymousMode;
+        }
     }
 };
 
-// Form Whistleblower Creation
+// Form Whistleblower / Formal Violation Creation
 const reportForm = useForm({
     employee_id: '',
     violation_type: '',
     description: '',
-    is_anonymous: true,
+    is_anonymous: false,
     occurred_at: todayDateString(),
+    severity: 'low' as 'low' | 'medium' | 'high' | 'critical',
+    penalty_amount: 0,
 });
 
 // Form Owner Resolve
@@ -189,12 +196,16 @@ const appealStatusConfig: Record<string, { label: string; cls: string }> = {
 };
 
 // --- COMPUTED ---
-const isOwner = computed(() => {
+const isManagerOrOwner = computed(() => {
     const authUser = usePage().props.auth?.user as any;
 
     return (
         authUser?.permissions?.includes('manage_violations') ||
-        props.currentUserRole === 'owner'
+        authUser?.permissions?.includes('manage_employees') ||
+        authUser?.permissions?.includes('branch.manage') ||
+        ['owner', 'admin', 'manager', 'branch_manager', 'warehouse_manager', 'super_admin'].includes(
+            props.currentUserRole,
+        )
     );
 });
 
@@ -378,7 +389,7 @@ const statusConfig: Record<
             </div>
 
             <!-- Tab switcher -->
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
                 <Button
                     variant="outline"
                     size="sm"
@@ -394,29 +405,28 @@ const statusConfig: Record<
                     Danh sách sai phạm & tố cáo
                 </Button>
                 <Button
-                    v-if="isOwner"
+                    v-if="isManagerOrOwner"
                     variant="default"
                     size="sm"
-                    @click="switchTab('submit')"
+                    @click="switchTab('submit', false)"
                     :class="[
                         'rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-sm transition-all hover:from-rose-700 hover:to-indigo-700',
-                        activeTab === 'submit'
+                        activeTab === 'submit' && !reportForm.is_anonymous
                             ? 'ring-2 ring-rose-400 ring-offset-1'
                             : '',
                     ]"
                 >
                     <Plus class="mr-1.5 size-4" />
-                    Lập biên bản sai phạm
+                    Lập biên bản vi phạm
                 </Button>
                 <Button
-                    v-else
                     variant="outline"
                     size="sm"
-                    @click="switchTab('submit')"
+                    @click="switchTab('submit', true)"
                     :class="[
                         'rounded-xl text-xs font-bold transition-all',
-                        activeTab === 'submit'
-                            ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20'
+                        activeTab === 'submit' && reportForm.is_anonymous
+                            ? 'border-rose-300 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'
                             : '',
                     ]"
                 >
@@ -858,9 +868,9 @@ const statusConfig: Record<
                                 v-if="report.status === 'open'"
                                 class="flex w-full justify-end"
                             >
-                                <!-- Owner can resolve -->
+                                <!-- Authorized Manager / Owner can resolve -->
                                 <Button
-                                    v-if="isOwner"
+                                    v-if="report.can_resolve"
                                     size="sm"
                                     @click="openResolveModal(report)"
                                     class="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border-0 bg-gradient-to-r from-rose-600 to-indigo-600 text-[11px] font-bold text-white shadow-sm select-none hover:from-rose-700 hover:to-indigo-700 md:w-auto"
@@ -868,13 +878,19 @@ const statusConfig: Record<
                                     <Scale class="size-3.5" />
                                     Phê duyệt kỷ luật
                                 </Button>
-                                <!-- Managers can see but cannot resolve (Authorization restrictions) -->
+                                <!-- Self offender cannot discipline self -->
+                                <div
+                                    v-else-if="report.is_offender"
+                                    class="w-full rounded-lg border border-amber-200 bg-amber-50/70 p-2 text-center text-[10px] font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                                >
+                                    ⚠️ Bạn là đối tượng bị lập biên bản và không thể tự phê duyệt kỷ luật chính mình.
+                                </div>
+                                <!-- Target is superior/owner or user is regular staff -->
                                 <div
                                     v-else
-                                    class="w-full rounded-lg border bg-slate-50 p-2 text-center text-[9px] font-semibold text-slate-400 dark:bg-slate-900"
+                                    class="w-full rounded-lg border bg-slate-50 p-2 text-center text-[9px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400"
                                 >
-                                    Chỉ Owner có quyền quyết định áp phạt cấn
-                                    trừ lương.
+                                    Chỉ Chủ nhà hàng (Owner) mới có quyền phê duyệt kỷ luật đối tượng này.
                                 </div>
                             </div>
                             <div
@@ -927,23 +943,22 @@ const statusConfig: Record<
             </Card>
         </div>
 
-        <!-- TAB 2: SUBMIT DISCIPLINARY REPORT (ANONYMOUS SAFEBOX) -->
+        <!-- TAB 2: SUBMIT DISCIPLINARY REPORT (ANONYMOUS OR FORMAL) -->
         <div
             v-if="activeTab === 'submit'"
             class="animate-fade-in mx-auto w-full max-w-2xl"
         >
-            <Card class="rounded-2xl border-slate-200 dark:border-slate-800">
+            <Card class="rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm">
                 <CardHeader
                     class="border-b bg-slate-50/50 p-6 dark:bg-slate-900/10"
                 >
                     <div
-                        v-if="isOwner"
+                        v-if="!reportForm.is_anonymous"
                         class="mb-1 flex items-center gap-2 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
                     >
                         <FileText class="size-4 shrink-0" />
                         <span
-                            >Biên Bản Kỷ Luật Nội Bộ (Official Violation
-                            Record)</span
+                            >Biên Bản Kỷ Luật Vi Phạm Nội Bộ</span
                         >
                     </div>
                     <div
@@ -958,16 +973,16 @@ const statusConfig: Record<
                     </div>
                     <CardTitle class="text-lg font-bold">
                         {{
-                            isOwner
+                            !reportForm.is_anonymous
                                 ? 'Lập Biên Bản & Ghi Nhận Sai Phạm Nhân Sự'
                                 : 'Báo Cáo Sai Phạm & Gian Lận Nội Bộ'
                         }}
                     </CardTitle>
                     <CardDescription class="mt-1 text-xs leading-relaxed">
                         {{
-                            isOwner
-                                ? 'Ghi nhận hành vi vi phạm kỷ luật của nhân sự để chuyển sang bước xem xét phê duyệt áp phạt & cấn trừ trực tiếp vào bảng lương.'
-                                : 'Hãy cung cấp thông tin chi tiết và chính xác. Chúng tôi cam kết bảo mật tuyệt đối 100% danh tính của bạn để ngăn chặn sự lạm dụng trù dập của cấp trên.'
+                            !reportForm.is_anonymous
+                                ? 'Dành cho Quản lý chi nhánh / Chủ nhà hàng ghi nhận sai phạm của nhân sự thuộc chi nhánh quản lý để chuyển sang bước xem xét kỷ luật và cấn trừ trực tiếp vào bảng lương.'
+                                : 'Hãy cung cấp thông tin chi tiết và chính xác. Hệ thống cam kết bảo mật 100% danh tính của bạn để ngăn chặn sự trù dập.'
                         }}
                     </CardDescription>
                 </CardHeader>
@@ -976,6 +991,41 @@ const statusConfig: Record<
                         @submit.prevent="submitReport"
                         class="flex flex-col gap-4"
                     >
+                        <!-- Mode switcher for managers/owners -->
+                        <div v-if="isManagerOrOwner" class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-slate-600 dark:text-slate-400">
+                                Hình Thức Lập Biên Bản / Tố Cáo:
+                            </Label>
+                            <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 p-1 dark:border-slate-800 dark:bg-slate-900">
+                                <button
+                                    type="button"
+                                    @click="reportForm.is_anonymous = false"
+                                    :class="[
+                                        'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all',
+                                        !reportForm.is_anonymous
+                                            ? 'bg-white text-rose-600 shadow-xs dark:bg-slate-800 dark:text-rose-400'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                                    ]"
+                                >
+                                    <FileText class="size-3.5" />
+                                    <span>Lập biên bản chính thức</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="reportForm.is_anonymous = true"
+                                    :class="[
+                                        'flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all',
+                                        reportForm.is_anonymous
+                                            ? 'bg-white text-indigo-600 shadow-xs dark:bg-slate-800 dark:text-indigo-400'
+                                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                                    ]"
+                                >
+                                    <ShieldAlert class="size-3.5" />
+                                    <span>Tố cáo ẩn danh bảo mật</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Employee being reported -->
                         <div class="flex flex-col gap-1.5">
                             <Label
@@ -1025,6 +1075,26 @@ const statusConfig: Record<
                                     -- Vui lòng chọn loại sai phạm --
                                 </option>
                                 <option
+                                    value="Đi muộn về sớm / Trốn ca làm việc"
+                                >
+                                    Đi muộn về sớm / Trốn ca làm việc
+                                </option>
+                                <option
+                                    value="Thái độ phục vụ bạo lực / Gây gổ / Thiếu tôn trọng khách"
+                                >
+                                    Thái độ phục vụ bạo lực / Gây gổ / Thiếu tôn trọng khách
+                                </option>
+                                <option
+                                    value="Vi phạm quy trình vệ sinh & An toàn thực phẩm (ATTP)"
+                                >
+                                    Vi phạm quy trình vệ sinh & An toàn thực phẩm (ATTP)
+                                </option>
+                                <option
+                                    value="Sửa hóa đơn / Gian lận bill món ăn / Sai lệch tiền"
+                                >
+                                    Sửa hóa đơn / Gian lận bill món ăn / Sai lệch tiền
+                                </option>
+                                <option
                                     value="Bòn rút tiền mặt / Gian lận ngân quỹ"
                                 >
                                     Bòn rút tiền mặt / Gian lận ngân quỹ
@@ -1035,14 +1105,9 @@ const statusConfig: Record<
                                     Bớt xén nguyên vật liệu kho / Ăn cắp tài sản
                                 </option>
                                 <option
-                                    value="Thái độ phục vụ bạo lực / Gây gổ"
+                                    value="Không tuân thủ điều động & phân công công việc"
                                 >
-                                    Thái độ phục vụ bạo lực / Gây gổ
-                                </option>
-                                <option
-                                    value="Đi muộn về sớm / Trốn ca làm việc"
-                                >
-                                    Đi muộn về sớm / Trốn ca làm việc
+                                    Không tuân thủ điều động & phân công công việc
                                 </option>
                                 <option
                                     value="Cấu kết người ngoài / Tiết lộ thông tin kinh doanh"
@@ -1054,6 +1119,56 @@ const statusConfig: Record<
                                     Hành vi không trung thực khác
                                 </option>
                             </select>
+                        </div>
+
+                        <!-- Formal severity & penalty inputs -->
+                        <div
+                            v-if="!reportForm.is_anonymous && isManagerOrOwner"
+                            class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                        >
+                            <div class="flex flex-col gap-1.5">
+                                <Label
+                                    for="report_severity"
+                                    class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >
+                                    Mức Độ Nghiêm Trọng:
+                                </Label>
+                                <select
+                                    id="report_severity"
+                                    v-model="reportForm.severity"
+                                    class="h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-2 focus:ring-ring focus:outline-none"
+                                >
+                                    <option value="low">Thấp (Nhắc nhở / Trừ điểm nhẹ)</option>
+                                    <option value="medium">Trung bình (Khiển trách)</option>
+                                    <option value="high">Cao (Cảnh cáo / Phạt tiền)</option>
+                                    <option value="critical">Nghiêm trọng (Kỷ luật nặng)</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <Label
+                                    for="report_penalty"
+                                    class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >
+                                    Đề Xuất Mức Phạt Khấu Trừ Lương (VND):
+                                </Label>
+                                <div class="relative">
+                                    <Input
+                                        id="report_penalty"
+                                        type="number"
+                                        min="0"
+                                        step="10000"
+                                        v-model="reportForm.penalty_amount"
+                                        placeholder="0"
+                                        class="h-9 pr-12 text-xs font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    />
+                                    <span
+                                        class="pointer-events-none absolute top-2.5 right-3 text-xs font-bold text-slate-400 select-none"
+                                    >
+                                        VND
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1075,64 +1190,26 @@ const statusConfig: Record<
                                 />
                             </div>
 
-                            <!-- Anonymity Toggle / Official Record -->
+                            <!-- Anonymity status display -->
                             <div class="flex flex-col gap-1.5">
                                 <Label
                                     class="text-xs font-bold text-slate-600 dark:text-slate-400"
                                 >
-                                    {{
-                                        isOwner
-                                            ? 'Hình Thức Ghi Nhận Biên Bản:'
-                                            : 'Cấu Hình Ẩn Danh (Bảo Vệ Người Gửi):'
-                                    }}
+                                    Danh Tính Người Lập / Tố Cáo:
                                 </Label>
                                 <div
-                                    v-if="isOwner"
-                                    class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
+                                    v-if="!reportForm.is_anonymous"
+                                    class="flex h-9 w-full items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
                                 >
-                                    <span
-                                        >📋 Biên bản xử lý chính thức bởi Quản
-                                        lý/Chủ nhà hàng</span
-                                    >
+                                    <FileText class="size-4 shrink-0 text-indigo-600" />
+                                    <span class="truncate">Biên bản chính thức bởi Quản lý / Ban điều hành</span>
                                 </div>
                                 <div
                                     v-else
-                                    class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 select-none dark:bg-slate-900"
+                                    class="flex h-9 w-full items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/60 px-3 text-xs font-bold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                                 >
-                                    <span
-                                        class="text-[11px] font-bold text-slate-500"
-                                        >Tự động ẩn danh tính:</span
-                                    >
-                                    <div class="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            @click="
-                                                reportForm.is_anonymous = true
-                                            "
-                                            :class="[
-                                                'rounded border px-2 py-0.5 text-[9px] font-bold transition-all',
-                                                reportForm.is_anonymous
-                                                    ? 'border-rose-500 bg-rose-500 font-black text-white shadow-sm'
-                                                    : 'text-slate-400',
-                                            ]"
-                                        >
-                                            Bật (Ẩn Danh)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            @click="
-                                                reportForm.is_anonymous = false
-                                            "
-                                            :class="[
-                                                'rounded border px-2 py-0.5 text-[9px] font-bold transition-all',
-                                                !reportForm.is_anonymous
-                                                    ? 'border-indigo-600 bg-indigo-600 font-black text-white shadow-sm'
-                                                    : 'text-slate-400',
-                                            ]"
-                                        >
-                                            Tắt (Công Khai)
-                                        </button>
-                                    </div>
+                                    <ShieldAlert class="size-4 shrink-0 text-rose-600" />
+                                    <span>Tự động ẩn danh tính người gửi (Bảo mật 100%)</span>
                                 </div>
                             </div>
                         </div>
@@ -1163,11 +1240,11 @@ const statusConfig: Record<
                                 :disabled="reportForm.processing"
                                 class="to-orange-650 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-gradient-to-r from-rose-600 px-5 text-xs font-bold text-white shadow-lg shadow-rose-100 select-none hover:from-rose-700 hover:to-orange-700 hover:shadow-xl sm:w-auto dark:shadow-none"
                             >
-                                <FileText v-if="isOwner" class="size-4" />
+                                <FileText v-if="!reportForm.is_anonymous" class="size-4" />
                                 <Send v-else class="size-4" />
                                 {{
-                                    isOwner
-                                        ? 'Tạo Biên Bản Sai Phạm'
+                                    !reportForm.is_anonymous
+                                        ? 'Tạo Biên Bản Vi Phạm Kỷ Luật'
                                         : 'Gửi Báo Cáo Bảo Mật'
                                 }}
                             </Button>

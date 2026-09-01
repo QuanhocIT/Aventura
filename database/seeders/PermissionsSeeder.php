@@ -186,6 +186,7 @@ class PermissionsSeeder extends Seeder
             'manage_customers',
             'manage_feedback',
             'approve_requests',
+            'manage_violations',
             'view_violations',
             'report_violations',
             'view_report',
@@ -301,6 +302,8 @@ class PermissionsSeeder extends Seeder
             'price_management.view',
             'operational_audit.view',
             'view_violations',
+            'report_violations',
+            'manage_violations',
             'warehouse.approve',
             'warehouse.dispatch',
             // Quyền mới bổ sung
@@ -340,6 +343,8 @@ class PermissionsSeeder extends Seeder
             'supply_requests.view',
             'company_policies.view',
             'warehouse.own_history.view',
+            'view_violations',
+            'report_violations',
             // Nhận hàng
             'warehouse.receive.submit',
             'warehouse.receiving.create',

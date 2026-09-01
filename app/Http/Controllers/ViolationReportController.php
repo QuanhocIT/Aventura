@@ -62,16 +62,32 @@ class ViolationReportController extends Controller
 
         // Biên bản vi phạm chỉ tăng chứ không bao giờ giảm, nên ->get() sẽ đổ
         // toàn bộ lịch sử của nhà hàng ra một trang.
-        $reportsPage = $query->with(['employee', 'reportedBy', 'appealReviewedBy'])
+        $reportsPage = $query->with(['employee.user.roles', 'reportedBy', 'appealReviewedBy'])
             ->latest()
             ->paginate(25)
             ->withQueryString();
 
         $reportsModels = $reportsPage->getCollection();
 
-        $canManage = $user->can('manage_violations');
-        $reports = $reportsModels->map(function ($r) use ($user, $canManage) {
-            $isOffender = $r->employee?->user_id === $user->id;
+        $canManage = $user->can('manage_violations') || $user->hasRole('manager') || $user->hasRole('warehouse_manager') || $user->hasRole('owner') || $user->can('manage_employees');
+        $isOwnerOrSuper = $user->hasRole('owner') || $user->hasRole('super_admin');
+
+        $reports = $reportsModels->map(function ($r) use ($user, $canManage, $isOwnerOrSuper) {
+            $offenderUser = $r->employee?->user;
+            $isOffender = $offenderUser && (int) $offenderUser->id === (int) $user->id;
+
+            // Kiểm tra đối tượng bị lập biên bản có phải là Chủ / SuperAdmin / Quản lý không
+            $targetIsOwner = $offenderUser && ($offenderUser->hasRole('owner') || $offenderUser->hasRole('super_admin'));
+            $targetIsManager = $offenderUser && ($offenderUser->hasRole('manager') || $offenderUser->hasRole('warehouse_manager'));
+
+            // Quyền phê duyệt kỷ luật:
+            // 1. Phải có quyền quản lý ($canManage)
+            // 2. Không được tự phê duyệt kỷ luật cho chính mình (!$isOffender)
+            // 3. Quản lý/Trưởng kho không được phê duyệt kỷ luật Chủ doanh nghiệp hoặc Quản lý khác (phải là Owner/SuperAdmin)
+            $canResolve = $canManage && ! $isOffender;
+            if (! $isOwnerOrSuper && ($targetIsOwner || $targetIsManager)) {
+                $canResolve = false;
+            }
 
             return [
                 'id' => $r->id,
@@ -97,25 +113,41 @@ class ViolationReportController extends Controller
                 'appeal_reviewed_by_name' => $r->appealReviewedBy?->name,
                 'appeal_reviewed_at_display' => $r->appeal_reviewed_at?->format('d/m/Y H:i'),
                 'is_offender' => $isOffender,           // người đang xem là nhân viên bị lập biên bản
+                'can_resolve' => $canResolve,           // có thẩm quyền phê duyệt kỷ luật hay không
                 'can_appeal' => $isOffender && $r->isAppealable(),
-                'can_review_appeal' => $canManage && $r->appeal_status === 'pending',
+                'can_review_appeal' => $canResolve && $r->appeal_status === 'pending',
             ];
         });
 
-        // 2. Lấy danh sách nhân sự đang làm việc tại nhà hàng để Owner/Manager hoặc Nhân viên tố cáo chọn
-        $employees = Employee::where('restaurant_id', $restaurantId)
+        // 2. Lấy danh sách nhân sự đang làm việc tại nhà hàng để Owner/Manager chọn
+        $employeesQuery = Employee::with('user.roles')
+            ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->when(
                 $tenantContext->isBranchScoped(),
                 fn ($query) => $query->where('branch_id', $tenantContext->activeBranchId()),
-            )
-            ->get()
-            ->map(fn ($e) => [
-                'id' => $e->id,
-                'full_name' => $e->full_name,
-                'job_title' => $e->job_title,
-                'employee_code' => $e->employee_code,
-            ]);
+            );
+
+        // Quy tắc:
+        // 1. Không ai được tự lập biên bản cho chính mình -> ẩn chính mình khỏi danh sách
+        $employeesQuery->where(function ($q) use ($user) {
+            $q->whereNull('user_id')
+              ->orWhere('user_id', '!=', $user->id);
+        });
+
+        // 2. Quản lý / Trưởng kho / Nhân viên không được lập biên bản cho Chủ doanh nghiệp
+        if (! $isOwnerOrSuper) {
+            $employeesQuery->whereDoesntHave('user', function ($q) {
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['owner', 'super_admin']));
+            });
+        }
+
+        $employees = $employeesQuery->get()->map(fn ($e) => [
+            'id' => $e->id,
+            'full_name' => $e->full_name,
+            'job_title' => $e->job_title,
+            'employee_code' => $e->employee_code,
+        ]);
 
         return Inertia::render('violations/Index', [
             'reports' => $reports->values()->all(),
@@ -131,16 +163,12 @@ class ViolationReportController extends Controller
     }
 
     /**
-     * Gửi đơn tố cáo nội bộ (Hòm thư tố cáo ẩn danh an toàn).
+     * Gửi đơn tố cáo nội bộ hoặc Lập biên bản sai phạm chính thức.
      */
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();
-        // Biên bản vi phạm kích hoạt SalaryRecalculationObserver, tức là ghi
-        // nhận một biên bản sẽ TÍNH LẠI LƯƠNG của nhân viên bị nêu tên. Thiếu
-        // gate ở đây đồng nghĩa bất kỳ tài khoản nào cũng trừ lương người khác
-        // được — index() đã yêu cầu quyền này từ đầu, chỉ store() bị bỏ sót.
-        abort_unless($user->can('report_violations'), 403, 'Bạn không có quyền lập biên bản vi phạm.');
+        abort_unless($user->can('report_violations') || $user->can('manage_violations') || $user->hasRole('manager') || $user->hasRole('warehouse_manager') || $user->hasRole('owner') || $user->can('manage_employees'), 403, 'Bạn không có quyền lập biên bản vi phạm.');
 
         $restaurantId = $user->restaurant_id;
         $tenantContext = app(TenantContext::class);
@@ -151,23 +179,35 @@ class ViolationReportController extends Controller
             'description' => ['required', 'string', 'max:2000'],
             'is_anonymous' => ['required', 'boolean'],
             'occurred_at' => ['required', 'date'],
+            'severity' => ['nullable', 'in:low,medium,high,critical'],
+            'penalty_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        // Không ai được tự lập biên bản cho chính mình để thao túng lương của
-        // bản thân (appeal() đã có kiểm tra cùng dạng theo chiều ngược lại).
-        $target = Employee::where('restaurant_id', $restaurantId)
+        // Không ai được tự lập biên bản cho chính mình để thao túng lương của bản thân
+        $target = Employee::with('user.roles')
+            ->where('restaurant_id', $restaurantId)
             ->whereKey($data['employee_id'])
             ->first();
 
-        abort_unless($target?->branch_id !== null, 422, 'NhÃ¢n sá»± vi pháº¡m pháº£i thuá»™c má»™t chi nhÃ¡nh Ä‘á»ƒ láº­p biÃªn báº£n.');
+        abort_unless($target?->branch_id !== null, 422, 'Nhân sự vi phạm phải thuộc một chi nhánh để lập biên bản.');
         $tenantContext->assertWriteBranch((int) $target->branch_id);
         $branchId = (int) $target->branch_id;
 
         abort_if(
-            $target !== null && (int) $target->user_id === (int) $user->id && ! $user->can('manage_violations'),
+            $target !== null && (int) $target->user_id === (int) $user->id,
             403,
             'Bạn không thể tự lập biên bản vi phạm cho chính mình.',
         );
+
+        // Quản lý / Trưởng kho không thể lập biên bản đối với Chủ doanh nghiệp
+        if (! $user->hasRole('owner') && ! $user->hasRole('super_admin')) {
+            $targetIsOwner = $target?->user && ($target->user->hasRole('owner') || $target->user->hasRole('super_admin'));
+            abort_if(
+                $targetIsOwner,
+                403,
+                'Bạn không có thẩm quyền lập biên bản vi phạm đối với Chủ doanh nghiệp.',
+            );
+        }
 
         $report = ViolationReport::create([
             'restaurant_id' => $restaurantId,
@@ -176,30 +216,60 @@ class ViolationReportController extends Controller
             'reported_by' => $user->id,
             'is_anonymous' => $data['is_anonymous'],
             'violation_type' => $data['violation_type'],
-            'severity' => 'low', // Mặc định ban đầu
+            'severity' => $data['severity'] ?? 'low',
             'description' => $data['description'],
-            'penalty_amount' => 0,
+            'penalty_amount' => $data['penalty_amount'] ?? 0,
             'occurred_at' => $data['occurred_at'],
             'status' => 'open',
         ]);
 
-        // Ghi Audit Log cho hành vi tạo tố cáo
+        // Ghi Audit Log cho hành vi tạo tố cáo / lập biên bản
         AuditLog::log('violation_reported', 'created', $report, null, [
             'violation_type' => $report->violation_type,
             'is_anonymous' => (bool) $report->is_anonymous,
+            'severity' => $report->severity,
+            'reported_by' => $user->name,
         ]);
 
-        return back()->with('success', 'Gửi tố cáo nội bộ thành công! Ban quản trị sẽ bảo mật tuyệt đối danh tính và xem xét vụ việc.');
+        $msg = $data['is_anonymous']
+            ? 'Gửi tố cáo nội bộ thành công! Ban quản trị sẽ bảo mật tuyệt đối danh tính và xem xét vụ việc.'
+            : 'Lập biên bản vi phạm kỷ luật thành công! Biên bản đã được ghi nhận vào hệ thống giám sát chi nhánh.';
+
+        return back()->with('success', $msg);
     }
 
     /**
-     * Phê duyệt kỷ luật sai phạm nội bộ & tự động cấn trừ lương (Chỉ dành cho Owner).
+     * Phê duyệt kỷ luật sai phạm nội bộ & tự động cấn trừ lương (Dành cho Quản lý chi nhánh & Chủ nhà hàng).
      */
     public function resolve(Request $request, ViolationReport $report): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_violations'), 403);
+        abort_unless($user->can('manage_violations') || $user->hasRole('manager') || $user->hasRole('warehouse_manager') || $user->hasRole('owner') || $user->can('manage_employees'), 403);
         abort_if($report->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertReportScope($report, $user);
+
+        // Rule 1: Không được tự phê duyệt kỷ luật chính mình
+        $offenderUser = $report->employee?->user;
+        abort_if(
+            $offenderUser && (int) $offenderUser->id === (int) $user->id,
+            403,
+            'Bạn là đối tượng bị lập biên bản, không thể tự phê duyệt kỷ luật cho chính mình.',
+        );
+
+        // Rule 2: Quản lý / Trưởng kho không được kỷ luật Chủ doanh nghiệp hoặc Quản lý cấp cao
+        if (! $user->hasRole('owner') && ! $user->hasRole('super_admin')) {
+            $targetIsOwnerOrManager = $offenderUser && (
+                $offenderUser->hasRole('owner') ||
+                $offenderUser->hasRole('super_admin') ||
+                $offenderUser->hasRole('manager') ||
+                $offenderUser->hasRole('warehouse_manager')
+            );
+            abort_if(
+                $targetIsOwnerOrManager,
+                403,
+                'Chỉ Chủ doanh nghiệp (Owner) mới có thẩm quyền phê duyệt kỷ luật đối với Quản lý hoặc Chủ nhà hàng.',
+            );
+        }
 
         $data = $request->validate([
             'severity' => ['required', 'in:low,medium,high,critical'],
@@ -269,6 +339,7 @@ class ViolationReportController extends Controller
     {
         $user = $request->user();
         abort_if($report->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertReportScope($report, $user);
         // Chỉ đúng nhân viên bị lập biên bản mới được kháng cáo.
         abort_unless($report->employee?->user_id === $user->id, 403, 'Bạn chỉ được kháng cáo biên bản của chính mình.');
 
@@ -317,8 +388,9 @@ class ViolationReportController extends Controller
     public function reviewAppeal(Request $request, ViolationReport $report): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_violations'), 403);
+        abort_unless($user->can('manage_violations') || $user->hasRole('manager') || $user->hasRole('warehouse_manager') || $user->hasRole('owner') || $user->can('manage_employees'), 403);
         abort_if($report->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertReportScope($report, $user);
 
         if ($report->appeal_status !== 'pending') {
             return back()->with('error', 'Đơn kháng cáo này không ở trạng thái chờ xử lý.');
@@ -374,5 +446,17 @@ class ViolationReportController extends Controller
             : 'Đã BÁC kháng cáo — giữ nguyên hình thức xử lý.';
 
         return back()->with('success', $msg);
+    }
+
+    private function assertReportScope(ViolationReport $report, $user): void
+    {
+        if ($report->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $report->branch_id);
+
+            return;
+        }
+
+        // Legacy chain-wide reports are manageable only by chain-level users.
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
     }
 }
