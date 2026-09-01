@@ -310,6 +310,7 @@ class EmployeePortalController extends Controller
 
         // 2. Department/Role Quota Check (Max 30% role limit)
         $totalRoleEmployees = Employee::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('role_id', $employee->role_id)
             ->where('status', 'active')
             ->count();
@@ -319,6 +320,7 @@ class EmployeePortalController extends Controller
             $endDate = Carbon::parse($data['end_date']);
 
             $activeLeaves = LeaveRequest::where('restaurant_id', $employee->restaurant_id)
+                ->where('branch_id', $employee->branch_id)
                 ->whereIn('status', ['approved', 'pending'])
                 ->whereDate('start_date', '<=', $endDate->toDateString())
                 ->whereDate('end_date', '>=', $startDate->toDateString())
@@ -368,8 +370,15 @@ class EmployeePortalController extends Controller
 
         // Notify managers/owners
         $managers = User::where('restaurant_id', $employee->restaurant_id)
-            ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['owner', 'manager']);
+            ->where(function ($q) use ($employee) {
+                $q->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'owner'))
+                    ->orWhere(function ($managerQuery) use ($employee) {
+                        $managerQuery->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'manager'))
+                            ->where(function ($branchQuery) use ($employee) {
+                                $branchQuery->where('branch_id', $employee->branch_id)
+                                    ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $employee->branch_id));
+                            });
+                    });
             })
             ->get();
         foreach ($managers as $manager) {
@@ -394,8 +403,12 @@ class EmployeePortalController extends Controller
         }
 
         // 1. Get shift swaps involving this employee
-        $swaps = ShiftSwap::whereHas('requesterAssignment', fn ($q) => $q->where('employee_id', $employee->id))
-            ->orWhereHas('receiverAssignment', fn ($q) => $q->where('employee_id', $employee->id))
+        $swaps = ShiftSwap::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
+            ->where(function ($query) use ($employee) {
+                $query->whereHas('requesterAssignment', fn ($q) => $q->where('employee_id', $employee->id))
+                    ->orWhereHas('receiverAssignment', fn ($q) => $q->where('employee_id', $employee->id));
+            })
             ->with([
                 'requesterAssignment.employee:id,full_name',
                 'requesterAssignment.shift',
@@ -422,6 +435,7 @@ class EmployeePortalController extends Controller
         $endOfWeek = now()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
         $myAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('branch_id', $employee->branch_id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->where('status', 'scheduled')
             ->with('shift')
@@ -435,6 +449,7 @@ class EmployeePortalController extends Controller
 
         // 3. Smart AI Swap Suggestions: colleagues scheduled this week with matching role_id
         $colleagueAssignments = ScheduleAssignment::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('employee_id', '!=', $employee->id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->where('status', 'scheduled')
@@ -489,6 +504,23 @@ class EmployeePortalController extends Controller
             return response()->json(['success' => false, 'error' => 'Ca trực không hợp lệ.'], 422);
         }
 
+        if ((int) $reqAssignment->branch_id !== (int) $employee->branch_id || (int) $recAssignment->branch_id !== (int) $employee->branch_id) {
+            return response()->json(['success' => false, 'error' => 'Không thể đổi ca giữa các chi nhánh khác nhau.'], 422);
+        }
+
+        if ($reqAssignment->employee_id === $recAssignment->employee_id) {
+            return response()->json(['success' => false, 'error' => 'Người nhận đổi ca phải là đồng nghiệp khác.'], 422);
+        }
+
+        if ($reqAssignment->status !== 'scheduled' || $recAssignment->status !== 'scheduled') {
+            return response()->json(['success' => false, 'error' => 'Chỉ được đổi các ca sắp diễn ra và chưa chấm công.'], 422);
+        }
+
+        $currentWeekStart = Carbon::now()->startOfWeek()->toDateString();
+        if (Carbon::parse($reqAssignment->scheduled_date)->lt($currentWeekStart) || Carbon::parse($recAssignment->scheduled_date)->lt($currentWeekStart)) {
+            return response()->json(['success' => false, 'error' => 'Không thể đổi ca đã qua.'], 422);
+        }
+
         $exists = ShiftSwap::where('restaurant_id', $employee->restaurant_id)
             ->where('requester_assignment_id', $data['requester_assignment_id'])
             ->where('receiver_assignment_id', $data['receiver_assignment_id'])
@@ -538,13 +570,24 @@ class EmployeePortalController extends Controller
             return response()->json(['success' => false, 'error' => 'Yêu cầu đổi ca không hợp lệ.'], 403);
         }
 
+        $reqAssignment = $swap->requesterAssignment;
+        $recAssignment = $swap->receiverAssignment;
+        if (
+            (int) $swap->branch_id !== (int) $employee->branch_id
+            || ! $reqAssignment
+            || ! $recAssignment
+            || $reqAssignment->restaurant_id !== $employee->restaurant_id
+            || $recAssignment->restaurant_id !== $employee->restaurant_id
+            || (int) $reqAssignment->branch_id !== (int) $employee->branch_id
+            || (int) $recAssignment->branch_id !== (int) $employee->branch_id
+        ) {
+            return response()->json(['success' => false, 'error' => 'Yêu cầu đổi ca không thuộc chi nhánh của bạn.'], 403);
+        }
+
         $action = $request->input('action'); // 'accept' | 'cancel' | 'reject'
         if (! in_array($action, ['accept', 'cancel', 'reject'])) {
             return response()->json(['success' => false, 'error' => 'Hành động không hợp lệ.'], 422);
         }
-
-        $reqAssignment = $swap->requesterAssignment;
-        $recAssignment = $swap->receiverAssignment;
 
         if ($action === 'accept') {
             abort_unless($swap->status === 'pending', 422);
@@ -568,8 +611,15 @@ class EmployeePortalController extends Controller
 
             // Notify owners/managers
             $managers = User::where('restaurant_id', $swap->restaurant_id)
-                ->whereHas('roles', function ($q) {
-                    $q->whereIn('name', ['owner', 'manager']);
+                ->where(function ($q) use ($swap) {
+                    $q->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'owner'))
+                        ->orWhere(function ($managerQuery) use ($swap) {
+                            $managerQuery->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'manager'))
+                                ->where(function ($branchQuery) use ($swap) {
+                                    $branchQuery->where('branch_id', $swap->branch_id)
+                                        ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $swap->branch_id));
+                                });
+                        });
                 })
                 ->get();
             foreach ($managers as $manager) {

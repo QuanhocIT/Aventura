@@ -9,6 +9,7 @@ use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
 use App\Models\User;
 use App\Notifications\LeaveRequestNotification;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,10 @@ class LeaveRequestService
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)->findOrFail($data['employee_id']);
         abort_unless($actingUser->canAccessBranch((int) $employee->branch_id), 403);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            abort_unless((int) $tenantContext->activeBranchId() === (int) $employee->branch_id, 403);
+        }
 
         // 1. Overlapping Leave Check
         $overlapping = LeaveRequest::where('restaurant_id', $actingUser->restaurant_id)
@@ -163,11 +168,17 @@ class LeaveRequestService
         if (! $employee) {
             return ['success' => false, 'message' => 'Nhân viên không tồn tại.'];
         }
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            abort_unless((int) $tenantContext->activeBranchId() === (int) $leave->branch_id, 403);
+        }
 
         $startDate = $leave->start_date->toDateString();
         $endDate = $leave->end_date->toDateString();
 
         $assignments = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->whereIn('status', ['scheduled', 'checked_in'])
             ->whereBetween('scheduled_date', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
             ->with(['shift'])
@@ -175,6 +186,7 @@ class LeaveRequestService
 
         // Lấy các ứng viên có cùng vai trò chuyên môn, đang hoạt động bên ngoài vòng lặp
         $candidates = Employee::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->where('role_id', $employee->role_id)
             ->where('id', '!=', $employee->id)
             ->where('status', 'active')
@@ -182,6 +194,8 @@ class LeaveRequestService
 
         // Pre-fetch all assignments and registrations in target date range to avoid in-loop queries
         $allAssignments = ScheduleAssignment::whereBetween('scheduled_date', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
+            ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->whereIn('status', ['scheduled', 'checked_in'])
             ->get()
             ->groupBy(function ($a) {
@@ -189,6 +203,8 @@ class LeaveRequestService
             });
 
         $allRegistrations = ScheduleRegistration::whereBetween('scheduled_date', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
+            ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->get()
             ->groupBy(function ($r) {
                 $dateStr = $r->scheduled_date instanceof Carbon ? $r->scheduled_date->toDateString() : Carbon::parse($r->scheduled_date)->toDateString();
@@ -232,6 +248,8 @@ class LeaveRequestService
                 $endOfWeek = $carbonDate->copy()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
                 $weeklyShiftsCount = ScheduleAssignment::where('employee_id', $cand->id)
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $employee->branch_id)
                     ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
                     ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
                     ->count();
@@ -246,6 +264,8 @@ class LeaveRequestService
 
                 $hasRestViolation = false;
                 $adjacentAssignments = ScheduleAssignment::where('employee_id', $cand->id)
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $employee->branch_id)
                     ->whereIn('status', ['scheduled', 'checked_in', 'completed'])
                     ->whereBetween('scheduled_date', [
                         Carbon::parse($dateStr)->subDays(1)->toDateString(),
@@ -358,6 +378,17 @@ class LeaveRequestService
                 if ($lockedLeave->status !== 'pending') {
                     throw new \Exception('Đơn xin nghỉ này đã được xử lý trước đó.');
                 }
+                if (
+                    (int) $lockedLeave->restaurant_id !== (int) $actingUser->restaurant_id
+                    || ! $actingUser->canAccessBranch((int) $lockedLeave->branch_id)
+                ) {
+                    throw new \Exception('Bạn không có quyền xử lý đơn nghỉ của chi nhánh này.');
+                }
+                if (app(TenantContext::class)->isBranchScoped()) {
+                    if ((int) app(TenantContext::class)->activeBranchId() !== (int) $lockedLeave->branch_id) {
+                        throw new \Exception('Leave request is outside the active branch.');
+                    }
+                }
 
                 $lockedLeave->update([
                     'status' => 'approved',
@@ -382,6 +413,7 @@ class LeaveRequestService
                     } else {
                         $replacementEmpIds = array_filter(array_values($replacements));
                         $replacementEmployees = Employee::where('restaurant_id', $actingUser->restaurant_id)
+                            ->where('branch_id', $lockedLeave->branch_id)
                             ->whereIn('id', $replacementEmpIds)
                             ->where('status', 'active')
                             ->get()
@@ -389,6 +421,8 @@ class LeaveRequestService
 
                         // Khóa các assignments của nhân viên để tránh trùng lặp ca thay thế
                         $assignments = ScheduleAssignment::where('employee_id', $employee->id)
+                            ->where('restaurant_id', $actingUser->restaurant_id)
+                            ->where('branch_id', $lockedLeave->branch_id)
                             ->lockForUpdate()
                             ->get();
 

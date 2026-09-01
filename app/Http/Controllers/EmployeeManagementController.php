@@ -91,7 +91,12 @@ class EmployeeManagementController extends Controller
             ->get();
 
         foreach ($usersWithoutEmployee as $u) {
-            $userBranchId = $u->warehouse_branch_id ?: $u->branch_id ?: $viewBranchId;
+            // Không tự gán tài khoản chưa có chi nhánh vào chi nhánh đang xem.
+            // Việc mở trang Nhân sự không được phép làm thay đổi phạm vi dữ liệu.
+            $userBranchId = $u->warehouse_branch_id ?: $u->branch_id;
+            if (! $userBranchId || ($tenantContext->isBranchScoped() && (int) $userBranchId !== (int) $branchId)) {
+                continue;
+            }
             $code = 'EMP-'.strtoupper(Str::random(5));
             while (Employee::where('restaurant_id', $user->restaurant_id)->where('employee_code', $code)->exists()) {
                 $code = 'EMP-'.strtoupper(Str::random(5));

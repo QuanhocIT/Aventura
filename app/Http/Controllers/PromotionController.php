@@ -61,6 +61,7 @@ class PromotionController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $tenantContext = app(TenantContext::class);
         $canManagePrices = $user->isOwner() || $user->isSuperAdmin();
 
         $filters = [
@@ -79,6 +80,16 @@ class PromotionController extends Controller
             ->with(['creator', 'approver', 'branch'])
             ->withCount('usages')
             ->withSum('usages as usages_discount_total', 'discount_amount');
+
+        // Keep the header branch scope authoritative. Chain-wide vouchers
+        // remain visible because they are valid in every branch.
+        if ($tenantContext->isBranchScoped()) {
+            $query->where(function ($scope) use ($tenantContext): void {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $tenantContext->activeBranchId());
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
 
         if ($filters['search'] !== '') {
             $keyword = '%'.$filters['search'].'%';
@@ -169,6 +180,12 @@ class PromotionController extends Controller
         // 3. Danh sách món ăn đang bán (để map giá thật khi tạo Combo nhanh từ gợi ý AI)
         $products = Product::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
+            ->when($tenantContext->isBranchScoped(), function ($query) use ($tenantContext): void {
+                $query->where(function ($scope) use ($tenantContext): void {
+                    $scope->whereNull('branch_id')->orWhere('branch_id', $tenantContext->activeBranchId());
+                });
+            })
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->get(['id', 'name', 'price'])
             ->map(fn ($p) => [
                 'id' => $p->id,
@@ -179,6 +196,7 @@ class PromotionController extends Controller
         // 4. Chi nhánh — để Owner chọn phạm vi áp dụng một cách tường minh thay vì
         // bị trait BelongsToRestaurant gán ngầm theo thanh "Phạm vi dữ liệu".
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($tenantContext->activeBranchId()))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (RestaurantBranch $b) => ['id' => $b->id, 'name' => $b->name]);
@@ -351,6 +369,8 @@ class PromotionController extends Controller
 
         $data = $this->validatePromotionPayload($request);
 
+        $this->assertPromotionWriteBranch($request, $data['branch_id'] ?? null);
+
         if ($error = $this->validateDiscountShape($data)) {
             return back()->withErrors($error);
         }
@@ -395,6 +415,15 @@ class PromotionController extends Controller
         abort_if($promotion->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $this->validatePromotionPayload($request);
+
+        // A partial edit must not silently turn a branch promotion into a
+        // chain-wide promotion when the branch field is absent from the form.
+        if (! array_key_exists('branch_id', $data)) {
+            $data['branch_id'] = $promotion->branch_id;
+        }
+
+        $this->assertPromotionScope($request, $promotion);
+        $this->assertPromotionWriteBranch($request, $data['branch_id'] ?? null);
 
         if ($error = $this->validateDiscountShape($data)) {
             return back()->withErrors($error);
@@ -480,6 +509,31 @@ class PromotionController extends Controller
             'conditions.time_range.start.date_format' => 'Giờ bắt đầu phải theo dạng HH:MM.',
             'conditions.time_range.end.date_format' => 'Giờ kết thúc phải theo dạng HH:MM.',
         ]);
+    }
+
+    private function assertPromotionWriteBranch(Request $request, ?int $branchId): void
+    {
+        $user = $request->user();
+        if ($user->isOwner() || $user->isSuperAdmin()) {
+            return;
+        }
+
+        app(TenantContext::class)->assertWriteBranch($branchId);
+    }
+
+    private function assertPromotionScope(Request $request, Promotion $promotion): void
+    {
+        $user = $request->user();
+        abort_unless($promotion->restaurant_id === $user->restaurant_id, 403);
+
+        if ($promotion->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $promotion->branch_id);
+
+            return;
+        }
+
+        // Chain-wide promotions are controlled by chain-level users only.
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
     }
 
     /**
@@ -808,7 +862,26 @@ class PromotionController extends Controller
             'order_id' => ['nullable', TenantRule::exists('orders')],
         ]);
 
-        return response()->json($this->promotionApplication->validateForOrder($user->restaurant_id, $data['code']));
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
+
+        if (! empty($data['order_id'])) {
+            $order = Order::where('restaurant_id', $user->restaurant_id)
+                ->whereKey((int) $data['order_id'])
+                ->firstOrFail();
+
+            abort_unless($order->branch_id !== null && $user->canAccessBranch((int) $order->branch_id), 403);
+            abort_unless(
+                ! $tenantContext->isBranchScoped()
+                || (int) $order->branch_id === (int) $tenantContext->activeBranchId(),
+                403,
+            );
+            $branchId = (int) $order->branch_id;
+        }
+
+        abort_unless(! $tenantContext->isUnassigned(), 403);
+
+        return response()->json($this->promotionApplication->validateForOrder($user->restaurant_id, $data['code'], $branchId));
     }
 
     /**
@@ -819,6 +892,11 @@ class PromotionController extends Controller
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('view_report'), 403);
         abort_unless($promotion->restaurant_id === $user->restaurant_id, 403);
+        if ($promotion->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $promotion->branch_id);
+        } else {
+            abort_unless(! app(TenantContext::class)->isUnassigned(), 403);
+        }
         abort_if($promotion->code === null, 422, 'Chương trình này không có mã voucher nên không tạo được QR.');
 
         $qrService = app(QrCodeService::class);

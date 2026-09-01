@@ -245,6 +245,9 @@ class ShiftClosingController extends Controller
 
     public function preview(Request $request): JsonResponse
     {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'cashier', 'accountant', 'super_admin']) || $user->hasPermissionTo('manage_salary'), 403);
+
         $request->validate([
             'shift_id' => ['required', 'integer'],
             'closing_date' => ['required', 'date'],
@@ -252,11 +255,7 @@ class ShiftClosingController extends Controller
 
         $restaurantId = $request->user()->restaurant_id;
 
-        $shift = WorkShift::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->findOrFail($request->integer('shift_id'));
-
-        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($request->user());
+        [$shift, $branchId] = $this->authorizedShift($user, $request->integer('shift_id'));
 
         $closingDate = Carbon::parse($request->input('closing_date'));
 
@@ -491,10 +490,7 @@ class ShiftClosingController extends Controller
         ]);
 
         $restaurantId = $user->restaurant_id;
-        $shift = WorkShift::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->findOrFail($data['shift_id']);
-        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
+        [$shift, $branchId] = $this->authorizedShift($user, (int) $data['shift_id']);
         $areaName = $this->areaSelectionName($restaurantId, $branchId, $data['area_id'] ?? null);
         $closingDate = Carbon::parse($data['closing_date'])->toDateString();
 
@@ -694,11 +690,7 @@ class ShiftClosingController extends Controller
 
         $restaurantId = $user->restaurant_id;
 
-        $shift = WorkShift::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->findOrFail($data['shift_id']);
-
-        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
+        [$shift, $branchId] = $this->authorizedShift($user, (int) $data['shift_id']);
 
         $isOwnerUser = $user->isOwner() || $user->isSuperAdmin();
         $isManagerUser = $user->hasRole('manager');
@@ -1426,6 +1418,22 @@ class ShiftClosingController extends Controller
         file_put_contents($filename, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         Log::info('ShiftClosingController: Đã lưu snapshot trước auto-pay', ['file' => $filename]);
+    }
+
+    private function authorizedShift(User $user, int $shiftId): array
+    {
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($shiftId);
+
+        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
+        abort_unless($user->canAccessBranch((int) $branchId), 403, 'Ca không thuộc chi nhánh của tài khoản.');
+
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $branchId, 403, 'Ca không thuộc chi nhánh đang thao tác.');
+        }
+
+        return [$shift, (int) $branchId];
     }
 
     private function resolveOperationalBranch(User $user): int

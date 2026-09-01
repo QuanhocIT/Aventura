@@ -259,13 +259,13 @@ class LoyaltyController extends Controller implements HasMiddleware
     {
         $restaurantId = $request->user()->restaurant_id;
 
-        $transactions = LoyaltyTransaction::where('restaurant_id', $restaurantId)
-            ->when($this->tenantContext->isBranchScoped(), fn ($query) => $query->where('branch_id', $this->tenantContext->activeBranchId()))
+        $transactionsQuery = LoyaltyTransaction::where('restaurant_id', $restaurantId)
             ->with('customer:id,full_name,phone')
             ->when($request->customer_id, fn ($q, $id) => $q->where('customer_id', $id))
             ->when($request->type, fn ($q, $t) => $q->where('type', $t))
-            ->latest()
-            ->paginate(20);
+            ->latest();
+        $this->tenantContext->applyBranchScope($transactionsQuery);
+        $transactions = $transactionsQuery->paginate(20);
 
         return response()->json($transactions);
     }

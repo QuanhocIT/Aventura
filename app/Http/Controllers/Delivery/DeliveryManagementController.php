@@ -13,6 +13,8 @@ use App\Services\Delivery\GeoClusteringService;
 use App\Services\Delivery\LoadBalancingService;
 use App\Services\Delivery\RouteOptimizationService;
 use App\Services\QuotaService;
+use App\Models\User;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -48,7 +50,7 @@ class DeliveryManagementController extends Controller
 
         $restaurantId = $request->user()->restaurant_id;
 
-        $initialStats = $this->buildStats($restaurantId);
+        $initialStats = $this->buildStats($restaurantId, $this->branchIdFor($request->user()));
 
         return Inertia::render('delivery/Index', [
             'initialStats' => $initialStats,
@@ -61,9 +63,11 @@ class DeliveryManagementController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $orders = Order::with('deliveryDetail', 'items')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'confirmed')
             ->whereHas('deliveryDetail', fn ($q) => $q->where('delivery_status', 'pending'))
             ->whereDoesntHave('batchItems', fn ($q) => $q->whereHas('batch', fn ($bq) => $bq->whereIn('status', ['pending', 'dispatched', 'in_progress'])))
@@ -97,6 +101,7 @@ class DeliveryManagementController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $shippers = Shipper::with([
             'employee',
@@ -104,6 +109,7 @@ class DeliveryManagementController extends Controller
             'locationLogs' => fn ($q) => $q->orderByDesc('logged_at')->limit(20),
         ])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->active()
             ->get()
             ->map(fn (Shipper $s) => [
@@ -162,6 +168,7 @@ class DeliveryManagementController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $validated = $request->validate([
             'order_ids' => ['required', 'array', 'min:1'],
@@ -174,7 +181,8 @@ class DeliveryManagementController extends Controller
         $speed = 32;
 
         if (! empty($validated['shipper_id'])) {
-            $shipper = Shipper::find($validated['shipper_id']);
+            $shipper = Shipper::with('employee')->find($validated['shipper_id']);
+            abort_unless($shipper && ($branchId === null || (int) $shipper->employee?->branch_id === $branchId), 403);
             if ($shipper?->current_lat) {
                 $origin = ['lat' => (float) $shipper->current_lat, 'lng' => (float) $shipper->current_lng];
             }
@@ -184,6 +192,7 @@ class DeliveryManagementController extends Controller
         $orders = Order::with('deliveryDetail')
             ->whereIn('id', $validated['order_ids'])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get();
 
         $points = $orders
@@ -216,6 +225,7 @@ class DeliveryManagementController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $validated = $request->validate([
             'order_ids' => ['required', 'array', 'min:1'],
@@ -225,6 +235,7 @@ class DeliveryManagementController extends Controller
         $firstOrder = Order::with('deliveryDetail')
             ->whereIn('id', $validated['order_ids'])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereHas('deliveryDetail')
             ->first();
 
@@ -233,6 +244,7 @@ class DeliveryManagementController extends Controller
 
         $shippers = Shipper::with(['employee', 'activeBatch.items'])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->active()
             ->get();
 
@@ -247,6 +259,7 @@ class DeliveryManagementController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $validated = $request->validate([
             'order_ids' => ['required', 'array', 'min:1'],
@@ -257,6 +270,7 @@ class DeliveryManagementController extends Controller
         $orders = Order::with('deliveryDetail')
             ->whereIn('id', $validated['order_ids'])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get()
             ->map(fn ($o) => [
                 'id' => $o->id,
@@ -277,6 +291,7 @@ class DeliveryManagementController extends Controller
     public function createBatch(Request $request): JsonResponse
     {
         $this->authorizeManager($request);
+        $this->branchIdFor($request->user());
 
         $restaurantId = $request->user()->restaurant_id;
 
@@ -300,7 +315,7 @@ class DeliveryManagementController extends Controller
     {
         $this->authorizeManager($request);
 
-        abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
+        $this->assertBatchScope($request->user(), $batch);
         abort_if($batch->status !== 'pending', 422, 'Batch không ở trạng thái pending');
         abort_if($batch->items()->doesntExist(), 422, 'Không thể dispatch chuyến không có đơn.');
 
@@ -314,7 +329,7 @@ class DeliveryManagementController extends Controller
     {
         $this->authorizeManager($request);
 
-        abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
+        $this->assertBatchScope($request->user(), $batch);
         abort_if(in_array($batch->status, ['completed', 'cancelled'], true), 422, 'Chuyến đã ở trạng thái kết thúc.');
 
         $batch->loadMissing('items');
@@ -334,7 +349,7 @@ class DeliveryManagementController extends Controller
     {
         $this->authorizeManager($request);
 
-        abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
+        $this->assertBatchScope($request->user(), $batch);
         abort_if($batch->status === 'completed', 422, 'Không thể hủy batch đã hoàn thành');
 
         $this->dispatcher->cancelBatch($batch);
@@ -347,7 +362,10 @@ class DeliveryManagementController extends Controller
     {
         $this->authorizeManager($request);
 
-        return response()->json($this->buildStats($request->user()->restaurant_id));
+        return response()->json($this->buildStats(
+            $request->user()->restaurant_id,
+            $this->branchIdFor($request->user()),
+        ));
     }
 
     private function authorizeManager(Request $request): void
@@ -363,22 +381,25 @@ class DeliveryManagementController extends Controller
         );
     }
 
-    private function buildStats(int $restaurantId): array
+    private function buildStats(int $restaurantId, ?int $branchId = null): array
     {
         $today = today();
         $yesterday = today()->subDay();
 
         $pendingOrders = Order::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->where('status', 'confirmed')
             ->whereHas('deliveryDetail', fn ($q) => $q->where('delivery_status', 'pending'))
             ->count();
 
         $registeredShippers = Shipper::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->active()
             ->get(['last_seen_at']);
         $onlineShippers = $registeredShippers->filter(fn (Shipper $shipper) => $shipper->hasGps())->count();
 
         $activeBatches = DeliveryBatch::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('items.order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->active()
             ->count();
 
@@ -389,21 +410,25 @@ class DeliveryManagementController extends Controller
         $yesterdayRange = [$yesterday->startOfDay(), $yesterday->endOfDay()];
 
         $deliveredToday = DeliveryDetail::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->where('delivery_status', 'delivered')
             ->whereBetween('delivered_at', $todayRange)
             ->count();
 
         $failedToday = DeliveryDetail::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->where('delivery_status', 'failed')
             ->whereBetween('updated_at', $todayRange)
             ->count();
 
         $deliveredYesterday = DeliveryDetail::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->where('delivery_status', 'delivered')
             ->whereBetween('delivered_at', $yesterdayRange)
             ->count();
 
         $failedYesterday = DeliveryDetail::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->where('delivery_status', 'failed')
             ->whereBetween('updated_at', $yesterdayRange)
             ->count();
@@ -433,9 +458,7 @@ class DeliveryManagementController extends Controller
             || $user->hasAnyRole(['owner', 'manager'])
             || $user->can('manage_orders');
 
-        if ((int) $batch->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
-            abort(403, 'Đợt giao hàng không thuộc nhà hàng của bạn.');
-        }
+        $this->assertBatchScope($user, $batch);
 
         if (! $canManage) {
             $isAssignedShipper = $batch->shipper()
@@ -446,7 +469,7 @@ class DeliveryManagementController extends Controller
 
         abort_if(in_array($batch->status, ['completed', 'cancelled'], true), 422, 'Chuyến đã ở trạng thái kết thúc.');
 
-        $batch->loadMissing('items');
+        $batch->loadMissing('items.order');
 
         $updatedCount = 0;
         foreach ($batch->items as $item) {
@@ -485,5 +508,47 @@ class DeliveryManagementController extends Controller
             'message' => "Đã xác nhận lấy hàng thành công cho toàn bộ {$updatedCount} điểm giao trong chuyến.",
             'picked_up_count' => $updatedCount,
         ]);
+    }
+
+    private function branchIdFor(User $user): ?int
+    {
+        $context = app(TenantContext::class);
+
+        if ($context->isUnassigned()) {
+            abort(403, 'Tài khoản chưa được gán chi nhánh.');
+        }
+
+        if ($context->isBranchScoped()) {
+            abort_unless($user->canAccessBranch($context->activeBranchId()), 403);
+
+            return (int) $context->activeBranchId();
+        }
+
+        if (! $user->canViewAllBranches()) {
+            $branchId = $user->assignedBranchId();
+            abort_unless($branchId !== null, 403, 'Tài khoản chưa được gán chi nhánh.');
+
+            return (int) $branchId;
+        }
+
+        return null;
+    }
+
+    private function assertBatchScope(User $user, DeliveryBatch $batch): void
+    {
+        abort_if((int) $batch->restaurant_id !== (int) $user->restaurant_id, 403);
+
+        $branchId = $this->branchIdFor($user);
+        if ($branchId === null) {
+            return;
+        }
+
+        $batch->loadMissing('items.order');
+        abort_unless($batch->items->isNotEmpty(), 403);
+        abort_unless(
+            $batch->items->every(fn ($item): bool => (int) $item->order?->branch_id === $branchId),
+            403,
+            'Chuyến giao không thuộc chi nhánh đang thao tác.',
+        );
     }
 }

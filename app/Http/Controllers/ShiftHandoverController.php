@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChecklistItem;
 use App\Models\ChecklistTemplate;
 use App\Models\RestaurantBranch;
+use App\Models\ShiftClosing;
 use App\Models\ShiftHandover;
 use App\Models\ShiftHandoverCheck;
 use App\Models\User;
@@ -144,6 +145,11 @@ class ShiftHandoverController extends Controller
             'handover_date' => ['required', 'date'],
         ]);
 
+        abort_unless($user->canAccessBranch((int) $branchId), 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $branchId, 403);
+        }
+
         $shiftScope = WorkShift::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'));
@@ -152,6 +158,15 @@ class ShiftHandoverController extends Controller
             if (! empty($data[$shiftKey])) {
                 abort_unless((clone $shiftScope)->whereKey($data[$shiftKey])->exists(), 422, 'Ca được chọn không áp dụng cho chi nhánh này.');
             }
+        }
+
+        $closing = null;
+        if (! empty($data['shift_closing_id'])) {
+            $closing = ShiftClosing::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->find($data['shift_closing_id']);
+            abort_unless($closing, 422, 'Phiáº¿u chá»‘t ca khÃ´ng há»£p lá»‡.');
+            abort_unless((int) $closing->branch_id === (int) $branchId, 422, 'Phiáº¿u chá»‘t ca khÃ´ng thuá»™c chi nhÃ¡nh nÃ y.');
         }
 
         $template = null;
@@ -184,7 +199,7 @@ class ShiftHandoverController extends Controller
             'to_shift_id' => $data['to_shift_id'] ?? null,
             'from_user_id' => $user->id,
             'template_id' => $template?->id,
-            'shift_closing_id' => $data['shift_closing_id'] ?? null,
+            'shift_closing_id' => $closing?->id,
             'status' => ShiftHandover::STATUS_DRAFT,
         ]);
 
@@ -287,7 +302,7 @@ class ShiftHandoverController extends Controller
     public function accept(Request $request, ShiftHandover $handover): RedirectResponse
     {
         $user = $request->user();
-        abort_if($handover->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertHandoverScope($handover, $user);
         abort_if((int) $handover->to_user_id !== (int) $user->id, 403, 'Chỉ người nhận ca mới xác nhận được.');
         abort_unless($handover->status === ShiftHandover::STATUS_PENDING, 422);
 
@@ -305,7 +320,7 @@ class ShiftHandoverController extends Controller
     public function dispute(Request $request, ShiftHandover $handover): RedirectResponse
     {
         $user = $request->user();
-        abort_if($handover->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertHandoverScope($handover, $user);
         abort_if((int) $handover->to_user_id !== (int) $user->id, 403);
         abort_unless($handover->status === ShiftHandover::STATUS_PENDING, 422);
 
@@ -324,11 +339,24 @@ class ShiftHandoverController extends Controller
     private function authorizeOutgoing(ShiftHandover $handover, User $user): void
     {
         abort_if($handover->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($handover->branch_id), 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $handover->branch_id, 403);
+        }
         abort_if(
             (int) $handover->from_user_id !== (int) $user->id && ! $user->hasAnyRole(['owner', 'manager']),
             403,
             'Chỉ người lập phiên hoặc quản lý mới thao tác được.',
         );
+    }
+
+    private function assertHandoverScope(ShiftHandover $handover, User $user): void
+    {
+        abort_if((int) $handover->restaurant_id !== (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($handover->branch_id), 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $handover->branch_id, 403);
+        }
     }
 
     private function storePhoto(?string $dataUri, int $restaurantId): ?string

@@ -868,7 +868,13 @@ class ApprovalService
     private function executeSupplyDispatch(array $data, int $restaurantId, int $reviewerId): void
     {
         $request = SupplyRequest::where('restaurant_id', $restaurantId)->findOrFail($data['supply_request_id']);
-        $this->warehouseService->dispatchSupplyRequest($request, User::findOrFail($reviewerId), $data['seal_code'] ?? null);
+        $reviewer = User::findOrFail($reviewerId);
+        $dispatched = $this->warehouseService->dispatchSupplyRequest($request, $reviewer, $data['seal_code'] ?? null);
+
+        if (! empty($data['transporter_id'])) {
+            $transporter = User::where('restaurant_id', $restaurantId)->findOrFail((int) $data['transporter_id']);
+            $this->warehouseService->assignTransporter($dispatched, $transporter, $reviewer);
+        }
     }
 
     private function executeSupplyReject(array $data, int $restaurantId, int $reviewerId): void

@@ -741,14 +741,17 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('inventory/transfers', [StockTransferRequestController::class, 'index'])->name('inventory.transfers');
         Route::post('inventory/transfers', [StockTransferRequestController::class, 'store'])->name('inventory.transfers.store');
         Route::post('inventory/transfers/{transfer}/cancel', [StockTransferRequestController::class, 'cancel'])->name('inventory.transfers.cancel');
+        Route::post('inventory/transfers/batch-cancel', [StockTransferRequestController::class, 'batchCancel'])->name('inventory.transfers.batch-cancel');
 
-        // Các bước phê duyệt, điều phối và ghi nhận tồn kho không dành cho
-        // Quản lý chi nhánh (tài khoản này chỉ tạo/theo dõi yêu cầu).
+        Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
+        Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
+        Route::post('inventory/transfers/{transfer}/resolve-discrepancy', [StockTransferRequestController::class, 'resolveDiscrepancy'])->name('inventory.transfers.resolve-discrepancy');
+
+        // Các bước phê duyệt định tuyến và từ chối chỉ dành cho Chủ hoặc Trưởng kho Tổng
         Route::middleware('role_or_permission:owner|super_admin|warehouse_manager')->group(function () {
+            Route::post('inventory/transfers/batch-route', [StockTransferRequestController::class, 'batchRoute'])->name('inventory.transfers.batch-route');
+            Route::post('inventory/transfers/batch-reject', [StockTransferRequestController::class, 'batchReject'])->name('inventory.transfers.batch-reject');
             Route::post('inventory/transfers/{transfer}/route', [StockTransferRequestController::class, 'route'])->name('inventory.transfers.route');
-            Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
-            Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
-            Route::post('inventory/transfers/{transfer}/resolve-discrepancy', [StockTransferRequestController::class, 'resolveDiscrepancy'])->name('inventory.transfers.resolve-discrepancy');
             Route::post('inventory/transfers/{transfer}/reject', [StockTransferRequestController::class, 'reject'])->name('inventory.transfers.reject');
         });
     });
@@ -816,8 +819,12 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/supply-requests/{id}/prepare', [SupplyRequestController::class, 'prepare'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.pack|warehouse.pick|supply_requests.dispatch')->name('supply-requests.prepare');
     Route::post('api/supply-requests/{id}/approve-dispatch', [SupplyRequestController::class, 'approveDispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse_manager|supply_requests.dispatch_approve|supply_requests.dispatch', 'prevent_self_approval:dispatch_approve'])->name('supply-requests.approve-dispatch');
     Route::post('api/supply-requests/{id}/dispatch', [SupplyRequestController::class, 'dispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse_manager|warehouse.handover|supply_requests.dispatch', 'prevent_self_approval:dispatch'])->name('supply-requests.dispatch');
+    Route::post('api/supply-requests/{id}/transporter', [SupplyRequestController::class, 'assignTransporter'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.handover|supply_requests.dispatch')->name('supply-requests.transporter.assign');
     Route::get('api/supply-requests/{id}/proof/{type}', [WarehouseTaskController::class, 'viewProof'])->name('supply-requests.proof');
     Route::post('api/supply-requests/{id}/receive', [SupplyRequestController::class, 'receive'])->middleware(['role_or_permission:owner|super_admin|supply_requests.receive', 'prevent_self_approval:receive'])->name('supply-requests.receive');
+    Route::post('api/supply-requests/{id}/receiving-report/confirm', [SupplyRequestController::class, 'confirmReceivingReport'])->middleware(['role_or_permission:owner|super_admin|supply_requests.receive', 'prevent_self_approval:receive'])->name('supply-requests.receiving-report.confirm');
+    Route::post('api/receiving-reports/{id}/driver-confirm', [SupplyRequestController::class, 'confirmReceivingReportByDriver'])->middleware('role_or_permission:owner|super_admin|warehouse_staff|warehouse_manager')->name('supply-requests.receiving-report.driver-confirm');
+    Route::post('api/receiving-reports/{id}/review', [SupplyRequestController::class, 'reviewReceivingReport'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_governance.manage')->name('supply-requests.receiving-report.review');
     Route::post('api/supply-requests/{id}/reject', [SupplyRequestController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|supply_requests.approve')->name('supply-requests.reject');
     Route::post('api/supply-requests/{id}/cancel', [SupplyRequestController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|supply_requests.cancel')->name('supply-requests.cancel');
     Route::post('api/supply-requests/set-central-branch', [SupplyRequestController::class, 'setCentralBranch'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('supply-requests.set-central-branch');

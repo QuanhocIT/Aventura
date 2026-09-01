@@ -12,6 +12,7 @@ use App\Models\Delivery\DeliveryDetail;
 use App\Models\Delivery\Shipper;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +31,16 @@ class DeliveryDispatchService
     {
         return DB::transaction(function () use ($shipperId, $orderIds, $createdBy) {
             $orderIds = array_values(array_unique(array_map('intval', $orderIds)));
+            $tenantContext = app(TenantContext::class);
+            $branchId = $tenantContext->activeBranchId();
+            if ($branchId === null && ! $createdBy->canViewAllBranches()) {
+                $branchId = $createdBy->assignedBranchId();
+            }
+            if ($branchId === null && ! $createdBy->canViewAllBranches()) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Tài khoản chưa được gán chi nhánh.',
+                ]);
+            }
 
             $shipper = Shipper::with('employee')
                 ->where('restaurant_id', $createdBy->restaurant_id)
@@ -39,6 +50,12 @@ class DeliveryDispatchService
             if (! $shipper->is_active) {
                 throw ValidationException::withMessages([
                     'shipper_id' => 'Shipper đang bị tạm ngưng.',
+                ]);
+            }
+
+            if ($branchId !== null && (int) $shipper->employee?->branch_id !== (int) $branchId) {
+                throw ValidationException::withMessages([
+                    'shipper_id' => 'Shipper không thuộc chi nhánh đang thao tác.',
                 ]);
             }
 
@@ -68,6 +85,29 @@ class DeliveryDispatchService
             if ($orders->count() !== count($orderIds)) {
                 throw ValidationException::withMessages([
                     'order_ids' => 'Có đơn hàng không thuộc nhà hàng hiện tại.',
+                ]);
+            }
+
+            if ($branchId !== null && $orders->contains(fn (Order $order): bool => (int) $order->branch_id !== (int) $branchId)) {
+                throw ValidationException::withMessages([
+                    'order_ids' => 'Không thể gộp đơn hàng khác chi nhánh vào cùng một chuyến.',
+                ]);
+            }
+
+            $orderBranchKeys = $orders->pluck('branch_id')
+                ->map(static fn ($id): string => $id === null ? 'null' : (string) $id)
+                ->unique()
+                ->values();
+            if ($orderBranchKeys->count() !== 1 || $orderBranchKeys->first() === 'null') {
+                throw ValidationException::withMessages([
+                    'order_ids' => 'Mỗi chuyến giao chỉ được gồm các đơn của cùng một chi nhánh.',
+                ]);
+            }
+
+            $branchId ??= (int) $orders->first()->branch_id;
+            if ((int) $shipper->employee?->branch_id !== (int) $branchId) {
+                throw ValidationException::withMessages([
+                    'shipper_id' => 'Shipper không thuộc chi nhánh của các đơn đã chọn.',
                 ]);
             }
 
@@ -184,7 +224,18 @@ class DeliveryDispatchService
     public function updateItemStatus(DeliveryBatchItem $item, string $status, ?string $notes = null): DeliveryBatchItem
     {
         return DB::transaction(function () use ($item, $status, $notes) {
-            $item->loadMissing('batch');
+            $item->loadMissing('batch.shipper.employee', 'order');
+
+            if (
+                ! $item->batch
+                || ! $item->order
+                || (int) $item->batch->restaurant_id !== (int) $item->order->restaurant_id
+                || (int) $item->batch->shipper?->employee?->branch_id !== (int) $item->order->branch_id
+            ) {
+                throw ValidationException::withMessages([
+                    'status' => 'Điểm giao không thuộc đúng chi nhánh của chuyến.',
+                ]);
+            }
 
             if ($item->isCompleted()) {
                 throw ValidationException::withMessages([

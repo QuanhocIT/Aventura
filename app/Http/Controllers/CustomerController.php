@@ -201,6 +201,10 @@ class CustomerController extends Controller
         // cá nhân của khách.
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền thêm khách hàng.');
 
+        $user = $request->user();
+        $branchId = $this->tenantContext->activeBranchId() ?? $user->assignedBranchId();
+        abort_unless($branchId !== null && $user->canAccessBranch((int) $branchId), 403);
+
         $request->merge(['phone' => trim((string) $request->input('phone'))]);
 
         $data = $request->validate([
@@ -222,6 +226,8 @@ class CustomerController extends Controller
         $customer = Customer::create([
             ...$data,
             'phone' => trim($data['phone']),
+            'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $branchId,
         ]);
 
         if ($request->wantsJson()) {

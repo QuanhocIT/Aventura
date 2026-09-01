@@ -70,6 +70,9 @@ class OrderActionsController extends Controller
     {
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        if (app(TenantContext::class)->isBranchScoped()) {
+            abort_unless((int) $order->branch_id === (int) app(TenantContext::class)->activeBranchId(), 403, 'Đơn hàng không thuộc chi nhánh đang thao tác.');
+        }
 
         DB::transaction(function () use ($order): void {
             $order->update([
@@ -128,6 +131,9 @@ class OrderActionsController extends Controller
         );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        if (app(TenantContext::class)->isBranchScoped()) {
+            abort_unless((int) $order->branch_id === (int) app(TenantContext::class)->activeBranchId(), 403, 'Đơn hàng không thuộc chi nhánh đang thao tác.');
+        }
         abort_unless($order->channel === 'dine_in' && $order->table_id, 422, 'Đơn này không còn ở trạng thái tại bàn.');
         abort_unless(! in_array($order->status, ['completed', 'cancelled'], true), 422, 'Đơn đã kết thúc, không thể chuyển mang về.');
         abort_unless(! in_array($order->payment_status, ['paid', 'refunded'], true), 422, 'Đơn đã thanh toán, không thể tự động cộng lại phí mang về.');
@@ -240,5 +246,8 @@ class OrderActionsController extends Controller
         );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        if (app(TenantContext::class)->isBranchScoped()) {
+            abort_unless((int) $order->branch_id === (int) app(TenantContext::class)->activeBranchId(), 403, 'Đơn hàng không thuộc chi nhánh đang thao tác.');
+        }
     }
 }

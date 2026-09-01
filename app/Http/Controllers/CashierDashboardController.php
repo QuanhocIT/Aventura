@@ -221,6 +221,7 @@ class CashierDashboardController extends Controller
             $employee = $user->employee;
             if ($employee) {
                 $assignment = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('branch_id', $branchId)
                     ->where('scheduled_date', today())
                     ->whereIn('status', ['checked_in', 'scheduled', 'completed'])
                     ->with('shift')
@@ -237,11 +238,13 @@ class CashierDashboardController extends Controller
                 }
 
                 $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
+                    ->where('branch_id', $branchId)
                     ->where('status', 'paid')
                     ->where('paid_at', '>=', $startTime)
                     ->sum('amount');
 
                 $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
+                    ->where('branch_id', $branchId)
                     ->where('cashier_user_id', $user->id)
                     ->where('status', 'completed')
                     ->where('completed_at', '>=', $startTime);

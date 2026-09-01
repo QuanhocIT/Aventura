@@ -45,6 +45,7 @@ class ShipperPwaController extends Controller
         abort_unless($shipper, 403, 'Tài khoản chưa được đăng ký làm shipper.');
         abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_if($batch->shipper_id !== $shipper->id, 403);
+        $this->assertBatchBranch($shipper, $batch);
         abort_if($batch->status !== 'dispatched', 422, 'Chuyến không còn chờ shipper nhận.');
 
         $batch->update(['accepted_at' => now()]);
@@ -164,10 +165,12 @@ class ShipperPwaController extends Controller
     /** POST /delivery/api/shipper/items/{item}/status — update delivery item status */
     public function updateItemStatus(Request $request, DeliveryBatchItem $item): JsonResponse
     {
+        $item->loadMissing('batch.shipper.employee', 'order');
         abort_if($item->batch->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $userShipper = Shipper::whereHas('employee', fn ($q) => $q->where('user_id', $request->user()->id))->first();
         abort_if(! $userShipper || $item->batch->shipper_id !== $userShipper->id, 403);
+        $this->assertBatchBranch($userShipper, $item->batch);
 
         $validated = $request->validate([
             'status' => ['required', 'in:picked_up,delivered,failed'],
@@ -194,6 +197,20 @@ class ShipperPwaController extends Controller
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->whereHas('employee', fn ($q) => $q->where('user_id', $request->user()->id))
             ->first();
+    }
+
+    private function assertBatchBranch(Shipper $shipper, DeliveryBatch $batch): void
+    {
+        $shipper->loadMissing('employee');
+        $batch->loadMissing('items.order');
+        $branchId = $shipper->employee?->branch_id;
+
+        abort_unless($branchId !== null && $batch->items->isNotEmpty(), 403);
+        abort_unless(
+            $batch->items->every(fn ($item): bool => (int) $item->order?->branch_id === (int) $branchId),
+            403,
+            'Chuyáº¿n giao khÃ´ng thuá»™c chi nhÃ¡nh cá»§a shipper.',
+        );
     }
 
     private function serializeShipper(?Shipper $shipper): ?array

@@ -13,6 +13,7 @@ use App\Services\LeaveRequestService;
 use App\Services\QuotaService;
 use App\Services\ScheduleAssignmentService;
 use App\Services\ShiftSwapService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -148,6 +149,15 @@ class LeaveScheduleController extends Controller
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $user = $request->user();
+        $isManager = $user->isSuperAdmin()
+            || $user->isOwner()
+            || $user->hasAnyRole(['manager', 'warehouse_manager'])
+            || $user->can('manage_employees');
+        if (! $isManager) {
+            abort_unless((int) $user->employee?->id === (int) $data['employee_id'], 403, 'Nhân viên chỉ được gửi đơn nghỉ phép cho chính mình.');
+        }
+
         $result = $this->leaveRequests->storeLeaveRequest(
             $request->user(),
             $data,
@@ -172,7 +182,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
+        $this->assertActiveBranch($user, (int) $leave->branch_id);
 
         $result = $this->leaveRequests->getReplacementSuggestions($user->restaurant_id, $leave);
 
@@ -201,10 +211,11 @@ class LeaveScheduleController extends Controller
 
         $original = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
             ->findOrFail($data['assignment_id']);
-        abort_unless($user->canAccessBranch($original->branch_id), 403);
+        $this->assertActiveBranch($user, (int) $original->branch_id);
 
         $replacement = Employee::where('restaurant_id', $user->restaurant_id)
             ->findOrFail($data['replacement_employee_id']);
+        abort_unless((int) $replacement->branch_id === (int) $original->branch_id, 422, 'Nhân viên thay thế phải thuộc cùng chi nhánh với ca gốc.');
 
         if ($replacement->id === $original->employee_id) {
             return back()->withErrors(['replacement_employee_id' => 'Người thay phải khác người nghỉ.']);
@@ -263,6 +274,7 @@ class LeaveScheduleController extends Controller
     public function approveLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
     {
         $user = $request->user();
+        $this->assertActiveBranch($user, (int) $leave->branch_id);
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
@@ -293,7 +305,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
+        $this->assertActiveBranch($user, (int) $leave->branch_id);
         abort_unless($leave->status === 'pending', 422);
 
         $data = $request->validate([
@@ -314,6 +326,12 @@ class LeaveScheduleController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $branchId = $request->integer('branch_id') ?: ($user->canViewAllBranches() ? null : $user->assignedBranchId());
+        if ($branchId !== null) {
+            abort_unless($user->canAccessBranch($branchId), 403, 'Bạn không có quyền thao tác chi nhánh này.');
+            if (app(TenantContext::class)->isBranchScoped()) {
+                abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $branchId, 403);
+            }
+        }
         $result = $this->assignments->copyLastWeekSchedules($user->restaurant_id, $branchId);
 
         if (! $result['success']) {
@@ -331,7 +349,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
+        $this->assertActiveBranch($user, (int) $swap->branch_id);
         abort_unless($swap->status === 'accepted', 422);
 
         // Self-Approval Prevention Check
@@ -360,7 +378,7 @@ class LeaveScheduleController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
+        $this->assertActiveBranch($user, (int) $swap->branch_id);
 
         $result = $this->shiftSwap->rejectSwap($user, $swap, $request->input('notes'));
 
@@ -369,5 +387,14 @@ class LeaveScheduleController extends Controller
         }
 
         return back()->with('success', $result['message']);
+    }
+    private function assertActiveBranch(User $user, ?int $branchId): void
+    {
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $context->activeBranchId() === (int) $branchId, 403);
+        }
     }
 }

@@ -14,6 +14,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductBranchPause;
 use App\Models\RestaurantTable;
+use App\Models\User;
 use App\Services\InventoryAvailabilityService;
 use App\Services\InventoryService;
 use App\Services\OrderService;
@@ -63,10 +64,8 @@ class KitchenController extends Controller
                 // separate. Keep every unserved item in the queue.
                 $q->where('status', '!=', 'cancelled')
                     ->activeForService();
-                if ($branchId) {
-                    $q->where(function ($bq) use ($branchId) {
-                        $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
-                    });
+                if ($branchId !== null) {
+                    $q->where('branch_id', $branchId);
                 }
             })
             ->with(['order.table', 'order.creator', 'product'])
@@ -99,10 +98,8 @@ class KitchenController extends Controller
             ->whereHas('order', function ($q) use ($branchId) {
                 $q->where('status', '!=', 'cancelled')
                     ->activeForService();
-                if ($branchId) {
-                    $q->where(function ($bq) use ($branchId) {
-                        $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
-                    });
+                if ($branchId !== null) {
+                    $q->where('branch_id', $branchId);
                 }
             })
             ->with(['order.table', 'product', 'preparedBy'])
@@ -121,9 +118,9 @@ class KitchenController extends Controller
             ]);
 
         $products = Product::where('restaurant_id', $restaurantId)
-            ->where(function ($query) use ($branchId): void {
-                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
-            })
+            ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId): void {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->where('is_active', true)
             ->sellableMenu()
             ->with(['category', 'recipes.ingredient.unit'])
@@ -187,7 +184,7 @@ class KitchenController extends Controller
             'completedItems' => $completedItems,
             'products' => $products,
             'ingredients' => $ingredients,
-            'kitchenStats' => $this->buildKitchenStats($restaurantId),
+            'kitchenStats' => $this->buildKitchenStats($restaurantId, $branchId),
         ]);
     }
 
@@ -195,11 +192,12 @@ class KitchenController extends Controller
      * Thống kê tốc độ bếp hôm nay: số món đã ra, thời gian chế biến trung bình,
      * món chậm nhất. Tính bằng PHP để tương thích mọi DB (test chạy SQLite).
      */
-    private function buildKitchenStats(int $restaurantId): array
+    private function buildKitchenStats(int $restaurantId, ?int $branchId = null): array
     {
         $preparedToday = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNotNull('prepared_at')
             ->whereDate('prepared_at', now()->toDateString())
+            ->when($branchId !== null, fn ($query) => $query->whereHas('order', fn ($orderQuery) => $orderQuery->where('branch_id', $branchId)))
             ->get(['id', 'created_at', 'sent_to_kitchen_at', 'prepared_at']);
 
         $prepTimes = $preparedToday->map(function (OrderItem $item) {
@@ -219,7 +217,7 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
-        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertItemBranch($user, $item);
 
         if ($item->prepared_at !== null || $item->status === 'served') {
             return back()->with('success', 'Món ăn đã hoàn tất, không cần đánh dấu bắt đầu nữa.');
@@ -254,7 +252,7 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
-        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertItemBranch($user, $item);
 
         $order = $item->order;
         $tableName = $order?->table?->name ?? 'Bàn chưa xác định';
@@ -284,7 +282,7 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
-        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertItemBranch($user, $item);
 
         if ($item->prepared_at !== null || $item->status === 'served') {
             return back()->with('success', 'Món ăn đã được chế biến trước đó.');
@@ -328,7 +326,12 @@ class KitchenController extends Controller
         $itemsToUpdate = OrderItem::whereIn('id', $validated['item_ids'])
             ->where('restaurant_id', $user->restaurant_id)
             ->whereNull('prepared_at')
+            ->with('order')
             ->get();
+
+        foreach ($itemsToUpdate as $item) {
+            $this->assertItemBranch($user, $item);
+        }
 
         $orderIds = $itemsToUpdate->pluck('order_id')->unique()->filter();
 
@@ -376,7 +379,7 @@ class KitchenController extends Controller
                 || $user->can('create_orders'),
             403,
         );
-        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertItemBranch($user, $item);
 
         if ($item->served_at !== null || $item->status === 'served') {
             return back()->with('success', 'Món ăn đã được phục vụ trước đó.');
@@ -419,6 +422,13 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
+        if ($this->shouldUseBranchPause($user, $product)) {
+            if (! $request->filled('reason')) {
+                $request->merge(['reason' => 'Tạm ngưng từ màn hình bếp']);
+            }
+
+            return $this->pauseBranch($request, $product);
+        }
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
         $validated = $request->validate([
@@ -453,6 +463,11 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
+        if ($this->shouldUseBranchPause($user, $product)) {
+            $request->merge(['reason' => $request->input('reason') ?: 'Hết món']);
+
+            return $this->pauseBranch($request, $product);
+        }
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
         $validated = $request->validate([
@@ -477,6 +492,9 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
+        if ($this->shouldUseBranchPause($user, $product)) {
+            return $this->requestReopenBranch($request, $product);
+        }
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
         $wasPaused = $product->paused_until !== null || $product->out_of_stock_until !== null;
@@ -522,6 +540,8 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->requirePauseBranch();
+        abort_unless($user->canAccessBranch($branchId), 403);
+        abort_unless($product->branch_id === null || (int) $product->branch_id === $branchId, 403);
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:255'],
@@ -564,6 +584,8 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->requirePauseBranch();
+        abort_unless($user->canAccessBranch($branchId), 403);
+        abort_unless($product->branch_id === null || (int) $product->branch_id === $branchId, 403);
 
         $pause = ProductBranchPause::where('restaurant_id', $user->restaurant_id)
             ->where('branch_id', $branchId)->where('product_id', $product->id)
@@ -586,6 +608,7 @@ class KitchenController extends Controller
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->requirePauseBranch();
         abort_unless($user->canAccessBranch($branchId), 403);
+        abort_unless($product->branch_id === null || (int) $product->branch_id === $branchId, 403);
 
         $pause = ProductBranchPause::where('restaurant_id', $user->restaurant_id)
             ->where('branch_id', $branchId)->where('product_id', $product->id)
@@ -605,7 +628,7 @@ class KitchenController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
-        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertItemBranch($user, $item);
 
         $validated = $request->validate([
             'scope' => ['required', 'string', 'in:single,all_pending'],
@@ -623,6 +646,8 @@ class KitchenController extends Controller
                 ->with(['order.table', 'product.recipes.unit', 'product.recipes.ingredient.unit'])
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            $this->assertItemBranch($user, $lockedItem);
 
             if ($lockedItem->prepared_at !== null || $lockedItem->status === 'served') {
                 throw ValidationException::withMessages([
@@ -645,6 +670,7 @@ class KitchenController extends Controller
                     ->whereHas('order', function ($q) {
                         $q->whereNotIn('status', ['completed', 'cancelled']);
                     })
+                    ->whereHas('order', fn ($q) => $q->where('branch_id', $lockedItem->order->branch_id))
                     ->with('order')
                     ->lockForUpdate()
                     ->get();
@@ -817,6 +843,42 @@ class KitchenController extends Controller
             : "Đã hủy {$cancelledCount} phần món {$productName} (Bàn {$tableName}) thành công!";
 
         return back()->with('success', $msg);
+    }
+
+    private function shouldUseBranchPause(User $user, Product $product): bool
+    {
+        abort_if((int) $product->restaurant_id !== (int) $user->restaurant_id, 403);
+
+        $context = app(TenantContext::class);
+        if (! $context->isBranchScoped()) {
+            return ! $user->canViewAllBranches();
+        }
+
+        $branchId = (int) $context->activeBranchId();
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        if ($product->branch_id !== null) {
+            abort_unless((int) $product->branch_id === $branchId, 403, 'Món không thuộc chi nhánh đang thao tác.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function assertItemBranch(User $user, OrderItem $item): void
+    {
+        $item->loadMissing('order');
+        abort_if((int) $item->restaurant_id !== (int) $user->restaurant_id, 403);
+
+        $order = $item->order;
+        abort_unless($order && (int) $order->restaurant_id === (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($order->branch_id), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $context->activeBranchId() === (int) $order->branch_id, 403);
+        }
     }
 
     private function recalculateCancelledOrder(Order $order): void

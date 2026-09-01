@@ -51,6 +51,8 @@ class DebtController extends Controller
             ]);
         }
 
+        abort_unless($user->canViewAllBranches() || ! $this->tenantContext->isUnassigned(), 403);
+
         $restaurantId = $user->restaurant_id;
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? null : $user->assignedBranchId());
@@ -179,6 +181,7 @@ class DebtController extends Controller
         // Customer credit list for setup tab
         $customerSearch = $request->input('customer_search');
         $customersQuery = Customer::where('restaurant_id', $restaurantId);
+        $this->tenantContext->applyBranchScope($customersQuery);
         if ($customerSearch) {
             $customersQuery->where(function ($q) use ($customerSearch) {
                 $q->where('full_name', 'like', "%{$customerSearch}%")

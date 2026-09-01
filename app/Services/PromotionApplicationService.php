@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Promotion;
 use App\Models\PromotionUsage;
 use App\Models\User;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +23,7 @@ class PromotionApplicationService
 {
     public function __construct(
         private PromotionStackingService $promotionStacking,
+        private TenantContext $tenantContext,
     ) {}
 
     /**
@@ -52,6 +54,23 @@ class PromotionApplicationService
                 ->lockForUpdate()
                 ->firstOrFail();
             $promotion = Promotion::where('id', $promotion->id)->lockForUpdate()->firstOrFail();
+
+            // Do not allow a branch-scoped operator to cross branches by
+            // guessing an order ID. Global vouchers remain valid, but the
+            // order itself must always belong to the operator's branch.
+            if (
+                $order->branch_id === null
+                || ! $actingUser->canAccessBranch((int) $order->branch_id)
+                || $this->tenantContext->isUnassigned()
+                || ($this->tenantContext->isBranchScoped()
+                    && (int) $order->branch_id !== (int) $this->tenantContext->activeBranchId())
+            ) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Đơn hàng không thuộc phạm vi chi nhánh của tài khoản.',
+                ];
+            }
 
             if (
                 $promotion->branch_id !== null
@@ -322,12 +341,17 @@ class PromotionApplicationService
      *
      * @return array{valid: bool, message?: string, promotion?: array}
      */
-    public function validateForOrder(int $restaurantId, string $code): array
+    public function validateForOrder(int $restaurantId, string $code, ?int $branchId = null): array
     {
         $promotion = Promotion::where('restaurant_id', $restaurantId)
             ->where('code', strtoupper($code))
             ->where('is_active', true)
             ->where('is_approved', true)
+            ->when($branchId !== null, function ($query) use ($branchId): void {
+                $query->where(function ($scope) use ($branchId): void {
+                    $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                });
+            })
             ->first();
 
         if (! $promotion) {

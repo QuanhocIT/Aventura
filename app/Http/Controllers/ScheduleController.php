@@ -453,6 +453,7 @@ class ScheduleController extends Controller
 
         // Lấy lịch xếp ca tuần này của cá nhân
         $myWeeklySchedules = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('branch_id', $employee->branch_id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->with('shift')
             ->orderBy('scheduled_date')
@@ -564,10 +565,12 @@ class ScheduleController extends Controller
             ]);
 
         $myAssignmentIds = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('branch_id', $employee->branch_id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->pluck('id');
 
         $pendingSwapRequests = ShiftSwap::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->where(function ($q) use ($myAssignmentIds) {
                 $q->whereIn('requester_assignment_id', $myAssignmentIds)
                     ->orWhereIn('receiver_assignment_id', $myAssignmentIds);
@@ -595,6 +598,7 @@ class ScheduleController extends Controller
         $restaurant = Restaurant::find($restaurantId);
 
         $weeklyAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $employee->branch_id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->with(['employee:id,full_name,employee_code', 'shift:id,name,start_time,end_time'])
             ->get()
@@ -756,6 +760,27 @@ class ScheduleController extends Controller
         $nextWeekStart = Carbon::now()->addWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
         $nextWeekEnd = Carbon::now()->addWeek()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
+        $shiftIds = collect($data['registrations'] ?? [])->pluck('shift_id')->filter()->unique()->values();
+        $shiftsById = WorkShift::where('restaurant_id', $employee->restaurant_id)
+            ->whereIn('id', $shiftIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach (($data['registrations'] ?? []) as $index => $registration) {
+            $shift = $shiftsById->get((int) $registration['shift_id']);
+            if (! $shift || ($shift->branch_id !== null && (int) $shift->branch_id !== (int) $employee->branch_id)) {
+                return back()->withErrors([
+                    "registrations.{$index}.shift_id" => 'Ca đăng ký không áp dụng cho chi nhánh của bạn.',
+                ]);
+            }
+
+            if ($registration['date'] < $nextWeekStart || $registration['date'] > $nextWeekEnd) {
+                return back()->withErrors([
+                    "registrations.{$index}.date" => 'Chỉ được đăng ký ca trong tuần kế tiếp.',
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($employee, $data, $nextWeekStart, $nextWeekEnd) {
             // Xóa toàn bộ đăng ký ca rảnh tuần tới của nhân viên trước khi lưu mới
             ScheduleRegistration::where('employee_id', $employee->id)
@@ -790,6 +815,11 @@ class ScheduleController extends Controller
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
+        abort_unless($sa->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($sa->branch_id), 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $sa->branch_id, 403);
+        }
         $sa->update([
             'is_shift_leader' => ! $sa->is_shift_leader,
         ]);
@@ -853,7 +883,17 @@ class ScheduleController extends Controller
             'registration_id' => ['required', TenantRule::exists('schedule_registrations')],
         ]);
 
-        $reg = ScheduleRegistration::with('employee')->findOrFail($data['registration_id']);
+        $reg = ScheduleRegistration::with(['employee', 'shift'])->findOrFail($data['registration_id']);
+        abort_unless($reg->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($reg->employee && $request->user()->canAccessBranch($reg->employee->branch_id), 403);
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $this->tenantContext->activeBranchId() === (int) $reg->employee->branch_id, 403);
+        }
+        abort_unless(
+            $reg->shift && ($reg->shift->branch_id === null || (int) $reg->shift->branch_id === (int) $reg->employee->branch_id),
+            422,
+            'Ca đăng ký không thuộc chi nhánh của nhân viên.'
+        );
 
         // Check if already assigned
         $exists = ScheduleAssignment::where('employee_id', $reg->employee_id)
@@ -890,6 +930,7 @@ class ScheduleController extends Controller
 
         $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
             ->whereDate('scheduled_date', $selectedDate)
+            ->when($this->tenantContext->activeBranchId(), fn ($q, $branchId) => $q->where('branch_id', $branchId))
             ->with(['employee:id,full_name,employee_code,job_title', 'shift'])
             ->get();
 

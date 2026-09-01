@@ -139,6 +139,7 @@ class AttendanceController extends Controller
 
         DB::transaction(function () use (&$sa, &$alreadyCheckedIn, &$exceededMaxLate, &$exceededMaxMinutes, &$isLateAndViolating, &$lateMinutes, $employee, $now, $restaurant, $photoPath) {
             $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('branch_id', $employee->branch_id)
                 ->where('status', 'scheduled')
                 ->lockForUpdate()
                 ->with('shift')
@@ -170,6 +171,7 @@ class AttendanceController extends Controller
 
             if (! $sa) {
                 $alreadyCheckedIn = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('branch_id', $employee->branch_id)
                     ->where('status', 'checked_in')
                     ->where('scheduled_date', now()->toDateString())
                     ->exists();
@@ -327,6 +329,7 @@ class AttendanceController extends Controller
 
         DB::transaction(function () use (&$sa, &$alreadyCheckedOut, &$exceededMaxEarly, &$exceededEarlyMinutes, &$isEarlyAndViolating, &$earlyMinutes, $employee, $now, $restaurant) {
             $sa = ScheduleAssignment::where('employee_id', $employee->id)
+                ->where('branch_id', $employee->branch_id)
                 ->where('status', 'checked_in')
                 ->whereDate('scheduled_date', '<=', today())
                 ->orderByDesc('scheduled_date')
@@ -337,6 +340,7 @@ class AttendanceController extends Controller
             if (! $sa) {
                 // Check if already checked out today
                 $alreadyCheckedOut = ScheduleAssignment::where('employee_id', $employee->id)
+                    ->where('branch_id', $employee->branch_id)
                     ->where('status', 'completed')
                     ->where('scheduled_date', now()->toDateString())
                     ->exists();
@@ -457,6 +461,9 @@ class AttendanceController extends Controller
         DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->with(['shift', 'employee.user'])->findOrFail($data['assignment_id']);
             abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
+            if (app(TenantContext::class)->isBranchScoped()) {
+                abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $sa->branch_id, 403, 'Thao tác chấm công không thuộc chi nhánh đang chọn.');
+            }
             $shift = $sa->shift;
             $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
 
@@ -519,6 +526,9 @@ class AttendanceController extends Controller
         DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
             abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
+            if (app(TenantContext::class)->isBranchScoped()) {
+                abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $sa->branch_id, 403, 'Thao tác chấm công không thuộc chi nhánh đang chọn.');
+            }
 
             $sa->update([
                 'check_out_at' => now(),
@@ -554,6 +564,9 @@ class AttendanceController extends Controller
         DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
             abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
+            if (app(TenantContext::class)->isBranchScoped()) {
+                abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $sa->branch_id, 403, 'Thao tác chấm công không thuộc chi nhánh đang chọn.');
+            }
 
             $sa->update([
                 'status' => 'absent',
@@ -614,6 +627,7 @@ class AttendanceController extends Controller
         // Tìm ca trực hôm nay của nhân viên
         $todayStr = today()->toDateString();
         $assignment = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('branch_id', $employee->branch_id)
             ->whereIn('status', ['scheduled', 'pending_checkin'])
             ->whereDate('scheduled_date', $todayStr)
             ->with('shift')
@@ -666,6 +680,7 @@ class AttendanceController extends Controller
         }
 
         $assignment = ScheduleAssignment::where('employee_id', $employee->id)
+            ->where('branch_id', $employee->branch_id)
             ->whereIn('status', ['checked_in', 'pending_checkout'])
             ->with('shift')
             ->first();

@@ -59,6 +59,9 @@ class BestSellerController extends Controller
                 'limit' => $filters['options']['limit'],
             ],
             'categories' => ProductCategory::where('restaurant_id', $restaurantId)
+                ->when($branchId !== null, fn ($query) => $query->where(function ($scope) use ($branchId) {
+                    $scope->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }))
                 ->orderBy('name')
                 ->get(['id', 'name'])
                 ->map(fn (ProductCategory $category): array => [
@@ -206,6 +209,9 @@ class BestSellerController extends Controller
         if ($categoryId !== null) {
             $exists = ProductCategory::where('restaurant_id', $request->user()->restaurant_id)
                 ->whereKey($categoryId)
+                ->when($this->tenantContext->activeBranchId() !== null, fn ($query) => $query->where(function ($scope) {
+                    $scope->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId());
+                }))
                 ->exists();
 
             if (! $exists) {

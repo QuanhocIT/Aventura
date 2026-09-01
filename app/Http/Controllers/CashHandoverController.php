@@ -7,6 +7,7 @@ use App\Models\ShiftClosing;
 use App\Models\User;
 use App\Notifications\CashHandoverDisputedNotification;
 use App\Notifications\CashHandoverPendingNotification;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,7 @@ class CashHandoverController extends Controller
         if (! empty($data['shift_closing_id'])) {
             $closing = ShiftClosing::where('restaurant_id', $restaurantId)->find($data['shift_closing_id']);
             abort_unless($closing, 404);
+            $this->assertClosingScope($user, $closing);
             abort_if(
                 (int) $closing->cashier_user_id !== (int) $user->id && ! $user->hasAnyRole(['owner', 'manager']),
                 403,
@@ -54,10 +56,20 @@ class CashHandoverController extends Controller
             );
         }
 
-        $handover = DB::transaction(function () use ($data, $user, $recipient, $closing, $restaurantId, $request) {
+        $branchId = $closing?->branch_id
+            ?? app(TenantContext::class)->activeBranchId()
+            ?? $user->assignedBranchId();
+        if ($branchId !== null) {
+            abort_unless($user->canAccessBranch((int) $branchId), 403);
+            if (! $recipient->canViewAllBranches()) {
+                abort_unless($recipient->canAccessBranch((int) $branchId), 422, 'NgÆ°á»i nháº­n khÃ´ng thuá»™c chi nhÃ¡nh nÃ y.');
+            }
+        }
+
+        $handover = DB::transaction(function () use ($data, $user, $recipient, $closing, $restaurantId, $request, $branchId) {
             $handover = CashHandover::create([
                 'restaurant_id' => $restaurantId,
-                'branch_id' => $closing?->branch_id ?? $user->assignedBranchId(),
+                'branch_id' => $branchId,
                 'shift_closing_id' => $closing?->id,
                 'from_user_id' => $user->id,
                 'to_user_id' => $recipient->id,
@@ -85,7 +97,7 @@ class CashHandoverController extends Controller
     public function acknowledge(Request $request, CashHandover $handover): RedirectResponse
     {
         $user = $request->user();
-        abort_if($handover->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertHandoverScope($user, $handover);
         abort_if((int) $handover->to_user_id !== (int) $user->id, 403, 'Chỉ người nhận mới ký xác nhận được.');
         abort_unless($handover->status === CashHandover::STATUS_PENDING, 422);
 
@@ -108,7 +120,7 @@ class CashHandoverController extends Controller
     public function dispute(Request $request, CashHandover $handover): RedirectResponse
     {
         $user = $request->user();
-        abort_if($handover->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertHandoverScope($user, $handover);
         abort_if((int) $handover->to_user_id !== (int) $user->id, 403);
         abort_unless($handover->status === CashHandover::STATUS_PENDING, 422);
 
@@ -147,5 +159,27 @@ class CashHandoverController extends Controller
         Storage::disk('public')->put($path, $binary);
 
         return $path;
+    }
+
+    private function assertClosingScope(User $user, ShiftClosing $closing): void
+    {
+        abort_if((int) $closing->restaurant_id !== (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($closing->branch_id), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $context->activeBranchId() === (int) $closing->branch_id, 403);
+        }
+    }
+
+    private function assertHandoverScope(User $user, CashHandover $handover): void
+    {
+        abort_if((int) $handover->restaurant_id !== (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($handover->branch_id), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $context->activeBranchId() === (int) $handover->branch_id, 403);
+        }
     }
 }

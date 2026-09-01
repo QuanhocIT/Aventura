@@ -45,8 +45,21 @@ class ShiftSwapController extends Controller
         if ($reqAssignment->restaurant_id !== $employee->restaurant_id || $recAssignment->restaurant_id !== $employee->restaurant_id) {
             return back()->withErrors(['error' => 'Ca trực không hợp lệ.']);
         }
-        if ($reqAssignment->branch_id !== $employee->branch_id || $recAssignment->branch_id !== $employee->branch_id) {
+        if ((int) $reqAssignment->branch_id !== (int) $employee->branch_id || (int) $recAssignment->branch_id !== (int) $employee->branch_id) {
             return back()->withErrors(['error' => 'Không thể đổi ca giữa các chi nhánh khác nhau.']);
+        }
+
+        if ($reqAssignment->employee_id === $recAssignment->employee_id) {
+            return back()->withErrors(['error' => 'NgÆ°á»i nháº­n Ä‘á»•i ca pháº£i lÃ  Ä‘á»“ng nghiá»‡p khÃ¡c.']);
+        }
+
+        if ($reqAssignment->status !== 'scheduled' || $recAssignment->status !== 'scheduled') {
+            return back()->withErrors(['error' => 'Chá»‰ Ä‘Æ°á»£c Ä‘á»•i cÃ¡c ca chÆ°a cháº¥m cÃ´ng.']);
+        }
+
+        $currentWeekStart = Carbon::now()->startOfWeek()->toDateString();
+        if (Carbon::parse($reqAssignment->scheduled_date)->lt($currentWeekStart) || Carbon::parse($recAssignment->scheduled_date)->lt($currentWeekStart)) {
+            return back()->withErrors(['error' => 'KhÃ´ng thá»ƒ Ä‘á»•i ca thuá»™c tuáº§n Ä‘Ã£ káº¿t thÃºc.']);
         }
 
         // Check duplicate swap request
@@ -105,11 +118,15 @@ class ShiftSwapController extends Controller
             return back()->withErrors(['error' => 'Bạn không phải là nhân viên hợp lệ.']);
         }
 
-        abort_if($swap->restaurant_id !== $employee->restaurant_id, 403);
+        abort_if((int) $swap->restaurant_id !== (int) $employee->restaurant_id, 403);
+        abort_if((int) $swap->branch_id !== (int) $employee->branch_id, 403, 'Yêu cầu đổi ca không thuộc chi nhánh của bạn.');
 
         try {
             DB::transaction(function () use ($swap, $employee) {
                 $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+                if ((int) $lockedSwap->restaurant_id !== (int) $employee->restaurant_id || (int) $lockedSwap->branch_id !== (int) $employee->branch_id) {
+                    throw new \Exception('YÃªu cáº§u Ä‘á»•i ca khÃ´ng thuá»™c chi nhÃ¡nh cá»§a báº¡n.');
+                }
 
                 if ($lockedSwap->status !== 'pending') {
                     throw new \Exception('Yêu cầu đổi ca này đã được xử lý trước đó.');
@@ -117,7 +134,14 @@ class ShiftSwapController extends Controller
 
                 // Verify that the current employee is the receiver of the swap
                 $recAssignment = $lockedSwap->receiverAssignment;
-                if (! $recAssignment || $recAssignment->employee_id !== $employee->id) {
+                $reqAssignment = $lockedSwap->requesterAssignment;
+                if (
+                    ! $recAssignment
+                    || ! $reqAssignment
+                    || $recAssignment->employee_id !== $employee->id
+                    || (int) $reqAssignment->branch_id !== (int) $employee->branch_id
+                    || (int) $recAssignment->branch_id !== (int) $employee->branch_id
+                ) {
                     throw new \Exception('Bạn không phải là người nhận của yêu cầu đổi ca này.');
                 }
 
@@ -140,8 +164,15 @@ class ShiftSwapController extends Controller
         }
 
         $managers = User::where('restaurant_id', $swap->restaurant_id)
-            ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['owner', 'manager']);
+            ->where(function ($q) use ($swap) {
+                $q->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'owner'))
+                    ->orWhere(function ($managerQuery) use ($swap) {
+                        $managerQuery->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'manager'))
+                            ->where(function ($branchQuery) use ($swap) {
+                                $branchQuery->where('branch_id', $swap->branch_id)
+                                    ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $swap->branch_id));
+                            });
+                    });
             })
             ->get();
         foreach ($managers as $manager) {
@@ -165,7 +196,8 @@ class ShiftSwapController extends Controller
             return back()->withErrors(['error' => 'Bạn không phải là nhân viên hợp lệ.']);
         }
 
-        abort_if($swap->restaurant_id !== $employee->restaurant_id, 403);
+        abort_if((int) $swap->restaurant_id !== (int) $employee->restaurant_id, 403);
+        abort_if((int) $swap->branch_id !== (int) $employee->branch_id, 403, 'Yêu cầu đổi ca không thuộc chi nhánh của bạn.');
 
         $reqAssignment = $swap->requesterAssignment;
         $recAssignment = $swap->receiverAssignment;
@@ -181,6 +213,10 @@ class ShiftSwapController extends Controller
         try {
             DB::transaction(function () use ($swap, $employee) {
                 $lockedSwap = ShiftSwap::where('id', $swap->id)->lockForUpdate()->firstOrFail();
+
+                if ((int) $lockedSwap->restaurant_id !== (int) $employee->restaurant_id || (int) $lockedSwap->branch_id !== (int) $employee->branch_id) {
+                    throw new \Exception('YÃªu cáº§u Ä‘á»•i ca khÃ´ng thuá»™c chi nhÃ¡nh cá»§a báº¡n.');
+                }
 
                 if (! in_array($lockedSwap->status, ['pending', 'accepted'])) {
                     throw new \Exception('Không thể hủy yêu cầu đổi ca ở trạng thái hiện tại.');
@@ -223,7 +259,11 @@ class ShiftSwapController extends Controller
         }
 
         $assignmentId = $request->query('assignment_id');
-        $myAssignment = ScheduleAssignment::with('shift')->where('employee_id', $employee->id)->findOrFail($assignmentId);
+        $myAssignment = ScheduleAssignment::with('shift')
+            ->where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
+            ->where('employee_id', $employee->id)
+            ->findOrFail($assignmentId);
         $myShift = $myAssignment->shift;
 
         $startOfWeek = Carbon::parse($myAssignment->scheduled_date)->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -231,6 +271,7 @@ class ShiftSwapController extends Controller
 
         // 1. Lấy tất cả ca trực của đồng nghiệp trong cùng tuần
         $candidates = ScheduleAssignment::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('employee_id', '!=', $employee->id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->with(['employee:id,full_name,role_id,job_title', 'shift'])
@@ -243,11 +284,13 @@ class ShiftSwapController extends Controller
 
         // 3. Lấy đăng ký ca rảnh của đồng nghiệp trong tuần này
         $colleagueRegistrations = ScheduleRegistration::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
             ->get();
 
         // 4. Lấy tất cả phép nghỉ của đồng nghiệp và bản thân
         $leaves = LeaveRequest::where('restaurant_id', $employee->restaurant_id)
+            ->where('branch_id', $employee->branch_id)
             ->where('status', 'approved')
             ->where(function ($q) use ($startOfWeek, $endOfWeek) {
                 $q->whereBetween('start_date', [$startOfWeek, $endOfWeek])

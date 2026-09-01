@@ -9,6 +9,7 @@ use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Services\ApprovalAuthorityService;
 use App\Services\ApprovalService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -36,12 +37,15 @@ class ApprovalController extends Controller
         $this->approvalService->autoEscalateOverdue((int) $restaurantId);
         $statusFilter = $request->input('status', 'open');
         $seesAllBranches = $user->isOwner() || $user->isSuperAdmin();
+        $activeBranchId = app(TenantContext::class)->activeBranchId();
 
         $query = ApprovalRequest::forRestaurant($restaurantId)
             ->with(['requester:id,name', 'reviewer:id,name', 'branch:id,name'])
             ->latest();
 
-        if (! $seesAllBranches) {
+        if ($activeBranchId !== null) {
+            $query->where('branch_id', $activeBranchId);
+        } elseif (! $seesAllBranches) {
             $query->forBranches($this->authorityService->managedBranchIds($user));
         }
 
@@ -79,7 +83,8 @@ class ApprovalController extends Controller
         });
 
         $statsQuery = fn () => ApprovalRequest::forRestaurant($restaurantId)
-            ->when(! $seesAllBranches, fn ($q) => $q->forBranches($this->authorityService->managedBranchIds($user)));
+            ->when($activeBranchId !== null, fn ($q) => $q->where('branch_id', $activeBranchId))
+            ->when($activeBranchId === null && ! $seesAllBranches, fn ($q) => $q->forBranches($this->authorityService->managedBranchIds($user)));
 
         return Inertia::render('approvals/Index', [
             'approvals' => $approvals,
@@ -98,7 +103,7 @@ class ApprovalController extends Controller
     {
         $user = $request->user();
         abort_unless($this->canReview($user), 403);
-        abort_if($approval->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertApprovalScope($user, $approval);
 
         try {
             $this->approvalService->approve($approval, $user);
@@ -116,7 +121,7 @@ class ApprovalController extends Controller
     {
         $user = $request->user();
         abort_unless($this->canReview($user), 403);
-        abort_if($approval->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertApprovalScope($user, $approval);
 
         $data = $request->validate([
             'rejection_reason' => ['required', 'string', 'min:5', 'max:500'],
@@ -215,9 +220,12 @@ class ApprovalController extends Controller
 
         $restaurantId = $user->restaurant_id;
         $seesAllBranches = $user->isOwner() || $user->isSuperAdmin();
+        $activeBranchId = app(TenantContext::class)->activeBranchId();
 
         $query = ApprovalRequest::forRestaurant($restaurantId)->open();
-        if (! $seesAllBranches) {
+        if ($activeBranchId !== null) {
+            $query->where('branch_id', $activeBranchId);
+        } elseif (! $seesAllBranches) {
             $query->forBranches($this->authorityService->managedBranchIds($user));
         }
 
@@ -293,5 +301,16 @@ class ApprovalController extends Controller
             || $user->isSuperAdmin()
             || $user->isBranchManager()
             || $user->can('approve_requests');
+    }
+
+    private function assertApprovalScope(User $user, ApprovalRequest $approval): void
+    {
+        abort_if((int) $approval->restaurant_id !== (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($approval->branch_id), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $approval->branch_id === (int) $context->activeBranchId(), 403, 'Yêu cầu không thuộc chi nhánh đang thao tác.');
+        }
     }
 }

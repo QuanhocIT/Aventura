@@ -47,7 +47,7 @@ class OvertimeController extends Controller
 
         $requests = OvertimeRequest::where('restaurant_id', $user->restaurant_id)
             ->when(! $canManage, fn ($q) => $q->where('employee_id', $employee?->id ?: 0))
-            ->when($canManage && ! $user->canViewAllBranches() && $branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($canManage && $branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['employee:id,full_name,employee_code,branch_id', 'requester:id,name'])
             ->latest('scheduled_date')
             ->latest('id')
@@ -59,7 +59,7 @@ class OvertimeController extends Controller
         $employees = $canManage
             ? Employee::where('restaurant_id', $user->restaurant_id)
                 ->where('status', 'active')
-                ->when(! $user->canViewAllBranches() && $branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->orderBy('full_name')
                 ->get(['id', 'full_name', 'employee_code', 'branch_id', 'compensation_type', 'pay_rate', 'base_salary'])
             : collect();
@@ -233,6 +233,7 @@ class OvertimeController extends Controller
         return response()->json([
             'success' => true,
             'requests' => OvertimeRequest::where('employee_id', $employee->id)
+                ->where('branch_id', $employee->branch_id)
                 ->with('requester:id,name')
                 ->latest('scheduled_date')
                 ->get()
@@ -254,7 +255,12 @@ class OvertimeController extends Controller
     public function portalRespond(Request $request, OvertimeRequest $overtimeRequest): JsonResponse
     {
         $employee = $request->user()->employee;
-        abort_unless($employee && $overtimeRequest->employee_id === $employee->id, 403);
+        abort_unless(
+            $employee
+            && $overtimeRequest->employee_id === $employee->id
+            && (int) $overtimeRequest->branch_id === (int) $employee->branch_id,
+            403,
+        );
         abort_unless($overtimeRequest->request_source === 'management' && $overtimeRequest->status === 'pending', 422);
         $action = $request->validate(['action' => ['required', 'in:accept,decline']])['action'];
 
@@ -625,7 +631,17 @@ class OvertimeController extends Controller
             }
         } else {
             User::where('restaurant_id', $employee->restaurant_id)
-                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['owner', 'manager', 'warehouse_manager']))
+                ->where(function ($query) use ($employee) {
+                    $query->whereHas('roles', fn ($roleQuery) => $roleQuery->whereIn('name', ['owner', 'warehouse_manager']))
+                        ->orWhere(function ($managerQuery) use ($employee) {
+                            $managerQuery->whereHas('roles', fn ($roleQuery) => $roleQuery->where('name', 'manager'))
+                                ->where(function ($branchQuery) use ($employee) {
+                                    $branchQuery->where('branch_id', $employee->branch_id)
+                                        ->orWhere('warehouse_branch_id', $employee->branch_id)
+                                        ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $employee->branch_id));
+                                });
+                        });
+                })
                 ->get()
                 ->each(fn (User $manager) => $manager->notify(new OvertimeRequestNotification(
                     $overtime,
@@ -757,7 +773,7 @@ class OvertimeController extends Controller
     {
         return OvertimeRequest::withoutGlobalScopes()
             ->where('restaurant_id', $user->restaurant_id)
-            ->when($branchId && ! $user->canViewAllBranches(), fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('scheduled_date', [today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString()])
             ->with('employee:id,full_name,employee_code,branch_id')
             ->latest('scheduled_date');
@@ -803,6 +819,10 @@ class OvertimeController extends Controller
             ->findOrFail($employeeId);
         abort_unless($user->canAccessBranch($employee->branch_id), 403, 'Bạn không có quyền thao tác nhân viên ở chi nhánh này.');
 
+        if (app(TenantContext::class)->isBranchScoped()) {
+            abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $employee->branch_id, 403, 'Employee is outside the active branch.');
+        }
+
         return $employee;
     }
 
@@ -811,11 +831,20 @@ class OvertimeController extends Controller
         abort_unless($this->canManage($user), 403);
         abort_if($overtime->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($overtime->branch_id), 403);
+        if (app(TenantContext::class)->isBranchScoped()) {
+            abort_unless((int) app(TenantContext::class)->activeBranchId() === (int) $overtime->branch_id, 403, 'Overtime request is outside the active branch.');
+        }
     }
 
     private function assertEmployeeOwns(Request $request, OvertimeRequest $overtime): void
     {
-        abort_unless($request->user()->employee?->id === $overtime->employee_id, 403);
+        $employee = $request->user()->employee;
+        abort_unless(
+            $employee
+            && $employee->id === $overtime->employee_id
+            && (int) $overtime->branch_id === (int) $employee->branch_id,
+            403,
+        );
     }
 
     private function notifyEmployee(OvertimeRequest $overtime, string $action, string $message): void

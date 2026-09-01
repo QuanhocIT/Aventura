@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Delivery;
 use App\Http\Controllers\Controller;
 use App\Models\Delivery\Shipper;
 use App\Models\Employee;
+use App\Models\User;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -17,9 +19,11 @@ class ShipperController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $shippers = Shipper::with(['employee'])
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId)))
             ->withTrashed()
             ->orderByDesc('is_active')
             ->get()
@@ -36,6 +40,7 @@ class ShipperController extends Controller
             ]);
 
         $employees = Employee::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereDoesntHave('shipper')
             ->orderBy('full_name')
             ->get(['id', 'full_name']);
@@ -51,6 +56,7 @@ class ShipperController extends Controller
         $this->authorizeManager($request);
 
         $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->branchIdFor($request->user());
 
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', "exists:employees,id,restaurant_id,{$restaurantId}"],
@@ -66,6 +72,8 @@ class ShipperController extends Controller
             ->first();
 
         abort_unless($employee, 422, 'Chỉ có thể đăng ký nhân viên đang hoạt động làm shipper.');
+
+        abort_unless($branchId === null || (int) $employee->branch_id === $branchId, 403, 'NhÃ¢n viÃªn khÃ´ng thuá»™c chi nhÃ¡nh Ä‘ang thao tÃ¡c.');
 
         $shipper = Shipper::create([
             'employee_id' => $validated['employee_id'],
@@ -83,7 +91,7 @@ class ShipperController extends Controller
     {
         $this->authorizeManager($request);
 
-        abort_if($shipper->restaurant_id !== $request->user()->restaurant_id, 403);
+        $this->assertShipperScope($request->user(), $shipper);
 
         $validated = $request->validate([
             'vehicle_type' => ['sometimes', 'in:bike,motorbike,car'],
@@ -110,7 +118,7 @@ class ShipperController extends Controller
     {
         $this->authorizeManager($request);
 
-        abort_if($shipper->restaurant_id !== $request->user()->restaurant_id, 403);
+        $this->assertShipperScope($request->user(), $shipper);
 
         $hasOpenBatch = $shipper->batches()
             ->whereIn('status', ['pending', 'dispatched', 'in_progress'])
@@ -135,5 +143,38 @@ class ShipperController extends Controller
             403,
             'Bạn không có quyền quản lý đội ngũ shipper.'
         );
+    }
+
+    private function branchIdFor(User $user): ?int
+    {
+        $context = app(TenantContext::class);
+
+        if ($context->isUnassigned()) {
+            abort(403, 'TÃ i khoáº£n chÆ°a Ä‘Æ°á»£c gÃ¡n chi nhÃ¡nh.');
+        }
+
+        if ($context->isBranchScoped()) {
+            abort_unless($user->canAccessBranch($context->activeBranchId()), 403);
+
+            return (int) $context->activeBranchId();
+        }
+
+        if (! $user->canViewAllBranches()) {
+            $branchId = $user->assignedBranchId();
+            abort_unless($branchId !== null, 403, 'TÃ i khoáº£n chÆ°a Ä‘Æ°á»£c gÃ¡n chi nhÃ¡nh.');
+
+            return (int) $branchId;
+        }
+
+        return null;
+    }
+
+    private function assertShipperScope(User $user, Shipper $shipper): void
+    {
+        abort_if((int) $shipper->restaurant_id !== (int) $user->restaurant_id, 403);
+        $shipper->loadMissing('employee');
+
+        $branchId = $this->branchIdFor($user);
+        abort_unless($branchId === null || (int) $shipper->employee?->branch_id === $branchId, 403);
     }
 }

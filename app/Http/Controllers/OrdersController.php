@@ -424,6 +424,7 @@ class OrdersController extends Controller
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('manage_kitchen') || $user->can('create_orders'), 403);
@@ -492,6 +493,7 @@ class OrdersController extends Controller
             || $user->can('process_payments')
             || $hasApprovalAuthority, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
 
         // [SECURITY P1] Hủy món đã bắt đầu chế biến: chỉ Owner được hủy trực tiếp.
         // Manager phải gửi approval request — tránh tiêu hao nguyên liệu mà không có dấu vết kiểm toán.
@@ -569,6 +571,7 @@ class OrdersController extends Controller
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('split_orders'), 403);
@@ -594,6 +597,7 @@ class OrdersController extends Controller
         abort_unless($user->can('override_split_penalty'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
         abort_unless((bool) $order->is_split, 422);
 
         $this->orderService->overrideSplitPenalty($order, $user);
@@ -608,6 +612,7 @@ class OrdersController extends Controller
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
 
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('create_orders'), 403);
@@ -751,6 +756,7 @@ class OrdersController extends Controller
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
         abort_if($order->status !== 'pending', 422, 'Đơn hàng này đã được xác nhận trước đó.');
 
         $user = $request->user();
@@ -782,6 +788,7 @@ class OrdersController extends Controller
         abort_unless($user->can('process_payments'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
         abort_if($order->payment_status === 'paid', 422, 'Đơn hàng này đã được thanh toán rồi.');
 
         $data = $request->validate([
@@ -1025,6 +1032,7 @@ class OrdersController extends Controller
         abort_unless($user->can('process_payments') || $user->can('approve_requests'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
+        $this->assertActiveOrderBranch($order);
         abort_unless(in_array($order->payment_status, ['paid', 'partial_refund'], true), 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
 
         $data = $request->validate([
@@ -1144,7 +1152,14 @@ class OrdersController extends Controller
 
             try {
                 DB::transaction(function () use ($tempOrder, $user) {
-                    $lockedTempOrder = TemporaryOrder::where('id', $tempOrder->id)->lockForUpdate()->firstOrFail();
+                    $lockedTempOrder = TemporaryOrder::where('restaurant_id', $user->restaurant_id)
+                        ->where('id', $tempOrder->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                    abort_unless($user->canAccessBranch($lockedTempOrder->branch_id), 403);
+                    if (app(TenantContext::class)->isBranchScoped()) {
+                        abort_unless((int) $lockedTempOrder->branch_id === (int) app(TenantContext::class)->activeBranchId(), 403, 'Đơn QR không thuộc chi nhánh đang thao tác.');
+                    }
 
                     if (! in_array($lockedTempOrder->status, ['waiting_verification', 'pending', 'escalated'], true)
                         || $lockedTempOrder->awaiting_customer_confirmation) {
@@ -1276,5 +1291,16 @@ class OrdersController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function assertActiveOrderBranch(Order $order): void
+    {
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless(
+                (int) $order->branch_id === (int) $this->tenantContext->activeBranchId(),
+                403,
+                'Đơn hàng không thuộc chi nhánh đang thao tác.',
+            );
+        }
     }
 }

@@ -102,6 +102,7 @@ class PromotionTriggerService
         return CustomerCoupon::create([
             'restaurant_id' => $trigger->restaurant_id,
             'customer_id' => $customer->id,
+            'branch_id' => $customer->branch_id,
             'promotion_id' => $trigger->promotion_id,
             'trigger_id' => $trigger->id,
             'code' => $code,

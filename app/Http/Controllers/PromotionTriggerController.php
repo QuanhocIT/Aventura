@@ -8,11 +8,14 @@ use App\Models\CustomerCoupon;
 use App\Models\PromotionTrigger;
 use App\Services\PromotionTriggerService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PromotionTriggerController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -41,7 +44,9 @@ class PromotionTriggerController extends Controller
 
         $triggers = PromotionTrigger::where('restaurant_id', $user->restaurant_id)
             ->with('creator:id,name')
-            ->withCount('customerCoupons')
+            ->withCount([
+                'customerCoupons' => fn ($query) => $this->tenantContext->applyBranchScope($query),
+            ])
             ->latest()
             ->get()
             ->map(fn (PromotionTrigger $t) => [
@@ -64,6 +69,7 @@ class PromotionTriggerController extends Controller
         $triggerCoupons = CustomerCoupon::withoutGlobalScopes()
             ->where('restaurant_id', $user->restaurant_id)
             ->whereNotNull('trigger_id');
+        $this->tenantContext->applyBranchScope($triggerCoupons);
 
         $totalCoupons = (clone $triggerCoupons)->count();
         $usedCoupons = (clone $triggerCoupons)->where('status', 'used')->count();
@@ -72,6 +78,8 @@ class PromotionTriggerController extends Controller
         $recentCoupons = CustomerCoupon::withoutGlobalScopes()
             ->where('restaurant_id', $user->restaurant_id)
             ->whereNotNull('trigger_id')
+            ->when($this->tenantContext->isBranchScoped(), fn ($query) => $query->where('branch_id', $this->tenantContext->activeBranchId()))
+            ->when($this->tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['customer:id,full_name,phone', 'trigger:id,name,event_type'])
             ->latest('id')
             ->limit(50)
@@ -90,7 +98,9 @@ class PromotionTriggerController extends Controller
                 'created_at' => $c->created_at?->format('d/m/Y H:i'),
             ]);
 
-        $customers = Customer::where('restaurant_id', $user->restaurant_id)
+        $customersQuery = Customer::where('restaurant_id', $user->restaurant_id);
+        $this->tenantContext->applyBranchScope($customersQuery);
+        $customers = $customersQuery
             ->orderBy('full_name')
             ->limit(100)
             ->get(['id', 'full_name', 'phone'])
@@ -200,7 +210,9 @@ class PromotionTriggerController extends Controller
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
         ]);
 
-        $customer = Customer::where('restaurant_id', $user->restaurant_id)->findOrFail($data['customer_id']);
+        $customerQuery = Customer::where('restaurant_id', $user->restaurant_id);
+        $this->tenantContext->applyBranchScope($customerQuery);
+        $customer = $customerQuery->findOrFail($data['customer_id']);
 
         $coupon = app(PromotionTriggerService::class)->fireTrigger($trigger, $customer);
 
@@ -272,4 +284,3 @@ class PromotionTriggerController extends Controller
         }
     }
 }
-

@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\TemporaryOrder;
 use App\Services\LoyaltyService;
 use App\Services\OrderService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,9 +26,13 @@ class StaffQROrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->authorizeQrOperator($user);
         $restaurantId = $user->restaurant_id;
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
 
         $tempOrders = TemporaryOrder::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->whereIn('status', ['waiting_verification', 'escalated'])
             ->where('awaiting_customer_confirmation', false)
             ->with(['table.area'])
@@ -47,6 +52,9 @@ class StaffQROrderController extends Controller
                 'minutes_elapsed' => $to->created_at->diffInMinutes(now()),
                 'created_at' => $to->created_at->format('H:i'),
             ]);
+        if ($tenantContext->isUnassigned()) {
+            $tempOrders = collect();
+        }
 
         return response()->json([
             'success' => true,
@@ -60,13 +68,18 @@ class StaffQROrderController extends Controller
     public function confirm(Request $request, TemporaryOrder $temporaryOrder): JsonResponse
     {
         $user = $request->user();
-        abort_if($temporaryOrder->restaurant_id !== $user->restaurant_id, 403);
+        $this->authorizeQrOperator($user);
+        $this->authorizeTemporaryOrder($user, $temporaryOrder);
         abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
         abort_unless(! $temporaryOrder->awaiting_customer_confirmation, 422, 'Đơn hàng đang chờ khách xác nhận thay đổi.');
 
         $order = DB::transaction(function () use ($temporaryOrder, $user) {
             // Lock temporaryOrder to prevent double confirm
-            $temporaryOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
+            $temporaryOrder = TemporaryOrder::where('restaurant_id', $user->restaurant_id)
+                ->where('id', $temporaryOrder->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->authorizeTemporaryOrder($user, $temporaryOrder);
 
             if (! in_array($temporaryOrder->status, ['waiting_verification', 'escalated'])) {
                 throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
@@ -196,7 +209,8 @@ class StaffQROrderController extends Controller
     public function requestRevision(Request $request, TemporaryOrder $temporaryOrder): JsonResponse
     {
         $user = $request->user();
-        abort_if($temporaryOrder->restaurant_id !== $user->restaurant_id, 403);
+        $this->authorizeQrOperator($user);
+        $this->authorizeTemporaryOrder($user, $temporaryOrder);
 
         $data = $request->validate([
             'message' => ['required', 'string', 'max:500'],
@@ -208,9 +222,11 @@ class StaffQROrderController extends Controller
 
         try {
             $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder, $user, $data) {
-                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)
+                $lockedOrder = TemporaryOrder::where('restaurant_id', $user->restaurant_id)
+                    ->where('id', $temporaryOrder->id)
                     ->lockForUpdate()
                     ->firstOrFail();
+                $this->authorizeTemporaryOrder($user, $lockedOrder);
 
                 if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'], true)
                     || $lockedOrder->awaiting_customer_confirmation) {
@@ -308,7 +324,8 @@ class StaffQROrderController extends Controller
     public function cancel(Request $request, TemporaryOrder $temporaryOrder): JsonResponse
     {
         $user = $request->user();
-        abort_if($temporaryOrder->restaurant_id !== $user->restaurant_id, 403);
+        $this->authorizeQrOperator($user);
+        $this->authorizeTemporaryOrder($user, $temporaryOrder);
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
@@ -317,7 +334,11 @@ class StaffQROrderController extends Controller
         try {
             $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder, $user, $data) {
                 // Lock the temporary order row
-                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
+                $lockedOrder = TemporaryOrder::where('restaurant_id', $user->restaurant_id)
+                    ->where('id', $temporaryOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $this->authorizeTemporaryOrder($user, $lockedOrder);
 
                 if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'])) {
                     throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
@@ -367,10 +388,12 @@ class StaffQROrderController extends Controller
     public function rejectedLogs(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->can('create_orders') || $user->can('manage_orders'), 403);
+        $this->authorizeQrOperator($user);
         $restaurantId = $user->restaurant_id;
 
+        $tenantContext = app(TenantContext::class);
         $logs = TemporaryOrder::where('restaurant_id', $restaurantId)
+            ->when($tenantContext->activeBranchId() !== null, fn ($query) => $query->where('branch_id', $tenantContext->activeBranchId()))
             ->where('status', 'cancelled')
             ->whereDate('updated_at', today())
             ->with(['table.area', 'cancelledBy'])
@@ -386,10 +409,34 @@ class StaffQROrderController extends Controller
                 'cancellation_reason' => $to->cancellation_reason,
                 'cancelled_at' => $to->updated_at->format('H:i d/m/Y'),
             ]);
+        if ($tenantContext->isUnassigned()) {
+            $logs = collect();
+        }
 
         return response()->json([
             'success' => true,
             'rejected_logs' => $logs,
         ]);
+    }
+
+    private function authorizeTemporaryOrder($user, TemporaryOrder $temporaryOrder): void
+    {
+        abort_if((int) $temporaryOrder->restaurant_id !== (int) $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($temporaryOrder->branch_id), 403);
+
+        $context = app(TenantContext::class);
+        if ($context->isBranchScoped()) {
+            abort_unless((int) $temporaryOrder->branch_id === (int) $context->activeBranchId(), 403, 'Đơn QR không thuộc chi nhánh đang thao tác.');
+        }
+    }
+
+    private function authorizeQrOperator($user): void
+    {
+        abort_unless(
+            $user->can('manage_orders')
+                || $user->can('create_orders')
+                || $user->hasAnyRole(['cashier', 'manager', 'owner', 'staff', 'waiter', 'order', 'super_admin']),
+            403,
+        );
     }
 }
