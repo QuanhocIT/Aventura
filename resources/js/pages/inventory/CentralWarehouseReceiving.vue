@@ -819,7 +819,14 @@ const handleGrnFiles = (event: Event) => {
     const files = (event.target as HTMLInputElement).files;
 
     if (files) {
-        grnFiles.value = [...grnFiles.value, ...Array.from(files)];
+        const incoming = Array.from(files);
+        const existingKeys = new Set(
+            grnFiles.value.map((f) => `${f.name}-${f.size}-${f.lastModified}`),
+        );
+        const uniqueFiles = incoming.filter(
+            (f) => !existingKeys.has(`${f.name}-${f.size}-${f.lastModified}`),
+        );
+        grnFiles.value = [...grnFiles.value, ...uniqueFiles];
     }
 };
 const removeGrnFile = (index: number) => {

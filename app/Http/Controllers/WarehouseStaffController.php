@@ -16,11 +16,14 @@ use App\Models\SupplyRequestReceivingReport;
 use App\Models\User;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseReceivingDocument;
+use App\Models\WarehouseReceivingReport;
 use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseTaskAssignment;
 use App\Notifications\ExternalReceiptVerifiedNotification;
+use App\Notifications\ExternalReceiptVerificationAssignedNotification;
+use App\Notifications\WarehouseReceivingReportNotification;
 use App\Notifications\WarehouseShiftHandoverPendingNotification;
 use App\Notifications\WarehouseTaskAssignedNotification;
 use App\Services\CentralWarehouseService;
@@ -106,6 +109,9 @@ class WarehouseStaffController extends Controller
             ->limit(30)
             ->get();
 
+        $taskSummary['total'] += $assignedVerificationVouchers->count();
+        $taskSummary['pending'] += $assignedVerificationVouchers->count();
+
         // Bàn giao ca gần đây của tôi
         $myHandovers = WarehouseShiftHandover::where('restaurant_id', $restaurantId)
             ->where(fn ($q) => $q->where('handover_by', $userId)->orWhere('received_by', $userId))
@@ -133,6 +139,8 @@ class WarehouseStaffController extends Controller
             ->orderByDesc('id')
             ->limit(20)
             ->get();
+
+        $warehouseReceivingReports = $this->warehouseReceivingReportsForUser($user, $centralBranch?->id);
 
         // Vị trí kho
         $locations = $this->centralLocationQuery($restaurantId, $centralBranch?->id)
@@ -180,6 +188,7 @@ class WarehouseStaffController extends Controller
             'myHandovers' => $myHandovers,
             'myDisputes' => $myDisputes,
             'myReceivingReports' => $myReceivingReports,
+            'warehouseReceivingReports' => $warehouseReceivingReports,
             'locations' => $locations,
             'ingredients' => $ingredients,
             'warehouseStaff' => $this->staffAccess
@@ -274,12 +283,15 @@ class WarehouseStaffController extends Controller
             ->limit(20)
             ->get();
 
+        $warehouseReceivingReports = $this->warehouseReceivingReportsForUser($user, $centralBranch?->id);
+
         return response()->json([
             'tasks' => $tasks,
             'summary' => [
-                'total' => $tasks->count(),
+                'total' => $tasks->count() + $assignedVerificationVouchers->count(),
                 'in_progress' => $tasks->where('status', 'in_progress')->count(),
-                'assigned' => $tasks->where('status', 'assigned')->count(),
+                'assigned' => $tasks->where('status', 'assigned')->count() + $assignedVerificationVouchers->count(),
+                'pending' => $tasks->where('status', 'assigned')->count() + $assignedVerificationVouchers->count(),
                 'overdue' => $tasks->filter(fn ($t) => $t['is_overdue'])->count(),
                 'completed_today' => $tasks->where('status', 'completed')
                     ->filter(fn ($t) => isset($t['completed_at']) && Carbon::parse($t['completed_at'])->isToday())
@@ -289,6 +301,7 @@ class WarehouseStaffController extends Controller
             'my_vouchers' => $myVouchers,
             'my_handovers' => $myHandovers,
             'my_receiving_reports' => $myReceivingReports,
+            'warehouse_receiving_reports' => $warehouseReceivingReports,
         ]);
     }
 
@@ -653,7 +666,7 @@ class WarehouseStaffController extends Controller
             ->get()
             ->keyBy('id');
 
-        return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $externalReason, $externalSource, $ingredientUnits, $verificationAssignee) {
+        $voucher = DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $externalReason, $externalSource, $ingredientUnits, $verificationAssignee) {
             // Upload ảnh bằng chứng
             $evidencePaths = [];
             $documentFiles = [];
@@ -736,17 +749,28 @@ class WarehouseStaffController extends Controller
                 ]);
             }
 
+            $seenHashes = [];
             foreach ($documentFiles as $document) {
                 $file = $document['file'];
-                WarehouseReceivingDocument::create([
-                    'restaurant_id' => $restaurantId,
+                $sha256 = hash_file('sha256', $file->getRealPath());
+
+                if ($sha256 && in_array($sha256, $seenHashes, true)) {
+                    continue;
+                }
+                if ($sha256) {
+                    $seenHashes[] = $sha256;
+                }
+
+                WarehouseReceivingDocument::firstOrCreate([
                     'voucher_id' => $voucher->id,
+                    'sha256' => $sha256,
+                ], [
+                    'restaurant_id' => $restaurantId,
                     'document_type' => $document['type'],
                     'original_name' => $file->getClientOriginalName(),
                     'storage_path' => $document['path'],
                     'mime_type' => $file->getClientMimeType(),
                     'size_bytes' => $file->getSize() ?: 0,
-                    'sha256' => hash_file('sha256', $file->getRealPath()),
                     'uploaded_by' => $user->id,
                 ]);
             }
@@ -760,11 +784,17 @@ class WarehouseStaffController extends Controller
                 'verification_assigned_to' => $verificationAssignee?->id,
             ]);
 
-            return response()->json([
-                'message' => 'Phiếu '.$voucher->voucher_code.' đã lập và gửi yêu cầu kiểm kê. Chưa cộng tồn kho.',
-                'voucher' => $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'verificationAssignedTo', 'supplier', 'purchaseOrder', 'documents']),
-            ], 201);
+            return $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'verificationAssignedTo', 'supplier', 'purchaseOrder', 'documents']);
         });
+
+        if ($verificationAssignee) {
+            $verificationAssignee->notify(new ExternalReceiptVerificationAssignedNotification($voucher));
+        }
+
+        return response()->json([
+            'message' => 'Phiếu '.$voucher->voucher_code.' đã lập và gửi yêu cầu kiểm kê. Chưa cộng tồn kho.',
+            'voucher' => $voucher,
+        ], 201);
     }
 
     /**
@@ -942,6 +972,8 @@ class WarehouseStaffController extends Controller
             ->whereIn('status', ['draft', 'discrepancy', 'pending_review', 'pending_disposition'])
             ->findOrFail($id);
         $isExternalReceipt = $voucher->external_receipt_reason !== null;
+        $hasVerificationDiscrepancy = false;
+        $warehouseReceivingReport = null;
 
         if ($isExternalReceipt) {
             // Phiếu nhập ngoài bắt buộc maker-checker: chỉ nhân viên Kho Tổng
@@ -1005,6 +1037,36 @@ class WarehouseStaffController extends Controller
         }
 
         if ($request->input('quality_status') === 'failed') {
+            if ($isExternalReceipt) {
+                $totalExpected = 0;
+                $totalActual = 0;
+                $totalValue = 0;
+
+                foreach ($voucher->items as $voucherItem) {
+                    $verified = $verificationItems->firstWhere('voucher_item_id', $voucherItem->id);
+                    $expectedQty = (float) $voucherItem->expected_qty;
+                    $actualQty = (float) ($verified['actual_qty'] ?? 0);
+                    $difference = $actualQty - $expectedQty;
+                    $itemStatus = abs($difference) <= 0.0005 ? 'ok' : ($difference < 0 ? 'short' : 'over');
+
+                    $voucherItem->update([
+                        'actual_qty' => $actualQty,
+                        'item_status' => $itemStatus,
+                        'discrepancy_reason' => $itemStatus === 'ok' ? null : $request->input('notes'),
+                    ]);
+                    $totalExpected += $expectedQty;
+                    $totalActual += $actualQty;
+                    $totalValue += $actualQty * (float) $voucherItem->unit_cost;
+                }
+
+                $voucher->update([
+                    'total_expected_qty' => $totalExpected,
+                    'total_actual_qty' => $totalActual,
+                    'total_discrepancy_qty' => $totalActual - $totalExpected,
+                    'invoice_total_amount' => round($totalValue, 2),
+                ]);
+            }
+
             $evidencePaths = $voucher->evidence_paths ?? [];
             if ($request->hasFile('evidence')) {
                 foreach ($request->file('evidence') as $file) {
@@ -1030,10 +1092,27 @@ class WarehouseStaffController extends Controller
                 'quality_notes' => $request->quality_notes,
             ]);
 
+            if ($isExternalReceipt) {
+                $warehouseReceivingReport = $this->createWarehouseReceivingReport(
+                    $voucher->fresh(['items.ingredient.unit', 'receivedBy']),
+                    $user,
+                    $verificationItems,
+                    $request->notes,
+                    $request->quality_status,
+                    $request->quality_notes,
+                );
+                $this->notifyWarehouseReceivingReportStakeholders($warehouseReceivingReport);
+                $this->logAudit($user, 'warehouse.receiving.report_created', $warehouseReceivingReport, [
+                    'voucher_code' => $voucher->voucher_code,
+                    'issue_type' => $warehouseReceivingReport->issue_type,
+                ]);
+            }
+
             return response()->json([
                 'message' => 'Lô hàng không đạt. Phiếu đã chuyển sang chờ trả lại bên giao bên ngoài/tiêu hủy và chưa hạch toán vào kho.',
                 'requires_disposition' => true,
                 'voucher' => $voucher->fresh(),
+                'report' => $warehouseReceivingReport?->load(['items.ingredient.unit', 'submittedBy', 'employeeConfirmedBy', 'voucher.receivedBy']),
             ], 422);
         }
 
@@ -1108,7 +1187,7 @@ class WarehouseStaffController extends Controller
             return response()->json(['message' => 'PO, hóa đơn và thực nhận có chênh lệch. Bắt buộc ghi chú đối soát trước khi xác nhận.'], 422);
         }
 
-        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus, $isExternalReceipt, $verificationItems): void {
+        DB::transaction(function () use (&$voucher, &$warehouseReceivingReport, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus, $isExternalReceipt, $verificationItems, $hasVerificationDiscrepancy): void {
             // Khóa phiếu trong transaction để hai người không thể đồng thời hạch toán
             // cùng một GRN thành hai lần nhập kho.
             $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
@@ -1153,6 +1232,17 @@ class WarehouseStaffController extends Controller
                     'total_discrepancy_qty' => $totalActual - $totalExpected,
                     'invoice_total_amount' => round($totalValue, 2),
                 ]);
+
+                if ($hasVerificationDiscrepancy || $request->input('quality_status') !== 'passed') {
+                    $warehouseReceivingReport = $this->createWarehouseReceivingReport(
+                        $voucher,
+                        $user,
+                        $verificationItems,
+                        $request->notes,
+                        $request->quality_status,
+                        $request->quality_notes,
+                    );
+                }
             }
 
             // Serialize approvals on the same PO so two GRNs cannot consume the
@@ -1386,6 +1476,14 @@ class WarehouseStaffController extends Controller
             }
         });
 
+        if ($warehouseReceivingReport) {
+            $this->notifyWarehouseReceivingReportStakeholders($warehouseReceivingReport);
+            $this->logAudit($user, 'warehouse.receiving.report_created', $warehouseReceivingReport, [
+                'voucher_code' => $voucher->voucher_code,
+                'issue_type' => $warehouseReceivingReport->issue_type,
+            ]);
+        }
+
         $ownerNotified = false;
         if ($isExternalReceipt) {
             $voucher = $voucher->fresh(['receivedBy', 'verifiedBy', 'verificationAssignedTo']);
@@ -1404,7 +1502,12 @@ class WarehouseStaffController extends Controller
             'owner_notified' => $ownerNotified,
         ]);
 
-        return response()->json(['message' => 'Phiếu nhập ngoài đã được xác nhận.']);
+        return response()->json([
+            'message' => $warehouseReceivingReport
+                ? 'Đã lập và xác nhận biên bản kiểm kê; biên bản đã gửi cho Chủ doanh nghiệp và người lập phiếu.'
+                : 'Phiếu nhập ngoài đã được xác nhận.',
+            'report' => $warehouseReceivingReport?->load(['items.ingredient.unit', 'submittedBy', 'employeeConfirmedBy', 'voucher.receivedBy']),
+        ]);
     }
 
     /**
@@ -2242,6 +2345,142 @@ class WarehouseStaffController extends Controller
         }
 
         return 'matched';
+    }
+
+    private function createWarehouseReceivingReport(
+        WarehouseReceivingVoucher $voucher,
+        User $employee,
+        $verificationItems = null,
+        ?string $notes = null,
+        ?string $qualityStatus = null,
+        ?string $qualityNotes = null,
+    ): WarehouseReceivingReport {
+        $voucher->loadMissing(['items.ingredient.unit', 'receivedBy']);
+
+        $items = $voucher->items->map(function (WarehouseReceivingVoucherItem $item) use ($verificationItems, $notes): array {
+            $verified = $verificationItems?->firstWhere('voucher_item_id', $item->id);
+            $expectedQuantity = (float) $item->expected_qty;
+            $actualQuantity = $verified !== null
+                ? (float) ($verified['actual_qty'] ?? 0)
+                : (float) $item->actual_qty;
+            $differenceQuantity = $actualQuantity - $expectedQuantity;
+            $unitCost = (float) $item->unit_cost;
+
+            return [
+                'voucher_item_id' => $item->id,
+                'ingredient_id' => $item->ingredient_id,
+                'ingredient_code_snapshot' => $item->ingredient?->sku,
+                'ingredient_name_snapshot' => $item->ingredient?->name ?: 'Nguyên liệu',
+                'unit_symbol_snapshot' => $item->unit_label ?: $item->ingredient?->unit?->symbol,
+                'expected_quantity' => $expectedQuantity,
+                'actual_quantity' => $actualQuantity,
+                'difference_quantity' => $differenceQuantity,
+                'unit_cost' => $unitCost,
+                'line_value' => round($actualQuantity * $unitCost, 2),
+                'lot_number' => $item->lot_number,
+                'expiry_date' => $item->expiry_date,
+                'note' => abs($differenceQuantity) > 0.0005 ? $notes : null,
+            ];
+        })->values();
+
+        $hasQuantityDifference = $items->contains(
+            fn (array $item): bool => abs((float) $item['difference_quantity']) > 0.0005,
+        );
+        $hasQualityIssue = $qualityStatus !== null && $qualityStatus !== 'passed';
+        $issueType = $hasQuantityDifference && $hasQualityIssue
+            ? 'quantity_and_quality'
+            : ($hasQualityIssue ? 'quality_issue' : 'quantity_mismatch');
+        $issueSummary = $hasQuantityDifference && $hasQualityIssue
+            ? 'Chênh lệch số lượng và có vấn đề chất lượng.'
+            : ($hasQualityIssue ? 'Có vấn đề trong kết quả kiểm tra chất lượng.' : 'Số lượng kiểm kê thực tế không khớp số khai báo.');
+
+        if (filled($qualityNotes)) {
+            $issueSummary .= ' '.$qualityNotes;
+        }
+        if (filled($notes)) {
+            $issueSummary .= ' Giải trình: '.$notes;
+        }
+
+        $payload = [
+            'voucher_id' => $voucher->id,
+            'issue_type' => $issueType,
+            'quality_status' => $qualityStatus,
+            'quality_notes' => $qualityNotes,
+            'notes' => $notes,
+            'items' => $items->all(),
+        ];
+        $confirmedAt = now();
+        $report = WarehouseReceivingReport::firstOrCreate(
+            ['voucher_id' => $voucher->id],
+            [
+                'restaurant_id' => $voucher->restaurant_id,
+                'report_code' => 'PK-NT/'.now()->format('Y').'/'.str_pad((string) $voucher->id, 6, '0', STR_PAD_LEFT),
+                'status' => WarehouseReceivingReport::STATUS_EMPLOYEE_CONFIRMED,
+                'issue_type' => $issueType,
+                'issue_summary' => $issueSummary,
+                'submitted_by' => $employee->id,
+                'submitted_at' => $confirmedAt,
+                'employee_confirmed_by' => $employee->id,
+                'employee_confirmed_at' => $confirmedAt,
+                'quality_status' => $qualityStatus,
+                'quality_notes' => $qualityNotes,
+                'notes' => $notes,
+                'total_expected_qty' => $items->sum('expected_quantity'),
+                'total_actual_qty' => $items->sum('actual_quantity'),
+                'total_discrepancy_qty' => $items->sum('difference_quantity'),
+                'total_value' => $items->sum('line_value'),
+                'evidence_paths' => $voucher->evidence_paths,
+                'payload_hash' => hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+            ],
+        );
+
+        if ($report->wasRecentlyCreated) {
+            $report->items()->createMany($items->all());
+        }
+
+        return $report->load([
+            'items.ingredient.unit',
+            'submittedBy',
+            'employeeConfirmedBy',
+            'voucher.receivedBy',
+        ]);
+    }
+
+    private function notifyWarehouseReceivingReportStakeholders(WarehouseReceivingReport $report): void
+    {
+        $report->loadMissing(['voucher.receivedBy', 'employeeConfirmedBy']);
+        $owner = $report->employeeConfirmedBy?->restaurant?->owner;
+        $requester = $report->voucher?->receivedBy;
+
+        collect([$owner, $requester])
+            ->filter()
+            ->unique('id')
+            ->reject(fn (User $recipient): bool => (int) $recipient->id === (int) $report->employee_confirmed_by)
+            ->each(fn (User $recipient): mixed => $recipient->notify(new WarehouseReceivingReportNotification($report)));
+    }
+
+    private function warehouseReceivingReportsForUser(User $user, ?int $centralBranchId)
+    {
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
+
+        return WarehouseReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->when(! $isOwner, function ($query) use ($user): void {
+                $query->where(function ($scope) use ($user): void {
+                    $scope->where('submitted_by', $user->id)
+                        ->orWhereHas('voucher', fn ($voucher) => $voucher->where('received_by', $user->id));
+                });
+            })
+            ->when($centralBranchId, fn ($query) => $query->whereHas('voucher', fn ($voucher) => $voucher->where('branch_id', $centralBranchId)))
+            ->with([
+                'voucher.receivedBy',
+                'voucher.branch',
+                'submittedBy',
+                'employeeConfirmedBy',
+                'items.ingredient.unit',
+            ])
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get();
     }
 
     private function centralIngredientQuery(int $restaurantId, ?int $centralBranchId)

@@ -536,7 +536,13 @@ class SalaryService
         $context['responsibility_closings'] = empty($userIds) ? collect() : ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereIn('cashier_user_id', $userIds)
+            ->where(function ($query) use ($userIds) {
+                $query->whereIn('responsible_user_id', $userIds)
+                    ->orWhere(function ($q) use ($userIds) {
+                        $q->whereNull('responsible_user_id')
+                            ->whereIn('cashier_user_id', $userIds);
+                    });
+            })
             ->whereBetween('closing_date', [$periodStart, $periodEnd])
             ->where(function ($q) {
                 $q->where('responsibility_amount', '<>', 0)
@@ -691,7 +697,13 @@ class SalaryService
             } else {
                 $responsibilityClosings = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
-                    ->where('cashier_user_id', $employee->user_id)
+                    ->where(function ($query) use ($employee) {
+                        $query->where('responsible_user_id', $employee->user_id)
+                            ->orWhere(function ($q) use ($employee) {
+                                $q->whereNull('responsible_user_id')
+                                    ->where('cashier_user_id', $employee->user_id);
+                            });
+                    })
                     ->whereBetween('closing_date', [$start, $end])
                     ->where(function ($q) {
                         $q->where('responsibility_amount', '<>', 0)

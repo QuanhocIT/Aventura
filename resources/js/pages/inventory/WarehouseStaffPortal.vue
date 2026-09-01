@@ -9,6 +9,7 @@ import {
     Box,
     CheckCircle,
     CheckSquare,
+    ChevronLeft,
     ChevronRight,
     ClipboardList,
     Clock,
@@ -56,6 +57,7 @@ const props = defineProps<{
     myHandovers: Array<any>;
     myDisputes: Array<any>;
     myReceivingReports: Array<any>;
+    warehouseReceivingReports: Array<any>;
     handoverRecipients: Array<any>;
     locations: Array<any>;
     ingredients: Array<any>;
@@ -86,6 +88,8 @@ const assignedVerificationList = ref([...props.assignedVerificationVouchers]);
 const handoverList = ref([...props.myHandovers]);
 const disputeList = ref([...props.myDisputes]);
 const receivingReportList = ref([...props.myReceivingReports]);
+const warehouseReceivingReportList = ref([...props.warehouseReceivingReports]);
+const highlightedWarehouseReportId = ref<number | null>(null);
 const notificationList = ref([...props.notifications]);
 const historyList = ref<any[]>([]);
 const taskSummaryData = ref({ ...props.taskSummary });
@@ -238,7 +242,7 @@ const tabs = computed(() => [
         icon: AlertTriangle,
         count: receivingReportList.value.filter(
             (report) => report.status === 'confirmed_pending_ack',
-        ).length,
+        ).length + warehouseReceivingReportList.value.length,
     },
     {
         id: 'delivery' as TabId,
@@ -248,6 +252,65 @@ const tabs = computed(() => [
     },
     { id: 'handover' as TabId, label: 'Bàn Giao Ca', icon: Truck, count: 0 },
 ]);
+
+const tabsContainer = ref<HTMLElement | null>(null);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
+const tabElementRefs = ref<Record<string, HTMLElement>>({});
+
+function setTabRef(el: any, id: string) {
+    if (el) {
+        tabElementRefs.value[id] = el as HTMLElement;
+    }
+}
+
+function checkTabScroll() {
+    const el = tabsContainer.value;
+
+    if (!el) {
+        return;
+    }
+
+    canScrollLeft.value = el.scrollLeft > 5;
+    canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 5;
+}
+
+function scrollTabs(direction: 'left' | 'right') {
+    const el = tabsContainer.value;
+
+    if (!el) {
+        return;
+    }
+
+    const amount = direction === 'left' ? -220 : 220;
+
+    el.scrollBy({ left: amount, behavior: 'smooth' });
+}
+
+function handleTabsWheel(event: WheelEvent) {
+    const el = tabsContainer.value;
+
+    if (!el) {
+        return;
+    }
+
+    if (event.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        el.scrollLeft += event.deltaY;
+        checkTabScroll();
+    }
+}
+
+function selectTab(tabId: TabId) {
+    activeTab.value = tabId;
+
+    const targetEl = tabElementRefs.value[tabId];
+
+    if (targetEl && tabsContainer.value) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+
+    setTimeout(checkTabScroll, 300);
+}
 
 const overdueCount = computed(
     () =>
@@ -466,6 +529,7 @@ async function refreshTasks(silent = false) {
                     `Bạn có ${newVouchers.length} phiếu nhập ngoài mới (${newVouchers.map((v: any) => v.voucher_code).join(', ')}) chờ kiểm kê!`,
                     { duration: 5000 },
                 );
+                activeTab.value = 'receiving';
             }
 
             assignedVerificationList.value = data.assigned_verification_vouchers;
@@ -481,6 +545,10 @@ async function refreshTasks(silent = false) {
 
         if (data.my_receiving_reports) {
             receivingReportList.value = data.my_receiving_reports;
+        }
+
+        if (data.warehouse_receiving_reports) {
+            warehouseReceivingReportList.value = data.warehouse_receiving_reports;
         }
 
         if (!silent) {
@@ -663,6 +731,36 @@ function closeVerification() {
     verificationQualityNotes.value = '';
 }
 
+function verificationHasIssue(): boolean {
+    const voucher = activeVerificationVoucher.value;
+
+    if (!voucher) {
+        return false;
+    }
+
+    const hasDiscrepancy = verificationItems.value.some((item) => {
+        const sourceItem = (voucher.items ?? []).find((row: any) => row.id === item.voucher_item_id);
+
+        return Math.abs(Number(item.actual_qty) - Number(sourceItem?.expected_qty ?? 0)) > 0.0005;
+    });
+
+    return hasDiscrepancy || verificationQualityStatus.value !== 'passed';
+}
+
+function showWarehouseReceivingReport(report: any): void {
+    warehouseReceivingReportList.value = [
+        report,
+        ...warehouseReceivingReportList.value.filter((item) => item.id !== report.id),
+    ];
+    highlightedWarehouseReportId.value = Number(report.id);
+    activeTab.value = 'incident';
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'incident');
+    url.searchParams.set('report_id', String(report.id));
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 async function submitVerification() {
     const voucher = activeVerificationVoucher.value;
 
@@ -706,6 +804,11 @@ async function submitVerification() {
                 verification_items: verificationItems.value,
             },
         );
+
+        if (data.report) {
+            showWarehouseReceivingReport(data.report);
+        }
+
         assignedVerificationList.value = assignedVerificationList.value.filter(
             (item) => item.id !== voucher.id,
         );
@@ -717,8 +820,24 @@ async function submitVerification() {
             total_actual_qty: verificationItems.value.reduce((sum, item) => sum + Number(item.actual_qty), 0),
         });
         closeVerification();
+
         toast.success(data.message || 'Đã kiểm kê và xác nhận nhập nguyên liệu thành công.');
     } catch (e: any) {
+        const report = e.response?.data?.report;
+
+        if (report) {
+            showWarehouseReceivingReport(report);
+            assignedVerificationList.value = assignedVerificationList.value.filter(
+                (item) => item.id !== voucher.id,
+            );
+            closeVerification();
+            toast.warning(
+                e.response?.data?.message || 'Đã lập biên bản kiểm kê; phiếu đang chờ xử lý chất lượng.',
+            );
+
+            return;
+        }
+
         toast.error(e.response?.data?.message ?? 'Không thể xác nhận phiếu nhập nguyên liệu.');
     } finally {
         isSubmittingVerification.value = false;
@@ -806,6 +925,7 @@ async function submitGrn() {
     formData.append('received_at', grnForm.value.received_at);
     formData.append('external_receipt_reason', grnForm.value.external_receipt_reason);
     formData.append('external_source_name', grnForm.value.external_source_name.trim());
+    formData.append('submit_for_review', 'true');
 
     if (grnForm.value.verification_assigned_to) {
         formData.append('verification_assigned_to', String(grnForm.value.verification_assigned_to));
@@ -1106,11 +1226,17 @@ async function confirmHandover(handoverId: number) {
 }
 
 async function markNotificationRead(notification: any) {
+    const targetUrl = notification.data?.url;
+
     try {
         await axios.post(`/notifications/${notification.id}/read`);
         notificationList.value = notificationList.value.filter(
             (item) => item.id !== notification.id,
         );
+
+        if (targetUrl) {
+            window.location.assign(targetUrl);
+        }
     } catch {
         // Notification failures must not block warehouse work.
     }
@@ -1356,12 +1482,20 @@ function handleFileInput(event: Event, target: 'grn' | 'incident' | 'task') {
         return;
     }
 
+    const incoming = Array.from(files);
+
     if (target === 'grn') {
-        grnFiles.value = [...grnFiles.value, ...Array.from(files)];
+        const existing = new Set(grnFiles.value.map((f) => `${f.name}-${f.size}-${f.lastModified}`));
+        const unique = incoming.filter((f) => !existing.has(`${f.name}-${f.size}-${f.lastModified}`));
+        grnFiles.value = [...grnFiles.value, ...unique];
     } else if (target === 'incident') {
-        incidentFiles.value = [...incidentFiles.value, ...Array.from(files)];
+        const existing = new Set(incidentFiles.value.map((f) => `${f.name}-${f.size}-${f.lastModified}`));
+        const unique = incoming.filter((f) => !existing.has(`${f.name}-${f.size}-${f.lastModified}`));
+        incidentFiles.value = [...incidentFiles.value, ...unique];
     } else {
-        taskFiles.value = [...taskFiles.value, ...Array.from(files)];
+        const existing = new Set(taskFiles.value.map((f) => `${f.name}-${f.size}-${f.lastModified}`));
+        const unique = incoming.filter((f) => !existing.has(`${f.name}-${f.size}-${f.lastModified}`));
+        taskFiles.value = [...taskFiles.value, ...unique];
     }
 }
 
@@ -1452,15 +1586,44 @@ onMounted(() => {
         ['today', 'receiving', 'putaway', 'picking', 'packing', 'counting', 'incident', 'handover', 'delivery'].includes(requestedTab)
     ) {
         activeTab.value = requestedTab as TabId;
+    } else if (assignedVerificationList.value.length > 0) {
+        // Phiếu được giao phải hiện ngay khi nhân viên mở cổng, không bị ẩn
+        // sau tab "Việc hôm nay" (nơi chỉ hiển thị warehouse_task_assignments).
+        activeTab.value = 'receiving';
+    }
+
+    const voucherId = Number(new URLSearchParams(window.location.search).get('voucher'));
+    const reportId = Number(new URLSearchParams(window.location.search).get('report_id'));
+
+    if (requestedTab === 'receiving' && voucherId) {
+        const voucher = assignedVerificationList.value.find((item) => item.id === voucherId);
+
+        if (voucher) {
+            openVerification(voucher);
+        }
+    }
+
+    if (requestedTab === 'incident' && reportId) {
+        highlightedWarehouseReportId.value = reportId;
     }
 
     // Tự refresh task mỗi 5 phút
     refreshTimer = setInterval(() => refreshTasks(true), 5 * 60 * 1000);
+
+    setTimeout(checkTabScroll, 150);
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('resize', checkTabScroll);
+    }
 });
 
 onBeforeUnmount(() => {
     if (refreshTimer) {
         clearInterval(refreshTimer);
+    }
+
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', checkTabScroll);
     }
 
     stopCameraScan();
@@ -1689,41 +1852,67 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- ── Navigation Tabs ── -->
-        <div
-            class="flex scrollbar-none overflow-x-auto rounded-xl border border-slate-200 bg-slate-100/80 p-1.5 dark:border-slate-800 dark:bg-slate-900/90"
-        >
+        <div class="relative flex items-center group">
             <button
-                v-for="tab in tabs"
-                :key="tab.id"
-                class="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
-                :class="
-                    activeTab === tab.id
-                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
-                        : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
-                "
-                @click="activeTab = tab.id"
+                v-if="canScrollLeft"
+                type="button"
+                class="absolute -left-3 z-10 flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                title="Cuộn sang trái"
+                @click="scrollTabs('left')"
             >
-                <component
-                    :is="tab.icon"
-                    class="size-4"
+                <ChevronLeft class="size-4 text-slate-700 dark:text-slate-200" />
+            </button>
+
+            <div
+                ref="tabsContainer"
+                class="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100/80 p-1.5 scrollbar-none dark:border-slate-800 dark:bg-slate-900/90 sm:flex-wrap sm:overflow-x-visible"
+                @scroll="checkTabScroll"
+                @wheel="handleTabsWheel"
+            >
+                <button
+                    v-for="tab in tabs"
+                    :key="tab.id"
+                    :ref="(el) => setTabRef(el, tab.id)"
+                    class="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
                     :class="
                         activeTab === tab.id
-                            ? 'text-amber-500'
-                            : 'text-slate-400'
+                            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
+                            : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
                     "
-                />
-                <span>{{ tab.label }}</span>
-                <span
-                    v-if="tab.count > 0"
-                    class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                    :class="
-                        activeTab === tab.id
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                    "
+                    @click="selectTab(tab.id)"
                 >
-                    {{ tab.count }}
-                </span>
+                    <component
+                        :is="tab.icon"
+                        class="size-4"
+                        :class="
+                            activeTab === tab.id
+                                ? 'text-amber-500'
+                                : 'text-slate-400'
+                        "
+                    />
+                    <span>{{ tab.label }}</span>
+                    <span
+                        v-if="tab.count > 0"
+                        class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        :class="
+                            activeTab === tab.id
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        "
+                    >
+                        {{ tab.count }}
+                    </span>
+                </button>
+            </div>
+
+            <button
+                v-if="canScrollRight"
+                type="button"
+                class="absolute -right-3 z-10 flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                title="Cuộn sang phải"
+                @click="scrollTabs('right')"
+            >
+                <ChevronRight class="size-4 text-slate-700 dark:text-slate-200" />
             </button>
         </div>
 
@@ -2832,6 +3021,79 @@ onBeforeUnmount(() => {
         <!-- 7. BÁO CÁO SỰ CỐ (INCIDENT) -->
         <div v-if="activeTab === 'incident'" class="flex flex-col gap-6">
             <Card
+                v-if="warehouseReceivingReportList.length"
+                class="border-rose-200 shadow-sm dark:border-rose-900/50"
+            >
+                <CardHeader>
+                    <CardTitle class="text-base font-bold text-rose-700 dark:text-rose-300">
+                        Phiếu xác nhận nguyên liệu vào Kho Tổng
+                    </CardTitle>
+                    <CardDescription class="text-xs">
+                        Biên bản kiểm kê được tự động lập khi số lượng hoặc chất lượng có vấn đề theo mẫu xác nhận nguyên liệu vào Kho Tổng. Nhân viên kiểm kê đã xác nhận; Chủ doanh nghiệp và người lập phiếu đã được gửi thông báo.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                    <div
+                        v-for="report in warehouseReceivingReportList"
+                        :key="report.id"
+                        :class="[
+                            'rounded-xl border p-4 transition-colors',
+                            report.id === highlightedWarehouseReportId
+                                ? 'border-indigo-400 bg-indigo-50/70 ring-2 ring-indigo-200 dark:border-indigo-500 dark:bg-indigo-950/30 dark:ring-indigo-900'
+                                : 'border-rose-200 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/20',
+                        ]"
+                    >
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="text-xs">
+                                <div class="font-bold text-slate-900 dark:text-slate-100">
+                                    {{ report.report_code }} · Phiếu {{ report.voucher?.voucher_code || '---' }}
+                                </div>
+                                <div class="mt-1 text-slate-600 dark:text-slate-300">
+                                    Nguồn: {{ report.voucher?.external_source_name || '---' }} · Người lập: {{ report.voucher?.received_by?.name || '---' }}
+                                </div>
+                                <div class="mt-1 text-slate-500">
+                                    Nhân viên xác nhận: {{ report.employee_confirmed_by?.name || report.submitted_by?.name || '---' }} ·
+                                    {{ report.employee_confirmed_at ? new Date(report.employee_confirmed_at).toLocaleString('vi-VN') : '---' }}
+                                </div>
+                            </div>
+                            <Badge class="shrink-0 border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                                Đã xác nhận · {{ report.issue_type === 'quality_issue' ? 'Vấn đề chất lượng' : report.issue_type === 'quantity_and_quality' ? 'Lệch số lượng & chất lượng' : 'Lệch số lượng' }}
+                            </Badge>
+                        </div>
+                        <p class="mt-3 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                            {{ report.issue_summary }}
+                        </p>
+                        <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                            <table class="w-full min-w-[620px] text-xs">
+                                <thead class="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                    <tr>
+                                        <th class="p-2 text-left">Nguyên liệu / lô</th>
+                                        <th class="p-2 text-right">Theo chứng từ</th>
+                                        <th class="p-2 text-right">Thực nhận</th>
+                                        <th class="p-2 text-right">Chênh lệch</th>
+                                        <th class="p-2 text-right">Thành tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                                    <tr v-for="item in report.items || []" :key="item.id">
+                                        <td class="p-2">
+                                            <div class="font-semibold text-slate-900 dark:text-slate-100">{{ item.ingredient_name_snapshot }}</div>
+                                            <div class="mt-0.5 text-[10px] text-slate-500">{{ item.unit_symbol_snapshot || 'đv' }} · Lô {{ item.lot_number || '---' }}</div>
+                                        </td>
+                                        <td class="p-2 text-right text-amber-700 dark:text-amber-300">{{ formatQuantity(item.expected_quantity) }}</td>
+                                        <td class="p-2 text-right font-semibold text-slate-900 dark:text-slate-100">{{ formatQuantity(item.actual_quantity) }}</td>
+                                        <td :class="['p-2 text-right font-bold', Number(item.difference_quantity) < 0 ? 'text-rose-600 dark:text-rose-300' : Number(item.difference_quantity) > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500']">
+                                            {{ Number(item.difference_quantity) > 0 ? '+' : '' }}{{ formatQuantity(item.difference_quantity) }}
+                                        </td>
+                                        <td class="p-2 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(item.line_value) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card
                 v-if="receivingReportList.length"
                 class="border-amber-200 shadow-sm dark:border-amber-900/50"
             >
@@ -3397,14 +3659,17 @@ onBeforeUnmount(() => {
                     <div class="mt-3 flex flex-col gap-1.5">
                         <Label class="text-xs font-bold">Biên bản kiểm kê / giải trình chênh lệch</Label>
                         <textarea v-model="verificationNotes" rows="3" class="rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground" placeholder="Ghi rõ kết quả đếm thực tế; bắt buộc nếu lệch số Trưởng kho khai báo." />
+                        <p v-if="verificationHasIssue()" class="text-[11px] font-semibold text-rose-600 dark:text-rose-300">
+                            Có phát sinh chênh lệch hoặc vấn đề chất lượng. Khi xác nhận, hệ thống sẽ lập biên bản và gửi ngay cho Chủ doanh nghiệp cùng người lập phiếu.
+                        </p>
                     </div>
 
                     <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-                        <p class="max-w-xl text-[11px] text-slate-500">Xác nhận này sẽ là căn cứ duy nhất để hạch toán số lượng thực tế vào tồn Kho Tổng và gửi báo cáo cho Chủ doanh nghiệp.</p>
+                        <p class="max-w-xl text-[11px] text-slate-500">Xác nhận này là căn cứ để hạch toán số lượng thực tế vào tồn Kho Tổng. Nếu có vấn đề, biên bản kiểm kê sẽ được lưu cùng phiếu và gửi cho các bên liên quan.</p>
                         <div class="flex gap-2">
                             <Button type="button" variant="outline" @click="closeVerification">Hủy</Button>
                             <Button type="button" class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700" :disabled="isSubmittingVerification" @click="submitVerification">
-                                <CheckCircle class="size-4" /> {{ isSubmittingVerification ? 'Đang xác nhận...' : 'Xác nhận kiểm kê & nhập tồn' }}
+                                <CheckCircle class="size-4" /> {{ isSubmittingVerification ? 'Đang xác nhận...' : verificationHasIssue() ? 'Lập biên bản & xác nhận' : 'Xác nhận kiểm kê & nhập tồn' }}
                             </Button>
                         </div>
                     </div>

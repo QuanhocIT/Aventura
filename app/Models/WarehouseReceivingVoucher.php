@@ -110,6 +110,11 @@ class WarehouseReceivingVoucher extends Model
         return $this->hasMany(WarehouseReceivingDocument::class, 'voucher_id');
     }
 
+    public function receivingReports(): HasMany
+    {
+        return $this->hasMany(WarehouseReceivingReport::class, 'voucher_id');
+    }
+
     public function submittedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by');

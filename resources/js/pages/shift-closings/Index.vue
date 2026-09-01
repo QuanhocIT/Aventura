@@ -17,8 +17,10 @@ import {
     Clock,
     CreditCard,
     Info,
+    ChefHat,
     Loader2,
     MapPin,
+    Printer,
     ReceiptText,
     RotateCcw,
     ShieldCheck,
@@ -346,10 +348,18 @@ const activeBranchName = computed(() => {
 // ── Create dialog ─────────────────────────────────────────────────────────────
 
 const showDialog = ref(false);
-const dialogStep = ref<1 | 2>(1);
+const dialogStep = ref<1 | 2 | 3>(1);
 const previewData = ref<Preview | null>(null);
 const previewLoading = ref(false);
 const previewError = ref('');
+
+function goToStep3() {
+    dialogStep.value = 3;
+}
+
+function printSlip() {
+    window.print();
+}
 
 function formatLocalDate(d: Date): string {
     const year = d.getFullYear();
@@ -469,11 +479,13 @@ const isProcessing = ref(false);
 const responsibilityAuto = ref(true);
 
 const cashDifference = computed(() => {
-    if (!previewData.value || previewData.value.expected_cash === null) {
+    if (!previewData.value) {
         return 0;
     }
 
-    return form.actual_cash - previewData.value.expected_cash;
+    const expected = previewData.value.expected_cash ?? 0;
+
+    return form.actual_cash - expected;
 });
 
 /** Chênh lệch vượt ngưỡng thì bắt buộc giải trình mới chốt được. */
@@ -569,7 +581,7 @@ async function loadPreview(options: { keepCount?: boolean } = {}) {
 
         form.actual_transfer_amount = data.transfer_amount;
         responsibilityAuto.value = true;
-        form.responsibility_amount = 0;
+        form.responsibility_amount = totalDifference.value;
         dialogStep.value = 2;
     } catch {
         previewError.value = 'Lỗi kết nối. Thử lại.';
@@ -585,7 +597,18 @@ function submitForm(isSubmit: boolean) {
 
     isProcessing.value = true;
     isSubmitting.value = isSubmit;
-    form.transform((data: any) => ({ ...data, submit: isSubmit ? 1 : 0 })).post(
+
+    const explanation =
+        form.variance_explanation?.trim() ||
+        form.responsibility_note?.trim() ||
+        form.notes?.trim() ||
+        'Chốt ca theo số liệu thực nhận';
+
+    form.transform((data: any) => ({
+        ...data,
+        variance_explanation: explanation,
+        submit: isSubmit ? 1 : 0,
+    })).post(
         '/shift-closings',
         {
             onSuccess: () => {
@@ -2269,11 +2292,13 @@ onUnmounted(() =>
                                     >Lập Phiếu Chốt Ca Mới</CardTitle
                                 >
                                 <CardDescription>
-                                    Bước {{ dialogStep }} / 2 —
+                                    Bước {{ dialogStep }} / 3 —
                                     {{
                                         dialogStep === 1
                                             ? 'Chọn ca và ngày chốt ca làm việc'
-                                            : 'Nhập đối soát tiền thực tế đếm được'
+                                            : dialogStep === 2
+                                              ? 'Nhập đối soát tiền thực tế đếm được'
+                                              : 'Kiểm tra và xác nhận thông tin trước khi ghi phiếu'
                                     }}
                                 </CardDescription>
                             </div>
@@ -2291,7 +2316,12 @@ onUnmounted(() =>
                         <div
                             class="bg-indigo-600 transition-all duration-300"
                             :style="{
-                                width: dialogStep === 1 ? '50%' : '100%',
+                                width:
+                                    dialogStep === 1
+                                        ? '33.33%'
+                                        : dialogStep === 2
+                                          ? '66.66%'
+                                          : '100%',
                             }"
                         />
                     </div>
@@ -2782,7 +2812,7 @@ onUnmounted(() =>
                         </template>
 
                         <!-- ── Step 2: Preview + Nhập tiền ─────────────────── -->
-                        <template v-else-if="previewData">
+                        <template v-else-if="dialogStep === 2 && previewData">
                             <!-- Phiếu tổng duy nhất của ca đang chọn -->
                             <div
                                 class="overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
@@ -4089,7 +4119,7 @@ onUnmounted(() =>
                                         </div>
                                     </div>
 
-                                    <!-- Ghi chú -->
+                                    <!-- Ghi chú vận hành ca -->
                                     <div class="flex flex-col space-y-1.5">
                                         <Label
                                             class="text-xs font-bold tracking-wide text-slate-500 uppercase"
@@ -4099,10 +4129,344 @@ onUnmounted(() =>
                                             v-model="form.notes"
                                             rows="2"
                                             maxlength="1000"
-                                            placeholder="Ghi rõ tình huống bất thường phát sinh, lý do chênh lệch két tiền (nếu có)..."
+                                            placeholder="Ghi rõ tình huống bất thường phát sinh trong ca..."
                                             class="mt-1.5 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                         />
                                     </div>
+
+                                    <!-- Giải trình chênh lệch (Bắt buộc khi có chênh lệch) -->
+                                    <div
+                                        v-if="cashDifference !== 0 || transferDifference !== 0"
+                                        class="flex flex-col space-y-1.5"
+                                    >
+                                        <Label
+                                            class="text-xs font-bold tracking-wide text-amber-500 uppercase flex items-center gap-1.5"
+                                        >
+                                            <AlertTriangle class="size-3.5 text-amber-500" />
+                                            Giải trình chênh lệch két tiền
+                                            <span class="text-rose-500">*</span>
+                                        </Label>
+                                        <textarea
+                                            v-model="form.variance_explanation"
+                                            rows="2"
+                                            maxlength="1000"
+                                            placeholder="Nhập lý do chênh lệch tiền mặt / chuyển khoản (bắt buộc khi vượt ngưỡng)..."
+                                            class="mt-1.5 w-full resize-none rounded-md border border-amber-300 bg-amber-50/20 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-slate-200 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- ── Step 3: Biên bản chốt ca (Phiếu A4 nền trắng đầy đủ) ──────── -->
+                        <template v-else-if="dialogStep === 3">
+                            <div v-if="previewData" class="mx-auto max-w-4xl rounded-xl border border-slate-300 bg-white p-6 sm:p-8 text-black shadow-lg font-sans text-xs">
+                                <!-- Top Header Grid -->
+                                <div class="grid grid-cols-12 gap-3 items-start pb-3 border-b-2 border-black">
+                                    <!-- Top Left: Logo & Company Info -->
+                                    <div class="col-span-5 flex items-start gap-2.5">
+                                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-black p-1 text-black bg-white">
+                                            <ChefHat class="size-8 text-black" />
+                                        </div>
+                                        <div class="space-y-0.5 leading-tight">
+                                            <h2 class="text-sm font-black uppercase tracking-tight text-black">{{ restaurantName || 'CÔNG TY TNHH AVENTURA' }}</h2>
+                                            <p class="text-[11px] font-semibold text-slate-800">Chuỗi nhà hàng {{ restaurantName }}</p>
+                                            <p class="text-[10px] text-slate-700">📍 {{ activeBranchName || 'Chi nhánh chính' }}</p>
+                                            <p class="text-[10px] text-slate-700">📞 Hotline: 024 1234 5678</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Top Center: Title & Code -->
+                                    <div class="col-span-3 text-center">
+                                        <h1 class="text-lg sm:text-xl font-black uppercase tracking-wider text-black">PHIẾU CHỐT CA</h1>
+                                        <div class="mt-1 inline-block rounded border border-black px-2.5 py-0.5 text-[11px] font-mono font-bold text-black bg-white">
+                                            Số: PC/{{ form.closing_date.replace(/-/g, '/') }}/{{ String(form.shift_id ?? 1).padStart(3, '0') }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Top Right: Meta Info Box -->
+                                    <div class="col-span-4 rounded border border-black p-2 text-[11px] leading-tight space-y-1 bg-white text-black">
+                                        <p><span class="font-bold">Nhà hàng:</span> <span class="border-b border-dotted border-slate-400 pb-0.5 inline-block min-w-[120px]">{{ restaurantName }} - {{ activeBranchName }}</span></p>
+                                        <div class="flex items-center justify-between">
+                                            <p><span class="font-bold">Ngày:</span> {{ form.closing_date }}</p>
+                                            <p class="text-[10px] font-semibold">Ca: [x] {{ previewData.shift_name }}</p>
+                                        </div>
+                                        <p><span class="font-bold">Thời gian ca:</span> {{ previewData.start_time }} đến {{ previewData.end_time }}</p>
+                                        <p><span class="font-bold">Quản lý ca:</span> {{ (usePage().props.auth?.user as any)?.name }}</p>
+                                    </div>
+                                </div>
+
+                                <!-- Section 1 & Section 2 -->
+                                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- 1. THÔNG TIN CA LÀM -->
+                                    <div>
+                                        <h3 class="text-xs font-black uppercase text-black mb-1">1. THÔNG TIN CA LÀM</h3>
+                                        <table class="w-full border-collapse border border-black text-[11px] text-black">
+                                            <tbody>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1.5 font-bold bg-slate-100 w-32 text-black">Nhân viên chốt ca</td>
+                                                    <td class="border-r border-black p-1.5 text-black">Họ và tên: <span class="font-bold text-black">{{ (usePage().props.auth?.user as any)?.name }}</span></td>
+                                                    <td class="p-1.5 text-black">Mã NV: <span class="font-mono font-semibold">{{ (usePage().props.auth?.user as any)?.id ? 'NV' + String((usePage().props.auth?.user as any)?.id).padStart(4, '0') : 'NV001' }}</span></td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1.5 font-bold bg-slate-100 text-black">Vị trí</td>
+                                                    <td colspan="2" class="p-1.5 text-black">
+                                                        <span class="inline-flex items-center gap-1 mr-3">[x] {{ isOwnerRole ? 'Chủ doanh nghiệp' : isManagerRole ? 'Quản lý ca' : 'Thu ngân' }}</span>
+                                                        <span class="text-slate-700">Khu vực: <strong class="text-black">{{ previewData.area_name }}</strong></span>
+                                                    </td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1.5 font-bold bg-slate-100 text-black">Nhân viên bàn giao</td>
+                                                    <td class="border-r border-black p-1.5 text-black">Họ và tên: <span class="italic text-slate-700">Thu ngân đứng ca</span></td>
+                                                    <td class="p-1.5 text-black">Mã NV: <span class="font-mono">NV002</span></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-r border-black p-1.5 font-bold bg-slate-100 text-black">Thời gian bàn giao</td>
+                                                    <td class="border-r border-black p-1.5 text-black">Bắt đầu: <span class="font-semibold">{{ previewData.start_time }}</span></td>
+                                                    <td class="p-1.5 text-black">Kết thúc: <span class="font-semibold">{{ previewData.end_time }}</span></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- 2. TỔNG QUAN DOANH THU -->
+                                    <div>
+                                        <h3 class="text-xs font-black uppercase text-black mb-1">2. TỔNG QUAN DOANH THU</h3>
+                                        <table class="w-full border-collapse border border-black text-[11px] text-black">
+                                            <thead>
+                                                <tr class="bg-slate-200 border-b border-black font-bold text-center text-black">
+                                                    <th class="border-r border-black p-1 text-left text-black">Nội dung</th>
+                                                    <th class="p-1 text-right w-36 text-black">Số tiền (VNĐ)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 text-black">Tổng doanh thu bán hàng</td>
+                                                    <td class="p-1 text-right font-mono font-semibold text-black">{{ vnd(previewData.gross_revenue) }}</td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 text-black">Giảm giá / Khuyến mãi</td>
+                                                    <td class="p-1 text-right font-mono text-rose-600 font-semibold">-{{ vnd(previewData.discount_total) }}</td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 text-black">Phí dịch vụ</td>
+                                                    <td class="p-1 text-right font-mono text-black">-</td>
+                                                </tr>
+                                                <tr class="border-b border-black bg-slate-100 font-bold">
+                                                    <td class="border-r border-black p-1 text-black uppercase">DOANH THU THUẦN</td>
+                                                    <td class="p-1 text-right font-mono font-black text-emerald-800">{{ vnd(previewData.net_revenue) }}</td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 text-black">Số hóa đơn</td>
+                                                    <td class="p-1 text-right font-semibold text-black">{{ previewData.order_count }} / {{ previewData.total_order_count }} đơn</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-r border-black p-1 text-black">Số lượt khách</td>
+                                                    <td class="p-1 text-right font-semibold text-black">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- 3. CHI TIẾT THANH TOÁN -->
+                                <div class="mt-3">
+                                    <h3 class="text-xs font-black uppercase text-black mb-1">3. CHI TIẾT THANH TOÁN</h3>
+                                    <table class="w-full border-collapse border border-black text-[11px] text-black">
+                                        <thead>
+                                            <tr class="bg-slate-200 border-b border-black font-bold text-center text-black">
+                                                <th class="border-r border-black p-1 text-left text-black">Hình thức thanh toán</th>
+                                                <th class="border-r border-black p-1 text-right text-black">Doanh thu (VNĐ)</th>
+                                                <th class="border-r border-black p-1 text-right text-black">Khách trả (VNĐ)</th>
+                                                <th class="border-r border-black p-1 text-right text-black">Hoàn tiền (VNĐ)</th>
+                                                <th class="p-1 text-left text-black">Ghi chú</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b border-black">
+                                                <td class="border-r border-black p-1 font-semibold text-black">Tiền mặt</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">{{ vnd(previewData.expected_cash) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono font-bold text-black">{{ vnd(form.actual_cash) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">0 đ</td>
+                                                <td class="p-1" :class="cashDifference >= 0 ? 'text-emerald-800 font-bold' : 'text-rose-600 font-bold'">
+                                                    {{ cashDifference !== 0 ? (cashDifference > 0 ? 'Thừa +' : 'Thiếu ') + vnd(cashDifference) : 'Khớp sổ' }}
+                                                </td>
+                                            </tr>
+                                            <tr class="border-b border-black">
+                                                <td class="border-r border-black p-1 font-semibold text-black">Chuyển khoản</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">{{ vnd(previewData.transfer_amount) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono font-bold text-black">{{ vnd(form.actual_transfer_amount) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">0 đ</td>
+                                                <td class="p-1" :class="transferDifference >= 0 ? 'text-emerald-800 font-bold' : 'text-rose-600 font-bold'">
+                                                    {{ transferDifference !== 0 ? (transferDifference > 0 ? 'Thừa +' : 'Thiếu ') + vnd(transferDifference) : 'Khớp sổ' }}
+                                                </td>
+                                            </tr>
+                                            <tr class="border-b border-black text-slate-500">
+                                                <td class="border-r border-black p-1 text-black">Thẻ (POS)</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="p-1"></td>
+                                            </tr>
+                                            <tr class="border-b border-black text-slate-500">
+                                                <td class="border-r border-black p-1 text-black">Ví điện tử</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="p-1"></td>
+                                            </tr>
+                                            <tr class="border-b border-black text-slate-500">
+                                                <td class="border-r border-black p-1 text-black">Khác (............)</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">-</td>
+                                                <td class="p-1"></td>
+                                            </tr>
+                                            <tr class="bg-slate-100 font-black border-b border-black text-black">
+                                                <td class="border-r border-black p-1 uppercase text-black">TỔNG CỘNG</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">{{ vnd((previewData.expected_cash ?? 0) + previewData.transfer_amount) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-emerald-900 font-black">{{ vnd(form.actual_cash + form.actual_transfer_amount) }}</td>
+                                                <td class="border-r border-black p-1 text-right font-mono text-black">0 đ</td>
+                                                <td class="p-1 font-mono text-xs" :class="totalDifference >= 0 ? 'text-emerald-800 font-bold' : 'text-rose-600 font-bold'">
+                                                    {{ totalDifference !== 0 ? (totalDifference > 0 ? 'Thừa +' : 'Thiếu ') + vnd(totalDifference) : 'Khớp sổ' }}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- 4. KIỂM QUÝ TIỀN MẶT -->
+                                <div class="mt-3">
+                                    <h3 class="text-xs font-black uppercase text-black mb-1">4. KIỂM QUÝ TIỀN MẶT</h3>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full border-collapse border border-black text-[10px] text-center text-black">
+                                            <thead>
+                                                <tr class="bg-slate-200 border-b border-black font-bold text-black">
+                                                    <th class="border-r border-black p-1 text-left text-black">Mệnh giá</th>
+                                                    <th v-for="d in DENOMINATIONS" :key="d" class="border-r border-black p-1 text-black">{{ (d / 1000).toLocaleString('vi-VN') }}k</th>
+                                                    <th class="p-1 font-black bg-slate-300 text-black">Tổng cộng</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 font-bold text-left bg-slate-100 text-black">Số tờ / xu</td>
+                                                    <td v-for="d in DENOMINATIONS" :key="'count-' + d" class="border-r border-black p-1 font-mono text-black">
+                                                        {{ denominationCounts[d] || '-' }}
+                                                    </td>
+                                                    <td class="p-1 font-mono font-bold bg-slate-100 text-black">
+                                                        {{ Object.values(denominationCounts).reduce((a, b) => Number(a) + Number(b || 0), 0) || '-' }}
+                                                    </td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 font-bold text-left bg-slate-100 text-black">Thành tiền (VNĐ)</td>
+                                                    <td v-for="d in DENOMINATIONS" :key="'val-' + d" class="border-r border-black p-1 font-mono text-[9px] text-black">
+                                                        {{ denominationCounts[d] ? (d * denominationCounts[d]).toLocaleString('vi-VN') : '-' }}
+                                                    </td>
+                                                    <td class="p-1 font-mono font-black text-emerald-900 bg-slate-100">
+                                                        {{ vnd(form.actual_cash) }}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p class="mt-1 text-[11px] font-black uppercase text-black">
+                                        TỔNG TIỀN MẶT THỰC TẾ: <span class="font-mono text-emerald-800">{{ vnd(form.actual_cash) }}</span>
+                                    </p>
+                                </div>
+
+                                <!-- 5. ĐỐI CHIẾU & 6. HÀNG HÓA NGUYÊN LIỆU -->
+                                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- 5. ĐỐI CHIẾU -->
+                                    <div>
+                                        <h3 class="text-xs font-black uppercase text-black mb-1">5. ĐỐI CHIẾU</h3>
+                                        <div class="border border-black p-2.5 text-[11px] space-y-1 leading-normal rounded bg-white text-black">
+                                            <p>Tổng tiền mặt theo hệ thống: <span class="font-mono font-bold text-black">{{ vnd(previewData.expected_cash) }}</span></p>
+                                            <p>Tổng tiền mặt thực tế: <span class="font-mono font-bold text-black">{{ vnd(form.actual_cash) }}</span></p>
+                                            <p>Chênh lệch (Thừa / Thiếu): <span class="font-mono font-bold" :class="cashDifference >= 0 ? 'text-emerald-800' : 'text-rose-600'">{{ cashDifference >= 0 ? '+' : '' }}{{ vnd(cashDifference) }}</span></p>
+                                            <p>Lý do chênh lệch: <span class="italic text-slate-800">{{ form.responsibility_note || form.notes || 'Khớp số liệu hệ thống' }}</span></p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 6. HÀNG HÓA – NGUYÊN LIỆU -->
+                                    <div>
+                                        <h3 class="text-xs font-black uppercase text-black mb-1">6. HÀNG HÓA – NGUYÊN LIỆU</h3>
+                                        <table class="w-full border-collapse border border-black text-[11px] text-black">
+                                            <thead>
+                                                <tr class="bg-slate-200 border-b border-black font-bold text-center text-black">
+                                                    <th class="border-r border-black p-1 text-left text-black">Nội dung</th>
+                                                    <th class="p-1 text-left text-black">Ghi chú / Giá trị</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 font-semibold text-black">Tồn kho đầu ca</td>
+                                                    <td class="p-1 text-slate-600">-</td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 font-semibold text-black">Nhập trong ca</td>
+                                                    <td class="p-1 text-slate-600">-</td>
+                                                </tr>
+                                                <tr class="border-b border-black">
+                                                    <td class="border-r border-black p-1 font-semibold text-black">Xuất trong ca</td>
+                                                    <td class="p-1 text-slate-600">-</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border-r border-black p-1 font-semibold text-black">Tồn kho cuối ca</td>
+                                                    <td class="p-1 text-slate-600">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Ghi chú khác -->
+                                <div class="mt-2 text-[11px] text-black">
+                                    <p><span class="font-bold text-black">Ghi chú khác:</span> <span class="border-b border-dotted border-black inline-block min-w-[200px] text-black">{{ form.notes || 'Không có phát sinh bất thường' }}</span></p>
+                                </div>
+
+                                <!-- 7. CÔNG NỢ & CHỮ KÝ 3 BÊN -->
+                                <div class="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                    <!-- 7. CÔNG NỢ - GIẤY TỜ KHÁC -->
+                                    <div class="md:col-span-4 text-[11px] space-y-1 border border-black p-2 rounded bg-white text-black">
+                                        <h3 class="text-xs font-black uppercase text-black">7. CÔNG NỢ – GIẤY TỜ KHÁC</h3>
+                                        <p>[ ] Phiếu thu / chi .............</p>
+                                        <p>[ ] Phiếu nhập / xuất kho ......</p>
+                                        <p>[ ] Hóa đơn chưa thanh toán ...</p>
+                                        <p>[ ] Khác: ...........................</p>
+                                    </div>
+
+                                    <!-- Chữ ký 3 bên -->
+                                    <div class="md:col-span-8 border border-dashed border-black p-3 text-center grid grid-cols-3 gap-2 text-[11px] rounded bg-white text-black">
+                                        <div>
+                                            <p class="font-black uppercase text-black">NHÂN VIÊN BÀN GIAO</p>
+                                            <p class="text-[10px] italic text-slate-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-12 flex items-end justify-center font-semibold text-slate-800">
+                                                Thu ngân đứng ca
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p class="font-black uppercase text-black">NHÂN VIÊN CHỐT CA</p>
+                                            <p class="text-[10px] italic text-slate-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-12 flex items-end justify-center font-bold text-black">
+                                                {{ (usePage().props.auth?.user as any)?.name }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p class="font-black uppercase text-black">QUẢN LÝ CA</p>
+                                            <p class="text-[10px] italic text-slate-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-12 flex items-end justify-center font-bold text-black">
+                                                {{ (usePage().props.auth?.user as any)?.name }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Footer Notice -->
+                                <div class="mt-3 text-[10px] italic text-slate-600 flex justify-between items-center border-t border-slate-300 pt-2">
+                                    <span>* Lưu ý: Phiếu chốt ca được lập 02 bản, 01 bản lưu tại nhà hàng, 01 bản nộp về phòng kế toán.</span>
+                                    <button type="button" @click="printSlip" class="no-print inline-flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer text-[11px]">
+                                        <Printer class="size-3.5" /> In phiếu A4
+                                    </button>
                                 </div>
                             </div>
                         </template>
@@ -4117,11 +4481,13 @@ onUnmounted(() =>
                             @click="
                                 dialogStep === 1
                                     ? (showDialog = false)
-                                    : (dialogStep = 1)
+                                    : dialogStep === 3
+                                      ? (dialogStep = 2)
+                                      : (dialogStep = 1)
                             "
                             class="h-9 text-xs font-semibold"
                         >
-                            {{ dialogStep === 1 ? 'Huỷ bỏ' : '← Quay lại' }}
+                            {{ dialogStep === 1 ? 'Huỷ bỏ' : dialogStep === 3 ? '← Quay lại chỉnh sửa' : '← Quay lại' }}
                         </Button>
 
                         <div class="flex gap-2">
@@ -4148,13 +4514,35 @@ onUnmounted(() =>
                             </Button>
 
                             <!-- Step 2 actions -->
-                            <template
-                                v-if="
-                                    dialogStep === 2 &&
-                                    previewData &&
-                                    !previewData.already_closed
-                                "
-                            >
+                            <template v-if="dialogStep === 2 && previewData">
+                                <Button
+                                    variant="outline"
+                                    @click="submitForm(false)"
+                                    :disabled="form.processing"
+                                    class="h-9 text-xs font-semibold transition-transform active:scale-95"
+                                >
+                                    Lưu bản nháp
+                                </Button>
+                                <Button
+                                    @click="goToStep3"
+                                    :disabled="form.processing"
+                                    class="flex h-9 items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white transition-transform hover:bg-emerald-700 active:scale-95"
+                                >
+                                    <Check class="size-4" />
+                                    <template v-if="isOwnerRole">
+                                        Chốt ca (Xem biên bản) →
+                                    </template>
+                                    <template v-else-if="isManagerRole">
+                                        Nộp cho Chủ doanh nghiệp →
+                                    </template>
+                                    <template v-else>
+                                        Nộp chốt ca →
+                                    </template>
+                                </Button>
+                            </template>
+
+                            <!-- Step 3 actions -->
+                            <template v-if="dialogStep === 3 && previewData">
                                 <Button
                                     variant="outline"
                                     @click="submitForm(false)"
@@ -4174,12 +4562,12 @@ onUnmounted(() =>
                                     />
                                     <Check v-else class="size-4" />
                                     <template v-if="isOwnerRole">
-                                        Chốt ca
+                                        Xác nhận ghi nhận chốt ca
                                     </template>
                                     <template v-else-if="isManagerRole">
                                         Nộp cho Chủ doanh nghiệp
                                     </template>
-                                    <template v-else> Nộp chốt ca </template>
+                                    <template v-else> Xác nhận nộp chốt ca </template>
                                 </Button>
                             </template>
                         </div>

@@ -118,7 +118,8 @@ class ShiftClosingController extends Controller
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereYear('closing_date', $year)
             ->whereMonth('closing_date', $month)
-            ->latest('closing_date');
+            ->latest('closing_date')
+            ->latest('id');
 
         if ($statusFilter !== 'all') {
             $query->where('status', $statusFilter);
@@ -294,7 +295,6 @@ class ShiftClosingController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
             ->where('status', 'paid')
-            ->whereBetween('paid_at', [$startDt, $endDt])
             ->whereIn('order_id', $completedOrders->pluck('id')->all())
             ->get(['payment_method', 'amount']);
 
@@ -794,7 +794,7 @@ class ShiftClosingController extends Controller
                     ? $summary['transfer_amount']
                     : $calculated['transfer_amount'];
 
-                $explanation = trim($data['variance_explanation'] ?? '');
+                $explanation = trim((string) ($data['variance_explanation'] ?? $data['responsibility_note'] ?? $data['notes'] ?? ''));
                 $actualTransfer = (float) ($data['actual_transfer_amount'] ?? $transferAmountForSlip);
 
                 $cashDifference = $data['actual_cash'] - $expectedCashForSlip;
@@ -1007,8 +1007,8 @@ class ShiftClosingController extends Controller
             ]);
 
             // Quy trách nhiệm theo số đã nhập: âm là trừ lương, dương là cộng lương.
-            $responsibilityAmount = is_null($closing->responsibility_amount)
-                ? (float) $closing->cash_difference
+            $responsibilityAmount = (is_null($closing->responsibility_amount) || (float) $closing->responsibility_amount === 0.0)
+                ? (float) ($closing->total_difference ?? ($closing->cash_difference + $closing->transfer_difference))
                 : (float) $closing->responsibility_amount;
 
             $targetUserId = $closing->responsible_user_id ?? $closing->cashier_user_id;
@@ -1194,7 +1194,6 @@ class ShiftClosingController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'paid')
-            ->whereBetween('paid_at', [$startDt, $endDt])
             ->whereIn('order_id', $orderIds->all())
             ->get(['payment_method', 'amount']);
 
@@ -1210,6 +1209,7 @@ class ShiftClosingController extends Controller
             ->sum('total_amount');
 
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
+        $transferAmount = (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount');
 
         $register = CashRegister::where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
@@ -1246,7 +1246,7 @@ class ShiftClosingController extends Controller
             'period_end_at' => $endDt,
             'expected_cash' => $expectedCashTotal,
             'cash_sales_amount' => (float) $expectedCash,
-            'transfer_amount' => (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount'),
+            'transfer_amount' => (float) $transferAmount,
             'split_penalty_total' => (float) $splitPenaltyTotal,
             'register_id' => $registerId,
         ];
@@ -1564,9 +1564,10 @@ class ShiftClosingController extends Controller
 
                 $hasCash = false;
                 $hasTransfer = false;
+                $paidPayments = $ord->payments ? $ord->payments->filter(fn ($pm) => $pm->status === 'paid') : collect();
 
-                foreach ($ord->payments as $pm) {
-                    if ($pm->status === 'paid') {
+                if ($paidPayments->isNotEmpty()) {
+                    foreach ($paidPayments as $pm) {
                         if ($pm->payment_method === 'cash') {
                             $areaGroups[$groupKey]['expected_cash'] += (float) $pm->amount;
                             $hasCash = true;
@@ -1574,6 +1575,16 @@ class ShiftClosingController extends Controller
                             $areaGroups[$groupKey]['transfer_amount'] += (float) $pm->amount;
                             $hasTransfer = true;
                         }
+                    }
+                } else {
+                    $method = $ord->payment_method ?? 'cash';
+                    $amount = (float) ($ord->final_amount ?? max(0.0, (float) $ord->total_amount - (float) $ord->discount_amount));
+                    if ($method === 'cash') {
+                        $areaGroups[$groupKey]['expected_cash'] += $amount;
+                        $hasCash = true;
+                    } else {
+                        $areaGroups[$groupKey]['transfer_amount'] += $amount;
+                        $hasTransfer = true;
                     }
                 }
 

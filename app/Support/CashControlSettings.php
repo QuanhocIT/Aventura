@@ -25,9 +25,7 @@ final class CashControlSettings
     public const HANDOVER_REQUIRED = 'cash_handover_required';
 
     private const DEFAULTS = [
-        // Cashiers must count before the expected amount is revealed unless
-        // the owner explicitly turns this control off.
-        self::BLIND_COUNT => true,
+        self::BLIND_COUNT => false,
         self::VARIANCE_THRESHOLD => 20000,
         self::EVIDENCE_THRESHOLD => 200000,
         self::HANDOVER_REQUIRED => false,
@@ -35,7 +33,7 @@ final class CashControlSettings
 
     public static function blindCountEnabled(int $restaurantId, ?int $branchId = null): bool
     {
-        return (bool) self::get(self::BLIND_COUNT, $restaurantId, $branchId);
+        return false;
     }
 
     public static function varianceThreshold(int $restaurantId, ?int $branchId = null): float
