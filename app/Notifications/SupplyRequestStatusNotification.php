@@ -51,9 +51,21 @@ class SupplyRequestStatusNotification extends Notification
                 'Hàng đang được vận chuyển',
                 "Đơn cấp phát #{$requestCode} đã xuất kho và đang trên đường giao tới {$branchName}.",
             ],
+            'delivery_confirmed' => [
+                'Đã giao hàng tới chi nhánh',
+                "Nhân viên giao hàng đã xác nhận đơn #{$requestCode} tới {$branchName}; chi nhánh có thể kiểm đếm và nghiệm thu.",
+            ],
+            'delivery_assigned' => [
+                'Đã phân công giao hàng',
+                "Đơn cấp phát #{$requestCode} đã được phân công nhân viên giao tới {$branchName}.",
+            ],
             'received' => [
                 'Chi nhánh đã nhận hàng',
                 "Chi nhánh {$branchName} đã nhận hàng cho đơn cấp phát #{$requestCode}.",
+            ],
+            'received_clean' => [
+                'Đã tự động nhập kho',
+                "Đơn cấp phát #{$requestCode} đã đối soát đạt toàn bộ; hệ thống đã tự động nhập kho các nguyên liệu đạt tại {$branchName}.",
             ],
             'disputed' => [
                 'Cảnh báo tranh chấp giao nhận kho',

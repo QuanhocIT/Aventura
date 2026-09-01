@@ -35,6 +35,8 @@ class SupplyRequest extends Model
 
     const STATUS_DISPUTED = 'disputed';
 
+    const STATUS_RECEIVING_REVIEW = 'receiving_review';
+
     const STATUS_COMPLETED = 'completed';
 
     const STATUS_RETURNED = 'returned';
@@ -58,6 +60,7 @@ class SupplyRequest extends Model
             'prepared_at' => 'datetime',
             'dispatch_approved_at' => 'datetime',
             'handover_at' => 'datetime',
+            'delivery_confirmed_at' => 'datetime',
             'last_overdue_alert_at' => 'datetime',
         ];
     }
@@ -104,6 +107,16 @@ class SupplyRequest extends Model
         return $this->belongsTo(User::class, 'handover_by');
     }
 
+    public function transporter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'transporter_id');
+    }
+
+    public function deliveryConfirmedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'delivery_confirmed_by');
+    }
+
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
@@ -122,6 +135,16 @@ class SupplyRequest extends Model
     public function pickingTask(): HasOne
     {
         return $this->hasOne(WarehouseTaskAssignment::class, 'supply_request_id')->where('task_type', 'picking');
+    }
+
+    public function deliveryTask(): HasOne
+    {
+        return $this->hasOne(WarehouseTaskAssignment::class, 'supply_request_id')->where('task_type', 'delivery');
+    }
+
+    public function receivingReport(): HasOne
+    {
+        return $this->hasOne(SupplyRequestReceivingReport::class, 'supply_request_id');
     }
 
     /**
@@ -162,7 +185,7 @@ class SupplyRequest extends Model
 
     public function isDispatched(): bool
     {
-        return in_array($this->status, [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED]);
+        return in_array($this->status, [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED, self::STATUS_RECEIVING_REVIEW], true);
     }
 
     public static function terminalStatuses(): array
@@ -172,7 +195,7 @@ class SupplyRequest extends Model
 
     public static function receivingStatuses(): array
     {
-        return [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED];
+        return [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED, self::STATUS_RECEIVING_REVIEW];
     }
 
     public function isTerminal(): bool
