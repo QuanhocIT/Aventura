@@ -50,6 +50,8 @@ type TransferStatus =
 
 interface Transfer {
     id: number;
+    request_group_id: string | null;
+    request_group_size?: number;
     status: TransferStatus;
     priority: 'normal' | 'urgent';
     ingredient_id: number;
@@ -103,6 +105,24 @@ interface Transfer {
     can_cancel: boolean;
 }
 
+interface TransferGroup {
+    key: string;
+    request_group_id: string | null;
+    is_group: boolean;
+    to_branch_id: number;
+    to_branch: string | null;
+    requested_by: string | null;
+    created_at: string;
+    priority: 'normal' | 'urgent';
+    reason: string;
+    status: TransferStatus | 'mixed';
+    items: Transfer[];
+    can_batch_route: boolean;
+    can_batch_reject: boolean;
+    can_batch_cancel: boolean;
+    has_overdue: boolean;
+}
+
 interface Branch {
     id: number;
     name: string;
@@ -147,22 +167,91 @@ const resolving = ref<Transfer | null>(null);
 const cancelling = ref<Transfer | null>(null);
 const rejecting = ref<Transfer | null>(null);
 const detailTransfer = ref<Transfer | null>(null);
+const batchRoutingGroup = ref<TransferGroup | null>(null);
+const batchRejectingGroup = ref<TransferGroup | null>(null);
+const batchCancellingGroup = ref<TransferGroup | null>(null);
 const search = ref('');
 const statusFilter = ref<'all' | TransferStatus>('all');
+interface RequestLine {
+    ingredient_id: number | '';
+    quantity_requested: number;
+}
+
 const branchFilter = ref<number | 'all'>('all');
 const workQueueOnly = ref(false);
 
-const requestForm = useForm({
-    to_branch_id: props.branches[0]?.id ?? ('' as number | ''),
-    ingredient_id: '' as number | '',
+const createRequestLine = (): RequestLine => ({
+    ingredient_id: '',
     quantity_requested: 0,
+});
+
+const requestForm = useForm<{
+    to_branch_id: number | '';
+    items: RequestLine[];
+    priority: 'normal' | 'urgent';
+    reason: string;
+}>({
+    to_branch_id: props.branches[0]?.id ?? '',
+    items: [createRequestLine()],
     priority: requestOnly.value ? 'urgent' : 'normal',
     reason: '',
 });
 
+const availableIngredientsForLine = (lineIndex: number | string) =>
+    props.ingredients.filter((ingredient) => {
+        const belongsToBranch =
+            ingredient.branch_id === null ||
+            Number(ingredient.branch_id) === Number(requestForm.to_branch_id);
+        const usedByAnotherLine = requestForm.items.some(
+            (line: RequestLine, index: number) =>
+                index !== Number(lineIndex) &&
+                Number(line.ingredient_id) === Number(ingredient.id),
+        );
+
+        return belongsToBranch && !usedByAnotherLine;
+    });
+
+const selectedIngredientForLine = (lineIndex: number | string) =>
+    props.ingredients.find(
+        (ingredient) =>
+            Number(ingredient.id) ===
+            Number(requestForm.items[Number(lineIndex)]?.ingredient_id),
+    );
+
+const addRequestLine = () => {
+    if (requestForm.items.length < 50) {
+        requestForm.items.push(createRequestLine());
+    }
+};
+
+const removeRequestLine = (lineIndex: number | string) => {
+    if (requestForm.items.length > 1) {
+        requestForm.items.splice(Number(lineIndex), 1);
+    }
+};
+
 const routeForm = useForm({
     from_branch_id: '' as number | '',
     owner_note: '',
+});
+
+const batchRouteForm = useForm({
+    request_group_id: '',
+    transfer_ids: [] as number[],
+    from_branch_id: '' as number | '',
+    owner_note: '',
+});
+
+const batchRejectForm = useForm({
+    request_group_id: '',
+    transfer_ids: [] as number[],
+    reject_reason: '',
+});
+
+const batchCancelForm = useForm({
+    request_group_id: '',
+    transfer_ids: [] as number[],
+    cancel_reason: '',
 });
 
 const dispatchForm = useForm({
@@ -188,21 +277,6 @@ const receiveForm = useForm({
 const resolutionForm = useForm({ discrepancy_resolution: '' });
 const cancelForm = useForm({ cancel_reason: '' });
 const rejectForm = useForm({ reject_reason: '' });
-
-const selectedIngredient = computed(() =>
-    availableIngredients.value.find(
-        (ingredient) =>
-            Number(ingredient.id) === Number(requestForm.ingredient_id),
-    ),
-);
-
-const availableIngredients = computed(() =>
-    props.ingredients.filter(
-        (ingredient) =>
-            ingredient.branch_id === null ||
-            Number(ingredient.branch_id) === Number(requestForm.to_branch_id),
-    ),
-);
 
 const routeBranchOptions = computed(() => {
     const transfer = routing.value;
@@ -377,16 +451,119 @@ const operationalStats = computed(() => {
     };
 });
 
-const workQueue = computed(() =>
-    props.transfers
-        .filter(shouldShowInQueue)
-        .sort((a, b) => {
-            const overdueDiff = Number(isOverdue(b)) - Number(isOverdue(a));
+const groupedWorkQueue = computed<TransferGroup[]>(() => {
+    const queueTransfers = props.transfers.filter(shouldShowInQueue);
+    const groupsMap = new Map<string, TransferGroup>();
 
-            return overdueDiff || ageInHours(b) - ageInHours(a);
+    queueTransfers.forEach((transfer) => {
+        const groupKey = transfer.request_group_id
+            ? `grp_${transfer.request_group_id}`
+            : `single_${transfer.id}`;
+
+        if (!groupsMap.has(groupKey)) {
+            groupsMap.set(groupKey, {
+                key: groupKey,
+                request_group_id: transfer.request_group_id || null,
+                is_group: false,
+                to_branch_id: transfer.to_branch_id,
+                to_branch: transfer.to_branch,
+                requested_by: transfer.requested_by,
+                created_at: transfer.created_at,
+                priority: transfer.priority,
+                reason: transfer.reason,
+                status: transfer.status,
+                items: [],
+                can_batch_route: false,
+                can_batch_reject: false,
+                can_batch_cancel: false,
+                has_overdue: false,
+            });
+        }
+
+        const grp = groupsMap.get(groupKey)!;
+        grp.items.push(transfer);
+
+        if (grp.priority !== 'urgent' && transfer.priority === 'urgent') {
+            grp.priority = 'urgent';
+        }
+
+        if (isOverdue(transfer)) {
+            grp.has_overdue = true;
+        }
+    });
+
+    return Array.from(groupsMap.values())
+        .map((grp) => {
+            grp.is_group = grp.items.length > 1;
+            const allRequested = grp.items.every(
+                (t) => t.status === 'requested',
+            );
+            const anyCanRoute = grp.items.some((t) => t.can_route);
+            const anyCanCancel = grp.items.some((t) => t.can_cancel);
+
+            grp.can_batch_route = anyCanRoute && allRequested;
+            grp.can_batch_reject =
+                anyCanRoute &&
+                grp.items.some((t) =>
+                    ['requested', 'routed'].includes(t.status),
+                );
+            grp.can_batch_cancel =
+                anyCanCancel &&
+                grp.items.some((t) =>
+                    ['requested', 'routed'].includes(t.status),
+                );
+
+            const statuses = new Set(grp.items.map((t) => t.status));
+            grp.status = statuses.size === 1 ? grp.items[0].status : 'mixed';
+
+            return grp;
         })
-        .slice(0, 5),
-);
+        .sort((a, b) => {
+            const overdueDiff = Number(b.has_overdue) - Number(a.has_overdue);
+            const urgentDiff =
+                Number(b.priority === 'urgent') -
+                Number(a.priority === 'urgent');
+
+            return overdueDiff || urgentDiff;
+        })
+        .slice(0, 6);
+});
+
+const nextActionForGroup = (group: TransferGroup) => {
+    if (requestOnly.value && group.status === 'requested') {
+        return 'Chờ Chủ doanh nghiệp xem xét';
+    }
+
+    if (group.can_batch_route) {
+        return 'Định tuyến cả phiếu';
+    }
+
+    if (group.items.some((t) => t.can_dispatch)) {
+        return 'Xác nhận xuất kho';
+    }
+
+    if (group.items.some((t) => t.can_receive)) {
+        return 'Kiểm đếm & nhận hàng';
+    }
+
+    if (group.items.some((t) => t.can_resolve)) {
+        return 'Chốt chênh lệch';
+    }
+
+    return 'Theo dõi tiến độ';
+};
+
+const handleWorkQueueGroupClick = (group: TransferGroup) => {
+    if (group.is_group) {
+        if (group.can_batch_route) {
+            openBatchRoute(group);
+        } else {
+            openDetails(group.items[0]);
+        }
+    } else {
+        openDetails(group.items[0]);
+    }
+};
 
 const timelineFor = (transfer: Transfer) => [
     {
@@ -447,6 +624,163 @@ const filteredTransfers = computed(() => {
         );
     });
 });
+
+const groupedTransfers = computed<TransferGroup[]>(() => {
+    const groupsMap = new Map<string, TransferGroup>();
+
+    filteredTransfers.value.forEach((transfer) => {
+        const groupKey = transfer.request_group_id
+            ? `grp_${transfer.request_group_id}`
+            : `single_${transfer.id}`;
+
+        if (!groupsMap.has(groupKey)) {
+            groupsMap.set(groupKey, {
+                key: groupKey,
+                request_group_id: transfer.request_group_id || null,
+                is_group: false,
+                to_branch_id: transfer.to_branch_id,
+                to_branch: transfer.to_branch,
+                requested_by: transfer.requested_by,
+                created_at: transfer.created_at,
+                priority: transfer.priority,
+                reason: transfer.reason,
+                status: transfer.status,
+                items: [],
+                can_batch_route: false,
+                can_batch_reject: false,
+                can_batch_cancel: false,
+                has_overdue: false,
+            });
+        }
+
+        const grp = groupsMap.get(groupKey)!;
+        grp.items.push(transfer);
+
+        if (grp.priority !== 'urgent' && transfer.priority === 'urgent') {
+            grp.priority = 'urgent';
+        }
+
+        if (isOverdue(transfer)) {
+            grp.has_overdue = true;
+        }
+    });
+
+    return Array.from(groupsMap.values()).map((grp) => {
+        grp.is_group = grp.items.length > 1;
+        const allRequested = grp.items.every((t) => t.status === 'requested');
+        const anyCanRoute = grp.items.some((t) => t.can_route);
+        const anyCanCancel = grp.items.some((t) => t.can_cancel);
+
+        grp.can_batch_route = anyCanRoute && allRequested;
+        grp.can_batch_reject =
+            anyCanRoute &&
+            grp.items.some((t) => ['requested', 'routed'].includes(t.status));
+        grp.can_batch_cancel =
+            anyCanCancel &&
+            grp.items.some((t) => ['requested', 'routed'].includes(t.status));
+
+        const statuses = new Set(grp.items.map((t) => t.status));
+        grp.status = statuses.size === 1 ? grp.items[0].status : 'mixed';
+
+        return grp;
+    });
+});
+
+const batchRouteBranchOptions = computed(() => {
+    const group = batchRoutingGroup.value;
+
+    if (!group) {
+        return [];
+    }
+
+    return props.branches.filter((branch) => branch.id !== group.to_branch_id);
+});
+
+const getBranchStockForIngredient = (
+    branchId: number | '',
+    ingredientId: number,
+): number => {
+    if (!branchId) {
+        return 0;
+    }
+
+    return props.branch_stock[String(branchId)]?.[String(ingredientId)] ?? 0;
+};
+
+const hasShortageInBatchRoute = computed(() => {
+    const group = batchRoutingGroup.value;
+
+    if (!group || !batchRouteForm.from_branch_id) {
+        return false;
+    }
+
+    return group.items.some((item) => {
+        const available = getBranchStockForIngredient(
+            batchRouteForm.from_branch_id,
+            item.ingredient_id,
+        );
+
+        return available + 0.0005 < item.quantity_requested;
+    });
+});
+
+const openBatchRoute = (group: TransferGroup) => {
+    detailTransfer.value = null;
+    batchRoutingGroup.value = group;
+    batchRouteForm.request_group_id = group.request_group_id ?? '';
+    batchRouteForm.transfer_ids = group.items.map((t) => t.id);
+    batchRouteForm.from_branch_id = '';
+    batchRouteForm.owner_note = '';
+};
+
+const openBatchReject = (group: TransferGroup) => {
+    detailTransfer.value = null;
+    batchRejectingGroup.value = group;
+    batchRejectForm.request_group_id = group.request_group_id ?? '';
+    batchRejectForm.transfer_ids = group.items.map((t) => t.id);
+    batchRejectForm.reject_reason = '';
+};
+
+const openBatchCancel = (group: TransferGroup) => {
+    detailTransfer.value = null;
+    batchCancellingGroup.value = group;
+    batchCancelForm.request_group_id = group.request_group_id ?? '';
+    batchCancelForm.transfer_ids = group.items.map((t) => t.id);
+    batchCancelForm.cancel_reason = '';
+};
+
+const submitBatchRoute = () => {
+    if (!batchRoutingGroup.value || batchRouteForm.processing) {
+        return;
+    }
+
+    batchRouteForm.post('/inventory/transfers/batch-route', {
+        preserveScroll: true,
+        onSuccess: closeModals,
+    });
+};
+
+const submitBatchReject = () => {
+    if (!batchRejectingGroup.value || batchRejectForm.processing) {
+        return;
+    }
+
+    batchRejectForm.post('/inventory/transfers/batch-reject', {
+        preserveScroll: true,
+        onSuccess: closeModals,
+    });
+};
+
+const submitBatchCancel = () => {
+    if (!batchCancellingGroup.value || batchCancelForm.processing) {
+        return;
+    }
+
+    batchCancelForm.post('/inventory/transfers/batch-cancel', {
+        preserveScroll: true,
+        onSuccess: closeModals,
+    });
+};
 
 const statusConfig: Record<
     TransferStatus,
@@ -565,6 +899,7 @@ const openReject = (transfer: Transfer) => {
 
 const openCreateRequest = () => {
     requestForm.reset();
+    requestForm.items = [createRequestLine()];
     requestForm.priority = requestOnly.value ? 'urgent' : 'normal';
 
     if (props.branches.length > 0 && !requestForm.to_branch_id) {
@@ -583,6 +918,9 @@ const closeModals = () => {
     cancelling.value = null;
     rejecting.value = null;
     detailTransfer.value = null;
+    batchRoutingGroup.value = null;
+    batchRejectingGroup.value = null;
+    batchCancellingGroup.value = null;
 };
 
 const openDetails = (transfer: Transfer) => {
@@ -606,9 +944,19 @@ const refreshPage = () => {
 watch(
     () => requestForm.to_branch_id,
     () => {
-        if (!selectedIngredient.value) {
-            requestForm.ingredient_id = '';
-        }
+        requestForm.items.forEach((line: RequestLine) => {
+            const ingredient = props.ingredients.find(
+                (option) => Number(option.id) === Number(line.ingredient_id),
+            );
+
+            if (
+                ingredient &&
+                ingredient.branch_id !== null &&
+                Number(ingredient.branch_id) !== Number(requestForm.to_branch_id)
+            ) {
+                line.ingredient_id = '';
+            }
+        });
     },
 );
 
@@ -741,55 +1089,48 @@ const formatDuration = (hours: number) => {
 <template>
     <Head :title="requestOnly ? 'Xin điều chuyển kho' : 'Điều chuyển kho'" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
-        <section
-            class="flex flex-col gap-4 rounded-2xl border border-teal-200/80 bg-gradient-to-r from-teal-50/70 via-slate-50 to-teal-100/40 p-5 text-slate-900 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 dark:border-teal-400/20 dark:bg-gradient-to-r dark:from-slate-950 dark:via-slate-900 dark:to-teal-950/70 dark:text-white dark:shadow-xl"
+    <div class="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+        <!-- Modern Unified Header -->
+        <div
+            class="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-5 shadow-xs sm:p-6 md:flex-row md:items-center md:justify-between"
         >
-            <div class="flex items-start gap-3">
+            <div class="flex items-center gap-4">
                 <div
-                    class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-teal-200 bg-teal-500/10 text-teal-600 dark:border-teal-300/30 dark:bg-teal-400/15 dark:text-teal-200"
+                    class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-sm shadow-teal-600/20"
                 >
                     <ArrowLeftRight class="size-6" />
                 </div>
                 <div>
-                    <p
-                        class="text-[10px] font-bold tracking-[0.22em] text-teal-700 uppercase dark:text-teal-300/80"
-                    >
-                        Kho vận hành
-                    </p>
                     <h1
-                        class="mt-1 text-xl font-black tracking-tight text-slate-900 sm:text-2xl dark:text-white"
+                        class="text-xl font-bold tracking-tight text-foreground sm:text-2xl"
                     >
                         {{
                             requestOnly
                                 ? 'Xin điều chuyển kho'
-                                : 'Điều chuyển kho'
+                                : 'Điều chuyển kho nội bộ'
                         }}
                     </h1>
-                    <p
-                        class="mt-1 max-w-2xl text-xs leading-5 text-slate-600 dark:text-teal-100/70"
-                    >
+                    <p class="mt-0.5 text-xs text-muted-foreground">
                         <template v-if="requestOnly">
-                            Gửi yêu cầu bổ sung nguyên liệu đột xuất để Chủ
-                            doanh nghiệp xem xét và điều phối. Bạn chỉ theo dõi
-                            tiến độ yêu cầu.
+                            Gửi yêu cầu bổ sung nguyên liệu đột xuất để Chủ doanh nghiệp xem xét và điều phối
                         </template>
                         <template v-else>
-                            Theo dõi đủ chu trình yêu cầu, định tuyến nguồn,
-                            xuất kho, bàn giao, nhận thực tế và xử lý chênh
-                            lệch.
+                            Theo dõi chu trình định tuyến nguồn, xuất kho, vận chuyển và đối soát chênh lệch
                         </template>
                     </p>
                 </div>
             </div>
-            <Button
-                v-if="props.permissions.can_create"
-                @click="openCreateRequest"
-                class="shrink-0 gap-1.5 rounded-xl border-0 bg-teal-500 font-bold text-white shadow-lg shadow-teal-950/30 hover:bg-teal-400"
-            >
-                <Plus class="size-4" /> Tạo yêu cầu
-            </Button>
-        </section>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <Button
+                    v-if="props.permissions.can_create"
+                    @click="openCreateRequest"
+                    class="gap-2 rounded-xl bg-teal-600 font-semibold text-white shadow-sm hover:bg-teal-700"
+                >
+                    <Plus class="size-4" /> Tạo yêu cầu
+                </Button>
+            </div>
+        </div>
 
         <section class="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <button
@@ -926,66 +1267,168 @@ const formatDuration = (hours: number) => {
                     </button>
                 </div>
 
-                <div v-if="workQueue.length" class="mt-4 space-y-2">
-                    <div
-                        v-for="transfer in workQueue"
-                        :key="`queue-${transfer.id}`"
-                        class="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                <div v-if="groupedWorkQueue.length" class="mt-4 space-y-2">
+                    <template
+                        v-for="group in groupedWorkQueue"
+                        :key="group.key"
                     >
-                        <button
-                            type="button"
-                            class="min-w-0 text-left"
-                            @click="openDetails(transfer)"
+                        <!-- Group Requisition in Work Queue -->
+                        <div
+                            v-if="group.is_group"
+                            class="flex flex-col gap-3 rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-3 sm:flex-row sm:items-center sm:justify-between"
                         >
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span
-                                    class="font-mono text-[10px] font-bold text-muted-foreground"
-                                    >TR-{{
-                                        String(transfer.id).padStart(5, '0')
-                                    }}</span
+                            <button
+                                type="button"
+                                class="min-w-0 flex-1 text-left"
+                                @click="handleWorkQueueGroupClick(group)"
+                            >
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span
+                                        class="rounded bg-indigo-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-300"
+                                    >
+                                        #{{
+                                            group.request_group_id
+                                                ? group.request_group_id
+                                                      .slice(0, 8)
+                                                      .toUpperCase()
+                                                : group.key
+                                        }}
+                                    </span>
+                                    <span
+                                        class="truncate text-sm font-black text-foreground"
+                                    >
+                                        Đơn điều chuyển ({{
+                                            group.items.length
+                                        }}
+                                        nguyên liệu)
+                                    </span>
+                                    <span
+                                        v-if="group.priority === 'urgent'"
+                                        class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
+                                    >
+                                        <AlertTriangle class="size-3" />
+                                        Khẩn cấp
+                                    </span>
+                                    <span
+                                        v-if="group.has_overdue"
+                                        class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
+                                    >
+                                        <Timer class="size-3" /> Quá SLA
+                                    </span>
+                                </div>
+                                <p
+                                    class="mt-1 truncate text-xs text-muted-foreground"
                                 >
+                                    {{
+                                        group.items[0]?.from_branch ||
+                                        'Chưa chọn nguồn'
+                                    }}
+                                    → {{ group.to_branch }} ·
+                                    <span
+                                        class="font-semibold text-indigo-300"
+                                        >{{ nextActionForGroup(group) }}</span
+                                    >
+                                    ·
+                                    <span class="text-muted-foreground/80">{{
+                                        group.items
+                                            .map((i) => i.ingredient)
+                                            .join(', ')
+                                    }}</span>
+                                </p>
+                            </button>
+                            <div class="flex shrink-0 items-center gap-2">
                                 <span
-                                    class="truncate text-sm font-bold text-foreground"
-                                    >{{ transfer.ingredient }}</span
+                                    class="rounded-full bg-indigo-500/15 px-2.5 py-0.5 text-xs font-bold text-indigo-300"
                                 >
-                                <span
-                                    v-if="transfer.priority === 'urgent'"
-                                    class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
-                                >
-                                    <AlertTriangle class="size-3" /> Khẩn cấp
+                                    {{ group.items.length }} món
                                 </span>
-                                <span
-                                    v-if="isOverdue(transfer)"
-                                    class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
+                                <Button
+                                    size="sm"
+                                    class="gap-1.5 bg-indigo-600 font-bold text-white hover:bg-indigo-500"
+                                    @click="handleWorkQueueGroupClick(group)"
                                 >
-                                    <Timer class="size-3" /> Quá SLA
-                                    {{ overdueHours(transfer) }}h
-                                </span>
+                                    {{
+                                        requestOnly
+                                            ? 'Xem tiến độ'
+                                            : group.can_batch_route
+                                              ? 'Định tuyến'
+                                              : 'Xử lý'
+                                    }}
+                                    <Activity class="size-3.5" />
+                                </Button>
                             </div>
-                            <p
-                                class="mt-1 truncate text-xs text-muted-foreground"
-                            >
-                                {{ transfer.from_branch || 'Chưa chọn nguồn' }}
-                                → {{ transfer.to_branch }} ·
-                                {{ nextAction(transfer) }}
-                            </p>
-                        </button>
-                        <div class="flex shrink-0 items-center gap-2">
-                            <span
-                                class="text-xs font-semibold text-muted-foreground"
-                                >{{ formatNumber(transfer.quantity_requested) }}
-                                {{ transfer.unit }}</span
-                            >
-                            <Button
-                                size="sm"
-                                class="gap-1.5 bg-teal-600 font-bold text-white hover:bg-teal-500"
+                        </div>
+
+                        <!-- Single Transfer in Work Queue -->
+                        <div
+                            v-else
+                            v-for="transfer in group.items"
+                            :key="`queue-${transfer.id}`"
+                            class="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <button
+                                type="button"
+                                class="min-w-0 flex-1 text-left"
                                 @click="openDetails(transfer)"
                             >
-                                {{ requestOnly ? 'Xem tiến độ' : 'Xử lý' }}
-                                <Activity class="size-3.5" />
-                            </Button>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span
+                                        class="font-mono text-[10px] font-bold text-muted-foreground"
+                                        >TR-{{
+                                            String(transfer.id).padStart(5, '0')
+                                        }}</span
+                                    >
+                                    <span
+                                        class="truncate text-sm font-bold text-foreground"
+                                        >{{ transfer.ingredient }}</span
+                                    >
+                                    <span
+                                        v-if="transfer.priority === 'urgent'"
+                                        class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
+                                    >
+                                        <AlertTriangle class="size-3" />
+                                        Khẩn cấp
+                                    </span>
+                                    <span
+                                        v-if="isOverdue(transfer)"
+                                        class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
+                                    >
+                                        <Timer class="size-3" /> Quá SLA
+                                        {{ overdueHours(transfer) }}h
+                                    </span>
+                                </div>
+                                <p
+                                    class="mt-1 truncate text-xs text-muted-foreground"
+                                >
+                                    {{
+                                        transfer.from_branch ||
+                                        'Chưa chọn nguồn'
+                                    }}
+                                    → {{ transfer.to_branch }} ·
+                                    {{ nextAction(transfer) }}
+                                </p>
+                            </button>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <span
+                                    class="text-xs font-semibold text-muted-foreground"
+                                    >{{
+                                        formatNumber(
+                                            transfer.quantity_requested,
+                                        )
+                                    }}
+                                    {{ transfer.unit }}</span
+                                >
+                                <Button
+                                    size="sm"
+                                    class="gap-1.5 bg-teal-600 font-bold text-white hover:bg-teal-500"
+                                    @click="openDetails(transfer)"
+                                >
+                                    {{ requestOnly ? 'Xem tiến độ' : 'Xử lý' }}
+                                    <Activity class="size-3.5" />
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    </template>
                 </div>
                 <div
                     v-else
@@ -1087,151 +1530,7 @@ const formatDuration = (hours: number) => {
             </div>
         </section>
 
-        <section
-            v-if="showRequest"
-            class="rounded-2xl border border-teal-400/20 bg-card/80 p-5 shadow-sm"
-        >
-            <div class="mb-4 flex items-center justify-between gap-3">
-                <div>
-                    <h2 class="font-black text-foreground">
-                        {{
-                            requestOnly
-                                ? 'Gửi yêu cầu bổ sung'
-                                : 'Tạo yêu cầu điều chuyển'
-                        }}
-                    </h2>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                        {{
-                            requestOnly
-                                ? 'Yêu cầu sẽ được gửi tới Chủ doanh nghiệp để xem xét và điều phối. Tạo yêu cầu không làm thay đổi tồn kho.'
-                                : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.'
-                        }}
-                    </p>
-                </div>
-                <Button variant="ghost" size="icon" @click="showRequest = false"
-                    ><X class="size-4"
-                /></Button>
-            </div>
-            <form
-                @submit.prevent="submitRequest"
-                class="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
-                <div class="flex flex-col gap-1.5">
-                    <Label>Chi nhánh cần hàng</Label>
-                    <select
-                        v-model="requestForm.to_branch_id"
-                        required
-                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                    >
-                        <option
-                            v-for="branch in props.branches"
-                            :key="branch.id"
-                            :value="branch.id"
-                        >
-                            {{ branch.name }}
-                        </option>
-                    </select>
-                    <p
-                        v-if="requestForm.errors.to_branch_id"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ requestForm.errors.to_branch_id }}
-                    </p>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Nguyên liệu</Label>
-                    <select
-                        v-model="requestForm.ingredient_id"
-                        required
-                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                    >
-                        <option value="" disabled>— Chọn nguyên liệu —</option>
-                        <option
-                            v-for="ingredient in availableIngredients"
-                            :key="ingredient.id"
-                            :value="ingredient.id"
-                        >
-                            {{ ingredient.name }} ({{ ingredient.unit }})
-                        </option>
-                    </select>
-                    <p
-                        v-if="requestForm.errors.ingredient_id"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ requestForm.errors.ingredient_id }}
-                    </p>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Số lượng cần</Label>
-                    <Input
-                        v-model="requestForm.quantity_requested"
-                        type="number"
-                        step="0.001"
-                        min="0.001"
-                        required
-                    />
-                    <p
-                        v-if="selectedIngredient"
-                        class="text-[11px] text-muted-foreground"
-                    >
-                        Đơn vị: {{ selectedIngredient.unit }}
-                    </p>
-                    <p v-else class="text-[11px] text-muted-foreground">
-                        Chỉ hiển thị nguyên liệu dùng được tại chi nhánh nhận.
-                    </p>
-                    <p
-                        v-if="requestForm.errors.quantity_requested"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ requestForm.errors.quantity_requested }}
-                    </p>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Mức độ yêu cầu</Label>
-                    <select
-                        v-model="requestForm.priority"
-                        required
-                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                    >
-                        <option value="urgent">
-                            Khẩn cấp — cần bổ sung sớm
-                        </option>
-                        <option value="normal">Thông thường</option>
-                    </select>
-                    <p class="text-[11px] text-muted-foreground">
-                        Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn cấp.
-                    </p>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <Label>Lý do / nhu cầu vận hành</Label>
-                    <Input
-                        v-model="requestForm.reason"
-                        required
-                        placeholder="VD: Dự báo thiếu cho ca tối, hỏng hàng, tồn dưới định mức..."
-                    />
-                    <p
-                        v-if="requestForm.errors.reason"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ requestForm.errors.reason }}
-                    </p>
-                </div>
-                <div class="flex justify-end gap-2 md:col-span-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="showRequest = false"
-                        >Hủy</Button
-                    >
-                    <Button
-                        type="submit"
-                        :disabled="requestForm.processing"
-                        class="border-0 bg-teal-500 font-bold text-white hover:bg-teal-400"
-                        >Gửi yêu cầu</Button
-                    >
-                </div>
-            </form>
-        </section>
+
 
         <section
             class="flex flex-col gap-3 rounded-2xl border border-border bg-card/50 p-3 sm:flex-row sm:items-center"
@@ -1302,306 +1601,486 @@ const formatDuration = (hours: number) => {
             >
         </section>
 
-        <section v-if="filteredTransfers.length" class="flex flex-col gap-3">
-            <article
-                v-for="transfer in filteredTransfers"
-                :key="transfer.id"
-                class="rounded-2xl border border-border bg-card/80 p-4 shadow-sm"
-            >
-                <div
-                    class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"
+        <section v-if="filteredTransfers.length" class="flex flex-col gap-4">
+            <template v-for="group in groupedTransfers" :key="group.key">
+                <!-- Grouped Request Card (When multiple items in the same request group) -->
+                <article
+                    v-if="group.is_group"
+                    class="rounded-2xl border border-indigo-500/30 bg-gradient-to-b from-indigo-950/20 via-card/80 to-card/90 p-5 shadow-md ring-1 ring-indigo-500/10"
                 >
-                    <div class="min-w-0 flex-1">
+                    <div
+                        class="flex flex-col gap-4 border-b border-border/70 pb-4 xl:flex-row xl:items-start xl:justify-between"
+                    >
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span
+                                    class="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/15 px-2 py-0.5 text-[11px] font-bold text-indigo-300"
+                                >
+                                    <ArrowLeftRight class="size-3.5" /> PHIẾU YÊU CẦU ĐA NGUYÊN LIỆU ({{ group.items.length }} món)
+                                </span>
+                                <span
+                                    class="font-mono text-[11px] font-bold text-muted-foreground"
+                                >
+                                    #{{ group.request_group_id ? group.request_group_id.slice(0, 8).toUpperCase() : group.key }}
+                                </span>
+                                <span
+                                    v-if="group.priority === 'urgent'"
+                                    class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
+                                >
+                                    <AlertTriangle class="size-3" /> Khẩn cấp
+                                </span>
+                                <span
+                                    v-if="group.has_overdue"
+                                    class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
+                                >
+                                    <Timer class="size-3" /> Quá SLA
+                                </span>
+                            </div>
+                            <div
+                                class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+                            >
+                                <span class="inline-flex items-center gap-1">
+                                    <MapPin class="size-3 text-indigo-400" /> Cần cấp về:
+                                    <strong class="text-foreground">{{ group.to_branch }}</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1">
+                                    <Clock3 class="size-3" /> {{ group.created_at }}
+                                </span>
+                                <span>
+                                    Người yêu cầu:
+                                    <strong class="text-foreground">{{ group.requested_by || '—' }}</strong>
+                                </span>
+                            </div>
+                            <p class="mt-2 rounded-lg border border-border/50 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+                                <b class="text-foreground">Lý do chung:</b> {{ group.reason }}
+                            </p>
+                        </div>
+
+                        <!-- Batch Action Buttons for the Whole Group -->
+                        <div class="flex shrink-0 flex-wrap items-center gap-2">
+                            <Button
+                                v-if="group.can_batch_route"
+                                size="sm"
+                                class="gap-1.5 bg-indigo-600 font-bold text-white shadow-sm hover:bg-indigo-700"
+                                @click="openBatchRoute(group)"
+                            >
+                                <RouteIcon class="size-3.5" /> Định tuyến
+                            </Button>
+                            <Button
+                                v-if="group.can_batch_reject"
+                                size="sm"
+                                variant="outline"
+                                class="gap-1.5 border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+                                @click="openBatchReject(group)"
+                            >
+                                <XCircle class="size-3.5" /> Từ chối cả phiếu
+                            </Button>
+                            <Button
+                                v-if="group.can_batch_cancel"
+                                size="sm"
+                                variant="outline"
+                                class="gap-1.5 border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+                                @click="openBatchCancel(group)"
+                            >
+                                <Ban class="size-3.5" /> Hủy cả phiếu
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- Items Table inside the group -->
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="w-full border-collapse text-left text-xs">
+                            <thead>
+                                <tr class="border-b border-border/80 text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                                    <th class="px-3 py-2.5">Mã & Tên nguyên liệu</th>
+                                    <th class="px-3 py-2.5">SL Yêu cầu</th>
+                                    <th class="px-3 py-2.5">Kho nguồn & Mã GN</th>
+                                    <th class="px-3 py-2.5">Trạng thái</th>
+                                    <th class="px-3 py-2.5 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border/50">
+                                <tr
+                                    v-for="transfer in group.items"
+                                    :key="transfer.id"
+                                    class="transition hover:bg-muted/30"
+                                >
+                                    <td class="px-3 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono text-[10px] font-semibold text-muted-foreground">
+                                                TR-{{ String(transfer.id).padStart(5, '0') }}
+                                            </span>
+                                            <span class="font-bold text-foreground">{{ transfer.ingredient }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-3 font-semibold text-foreground">
+                                        {{ formatNumber(transfer.quantity_requested) }} {{ transfer.unit }}
+                                    </td>
+                                    <td class="px-3 py-3 text-muted-foreground">
+                                        <div v-if="transfer.from_branch" class="flex flex-col">
+                                            <span class="font-medium text-foreground">{{ transfer.from_branch }}</span>
+                                            <span v-if="transfer.handover_code" class="font-mono text-[10px] text-violet-300">
+                                                GN: {{ transfer.handover_code }}
+                                            </span>
+                                        </div>
+                                        <span v-else class="italic text-[11px]">Chưa chọn kho cấp</span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold"
+                                            :class="statusConfig[transfer.status].className"
+                                        >
+                                            <component :is="statusConfig[transfer.status].icon" class="size-3" />
+                                            {{ statusLabel(transfer.status) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-3 text-right">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                class="h-7 px-2 text-xs"
+                                                @click="openDetails(transfer)"
+                                            >
+                                                <Eye class="mr-1 size-3" /> Chi tiết
+                                            </Button>
+                                            <Button
+                                                v-if="transfer.can_dispatch"
+                                                size="sm"
+                                                class="h-7 bg-amber-600 px-2 text-xs font-bold text-white hover:bg-amber-700"
+                                                @click="openDispatch(transfer)"
+                                            >
+                                                <PackageOpen class="mr-1 size-3" /> Xuất kho
+                                            </Button>
+                                            <Button
+                                                v-if="transfer.can_receive"
+                                                size="sm"
+                                                class="h-7 bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-700"
+                                                @click="openReceive(transfer)"
+                                            >
+                                                <PackageCheck class="mr-1 size-3" /> Nhận hàng
+                                            </Button>
+                                            <Button
+                                                v-if="transfer.can_resolve"
+                                                size="sm"
+                                                class="h-7 bg-rose-600 px-2 text-xs font-bold text-white hover:bg-rose-700"
+                                                @click="openResolve(transfer)"
+                                            >
+                                                <ClipboardCheck class="mr-1 size-3" /> Chốt lệch
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <!-- Single Item Card (When transfer is standalone or 1 item) -->
+                <article
+                    v-else
+                    v-for="transfer in group.items"
+                    :key="transfer.id"
+                    class="rounded-2xl border border-border bg-card/80 p-4 shadow-sm"
+                >
+                    <div
+                        class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"
+                    >
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span
+                                    class="font-mono text-[11px] font-bold text-muted-foreground"
+                                    >TR-{{
+                                        String(transfer.id).padStart(5, '0')
+                                    }}</span
+                                >
+                                <span class="text-lg font-black text-foreground">{{
+                                    transfer.ingredient
+                                }}</span>
+                                <span
+                                    v-if="transfer.priority === 'urgent'"
+                                    class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-1 text-[10px] font-bold text-orange-300"
+                                >
+                                    <AlertTriangle class="size-3" /> Khẩn cấp
+                                </span>
+                                <span
+                                    class="rounded-full border px-2 py-1 text-[10px] font-bold"
+                                    :class="statusConfig[transfer.status].className"
+                                >
+                                    <component
+                                        :is="statusConfig[transfer.status].icon"
+                                        class="mr-1 inline size-3"
+                                    />{{ statusLabel(transfer.status) }}
+                                </span>
+                                <span
+                                    v-if="isOverdue(transfer)"
+                                    class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300"
+                                >
+                                    <Timer class="size-3" /> Quá SLA
+                                    {{ overdueHours(transfer) }}h
+                                </span>
+                            </div>
+                            <div
+                                class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+                            >
+                                <span class="inline-flex items-center gap-1"
+                                    ><MapPin class="size-3" />{{
+                                        transfer.from_branch || 'Chưa chọn nguồn'
+                                    }}
+                                    → {{ transfer.to_branch }}</span
+                                >
+                                <span class="inline-flex items-center gap-1"
+                                    ><Clock3 class="size-3" />{{
+                                        transfer.created_at
+                                    }}</span
+                                >
+                                <span
+                                    >Người yêu cầu:
+                                    {{ transfer.requested_by || '—' }}</span
+                                >
+                            </div>
+                            <p class="mt-2 text-sm text-muted-foreground">
+                                {{ transfer.reason }}
+                            </p>
+                        </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <span
-                                class="font-mono text-[11px] font-bold text-muted-foreground"
-                                >TR-{{
-                                    String(transfer.id).padStart(5, '0')
-                                }}</span
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                @click="openDetails(transfer)"
+                                class="gap-1.5"
+                                ><Eye class="size-3.5" /> Hồ sơ</Button
                             >
-                            <span class="text-lg font-black text-foreground">{{
-                                transfer.ingredient
-                            }}</span>
-                            <span
-                                v-if="transfer.priority === 'urgent'"
-                                class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-1 text-[10px] font-bold text-orange-300"
+                            <Button
+                                v-if="transfer.can_route"
+                                size="sm"
+                                @click="openRoute(transfer)"
+                                class="gap-1.5 bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                                ><RouteIcon class="size-3.5" /> Định tuyến</Button
                             >
-                                <AlertTriangle class="size-3" /> Khẩn cấp
-                            </span>
-                            <span
-                                class="rounded-full border px-2 py-1 text-[10px] font-bold"
-                                :class="statusConfig[transfer.status].className"
+                            <Button
+                                v-if="transfer.can_dispatch"
+                                size="sm"
+                                @click="openDispatch(transfer)"
+                                class="gap-1.5 bg-amber-600 font-bold text-white hover:bg-amber-700"
+                                ><PackageOpen class="size-3.5" /> Xuất kho</Button
                             >
-                                <component
-                                    :is="statusConfig[transfer.status].icon"
-                                    class="mr-1 inline size-3"
-                                />{{ statusLabel(transfer.status) }}
-                            </span>
-                            <span
-                                v-if="isOverdue(transfer)"
-                                class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300"
+                            <Button
+                                v-if="transfer.can_receive"
+                                size="sm"
+                                @click="openReceive(transfer)"
+                                class="gap-1.5 bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                                ><PackageCheck class="size-3.5" /> Nhận hàng</Button
                             >
-                                <Timer class="size-3" /> Quá SLA
-                                {{ overdueHours(transfer) }}h
-                            </span>
+                            <Button
+                                v-if="transfer.can_resolve"
+                                size="sm"
+                                @click="openResolve(transfer)"
+                                class="gap-1.5 bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                ><ClipboardCheck class="size-3.5" /> Chốt chênh
+                                lệch</Button
+                            >
+                            <Button
+                                v-if="transfer.can_cancel"
+                                size="sm"
+                                variant="outline"
+                                @click="openCancel(transfer)"
+                                class="gap-1.5 text-rose-500"
+                                ><Ban class="size-3.5" /> Hủy</Button
+                            >
+                            <Button
+                                v-if="
+                                    transfer.can_route &&
+                                    transfer.status === 'requested'
+                                "
+                                size="sm"
+                                variant="outline"
+                                @click="openReject(transfer)"
+                                class="gap-1.5 text-rose-500"
+                                ><XCircle class="size-3.5" /> Từ chối</Button
+                            >
                         </div>
-                        <div
-                            class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
-                        >
-                            <span class="inline-flex items-center gap-1"
-                                ><MapPin class="size-3" />{{
-                                    transfer.from_branch || 'Chưa chọn nguồn'
+                    </div>
+
+                    <div
+                        class="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4 md:grid-cols-4"
+                    >
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Yêu cầu
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{ formatNumber(transfer.quantity_requested) }}
+                                {{ transfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Đã xuất
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{ formatNumber(transfer.quantity_dispatched) }}
+                                {{ transfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Thực nhận
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{ formatNumber(transfer.quantity_received) }}
+                                {{ transfer.unit }}
+                            </p>
+                        </div>
+                        <div class="rounded-xl bg-muted/40 p-3">
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Kho nguồn hiện có
+                            </p>
+                            <p class="mt-1 font-black text-foreground">
+                                {{
+                                    formatNumber(transfer.source_available_quantity)
                                 }}
-                                → {{ transfer.to_branch }}</span
-                            >
-                            <span class="inline-flex items-center gap-1"
-                                ><Clock3 class="size-3" />{{
-                                    transfer.created_at
-                                }}</span
-                            >
-                            <span
-                                >Người yêu cầu:
-                                {{ transfer.requested_by || '—' }}</span
-                            >
+                                {{ transfer.unit }}
+                            </p>
                         </div>
-                        <p class="mt-2 text-sm text-muted-foreground">
-                            {{ transfer.reason }}
-                        </p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            @click="openDetails(transfer)"
-                            class="gap-1.5"
-                            ><Eye class="size-3.5" /> Hồ sơ</Button
-                        >
-                        <Button
-                            v-if="transfer.can_route"
-                            size="sm"
-                            @click="openRoute(transfer)"
-                            class="gap-1.5 bg-indigo-600 font-bold text-white hover:bg-indigo-700"
-                            ><RouteIcon class="size-3.5" /> Định tuyến</Button
-                        >
-                        <Button
-                            v-if="transfer.can_dispatch"
-                            size="sm"
-                            @click="openDispatch(transfer)"
-                            class="gap-1.5 bg-amber-600 font-bold text-white hover:bg-amber-700"
-                            ><PackageOpen class="size-3.5" /> Xuất kho</Button
-                        >
-                        <Button
-                            v-if="transfer.can_receive"
-                            size="sm"
-                            @click="openReceive(transfer)"
-                            class="gap-1.5 bg-emerald-600 font-bold text-white hover:bg-emerald-700"
-                            ><PackageCheck class="size-3.5" /> Nhận hàng</Button
-                        >
-                        <Button
-                            v-if="transfer.can_resolve"
-                            size="sm"
-                            @click="openResolve(transfer)"
-                            class="gap-1.5 bg-rose-600 font-bold text-white hover:bg-rose-700"
-                            ><ClipboardCheck class="size-3.5" /> Chốt chênh
-                            lệch</Button
-                        >
-                        <Button
-                            v-if="transfer.can_cancel"
-                            size="sm"
-                            variant="outline"
-                            @click="openCancel(transfer)"
-                            class="gap-1.5 text-rose-500"
-                            ><Ban class="size-3.5" /> Hủy</Button
-                        >
-                        <Button
-                            v-if="
-                                transfer.can_route &&
-                                transfer.status === 'requested'
+
+                    <div
+                        class="mt-4 flex items-center gap-1 text-[10px] font-bold text-muted-foreground"
+                    >
+                        <span
+                            :class="
+                                transfer.status !== 'requested'
+                                    ? 'text-teal-400'
+                                    : 'text-teal-400'
                             "
-                            size="sm"
-                            variant="outline"
-                            @click="openReject(transfer)"
-                            class="gap-1.5 text-rose-500"
-                            ><XCircle class="size-3.5" /> Từ chối</Button
+                            ><Check class="mr-1 inline size-3" />Yêu cầu</span
+                        >
+                        <span
+                            class="h-px flex-1 bg-border"
+                            :class="transfer.from_branch ? 'bg-teal-500/60' : ''"
+                        ></span>
+                        <span
+                            :class="
+                                transfer.status !== 'requested'
+                                    ? 'text-teal-400'
+                                    : ''
+                            "
+                            ><Check class="mr-1 inline size-3" />Định tuyến</span
+                        >
+                        <span
+                            class="h-px flex-1 bg-border"
+                            :class="
+                                ['dispatched', 'discrepancy', 'received'].includes(
+                                    transfer.status,
+                                )
+                                    ? 'bg-teal-500/60'
+                                    : ''
+                            "
+                        ></span>
+                        <span
+                            :class="
+                                ['dispatched', 'discrepancy', 'received'].includes(
+                                    transfer.status,
+                                )
+                                    ? 'text-teal-400'
+                                    : ''
+                            "
+                            ><Truck class="mr-1 inline size-3" />Xuất</span
+                        >
+                        <span
+                            class="h-px flex-1 bg-border"
+                            :class="
+                                ['received'].includes(transfer.status)
+                                    ? 'bg-teal-500/60'
+                                    : ''
+                            "
+                        ></span>
+                        <span
+                            :class="
+                                transfer.status === 'received'
+                                    ? 'text-emerald-400'
+                                    : ''
+                            "
+                            ><CheckCircle2 class="mr-1 inline size-3" />Nhận</span
                         >
                     </div>
-                </div>
 
-                <div
-                    class="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4 md:grid-cols-4"
-                >
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                    <div
+                        v-if="
+                            transfer.handover_code &&
+                            ['dispatched', 'discrepancy'].includes(transfer.status)
+                        "
+                        class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-violet-400/20 bg-violet-950/20 px-3 py-2 text-xs"
+                    >
+                        <KeyRound class="size-4 text-violet-300" /><span
+                            class="text-muted-foreground"
+                            >Mã giao nhận:</span
+                        ><strong
+                            class="font-mono tracking-[0.25em] text-violet-200"
+                            >{{ transfer.handover_code }}</strong
                         >
-                            Yêu cầu
+                    </div>
+                    <div
+                        v-if="
+                            transfer.owner_note ||
+                            transfer.dispatch_note ||
+                            transfer.received_note ||
+                            transfer.reject_reason ||
+                            transfer.cancel_reason ||
+                            transfer.discrepancy_resolution
+                        "
+                        class="mt-3 space-y-1 text-xs text-muted-foreground"
+                    >
+                        <p v-if="transfer.owner_note">
+                            <b>Điều phối:</b> {{ transfer.owner_note }}
                         </p>
-                        <p class="mt-1 font-black text-foreground">
-                            {{ formatNumber(transfer.quantity_requested) }}
+                        <p v-if="transfer.dispatch_note">
+                            <b>Xuất kho:</b> {{ transfer.dispatch_note }}
+                        </p>
+                        <p v-if="transfer.received_note">
+                            <b>Biên bản nhận:</b> {{ transfer.received_note }}
+                        </p>
+                        <a
+                            v-if="transfer.receiving_evidence_path"
+                            :href="`/secure-files/download?path=${encodeURIComponent(transfer.receiving_evidence_path)}`"
+                            target="_blank"
+                            rel="noreferrer"
+                            class="inline-flex items-center gap-1 font-semibold text-teal-400 hover:text-teal-300"
+                        >
+                            <FileText class="size-3" /> Xem bằng chứng nhận hàng
+                        </a>
+                        <p
+                            v-if="transfer.discrepancy_quantity > 0"
+                            class="font-semibold text-rose-400"
+                        >
+                            <b>Chênh lệch:</b> thiếu
+                            {{ formatNumber(transfer.discrepancy_quantity) }}
                             {{ transfer.unit }}
                         </p>
-                    </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
                         <p
-                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            v-if="transfer.reject_reason"
+                            class="font-semibold text-rose-400"
                         >
-                            Đã xuất
+                            <b>Từ chối:</b> {{ transfer.reject_reason }}
                         </p>
-                        <p class="mt-1 font-black text-foreground">
-                            {{ formatNumber(transfer.quantity_dispatched) }}
-                            {{ transfer.unit }}
-                        </p>
-                    </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
                         <p
-                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            v-if="transfer.cancel_reason"
+                            class="font-semibold text-rose-400"
                         >
-                            Thực nhận
-                        </p>
-                        <p class="mt-1 font-black text-foreground">
-                            {{ formatNumber(transfer.quantity_received) }}
-                            {{ transfer.unit }}
+                            <b>Đã hủy:</b> {{ transfer.cancel_reason }}
                         </p>
                     </div>
-                    <div class="rounded-xl bg-muted/40 p-3">
-                        <p
-                            class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                        >
-                            Kho nguồn hiện có
-                        </p>
-                        <p class="mt-1 font-black text-foreground">
-                            {{
-                                formatNumber(transfer.source_available_quantity)
-                            }}
-                            {{ transfer.unit }}
-                        </p>
-                    </div>
-                </div>
-
-                <div
-                    class="mt-4 flex items-center gap-1 text-[10px] font-bold text-muted-foreground"
-                >
-                    <span
-                        :class="
-                            transfer.status !== 'requested'
-                                ? 'text-teal-400'
-                                : 'text-teal-400'
-                        "
-                        ><Check class="mr-1 inline size-3" />Yêu cầu</span
-                    >
-                    <span
-                        class="h-px flex-1 bg-border"
-                        :class="transfer.from_branch ? 'bg-teal-500/60' : ''"
-                    ></span>
-                    <span
-                        :class="
-                            transfer.status !== 'requested'
-                                ? 'text-teal-400'
-                                : ''
-                        "
-                        ><Check class="mr-1 inline size-3" />Định tuyến</span
-                    >
-                    <span
-                        class="h-px flex-1 bg-border"
-                        :class="
-                            ['dispatched', 'discrepancy', 'received'].includes(
-                                transfer.status,
-                            )
-                                ? 'bg-teal-500/60'
-                                : ''
-                        "
-                    ></span>
-                    <span
-                        :class="
-                            ['dispatched', 'discrepancy', 'received'].includes(
-                                transfer.status,
-                            )
-                                ? 'text-teal-400'
-                                : ''
-                        "
-                        ><Truck class="mr-1 inline size-3" />Xuất</span
-                    >
-                    <span
-                        class="h-px flex-1 bg-border"
-                        :class="
-                            ['received'].includes(transfer.status)
-                                ? 'bg-teal-500/60'
-                                : ''
-                        "
-                    ></span>
-                    <span
-                        :class="
-                            transfer.status === 'received'
-                                ? 'text-emerald-400'
-                                : ''
-                        "
-                        ><CheckCircle2 class="mr-1 inline size-3" />Nhận</span
-                    >
-                </div>
-
-                <div
-                    v-if="
-                        transfer.handover_code &&
-                        ['dispatched', 'discrepancy'].includes(transfer.status)
-                    "
-                    class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-violet-400/20 bg-violet-950/20 px-3 py-2 text-xs"
-                >
-                    <KeyRound class="size-4 text-violet-300" /><span
-                        class="text-muted-foreground"
-                        >Mã giao nhận:</span
-                    ><strong
-                        class="font-mono tracking-[0.25em] text-violet-200"
-                        >{{ transfer.handover_code }}</strong
-                    >
-                </div>
-                <div
-                    v-if="
-                        transfer.owner_note ||
-                        transfer.dispatch_note ||
-                        transfer.received_note ||
-                        transfer.reject_reason ||
-                        transfer.cancel_reason ||
-                        transfer.discrepancy_resolution
-                    "
-                    class="mt-3 space-y-1 text-xs text-muted-foreground"
-                >
-                    <p v-if="transfer.owner_note">
-                        <b>Điều phối:</b> {{ transfer.owner_note }}
-                    </p>
-                    <p v-if="transfer.dispatch_note">
-                        <b>Xuất kho:</b> {{ transfer.dispatch_note }}
-                    </p>
-                    <p v-if="transfer.received_note">
-                        <b>Biên bản nhận:</b> {{ transfer.received_note }}
-                    </p>
-                    <a
-                        v-if="transfer.receiving_evidence_path"
-                        :href="`/secure-files/download?path=${encodeURIComponent(transfer.receiving_evidence_path)}`"
-                        target="_blank"
-                        rel="noreferrer"
-                        class="inline-flex items-center gap-1 font-semibold text-teal-400 hover:text-teal-300"
-                    >
-                        <FileText class="size-3" /> Xem bằng chứng nhận hàng
-                    </a>
-                    <p
-                        v-if="transfer.discrepancy_quantity > 0"
-                        class="font-semibold text-rose-400"
-                    >
-                        <b>Chênh lệch:</b> thiếu
-                        {{ formatNumber(transfer.discrepancy_quantity) }}
-                        {{ transfer.unit }}
-                    </p>
-                    <p v-if="transfer.discrepancy_resolution">
-                        <b>Đã chốt:</b> {{ transfer.discrepancy_resolution }}
-                    </p>
-                    <p v-if="transfer.reject_reason" class="text-rose-400">
-                        <b>Từ chối:</b> {{ transfer.reject_reason }}
-                    </p>
-                    <p v-if="transfer.cancel_reason" class="text-rose-400">
-                        <b>Hủy:</b> {{ transfer.cancel_reason }}
-                    </p>
-                </div>
-            </article>
+                </article>
+            </template>
         </section>
         <section
             v-else
@@ -1622,6 +2101,9 @@ const formatDuration = (hours: number) => {
             v-if="
                 showRequest ||
                 routing ||
+                batchRoutingGroup ||
+                batchRejectingGroup ||
+                batchCancellingGroup ||
                 dispatching ||
                 receiving ||
                 resolving ||
@@ -1634,7 +2116,7 @@ const formatDuration = (hours: number) => {
         >
             <div
                 class="max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
-                :class="detailTransfer ? 'max-w-2xl' : 'max-w-lg'"
+                :class="detailTransfer || showRequest ? 'max-w-2xl' : 'max-w-lg'"
             >
                 <template v-if="showRequest">
                     <div class="mb-5 flex items-start justify-between gap-3">
@@ -1682,59 +2164,131 @@ const formatDuration = (hours: number) => {
                                 {{ requestForm.errors.to_branch_id }}
                             </p>
                         </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Nguyên liệu</Label>
-                            <select
-                                v-model="requestForm.ingredient_id"
-                                required
-                                class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                            >
-                                <option value="" disabled>
-                                    — Chọn nguyên liệu —
-                                </option>
-                                <option
-                                    v-for="ingredient in availableIngredients"
-                                    :key="ingredient.id"
-                                    :value="ingredient.id"
+
+                        <!-- Multi-item ingredients list -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <Label
+                                    class="text-xs font-bold uppercase tracking-wider text-foreground"
                                 >
-                                    {{ ingredient.name }} ({{
-                                        ingredient.unit
-                                    }})
-                                </option>
-                            </select>
+                                    Danh sách nguyên liệu cần yêu cầu
+                                    <span class="text-rose-500">*</span>
+                                </Label>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="h-8 gap-1 border-teal-500/30 text-teal-400 hover:bg-teal-500/10 hover:text-teal-300"
+                                    @click="addRequestLine"
+                                >
+                                    <Plus class="size-3.5" /> Thêm nguyên liệu
+                                </Button>
+                            </div>
+
+                            <div class="space-y-2.5">
+                                <div
+                                    v-for="(line, index) in requestForm.items"
+                                    :key="index"
+                                    class="grid grid-cols-12 items-start gap-2 rounded-xl border border-border/80 bg-muted/20 p-2.5"
+                                >
+                                    <div class="col-span-7 flex flex-col gap-1">
+                                        <select
+                                            v-model="line.ingredient_id"
+                                            required
+                                            class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                                        >
+                                            <option value="" disabled>
+                                                — Chọn nguyên liệu —
+                                            </option>
+                                            <option
+                                                v-for="ingredient in availableIngredientsForLine(
+                                                    Number(index),
+                                                )"
+                                                :key="ingredient.id"
+                                                :value="ingredient.id"
+                                            >
+                                                {{ ingredient.name }}
+                                            </option>
+                                        </select>
+                                        <p
+                                            v-if="
+                                                requestForm.errors[
+                                                    `items.${index}.ingredient_id`
+                                                ]
+                                            "
+                                            class="text-xs text-rose-500"
+                                        >
+                                            {{
+                                                requestForm.errors[
+                                                    `items.${index}.ingredient_id`
+                                                ]
+                                            }}
+                                        </p>
+                                    </div>
+
+                                    <div class="col-span-4 flex flex-col gap-1">
+                                        <div class="relative">
+                                            <Input
+                                                v-model="line.quantity_requested"
+                                                type="number"
+                                                step="0.001"
+                                                min="0.001"
+                                                required
+                                                placeholder="Số lượng"
+                                                class="h-10 pr-14 text-sm"
+                                            />
+                                            <span
+                                                class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs font-semibold text-muted-foreground"
+                                            >
+                                                {{
+                                                    selectedIngredientForLine(
+                                                        Number(index),
+                                                    )?.unit || 'ĐV'
+                                                }}
+                                            </span>
+                                        </div>
+                                        <p
+                                            v-if="
+                                                requestForm.errors[
+                                                    `items.${index}.quantity_requested`
+                                                ]
+                                            "
+                                            class="text-xs text-rose-500"
+                                        >
+                                            {{
+                                                requestForm.errors[
+                                                    `items.${index}.quantity_requested`
+                                                ]
+                                            }}
+                                        </p>
+                                    </div>
+
+                                    <div
+                                        class="col-span-1 flex h-10 items-center justify-center"
+                                    >
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            class="size-8 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-400"
+                                            :disabled="
+                                                requestForm.items.length === 1
+                                            "
+                                            @click="removeRequestLine(Number(index))"
+                                        >
+                                            <X class="size-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
                             <p
-                                v-if="requestForm.errors.ingredient_id"
+                                v-if="requestForm.errors.items"
                                 class="text-xs text-rose-500"
                             >
-                                {{ requestForm.errors.ingredient_id }}
+                                {{ requestForm.errors.items }}
                             </p>
                         </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Số lượng cần</Label>
-                            <Input
-                                v-model="requestForm.quantity_requested"
-                                type="number"
-                                step="0.001"
-                                min="0.001"
-                                required
-                            />
-                            <p
-                                v-if="selectedIngredient"
-                                class="text-[11px] text-muted-foreground"
-                            >
-                                Đơn vị: {{ selectedIngredient.unit }}
-                            </p>
-                            <p v-else class="text-[11px] text-muted-foreground">
-                                Chỉ hiển thị nguyên liệu dùng được tại chi nhánh
-                                nhận.
-                            </p>
-                            <p
-                                v-if="requestForm.errors.quantity_requested"
-                                class="text-xs text-rose-500"
-                            >
-                                {{ requestForm.errors.quantity_requested }}
-                            </p>
-                        </div>
+
                         <div class="flex flex-col gap-1.5">
                             <Label>Mức độ yêu cầu</Label>
                             <select
@@ -1748,8 +2302,7 @@ const formatDuration = (hours: number) => {
                                 <option value="normal">Thông thường</option>
                             </select>
                             <p class="text-[11px] text-muted-foreground">
-                                Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn
-                                cấp.
+                                Yêu cầu khẩn cấp sẽ được đánh dấu ưu tiên trên toàn hệ thống.
                             </p>
                         </div>
                         <div class="flex flex-col gap-1.5">
@@ -1776,9 +2329,10 @@ const formatDuration = (hours: number) => {
                             <Button
                                 type="submit"
                                 :disabled="requestForm.processing"
-                                class="border-0 bg-teal-500 font-bold text-white hover:bg-teal-400"
-                                >Gửi yêu cầu</Button
+                                class="bg-teal-600 font-bold text-white hover:bg-teal-500"
                             >
+                                Gửi yêu cầu
+                            </Button>
                         </div>
                     </form>
                 </template>
@@ -2582,6 +3136,217 @@ const formatDuration = (hours: number) => {
                                 class="bg-rose-600 font-bold text-white hover:bg-rose-700"
                                 >Từ chối yêu cầu</Button
                             >
+                        </div>
+                    </form>
+                </template>
+
+                <template v-else-if="batchRoutingGroup">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
+                            >
+                                Bước 1 · Định tuyến cả phiếu
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Chọn kho cấp cho cả phiếu ({{ batchRoutingGroup.items.length }} nguyên liệu)
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Cấp về: <strong class="text-foreground">{{ batchRoutingGroup.to_branch }}</strong> · Người yêu cầu: {{ batchRoutingGroup.requested_by || '—' }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
+                    </div>
+                    <form @submit.prevent="submitBatchRoute" class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Chi nhánh / Kho cấp hàng</Label>
+                            <select
+                                v-model="batchRouteForm.from_branch_id"
+                                required
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="" disabled>
+                                    — Chọn kho nguồn cấp —
+                                </option>
+                                <option
+                                    v-for="branch in batchRouteBranchOptions"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                >
+                                    {{ branch.name }}
+                                </option>
+                            </select>
+                            <p
+                                v-if="batchRouteForm.errors.from_branch_id"
+                                class="text-xs text-rose-500"
+                            >
+                                {{ batchRouteForm.errors.from_branch_id }}
+                            </p>
+                        </div>
+
+                        <div class="rounded-xl border border-border/80 bg-muted/20 p-3">
+                            <p class="mb-2 text-xs font-bold text-foreground">
+                                Danh sách nguyên liệu trong phiếu:
+                            </p>
+                            <div class="max-h-56 divide-y divide-border/60 overflow-y-auto pr-1">
+                                <div
+                                    v-for="item in batchRoutingGroup.items"
+                                    :key="item.id"
+                                    class="flex items-center justify-between gap-2 py-2 text-xs"
+                                >
+                                    <div class="min-w-0">
+                                        <p class="truncate font-bold text-foreground">{{ item.ingredient }}</p>
+                                        <p class="text-[11px] text-muted-foreground">
+                                            Cần: {{ formatNumber(item.quantity_requested) }} {{ item.unit }}
+                                        </p>
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        <template v-if="batchRouteForm.from_branch_id">
+                                            <span
+                                                v-if="getBranchStockForIngredient(batchRouteForm.from_branch_id, item.ingredient_id) + 0.0005 >= item.quantity_requested"
+                                                class="inline-flex items-center gap-1 font-semibold text-emerald-400"
+                                            >
+                                                <Check class="size-3" /> Tồn {{ formatNumber(getBranchStockForIngredient(batchRouteForm.from_branch_id, item.ingredient_id)) }} {{ item.unit }}
+                                            </span>
+                                            <span v-else class="inline-flex items-center gap-1 font-bold text-rose-400">
+                                                <AlertTriangle class="size-3" /> Thiếu tồn (còn {{ formatNumber(getBranchStockForIngredient(batchRouteForm.from_branch_id, item.ingredient_id)) }} {{ item.unit }})
+                                            </span>
+                                        </template>
+                                        <span v-else class="text-muted-foreground">—</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="hasShortageInBatchRoute"
+                            class="flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300"
+                        >
+                            <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+                            <p>Kho nguồn đã chọn không đủ tồn cho một số nguyên liệu trong phiếu. Hãy chọn kho nguồn khác hoặc điều chuyển lẻ từng món.</p>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Ghi chú điều phối chung</Label>
+                            <textarea
+                                v-model="batchRouteForm.owner_note"
+                                rows="3"
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ghi chú đóng gói, phương thức bàn giao cho toàn bộ phiếu..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="batchRouteForm.processing || !batchRouteForm.from_branch_id || hasShortageInBatchRoute"
+                                class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                            >
+                                Duyệt & Định tuyến cả phiếu
+                            </Button>
+                        </div>
+                    </form>
+                </template>
+
+                <template v-else-if="batchRejectingGroup">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            >
+                                Kiểm soát yêu cầu tổng
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Từ chối cả phiếu ({{ batchRejectingGroup.items.length }} nguyên liệu)
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Chi nhánh: {{ batchRejectingGroup.to_branch }} · Người tạo: {{ batchRejectingGroup.requested_by || '—' }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
+                    </div>
+                    <form @submit.prevent="submitBatchReject" class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Lý do từ chối cả phiếu</Label>
+                            <textarea
+                                v-model="batchRejectForm.reject_reason"
+                                rows="4"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: Không có kho nào đủ điều kiện cấp hàng đợt này..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Quay lại</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="batchRejectForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            >
+                                Từ chối cả phiếu
+                            </Button>
+                        </div>
+                    </form>
+                </template>
+
+                <template v-else-if="batchCancellingGroup">
+                    <div class="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                            >
+                                Kiểm soát yêu cầu tổng
+                            </p>
+                            <h2 class="mt-1 text-xl font-black">
+                                Hủy cả phiếu ({{ batchCancellingGroup.items.length }} nguyên liệu)
+                            </h2>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Chi nhánh: {{ batchCancellingGroup.to_branch }} · Người tạo: {{ batchCancellingGroup.requested_by || '—' }}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="icon" @click="closeModals"
+                            ><X class="size-4"
+                        /></Button>
+                    </div>
+                    <form @submit.prevent="submitBatchCancel" class="space-y-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Lý do hủy cả phiếu</Label>
+                            <textarea
+                                v-model="batchCancelForm.cancel_reason"
+                                rows="4"
+                                required
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                placeholder="Ví dụ: Đã cân đối được tồn nội bộ, không cần điều chuyển..."
+                            />
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="closeModals"
+                                >Quay lại</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="batchCancelForm.processing"
+                                class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            >
+                                Xác nhận hủy cả phiếu
+                            </Button>
                         </div>
                     </form>
                 </template>

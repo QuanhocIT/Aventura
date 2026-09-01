@@ -35,7 +35,7 @@ class StockTransferRequestController extends Controller
 {
     private function isRequestOnly(User $user): bool
     {
-        return $user->isBranchManager();
+        return false;
     }
 
     private function assertManager(User $user): void
@@ -57,15 +57,15 @@ class StockTransferRequestController extends Controller
     }
 
     /**
-     * Quản lý chi nhánh chỉ tạo và theo dõi yêu cầu. Việc xuất/nhận làm thay
-     * đổi tồn kho phải do Chủ hoặc người được phân công ở Kho Tổng thực hiện.
+     * Chủ doanh nghiệp, Trưởng kho Tổng hoặc Quản lý chi nhánh thuộc kho cấp/nhận
+     * được thực hiện xuất/nhận kho điều chuyển theo thẩm quyền chi nhánh.
      */
     private function assertCanExecute(User $user): void
     {
         abort_unless(
-            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']),
+            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager', 'manager']),
             403,
-            'Quản lý chi nhánh chỉ được gửi yêu cầu; không được trực tiếp xuất hoặc nhập kho điều chuyển.',
+            'Bạn không có quyền thực hiện xuất hoặc nhập kho điều chuyển.',
         );
     }
 
@@ -116,8 +116,11 @@ class StockTransferRequestController extends Controller
             ->keyBy(fn (Inventory $inventory): string => $inventory->branch_id.':'.$inventory->ingredient_id);
 
         $canRoute = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
-        $canExecute = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
-        $transfers = $transfers->map(function (StockTransferRequest $transfer) use ($user, $stocks, $canRoute, $canExecute, $requestOnly): array {
+        $canExecute = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager', 'manager']);
+        $groupSizes = $transfers
+            ->filter(fn (StockTransferRequest $transfer): bool => $transfer->request_group_id !== null)
+            ->countBy('request_group_id');
+        $transfers = $transfers->map(function (StockTransferRequest $transfer) use ($user, $stocks, $canRoute, $canExecute, $requestOnly, $groupSizes): array {
             $stock = $transfer->from_branch_id
                 ? $stocks->get($transfer->from_branch_id.':'.$transfer->ingredient_id)
                 : null;
@@ -125,6 +128,10 @@ class StockTransferRequestController extends Controller
 
             $requestData = [
                 'id' => $transfer->id,
+                'request_group_id' => $transfer->request_group_id,
+                'request_group_size' => $transfer->request_group_id
+                    ? (int) ($groupSizes[$transfer->request_group_id] ?? 1)
+                    : 1,
                 'status' => $transfer->status,
                 'priority' => $transfer->priority ?? 'normal',
                 'ingredient_id' => $transfer->ingredient_id,
@@ -145,7 +152,7 @@ class StockTransferRequestController extends Controller
                 'received_at' => $transfer->received_at?->format('d/m/Y H:i'),
                 'requested_by' => $transfer->requestedBy?->name,
                 'can_cancel' => in_array($transfer->status, ['requested', 'routed'], true)
-                    && ($canRoute || ($requestOnly && $isRequester && $transfer->status === 'requested')),
+                    && ($canRoute || ($isRequester && $transfer->status === 'requested') || ($user->assignedBranchId() !== null && (int) $transfer->to_branch_id === (int) $user->assignedBranchId() && $transfer->status === 'requested')),
             ];
 
             if ($requestOnly) {
@@ -186,11 +193,12 @@ class StockTransferRequestController extends Controller
                     && $transfer->from_branch_id
                     && $user->canAccessBranch((int) $transfer->from_branch_id),
                 'can_receive' => $canExecute
-                    && $transfer->status === 'dispatched'
+                    && in_array($transfer->status, ['dispatched', 'discrepancy'], true)
                     && $transfer->to_branch_id
                     && $user->canAccessBranch((int) $transfer->to_branch_id)
-                    && (int) $transfer->dispatched_by !== (int) $user->id,
-                'can_resolve' => $canRoute && $transfer->status === 'discrepancy',
+                    && ((int) $transfer->dispatched_by !== (int) $user->id || $user->hasAnyRole(['owner', 'warehouse_manager'])),
+                'can_resolve' => $transfer->status === 'discrepancy'
+                    && ($canRoute || ($user->assignedBranchId() !== null && (int) $transfer->to_branch_id === (int) $user->assignedBranchId())),
             ];
         });
 
@@ -266,8 +274,11 @@ class StockTransferRequestController extends Controller
 
         $data = $request->validate([
             'to_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
-            'ingredient_id' => ['required', TenantRule::exists('ingredients')],
-            'quantity_requested' => ['required', 'numeric', 'min:0.001'],
+            'items' => ['nullable', 'array', 'min:1', 'max:50'],
+            'items.*.ingredient_id' => ['required', 'integer', TenantRule::exists('ingredients'), 'distinct'],
+            'items.*.quantity_requested' => ['required', 'numeric', 'min:0.001'],
+            'ingredient_id' => ['nullable', 'integer', 'required_without:items', TenantRule::exists('ingredients')],
+            'quantity_requested' => ['nullable', 'numeric', 'min:0.001', 'required_without:items'],
             'priority' => ['sometimes', 'required', 'string', 'in:normal,urgent'],
             'reason' => ['required', 'string', 'min:5', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
@@ -295,6 +306,10 @@ class StockTransferRequestController extends Controller
             }
         }
 
+        if (! empty($data['items'])) {
+            return $this->storeMultipleItems($request, $user, $toBranch, $data, $requestOnly);
+        }
+
         $ingredient = Ingredient::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
@@ -318,7 +333,7 @@ class StockTransferRequestController extends Controller
             'to_branch_id' => $toBranch->id,
             'ingredient_id' => $ingredient->id,
             'quantity_requested' => $data['quantity_requested'],
-            'priority' => $data['priority'] ?? ($requestOnly ? 'urgent' : 'normal'),
+            'priority' => $data['priority'] ?? ($user->isBranchManager() ? 'urgent' : 'normal'),
             'reason' => trim($data['reason']),
             'idempotency_key' => $data['idempotency_key'] ?? null,
             'status' => 'requested',
@@ -332,6 +347,112 @@ class StockTransferRequestController extends Controller
     }
 
     /** Chủ hoặc Trưởng kho Tổng chọn nguồn cấp và duyệt định tuyến. */
+    /**
+     * Create multiple transfer lines in one submission. Each ingredient stays
+     * as an independent operational record so FEFO, dispatch, receiving and
+     * reconciliation remain precise; the group ID links the lines together.
+     */
+    private function storeMultipleItems(
+        Request $request,
+        User $user,
+        RestaurantBranch $toBranch,
+        array $data,
+        bool $requestOnly,
+    ): RedirectResponse {
+        $items = array_values($data['items']);
+        $ingredientIds = collect($items)
+            ->pluck('ingredient_id')
+            ->map(static fn ($id): int => (int) $id)
+            ->values();
+        $ingredients = Ingredient::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->whereIn('id', $ingredientIds)
+            ->get()
+            ->keyBy('id');
+
+        $normalizedItems = [];
+        foreach ($items as $index => $item) {
+            $ingredient = $ingredients->get((int) $item['ingredient_id']);
+            $errorKey = "items.{$index}.ingredient_id";
+
+            if (! $ingredient) {
+                return back()->withErrors([$errorKey => 'Nguyên liệu không tồn tại hoặc đã ngừng sử dụng.']);
+            }
+
+            if ($ingredient->branch_id !== null && (int) $ingredient->branch_id !== (int) $toBranch->id) {
+                return back()->withErrors([$errorKey => 'Nguyên liệu này chỉ được dùng tại chi nhánh khác.']);
+            }
+
+            $hasOpenRequest = StockTransferRequest::query()
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('to_branch_id', $toBranch->id)
+                ->where('ingredient_id', $ingredient->id)
+                ->whereIn('status', ['requested', 'routed', 'dispatched', 'discrepancy', 'quarantined', 'return_requested'])
+                ->exists();
+            if ($hasOpenRequest) {
+                return back()->withErrors([
+                    $errorKey => 'Chi nhánh này đã có yêu cầu cùng nguyên liệu đang xử lý. Hãy theo dõi yêu cầu hiện tại hoặc ghi rõ nhu cầu bổ sung.',
+                ]);
+            }
+
+            $normalizedItems[] = [
+                'ingredient_id' => $ingredient->id,
+                'quantity_requested' => $item['quantity_requested'],
+            ];
+        }
+
+        $requestGroupId = (string) Str::uuid();
+        $baseIdempotencyKey = trim((string) ($data['idempotency_key'] ?? ''));
+        $transfers = DB::transaction(function () use (
+            $normalizedItems,
+            $requestGroupId,
+            $baseIdempotencyKey,
+            $user,
+            $toBranch,
+            $data,
+            $requestOnly,
+        ): array {
+            $created = [];
+            $totalItems = count($normalizedItems);
+
+            foreach ($normalizedItems as $index => $item) {
+                $lineIdempotencyKey = null;
+                if ($baseIdempotencyKey !== '') {
+                    $lineIdempotencyKey = $totalItems === 1
+                        ? $baseIdempotencyKey
+                        : Str::limit($baseIdempotencyKey, 95, '').'-'.($index + 1);
+                }
+
+                $created[] = StockTransferRequest::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'request_group_id' => $requestGroupId,
+                    'to_branch_id' => $toBranch->id,
+                    'ingredient_id' => $item['ingredient_id'],
+                    'quantity_requested' => $item['quantity_requested'],
+                    'priority' => $data['priority'] ?? ($user->isBranchManager() ? 'urgent' : 'normal'),
+                    'reason' => trim($data['reason']),
+                    'idempotency_key' => $lineIdempotencyKey,
+                    'status' => 'requested',
+                    'requested_by' => $user->id,
+                ]);
+            }
+
+            return $created;
+        });
+
+        foreach ($transfers as $transfer) {
+            $this->notifyTransferParties($user, $transfer, 'requested');
+            AuditLog::log('stock_transfer_requested', 'created', $transfer, null, [
+                'by' => $user->name,
+                'request_group_id' => $requestGroupId,
+                'request_group_size' => count($transfers),
+            ]);
+        }
+
+        return back()->with('success', 'Đã tạo phiếu điều chuyển gồm '.count($transfers).' nguyên liệu và gửi vào hàng chờ định tuyến.');
+    }
+
     public function route(Request $request, StockTransferRequest $transfer): RedirectResponse
     {
         $user = $request->user();
@@ -408,6 +529,254 @@ class StockTransferRequestController extends Controller
         AuditLog::log('stock_transfer_routed', 'updated', $lockedTransfer, null, ['from_branch_id' => $lockedTransfer->from_branch_id, 'by' => $user->name]);
 
         return back()->with('success', 'Đã định tuyến nguồn cấp và sinh mã giao nhận.');
+    }
+
+    /** Chủ hoặc Trưởng kho Tổng định tuyến toàn bộ nguyên liệu trong cùng một phiếu/đợt yêu cầu. */
+    public function batchRoute(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertCanRoute($user);
+
+        $data = $request->validate([
+            'request_group_id' => ['nullable', 'string', 'max:100'],
+            'transfer_ids' => ['nullable', 'array', 'min:1'],
+            'transfer_ids.*' => ['integer', TenantRule::exists('stock_transfer_requests', 'id')],
+            'from_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'owner_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $query = StockTransferRequest::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'requested')
+            ->with(['ingredient', 'toBranch']);
+
+        if (! empty($data['request_group_id'])) {
+            $query->where('request_group_id', $data['request_group_id']);
+        } elseif (! empty($data['transfer_ids'])) {
+            $query->whereIn('id', $data['transfer_ids']);
+        } else {
+            return back()->withErrors(['from_branch_id' => 'Không tìm thấy danh sách yêu cầu cần định tuyến.']);
+        }
+
+        $transfers = $query->get();
+        if ($transfers->isEmpty()) {
+            return back()->withErrors(['from_branch_id' => 'Không có yêu cầu nào đang ở trạng thái chờ định tuyến.']);
+        }
+
+        $fromBranch = RestaurantBranch::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->findOrFail((int) $data['from_branch_id']);
+
+        try {
+            $routedTransfers = DB::transaction(function () use ($transfers, $fromBranch, $data, $user): array {
+                $handoverCode = strtoupper(Str::random(6));
+                $routed = [];
+
+                foreach ($transfers as $item) {
+                    $lockedTransfer = StockTransferRequest::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+                    if ($lockedTransfer->status !== 'requested') {
+                        continue;
+                    }
+
+                    if ($fromBranch->id === (int) $lockedTransfer->to_branch_id) {
+                        throw new \InvalidArgumentException('Chi nhánh cấp phải khác chi nhánh nhận.');
+                    }
+
+                    $sourceInventory = Inventory::query()
+                        ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                        ->where('branch_id', $fromBranch->id)
+                        ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    $ingredientName = $item->ingredient?->name ?? ('Nguyên liệu #' . $lockedTransfer->ingredient_id);
+
+                    if (! $sourceInventory || (float) $sourceInventory->quantity_available + 0.0005 < (float) $lockedTransfer->quantity_requested) {
+                        throw new \RuntimeException("Kho {$fromBranch->name} không đủ tồn cho {$ingredientName} (cần {$lockedTransfer->quantity_requested}).");
+                    }
+
+                    $activeBatchQuantity = (float) InventoryBatch::query()
+                        ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                        ->where('branch_id', $fromBranch->id)
+                        ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                        ->where('status', 'active')
+                        ->where(function ($q): void {
+                            $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today());
+                        })
+                        ->sum('quantity_remaining');
+                    $trackedBatchQuantity = (float) InventoryBatch::query()
+                        ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                        ->where('branch_id', $fromBranch->id)
+                        ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                        ->whereIn('status', ['active', 'expired'])
+                        ->sum('quantity_remaining');
+                    $unallocatedQuantity = max(0, (float) $sourceInventory->quantity_on_hand - $trackedBatchQuantity);
+                    $allocatableBatchQuantity = $activeBatchQuantity + $unallocatedQuantity;
+                    if ($allocatableBatchQuantity + 0.0005 < (float) $lockedTransfer->quantity_requested) {
+                        throw new \RuntimeException("Lô khả dụng tại {$fromBranch->name} không đủ cho {$ingredientName}.");
+                    }
+
+                    $lockedTransfer->update([
+                        'from_branch_id' => $fromBranch->id,
+                        'owner_note' => isset($data['owner_note']) ? trim((string) $data['owner_note']) : null,
+                        'status' => 'routed',
+                        'routed_by' => $user->id,
+                        'routed_at' => now(),
+                        'handover_code' => $handoverCode,
+                    ]);
+
+                    $routed[] = $lockedTransfer->fresh();
+                }
+
+                return $routed;
+            });
+        } catch (\Throwable $e) {
+            return back()->withErrors(['from_branch_id' => $e->getMessage()]);
+        }
+
+        foreach ($routedTransfers as $transfer) {
+            $this->notifyTransferParties($user, $transfer, 'routed');
+            AuditLog::log('stock_transfer_routed', 'updated', $transfer, null, [
+                'from_branch_id' => $transfer->from_branch_id,
+                'by' => $user->name,
+                'batch_action' => true,
+            ]);
+        }
+
+        $code = $routedTransfers[0]->handover_code ?? '';
+        return back()->with('success', 'Đã định tuyến thành công ' . count($routedTransfers) . " nguyên liệu trong phiếu sang {$fromBranch->name}. Mã giao nhận chung: {$code}");
+    }
+
+    /** Chủ hoặc Trưởng kho Tổng từ chối toàn bộ nguyên liệu trong cùng một phiếu/đợt yêu cầu. */
+    public function batchReject(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertCanRoute($user);
+
+        $data = $request->validate([
+            'request_group_id' => ['nullable', 'string', 'max:100'],
+            'transfer_ids' => ['nullable', 'array', 'min:1'],
+            'transfer_ids.*' => ['integer', TenantRule::exists('stock_transfer_requests', 'id')],
+            'reject_reason' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $query = StockTransferRequest::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->whereIn('status', ['requested', 'routed']);
+
+        if (! empty($data['request_group_id'])) {
+            $query->where('request_group_id', $data['request_group_id']);
+        } elseif (! empty($data['transfer_ids'])) {
+            $query->whereIn('id', $data['transfer_ids']);
+        } else {
+            return back()->withErrors(['reject_reason' => 'Không tìm thấy danh sách yêu cầu cần từ chối.']);
+        }
+
+        $transfers = $query->get();
+        if ($transfers->isEmpty()) {
+            return back()->with('error', 'Không có yêu cầu nào hợp lệ để từ chối.');
+        }
+
+        try {
+            $rejectedTransfers = DB::transaction(function () use ($transfers, $data): array {
+                $rejected = [];
+                foreach ($transfers as $item) {
+                    $locked = StockTransferRequest::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+                    if (! in_array($locked->status, ['requested', 'routed'], true)) {
+                        continue;
+                    }
+                    $locked->update([
+                        'status' => 'rejected',
+                        'reject_reason' => trim($data['reject_reason']),
+                    ]);
+                    $rejected[] = $locked->fresh();
+                }
+                return $rejected;
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        foreach ($rejectedTransfers as $transfer) {
+            $this->notifyTransferParties($user, $transfer, 'rejected');
+            AuditLog::log('stock_transfer_rejected', 'updated', $transfer, null, [
+                'by' => $user->name,
+                'batch_action' => true,
+            ]);
+        }
+
+        return back()->with('success', 'Đã từ chối ' . count($rejectedTransfers) . ' nguyên liệu trong phiếu.');
+    }
+
+    /** Hủy toàn bộ nguyên liệu trong cùng một phiếu/đợt yêu cầu. */
+    public function batchCancel(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'request_group_id' => ['nullable', 'string', 'max:100'],
+            'transfer_ids' => ['nullable', 'array', 'min:1'],
+            'transfer_ids.*' => ['integer', TenantRule::exists('stock_transfer_requests', 'id')],
+            'cancel_reason' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        $query = StockTransferRequest::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->whereIn('status', ['requested', 'routed']);
+
+        if (! empty($data['request_group_id'])) {
+            $query->where('request_group_id', $data['request_group_id']);
+        } elseif (! empty($data['transfer_ids'])) {
+            $query->whereIn('id', $data['transfer_ids']);
+        } else {
+            return back()->withErrors(['cancel_reason' => 'Không tìm thấy danh sách yêu cầu cần hủy.']);
+        }
+
+        $transfers = $query->get();
+        if ($transfers->isEmpty()) {
+            return back()->with('error', 'Không có yêu cầu nào hợp lệ để hủy.');
+        }
+
+        $canCancelAll = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
+
+        try {
+            $cancelledTransfers = DB::transaction(function () use ($transfers, $data, $user, $canCancelAll): array {
+                $cancelled = [];
+                foreach ($transfers as $item) {
+                    $locked = StockTransferRequest::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+                    if (! in_array($locked->status, ['requested', 'routed'], true)) {
+                        continue;
+                    }
+                    $canCancel = $canCancelAll
+                        || ((int) $locked->requested_by === (int) $user->id && in_array($locked->status, ['requested', 'routed'], true))
+                        || ($user->assignedBranchId() !== null && (int) $locked->to_branch_id === (int) $user->assignedBranchId() && $locked->status === 'requested');
+                    if (! $canCancel) {
+                        continue;
+                    }
+
+                    $locked->update([
+                        'status' => 'cancelled',
+                        'cancel_reason' => trim($data['cancel_reason']),
+                        'cancelled_by' => $user->id,
+                        'cancelled_at' => now(),
+                    ]);
+                    $cancelled[] = $locked->fresh();
+                }
+                return $cancelled;
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        foreach ($cancelledTransfers as $transfer) {
+            $this->notifyTransferParties($user, $transfer, 'cancelled');
+            AuditLog::log('stock_transfer_cancelled', 'updated', $transfer, null, [
+                'by' => $user->name,
+                'batch_action' => true,
+            ]);
+        }
+
+        return back()->with('success', 'Đã hủy ' . count($cancelledTransfers) . ' nguyên liệu trong phiếu.');
     }
 
     /** Chi nhánh cấp xuất đủ số lượng yêu cầu, ghi giảm tồn nguồn. */
@@ -824,12 +1193,17 @@ class StockTransferRequestController extends Controller
             : 'Đã nhận đủ hàng đạt chất lượng và cộng tồn kho chi nhánh.');
     }
 
-    /** Chủ hoặc Trưởng kho Tổng xác nhận hướng xử lý phần thiếu/hỏng. */
+    /** Xác nhận hướng xử lý phần thiếu/hỏng và đóng hồ sơ chênh lệch. */
     public function resolveDiscrepancy(Request $request, StockTransferRequest $transfer): RedirectResponse
     {
         $user = $request->user();
-        $this->assertCanRoute($user);
+        $this->assertManager($user);
         $this->assertTenantTransfer($user, $transfer);
+        $canResolve = $user->isSuperAdmin()
+            || $user->hasAnyRole(['owner', 'warehouse_manager'])
+            || ($transfer->to_branch_id && $user->canAccessBranch((int) $transfer->to_branch_id));
+        abort_unless($canResolve, 403, 'Bạn không có quyền chốt xử lý chênh lệch này.');
+
         $data = $request->validate([
             'discrepancy_resolution' => ['required', 'string', 'min:2', 'max:1000'],
         ], [
@@ -870,12 +1244,10 @@ class StockTransferRequestController extends Controller
         $this->assertTenantTransfer($user, $transfer);
         $data = $request->validate(['cancel_reason' => ['required', 'string', 'min:5', 'max:500']]);
 
-        $isRequestOnly = $this->isRequestOnly($user);
         $canCancel = $user->isSuperAdmin()
             || $user->hasAnyRole(['owner', 'warehouse_manager'])
-            || ($isRequestOnly
-                && (int) $transfer->requested_by === (int) $user->id
-                && $transfer->status === 'requested');
+            || ((int) $transfer->requested_by === (int) $user->id && in_array($transfer->status, ['requested', 'routed'], true))
+            || ($user->assignedBranchId() !== null && (int) $transfer->to_branch_id === (int) $user->assignedBranchId() && $transfer->status === 'requested');
         abort_unless($canCancel, 403, 'Bạn không có quyền hủy yêu cầu này.');
         if (! in_array($transfer->status, ['requested', 'routed'], true)) {
             return back()->with('error', 'Chỉ được hủy yêu cầu trước khi xuất hàng.');

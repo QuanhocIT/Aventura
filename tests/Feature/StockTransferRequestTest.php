@@ -245,41 +245,56 @@ class StockTransferRequestTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_manager_cannot_execute_stock_movement(): void
+    public function test_manager_can_dispatch_for_own_source_branch_and_receive_for_own_destination_branch(): void
     {
         $t = $this->makeRequest();
         $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
             'from_branch_id' => $this->branchB->id,
         ])->assertRedirect();
 
-        $this->actingAs($this->managerB)
+        // Manager A is NOT from branch B -> forbidden
+        $this->actingAs($this->managerA)
             ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])
             ->assertForbidden();
 
-        $this->actingAs($this->owner)
+        // Manager B IS from branch B -> success
+        $this->actingAs($this->managerB)
             ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])
             ->assertRedirect();
 
-        $this->actingAs($this->managerA)
+        $t->refresh();
+
+        // Manager B is NOT to branch A -> forbidden
+        $this->actingAs($this->managerB)
             ->post("/inventory/transfers/{$t->id}/receive", [
-                'handover_code' => $t->refresh()->handover_code,
+                'handover_code' => $t->handover_code,
             ])
             ->assertForbidden();
+
+        // Manager A IS to branch A -> success
+        $this->actingAs($this->managerA)
+            ->post("/inventory/transfers/{$t->id}/receive", [
+                'handover_code' => $t->handover_code,
+            ])
+            ->assertRedirect();
+
+        $this->assertEquals('received', $t->refresh()->status);
+        $this->assertEquals($this->managerB->id, $t->dispatched_by);
+        $this->assertEquals($this->managerA->id, $t->received_by);
     }
 
-    public function test_manager_uses_request_workspace_and_receives_no_source_workflow_data(): void
+    public function test_manager_accesses_transfers_workspace_with_branch_scoping(): void
     {
         $transfer = $this->makeRequest();
 
         $this->actingAs($this->managerA)
             ->get('/inventory/transfers')
             ->assertInertia(fn (Assert $page) => $page
-                ->component('inventory/TransferRequests')
-                ->where('permissions.request_only', true)
+                ->component('inventory/Transfers')
+                ->where('permissions.can_route', false)
+                ->where('permissions.can_execute', true)
                 ->has('transfers', 1)
                 ->where('transfers.0.id', $transfer->id)
-                ->missing('transfers.0.from_branch')
-                ->missing('transfers.0.handover_code')
             );
     }
 
@@ -355,5 +370,48 @@ class StockTransferRequestTest extends TestCase
 
         $this->assertEquals('cancelled', $t->refresh()->status);
         $this->assertEquals($this->managerA->id, $t->cancelled_by);
+    }
+
+    public function test_batch_route_and_batch_reject_grouped_requests(): void
+    {
+        $unit = Unit::firstOrCreate(['restaurant_id' => $this->restaurant->id, 'name' => 'Gói', 'symbol' => 'goi', 'type' => 'weight']);
+        $ingredient2 = Ingredient::create([
+            'restaurant_id' => $this->restaurant->id, 'branch_id' => null,
+            'unit_id' => $unit->id, 'name' => 'Bia Tiger', 'sku' => 'BT-01',
+            'average_cost' => 15000, 'status' => 'active',
+        ]);
+        Inventory::create([
+            'restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branchB->id,
+            'ingredient_id' => $ingredient2->id, 'quantity_on_hand' => 50,
+            'theoretical_quantity' => 50, 'last_cost' => 15000,
+        ]);
+
+        // Manager A creates a grouped request with 2 items
+        $this->actingAs($this->managerA)->post('/inventory/transfers', [
+            'to_branch_id' => $this->branchA->id,
+            'items' => [
+                ['ingredient_id' => $this->ingredient->id, 'quantity_requested' => 10],
+                ['ingredient_id' => $ingredient2->id, 'quantity_requested' => 5],
+            ],
+            'priority' => 'urgent',
+            'reason' => 'Đơn xin bổ sung đợt cuối tuần',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $groupId = StockTransferRequest::latest('id')->value('request_group_id');
+        $this->assertNotNull($groupId);
+        $this->assertEquals(2, StockTransferRequest::where('request_group_id', $groupId)->count());
+
+        // Owner batch routes the entire group
+        $this->actingAs($this->owner)->post('/inventory/transfers/batch-route', [
+            'request_group_id' => $groupId,
+            'from_branch_id' => $this->branchB->id,
+            'owner_note' => 'Xuất từ kho chi nhánh B',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $transfers = StockTransferRequest::where('request_group_id', $groupId)->get();
+        $this->assertEquals('routed', $transfers[0]->status);
+        $this->assertEquals('routed', $transfers[1]->status);
+        $this->assertEquals($transfers[0]->handover_code, $transfers[1]->handover_code);
+        $this->assertEquals($this->branchB->id, $transfers[0]->from_branch_id);
     }
 }

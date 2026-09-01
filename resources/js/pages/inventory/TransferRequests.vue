@@ -14,7 +14,7 @@ import {
     Truck,
     X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,8 @@ type RequestStatus =
 
 interface TransferRequest {
     id: number;
+    request_group_id?: string | null;
+    request_group_size?: number;
     status: RequestStatus;
     priority: 'normal' | 'urgent';
     ingredient: string | null;
@@ -69,6 +71,11 @@ interface IngredientOption {
     available_quantity: number | null;
 }
 
+interface RequestLine {
+    ingredient_id: number | '';
+    quantity_requested: number | string;
+}
+
 const props = defineProps<{
     transfers: TransferRequest[];
     branches: Branch[];
@@ -89,30 +96,75 @@ const props = defineProps<{
 const showAll = ref(false);
 const cancelling = ref<TransferRequest | null>(null);
 const hasAssignedBranch = computed(() => props.branches.length > 0);
-
-const requestForm = useForm({
-    to_branch_id: props.branches[0]?.id ?? ('' as number | ''),
-    ingredient_id: '' as number | '',
+const createRequestLine = (): RequestLine => ({
+    ingredient_id: '',
     quantity_requested: 0,
-    priority: 'urgent' as 'normal' | 'urgent',
+});
+
+const requestForm = useForm<{
+    to_branch_id: number | '';
+    items: RequestLine[];
+    priority: 'normal' | 'urgent';
+    reason: string;
+}>({
+    to_branch_id: props.branches[0]?.id ?? '',
+    items: [createRequestLine()],
+    priority: 'urgent',
     reason: '',
 });
 
 const cancelForm = useForm({ cancel_reason: '' });
 
-const selectedIngredient = computed(() =>
-    availableIngredients.value.find(
-        (ingredient) =>
-            Number(ingredient.id) === Number(requestForm.ingredient_id),
-    ),
-);
-
-const availableIngredients = computed(() =>
-    props.ingredients.filter(
-        (ingredient) =>
+const availableIngredientsForLine = (lineIndex: number) =>
+    props.ingredients.filter((ingredient) => {
+        const belongsToBranch =
             ingredient.branch_id === null ||
-            Number(ingredient.branch_id) === Number(requestForm.to_branch_id),
-    ),
+            Number(ingredient.branch_id) === Number(requestForm.to_branch_id);
+        const usedByAnotherLine = requestForm.items.some(
+            (line: RequestLine, index: number) =>
+                index !== lineIndex &&
+                Number(line.ingredient_id) === Number(ingredient.id),
+        );
+
+        return belongsToBranch && !usedByAnotherLine;
+    });
+
+const selectedIngredientForLine = (lineIndex: number) =>
+    props.ingredients.find(
+        (ingredient) =>
+            Number(ingredient.id) ===
+            Number(requestForm.items[lineIndex]?.ingredient_id),
+    );
+
+const addRequestLine = () => {
+    if (requestForm.items.length < 50) {
+        requestForm.items.push(createRequestLine());
+    }
+};
+
+const removeRequestLine = (lineIndex: number) => {
+    if (requestForm.items.length > 1) {
+        requestForm.items.splice(lineIndex, 1);
+    }
+};
+
+watch(
+    () => requestForm.to_branch_id,
+    () => {
+        requestForm.items.forEach((line: RequestLine) => {
+            const ingredient = props.ingredients.find(
+                (option) => Number(option.id) === Number(line.ingredient_id),
+            );
+
+            if (
+                ingredient &&
+                ingredient.branch_id !== null &&
+                Number(ingredient.branch_id) !== Number(requestForm.to_branch_id)
+            ) {
+                line.ingredient_id = '';
+            }
+        });
+    },
 );
 
 const visibleRequests = computed(() =>
@@ -238,6 +290,7 @@ const submitRequest = () => {
         onSuccess: () => {
             requestForm.reset();
             requestForm.to_branch_id = props.branches[0]?.id ?? '';
+            requestForm.items = [createRequestLine()];
             requestForm.priority = 'urgent';
         },
     });
@@ -399,61 +452,110 @@ const submitCancel = () => {
                         </p>
                     </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nguyên liệu cần bổ sung</Label>
-                        <select
-                            v-model="requestForm.ingredient_id"
-                            required
-                            :disabled="!hasAssignedBranch"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                        >
-                            <option value="" disabled>
-                                — Chọn nguyên liệu —
-                            </option>
-                            <option
-                                v-for="ingredient in availableIngredients"
-                                :key="ingredient.id"
-                                :value="ingredient.id"
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <Label>Nguyên liệu cần bổ sung</Label>
+                                <p class="mt-1 text-[11px] text-muted-foreground">
+                                    Có thể thêm tối đa 50 nguyên liệu trong cùng một phiếu.
+                                </p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                :disabled="!hasAssignedBranch || requestForm.items.length >= 50"
+                                @click="addRequestLine"
                             >
-                                {{ ingredient.name }} · tồn hiện tại
-                                {{
-                                    formatNumber(ingredient.available_quantity)
-                                }}
-                                {{ ingredient.unit }}
-                            </option>
-                        </select>
-                        <p
-                            v-if="requestForm.errors.ingredient_id"
-                            class="text-xs text-rose-500"
+                                <Plus class="mr-1 size-4" /> Thêm nguyên liệu
+                            </Button>
+                        </div>
+
+                        <div
+                            v-for="(line, lineIndex) in requestForm.items"
+                            :key="lineIndex"
+                            class="rounded-xl border border-border/70 bg-muted/20 p-3.5"
                         >
-                            {{ requestForm.errors.ingredient_id }}
+                            <div class="grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto]">
+                                <div class="flex flex-col gap-1.5">
+                                    <Label class="text-xs font-semibold text-foreground">
+                                        Nguyên liệu {{ Number(lineIndex) + 1 }}
+                                    </Label>
+                                    <select
+                                        v-model="line.ingredient_id"
+                                        required
+                                        :disabled="!hasAssignedBranch"
+                                        class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                    >
+                                        <option value="" disabled>— Chọn nguyên liệu —</option>
+                                        <option
+                                            v-for="ingredient in availableIngredientsForLine(Number(lineIndex))"
+                                            :key="ingredient.id"
+                                            :value="ingredient.id"
+                                        >
+                                            {{ ingredient.name }} · tồn hiện tại
+                                            {{ formatNumber(ingredient.available_quantity) }}
+                                            {{ ingredient.unit }}
+                                        </option>
+                                    </select>
+                                    <p
+                                        v-if="requestForm.errors[`items.${lineIndex}.ingredient_id`]"
+                                        class="text-xs text-rose-500"
+                                    >
+                                        {{ requestForm.errors[`items.${lineIndex}.ingredient_id`] }}
+                                    </p>
+                                </div>
+
+                                <div class="flex flex-col gap-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <Label class="text-xs font-semibold text-foreground">
+                                            Số lượng đề nghị
+                                        </Label>
+                                        <span class="text-[11px] text-muted-foreground">
+                                            Đơn vị: <span class="font-semibold text-foreground">{{ selectedIngredientForLine(Number(lineIndex))?.unit || '—' }}</span>
+                                        </span>
+                                    </div>
+                                    <Input
+                                        v-model="line.quantity_requested"
+                                        type="number"
+                                        step="0.001"
+                                        min="0.001"
+                                        required
+                                        :disabled="!hasAssignedBranch"
+                                        class="h-10"
+                                        placeholder="0.00"
+                                    />
+                                    <p
+                                        v-if="requestForm.errors[`items.${lineIndex}.quantity_requested`]"
+                                        class="text-xs text-rose-500"
+                                    >
+                                        {{ requestForm.errors[`items.${lineIndex}.quantity_requested`] }}
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-if="requestForm.items.length > 1"
+                                    class="flex items-center justify-end sm:pt-6"
+                                >
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        class="size-10 shrink-0 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+                                        title="Xóa nguyên liệu này"
+                                        @click="removeRequestLine(Number(lineIndex))"
+                                    >
+                                        <X class="size-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-if="requestForm.errors.items" class="text-xs text-rose-500">
+                            {{ requestForm.errors.items }}
                         </p>
                     </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Số lượng đề nghị</Label>
-                            <Input
-                                v-model="requestForm.quantity_requested"
-                                type="number"
-                                step="0.001"
-                                min="0.001"
-                                required
-                                :disabled="!hasAssignedBranch"
-                            />
-                            <p
-                                v-if="selectedIngredient"
-                                class="text-[11px] text-muted-foreground"
-                            >
-                                Đơn vị: {{ selectedIngredient.unit }}
-                            </p>
-                            <p
-                                v-if="requestForm.errors.quantity_requested"
-                                class="text-xs text-rose-500"
-                            >
-                                {{ requestForm.errors.quantity_requested }}
-                            </p>
-                        </div>
                         <div class="flex flex-col gap-1.5">
                             <Label>Mức độ ưu tiên</Label>
                             <select

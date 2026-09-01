@@ -16,6 +16,7 @@ class StockTransferRequest extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'request_group_id' => 'string',
         'quantity_requested' => 'decimal:3',
         'quantity_dispatched' => 'decimal:3',
         'quantity_received' => 'decimal:3',
