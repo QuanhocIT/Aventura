@@ -11,7 +11,6 @@ use App\Models\InventoryDiscrepancyDispute;
 use App\Models\InventoryTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
-use App\Models\Supplier;
 use App\Models\SupplyRequest;
 use App\Models\SupplyRequestReceivingReport;
 use App\Models\User;
@@ -21,6 +20,7 @@ use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseTaskAssignment;
+use App\Notifications\ExternalReceiptVerifiedNotification;
 use App\Notifications\WarehouseShiftHandoverPendingNotification;
 use App\Notifications\WarehouseTaskAssignedNotification;
 use App\Services\CentralWarehouseService;
@@ -89,9 +89,21 @@ class WarehouseStaffController extends Controller
         $myVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
             ->where('received_by', $userId)
             ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
-            ->with(['items.ingredient', 'verifiedBy'])
+            ->with(['items.ingredient.unit', 'verifiedBy', 'verificationAssignedTo', 'receivedBy'])
             ->orderByDesc('id')
             ->limit(20)
+            ->get();
+
+        // Phiếu nhập ngoài do Trưởng kho lập và giao đích danh cho nhân viên
+        // này kiểm kê. Đây là hàng chờ xác nhận, chưa phải tồn kho của nhân viên.
+        $assignedVerificationVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
+            ->where('verification_assigned_to', $userId)
+            ->whereNotNull('external_receipt_reason')
+            ->where('status', 'pending_review')
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
+            ->with(['items.ingredient.unit', 'receivedBy', 'verificationAssignedTo'])
+            ->orderByDesc('verification_assigned_at')
+            ->limit(30)
             ->get();
 
         // Bàn giao ca gần đây của tôi
@@ -135,21 +147,6 @@ class WarehouseStaffController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'average_cost', 'unit_id']);
 
-        $suppliers = Supplier::where('restaurant_id', $restaurantId)
-            ->where('status', 'active')
-            ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $centralBranch?->id ?: -1))
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        $purchaseOrders = PurchaseOrder::where('restaurant_id', $restaurantId)
-            ->whereIn('status', ['approved', 'preparing', 'shipping'])
-            ->where('is_frozen', false)
-            ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $centralBranch?->id ?: -1))
-            ->with('supplier:id,name')
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get(['id', 'po_number', 'supplier_id', 'status', 'delivery_due_date']);
-
         $notifications = $user->unreadNotifications()
             ->latest()
             ->limit(20)
@@ -171,20 +168,34 @@ class WarehouseStaffController extends Controller
             ->orderBy('name')
             ->get();
 
-        $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage');
+        $canManage = ! $user->hasRole('warehouse_staff')
+            && ($user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage'));
 
         return Inertia::render('inventory/WarehouseStaffPortal', [
             'centralBranch' => $centralBranch,
             'myTasks' => $myTasks,
             'taskSummary' => $taskSummary,
             'myVouchers' => $myVouchers,
+            'assignedVerificationVouchers' => $assignedVerificationVouchers,
             'myHandovers' => $myHandovers,
             'myDisputes' => $myDisputes,
             'myReceivingReports' => $myReceivingReports,
             'locations' => $locations,
             'ingredients' => $ingredients,
-            'suppliers' => $suppliers,
-            'purchaseOrders' => $purchaseOrders,
+            'warehouseStaff' => $this->staffAccess
+                ->scopeActiveCentralStaff(User::query(), $user, $centralBranch?->id)
+                ->where('id', '!=', $userId)
+                ->with('employee')
+                ->select('id', 'name', 'email')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (User $staff): array => [
+                    'id' => $staff->id,
+                    'name' => $staff->name,
+                    'email' => $staff->email,
+                    'job_title' => $staff->employee?->job_title,
+                ])
+                ->values(),
             'notifications' => $notifications,
             'handoverRecipients' => $handoverRecipients,
             'canManageWarehouse' => $canManage,
@@ -399,28 +410,23 @@ class WarehouseStaffController extends Controller
         $request->validate([
             'received_at' => 'required|date',
             'idempotency_key' => 'nullable|string|max:64',
-            'supplier_id' => ['nullable', 'integer', TenantRule::exists('suppliers')],
-            'purchase_order_id' => ['nullable', 'integer', TenantRule::exists('purchase_orders')],
-            'delivery_note_number' => 'nullable|string|max:100',
-            'invoice_number' => 'nullable|string|max:100',
-            'invoice_series' => 'nullable|string|max:80',
-            'invoice_date' => 'nullable|date',
-            'invoice_total_amount' => 'nullable|numeric|min:0',
-            'vat_amount' => 'nullable|numeric|min:0',
-            'vehicle_number' => 'nullable|string|max:50',
-            'seal_code' => 'nullable|string|max:50',
-            'carrier_name' => 'nullable|string|max:120',
+            'external_receipt_reason' => 'nullable|string|in:external_donation,external_return,other',
+            'external_source_name' => 'nullable|string|max:150',
+            'external_reference' => 'nullable|string|max:100',
+            'verification_assigned_to' => 'nullable|integer',
             'receiving_dock' => 'nullable|string|max:60',
             'submit_for_review' => 'nullable|boolean',
             'quality_status' => 'nullable|in:pending,passed,conditional,failed',
             'quality_notes' => 'nullable|string|max:1000',
-            'temperature_min_c' => 'nullable|numeric|between:-80,80',
-            'temperature_max_c' => 'nullable|numeric|between:-80,80',
             'notes' => 'nullable|string|max:500',
+            // Giá trị gửi từ client chỉ để hiển thị; tổng chính thức luôn được
+            // tính lại từ số lượng thực nhập x đơn giá ở phía server.
+            'invoice_total_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.ingredient_id' => ['required', 'integer', TenantRule::exists('ingredients')],
-            'items.*.expected_qty' => 'required|numeric|min:0',
-            'items.*.actual_qty' => 'required|numeric|min:0',
+            'items.*.unit_label' => 'nullable|string|max:50',
+            'items.*.expected_qty' => 'nullable|numeric|min:0',
+            'items.*.actual_qty' => 'required|numeric|gt:0',
             'items.*.unit_cost' => 'nullable|numeric|min:0',
             'items.*.lot_number' => 'nullable|string|max:100',
             'items.*.expiry_date' => 'nullable|date',
@@ -430,7 +436,7 @@ class WarehouseStaffController extends Controller
             'evidence' => 'nullable|array',
             'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf,webp|max:10240',
             'evidence_types' => 'nullable|array',
-            'evidence_types.*' => 'nullable|in:invoice,delivery_note,qc,receiving_photo,other',
+            'evidence_types.*' => 'nullable|in:external_record,qc,receiving_photo,other,invoice,delivery_note',
         ], [
             'items.*.ingredient_id.required' => 'Vui lòng chọn nguyên liệu cho tất cả các mặt hàng.',
             'items.*.ingredient_id.integer' => 'Mã nguyên liệu không hợp lệ.',
@@ -441,15 +447,31 @@ class WarehouseStaffController extends Controller
         $this->staffAccess->assertCanOperate($user);
         $restaurantId = $user->restaurant_id;
 
+        $canCreateExternalReceipt = ! $user->hasRole('warehouse_staff') && ($user->isOwner()
+            || $user->isSuperAdmin()
+            || $user->hasRole('warehouse_manager')
+            || $user->can('warehouse.manage'));
+
+        abort_unless(
+            $canCreateExternalReceipt || (
+                ($request->filled('supplier_id') || $request->filled('purchase_order_id'))
+                && ! $request->filled('external_receipt_reason')
+                && ! $request->filled('external_source_name')
+                && ! $request->filled('external_reference')
+            ),
+            403,
+            'Chỉ Trưởng kho Tổng mới được lập phiếu nhập ngoài và phân công nhân viên kiểm kê.',
+        );
+
         if ($request->filled('idempotency_key')) {
             $existing = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
                 ->where('idempotency_key', $request->string('idempotency_key')->toString())
-                ->with(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder', 'documents'])
+                ->with(['items.ingredient.unit', 'items.location', 'receivedBy', 'verificationAssignedTo', 'supplier', 'purchaseOrder', 'documents'])
                 ->first();
 
             if ($existing) {
                 return response()->json([
-                    'message' => 'Phiếu nhận hàng đã được ghi nhận trước đó.',
+                    'message' => 'Phiếu nhập ngoài đã được ghi nhận trước đó.',
                     'voucher' => $existing,
                     'idempotent_replay' => true,
                 ]);
@@ -459,45 +481,70 @@ class WarehouseStaffController extends Controller
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
-        if ($request->filled('supplier_id')) {
+        // Chỉ xem là dữ liệu cũ khi không có bất kỳ dấu hiệu nào của phiếu
+        // nhập ngoài. Nếu client cũ gửi kèm supplier/PO nhưng đã chọn luồng
+        // nhập ngoài, vẫn phải áp dụng đầy đủ maker-checker của luồng mới.
+        $hasExplicitExternalData = $request->filled('external_receipt_reason')
+            || $request->filled('external_source_name')
+            || $request->filled('external_reference');
+        $legacyPurchasePayload = ! $hasExplicitExternalData
+            && ($request->filled('supplier_id') || $request->filled('purchase_order_id'));
+        $isNewExternalReceipt = ! $legacyPurchasePayload;
+        $externalReason = $request->input('external_receipt_reason');
+        $externalSource = trim((string) $request->input('external_source_name', ''));
+        if (blank($externalReason) || blank($externalSource)) {
+            // Old clients may still send the former purchase fields. They are
+            // intentionally ignored and are never copied to the new voucher.
+            abort_unless($legacyPurchasePayload, 422, 'Phiếu nhập ngoài phải có lý do nhập và bên giao/nguồn bên ngoài.');
+            $externalReason = 'other';
+            $externalSource = 'Nguồn bên ngoài (tương thích dữ liệu cũ)';
+        }
+
+        if ($isNewExternalReceipt) {
             abort_unless(
-                Supplier::where('restaurant_id', $restaurantId)
-                    ->whereKey((int) $request->supplier_id)
-                    ->where('status', 'active')
-                    ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $centralBranch->id))
-                    ->exists(),
+                $canCreateExternalReceipt,
+                403,
+                'Chỉ Trưởng kho Tổng mới được lập phiếu nhập ngoài và phân công nhân viên kiểm kê.',
+            );
+            abort_unless(
+                $request->boolean('submit_for_review'),
                 422,
-                'Nhà cung cấp không thuộc phạm vi Kho Tổng.',
+                'Phiếu nhập ngoài phải được gửi yêu cầu kiểm kê ngay sau khi lập.',
+            );
+            abort_unless(
+                $request->filled('verification_assigned_to'),
+                422,
+                'Phiếu nhập ngoài bắt buộc phải phân công một nhân viên Kho Tổng kiểm kê.',
             );
         }
 
-        $purchaseOrder = null;
-        if ($request->filled('purchase_order_id')) {
-            $purchaseOrder = PurchaseOrder::where('restaurant_id', $restaurantId)
-                ->whereKey((int) $request->purchase_order_id)
-                ->where(fn ($query) => $query->whereNull('branch_id')->orWhere('branch_id', $centralBranch->id))
-                ->with(['supplier', 'items:id,purchase_order_id,ingredient_id'])
-                ->firstOrFail();
+        $verificationAssignee = null;
+        if ($isNewExternalReceipt) {
+            $verificationAssignee = $this->staffAccess
+                ->scopeActiveCentralStaff(User::query(), $user, $centralBranch->id)
+                ->whereKey((int) $request->input('verification_assigned_to'))
+                ->where('users.id', '!=', $user->id)
+                ->first();
 
-            abort_if($purchaseOrder->status === 'cancelled' || $purchaseOrder->is_frozen, 422, 'Đơn mua hàng đã bị hủy hoặc khóa, không thể lập GRN.');
-            abort_if(
-                $request->filled('supplier_id') && (int) $request->supplier_id !== (int) $purchaseOrder->supplier_id,
+            abort_unless(
+                $verificationAssignee,
                 422,
-                'Nhà cung cấp trên GRN không khớp với đơn mua hàng.',
-            );
-
-            $poIngredientIds = $purchaseOrder->items->pluck('ingredient_id')->map(fn ($id): int => (int) $id);
-            abort_if(
-                collect($request->input('items', []))->pluck('ingredient_id')->map(fn ($id): int => (int) $id)->diff($poIngredientIds)->isNotEmpty(),
-                422,
-                'GRN có nguyên liệu không nằm trong đơn mua hàng đã chọn.',
+                'Người kiểm kê phải là nhân viên Kho Tổng đang hoạt động và được phân công tại Kho Tổng.',
             );
         }
 
-        $unexplainedDiscrepancies = collect($request->input('items', []))
-            ->filter(fn (array $item): bool => abs((float) ($item['actual_qty'] ?? 0) - (float) ($item['expected_qty'] ?? 0)) > 0.001 && blank($item['discrepancy_reason'] ?? null))
-            ->keys();
-        abort_if($unexplainedDiscrepancies->isNotEmpty(), 422, 'Mỗi dòng thiếu/thừa phải có lý do chênh lệch.');
+        $items = collect($request->input('items', []));
+        abort_if(
+            $items->contains(fn (array $item): bool => blank($item['lot_number'] ?? null)),
+            422,
+            'Mỗi dòng có số lượng nhập phải có số lô để truy xuất nguồn gốc.',
+        );
+
+        $duplicateLots = $items
+            ->map(fn (array $item): string => (int) ($item['ingredient_id'] ?? 0).'|'.mb_strtolower(trim((string) ($item['lot_number'] ?? ''))))
+            ->countBy()
+            ->filter(fn (int $count, string $key): bool => $key !== '0|' && $count > 1);
+        abort_if($duplicateLots->isNotEmpty(), 422, 'Không được lặp cùng một nguyên liệu và số lô trong một phiếu nhập ngoài.');
 
         $ingredientIds = collect($request->input('items', []))
             ->pluck('ingredient_id')
@@ -527,7 +574,19 @@ class WarehouseStaffController extends Controller
             'Vị trí cất hàng phải thuộc Kho Tổng.'
         );
 
-        return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $purchaseOrder) {
+        abort_if(
+            ! $legacyPurchasePayload && $items->contains(fn (array $item): bool => blank($item['unit_label'] ?? null)),
+            422,
+            'Mỗi dòng nhập ngoài phải có đơn vị tính. Nếu danh mục đã có đơn vị, hãy kiểm tra và xác nhận lại đơn vị đó.',
+        );
+
+        $ingredientUnits = $this->centralIngredientQuery($restaurantId, $centralBranch->id)
+            ->with('unit:id,symbol')
+            ->whereIn('id', $ingredientIds)
+            ->get()
+            ->keyBy('id');
+
+        return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $externalReason, $externalSource, $ingredientUnits, $verificationAssignee) {
             // Upload ảnh bằng chứng
             $evidencePaths = [];
             $documentFiles = [];
@@ -543,80 +602,66 @@ class WarehouseStaffController extends Controller
                 }
             }
 
-            $totalExpected = 0;
             $totalActual = 0;
-            $hasDiscrepancy = false;
 
             // Tính tổng
+            $totalValue = 0;
             foreach ($request->items as $item) {
-                $totalExpected += (float) $item['expected_qty'];
-                $totalActual += (float) $item['actual_qty'];
-                if (abs((float) $item['expected_qty'] - (float) $item['actual_qty']) > 0.001) {
-                    $hasDiscrepancy = true;
-                }
+                $actualQty = (float) $item['actual_qty'];
+                $unitCost = (float) ($item['unit_cost'] ?? 0);
+                $totalActual += $actualQty;
+                $totalValue += $actualQty * $unitCost;
             }
 
-            $discrepancyQty = $totalActual - $totalExpected;
-            $status = $request->boolean('submit_for_review')
-                ? 'pending_review'
-                : ($hasDiscrepancy ? 'discrepancy' : 'draft');
+            $status = $request->boolean('submit_for_review') ? 'pending_review' : 'draft';
 
             $voucher = WarehouseReceivingVoucher::create([
                 'restaurant_id' => $restaurantId,
                 'idempotency_key' => $request->input('idempotency_key'),
                 'branch_id' => $centralBranch->id,
+                'external_receipt_reason' => $externalReason,
+                'external_source_name' => $externalSource,
+                'external_reference' => $request->input('external_reference'),
                 'received_by' => $user->id,
                 'submitted_by' => $request->boolean('submit_for_review') ? $user->id : null,
                 'submitted_at' => $request->boolean('submit_for_review') ? now() : null,
+                'verification_assigned_to' => $verificationAssignee?->id,
+                'verification_assigned_at' => $verificationAssignee ? now() : null,
                 'received_at' => $request->received_at,
-                'supplier_id' => $request->supplier_id ?: $purchaseOrder?->supplier_id,
-                'purchase_order_id' => $purchaseOrder?->id,
-                'delivery_note_number' => $request->delivery_note_number,
-                'invoice_number' => $request->invoice_number,
-                'invoice_series' => $request->invoice_series,
-                'invoice_date' => $request->invoice_date,
-                'invoice_total_amount' => $request->input('invoice_total_amount', 0),
-                'vat_amount' => $request->input('vat_amount', 0),
-                'vehicle_number' => $request->vehicle_number,
-                'seal_code' => $request->seal_code,
-                'carrier_name' => $request->carrier_name,
+                'supplier_id' => null,
+                'purchase_order_id' => null,
                 'receiving_dock' => $request->receiving_dock,
                 'quality_status' => $request->input('quality_status', 'pending'),
                 'quality_notes' => $request->quality_notes,
-                'temperature_min_c' => $request->temperature_min_c,
-                'temperature_max_c' => $request->temperature_max_c,
-                'temperature_status' => $this->temperatureStatus($request->temperature_min_c, $request->temperature_max_c),
-                'three_way_match_status' => $purchaseOrder ? 'pending' : 'not_applicable',
+                'temperature_min_c' => null,
+                'temperature_max_c' => null,
+                'temperature_status' => 'not_recorded',
+                'three_way_match_status' => 'not_applicable',
                 'disposition' => 'pending',
                 'status' => $status,
-                'total_expected_qty' => $totalExpected,
+                'total_expected_qty' => $totalActual,
                 'total_actual_qty' => $totalActual,
-                'total_discrepancy_qty' => $discrepancyQty,
+                'total_discrepancy_qty' => 0,
+                'invoice_total_amount' => round($totalValue, 2),
                 'evidence_paths' => $evidencePaths,
                 'notes' => $request->notes,
             ]);
 
             // Tạo items
             foreach ($request->items as $item) {
-                $itemExpected = (float) $item['expected_qty'];
                 $itemActual = (float) $item['actual_qty'];
-                $diff = $itemActual - $itemExpected;
-
-                $itemStatus = 'ok';
-                if ($diff < -0.001) {
-                    $itemStatus = 'short';
-                } elseif ($diff > 0.001) {
-                    $itemStatus = 'over';
-                }
+                $ingredient = $ingredientUnits->get((int) $item['ingredient_id']);
+                $unitLabel = trim((string) ($item['unit_label'] ?? '')) ?: ($ingredient?->unit?->symbol ?: 'đv');
 
                 WarehouseReceivingVoucherItem::create([
                     'voucher_id' => $voucher->id,
                     'ingredient_id' => $item['ingredient_id'],
-                    'expected_qty' => $itemExpected,
+                    'unit_label' => $unitLabel,
+                    'expected_qty' => $itemActual,
                     'actual_qty' => $itemActual,
                     'unit_cost' => $item['unit_cost'] ?? 0,
-                    'item_status' => $itemStatus,
-                    'discrepancy_reason' => $item['discrepancy_reason'] ?? null,
+                    'item_status' => 'ok',
+                    'discrepancy_reason' => null,
                     'lot_number' => $item['lot_number'] ?? null,
                     'expiry_date' => $item['expiry_date'] ?? null,
                     'location_id' => $item['location_id'] ?? null,
@@ -641,13 +686,16 @@ class WarehouseStaffController extends Controller
 
             $this->logAudit($user, 'warehouse.receiving.created', $voucher, [
                 'voucher_code' => $voucher->voucher_code,
-                'has_discrepancy' => $hasDiscrepancy,
+                'receipt_type' => 'external_receipt',
+                'external_receipt_reason' => $externalReason,
+                'external_source_name' => $externalSource,
                 'total_items' => count($request->items),
+                'verification_assigned_to' => $verificationAssignee?->id,
             ]);
 
             return response()->json([
-                'message' => 'Phiếu nhận hàng '.$voucher->voucher_code.' đã tạo thành công.',
-                'voucher' => $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder', 'documents']),
+                'message' => 'Phiếu '.$voucher->voucher_code.' đã lập và gửi yêu cầu kiểm kê. Chưa cộng tồn kho.',
+                'voucher' => $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'verificationAssignedTo', 'supplier', 'purchaseOrder', 'documents']),
             ], 201);
         });
     }
@@ -789,7 +837,7 @@ class WarehouseStaffController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'),
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->hasRole('warehouse_staff') || $user->can('warehouse.manage'),
             403,
             'Bạn không có quyền xác nhận phiếu nhận hàng.'
         );
@@ -800,6 +848,9 @@ class WarehouseStaffController extends Controller
             'quality_notes' => 'nullable|string|max:1000',
             'temperature_min_c' => 'nullable|numeric|between:-80,80',
             'temperature_max_c' => 'nullable|numeric|between:-80,80',
+            'verification_items' => 'nullable|array',
+            'verification_items.*.voucher_item_id' => 'required|integer',
+            'verification_items.*.actual_qty' => 'required|numeric|gt:0',
             'evidence' => 'nullable|array',
             'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
         ]);
@@ -821,15 +872,67 @@ class WarehouseStaffController extends Controller
 
         $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
             ->where('branch_id', $centralBranch->id)
-            ->when(! $canVerifyOwnVoucher, fn ($query) => $query->where(function ($scope) use ($user) {
-                $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
-            }))
             ->whereIn('status', ['draft', 'discrepancy', 'pending_review', 'pending_disposition'])
             ->findOrFail($id);
+        $isExternalReceipt = $voucher->external_receipt_reason !== null;
+
+        if ($isExternalReceipt) {
+            // Phiếu nhập ngoài bắt buộc maker-checker: chỉ nhân viên Kho Tổng
+            // được Trưởng kho phân công mới được kiểm kê và xác nhận.
+            abort_unless(
+                $user->hasRole('warehouse_staff')
+                    && $this->staffAccess->canOperate($user)
+                    && (int) $voucher->verification_assigned_to === (int) $user->id,
+                403,
+                'Chỉ nhân viên Kho Tổng được phân công mới được kiểm kê và xác nhận phiếu nhập ngoài.',
+            );
+            abort_unless(
+                $voucher->status === 'pending_review',
+                422,
+                'Phiếu nhập ngoài chưa ở trạng thái chờ kiểm kê hoặc đã được xử lý trước đó.',
+            );
+        } else {
+            abort_unless(
+                $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'),
+                403,
+                'Bạn không có quyền xác nhận phiếu nhận hàng.',
+            );
+            abort_unless(
+                $canVerifyOwnVoucher || (int) $voucher->received_by !== (int) $user->id,
+                403,
+                'Người lập phiếu không được tự xác nhận chính phiếu đó.',
+            );
+        }
+
+        $verificationItems = collect($request->input('verification_items', []));
+        if ($isExternalReceipt) {
+            $voucher->loadMissing('items');
+            $submittedIds = $verificationItems->pluck('voucher_item_id')->map(fn ($itemId): int => (int) $itemId);
+            $voucherItemIds = $voucher->items->pluck('id')->map(fn ($itemId): int => (int) $itemId);
+
+            abort_unless(
+                $verificationItems->count() === $voucher->items->count()
+                    && $submittedIds->count() === $submittedIds->unique()->count()
+                    && $submittedIds->sort()->values()->all() === $voucherItemIds->sort()->values()->all(),
+                422,
+                'Phải nhập số lượng kiểm kê thực tế cho đầy đủ từng dòng nguyên liệu của phiếu.',
+            );
+
+            $hasVerificationDiscrepancy = $voucher->items->contains(function (WarehouseReceivingVoucherItem $item) use ($verificationItems): bool {
+                $verified = $verificationItems->firstWhere('voucher_item_id', $item->id);
+
+                return abs((float) ($verified['actual_qty'] ?? 0) - (float) $item->expected_qty) > 0.0005;
+            });
+            if ($hasVerificationDiscrepancy && blank($request->input('notes'))) {
+                return response()->json([
+                    'message' => 'Số lượng kiểm kê lệch với số Trưởng kho khai báo. Bắt buộc ghi chú giải trình trước khi xác nhận.',
+                ], 422);
+            }
+        }
 
         if ($voucher->status === 'pending_disposition') {
             return response()->json([
-                'message' => 'Phiếu đang chờ xử lý trả nhà cung cấp hoặc tiêu hủy.',
+                'message' => 'Phiếu đang chờ xử lý trả lại bên giao bên ngoài hoặc tiêu hủy.',
                 'requires_disposition' => true,
             ], 422);
         }
@@ -846,9 +949,11 @@ class WarehouseStaffController extends Controller
                 'status' => 'pending_disposition',
                 'quality_status' => 'failed',
                 'quality_notes' => $request->quality_notes,
-                'temperature_min_c' => $request->temperature_min_c,
-                'temperature_max_c' => $request->temperature_max_c,
-                'temperature_status' => $this->temperatureStatus($request->temperature_min_c, $request->temperature_max_c),
+                'temperature_min_c' => $isExternalReceipt ? null : $request->temperature_min_c,
+                'temperature_max_c' => $isExternalReceipt ? null : $request->temperature_max_c,
+                'temperature_status' => $isExternalReceipt
+                    ? 'not_recorded'
+                    : $this->temperatureStatus($request->temperature_min_c, $request->temperature_max_c),
                 'disposition' => 'pending',
                 'evidence_paths' => $evidencePaths,
             ]);
@@ -859,13 +964,13 @@ class WarehouseStaffController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Lô hàng không đạt. Phiếu đã chuyển sang chờ trả nhà cung cấp/tiêu hủy và chưa hạch toán vào kho.',
+                'message' => 'Lô hàng không đạt. Phiếu đã chuyển sang chờ trả lại bên giao bên ngoài/tiêu hủy và chưa hạch toán vào kho.',
                 'requires_disposition' => true,
                 'voucher' => $voucher->fresh(),
             ], 422);
         }
 
-        if ($voucher->status === 'discrepancy' && empty($request->input('notes'))) {
+        if ($voucher->status === 'discrepancy' && $voucher->purchase_order_id && empty($request->input('notes'))) {
             return response()->json([
                 'message' => 'Phiếu nhận hàng có chênh lệch so với đơn đặt. Bắt buộc nhập ghi chú giải trình trước khi xác nhận nhập kho.',
             ], 422);
@@ -878,33 +983,40 @@ class WarehouseStaffController extends Controller
                 return response()->json(['message' => 'Nguyên liệu yêu cầu truy xuất bắt buộc phải có số lô trước khi duyệt nhập kho.'], 422);
             }
         }
-        $temperatureMin = $request->filled('temperature_min_c') ? (float) $request->temperature_min_c : $voucher->temperature_min_c;
-        $temperatureMax = $request->filled('temperature_max_c') ? (float) $request->temperature_max_c : $voucher->temperature_max_c;
-        $hasTemperature = $temperatureMin !== null && $temperatureMax !== null;
+        if ($isExternalReceipt) {
+            $temperatureMin = null;
+            $temperatureMax = null;
+            $hasTemperature = false;
+            $temperatureOutOfRange = false;
+        } else {
+            $temperatureMin = $request->filled('temperature_min_c') ? (float) $request->temperature_min_c : $voucher->temperature_min_c;
+            $temperatureMax = $request->filled('temperature_max_c') ? (float) $request->temperature_max_c : $voucher->temperature_max_c;
+            $hasTemperature = $temperatureMin !== null && $temperatureMax !== null;
 
-        $requiresTemperature = $voucher->items->contains(function (WarehouseReceivingVoucherItem $item): bool {
-            return (bool) $item->location?->is_cold_storage
-                || in_array($item->ingredient?->storage_type, ['fresh', 'daily', 'short_shelf'], true)
-                || $item->ingredient?->storage_temperature_min_c !== null
-                || $item->ingredient?->storage_temperature_max_c !== null;
-        });
+            $requiresTemperature = $voucher->items->contains(function (WarehouseReceivingVoucherItem $item): bool {
+                return (bool) $item->location?->is_cold_storage
+                    || in_array($item->ingredient?->storage_type, ['fresh', 'daily', 'short_shelf'], true)
+                    || $item->ingredient?->storage_temperature_min_c !== null
+                    || $item->ingredient?->storage_temperature_max_c !== null;
+            });
 
-        if ($requiresTemperature && ! $hasTemperature) {
-            return response()->json(['message' => 'Hàng tươi/hàng kho lạnh bắt buộc ghi nhận nhiệt độ nhận hàng.'], 422);
-        }
-        if ($hasTemperature && $temperatureMin > $temperatureMax) {
-            return response()->json(['message' => 'Nhiệt độ thấp nhất không được lớn hơn nhiệt độ cao nhất.'], 422);
-        }
+            if ($requiresTemperature && ! $hasTemperature) {
+                return response()->json(['message' => 'Hàng tươi/hàng kho lạnh bắt buộc ghi nhận nhiệt độ nhận hàng.'], 422);
+            }
+            if ($hasTemperature && $temperatureMin > $temperatureMax) {
+                return response()->json(['message' => 'Nhiệt độ thấp nhất không được lớn hơn nhiệt độ cao nhất.'], 422);
+            }
 
-        $temperatureOutOfRange = $hasTemperature && $voucher->items->contains(function (WarehouseReceivingVoucherItem $item) use ($temperatureMin, $temperatureMax): bool {
-            $ingredient = $item->ingredient;
+            $temperatureOutOfRange = $hasTemperature && $voucher->items->contains(function (WarehouseReceivingVoucherItem $item) use ($temperatureMin, $temperatureMax): bool {
+                $ingredient = $item->ingredient;
 
-            return ($ingredient?->storage_temperature_min_c !== null && $temperatureMin < (float) $ingredient->storage_temperature_min_c)
-                || ($ingredient?->storage_temperature_max_c !== null && $temperatureMax > (float) $ingredient->storage_temperature_max_c);
-        });
+                return ($ingredient?->storage_temperature_min_c !== null && $temperatureMin < (float) $ingredient->storage_temperature_min_c)
+                    || ($ingredient?->storage_temperature_max_c !== null && $temperatureMax > (float) $ingredient->storage_temperature_max_c);
+            });
 
-        if ($temperatureOutOfRange && $request->input('quality_status') === 'passed') {
-            return response()->json(['message' => 'Nhiệt độ nhận hàng vượt ngưỡng cài đặt cho nguyên liệu. Hãy chuyển sang Kiểm tra có điều kiện hoặc xử lý từ chối.'], 422);
+            if ($temperatureOutOfRange && $request->input('quality_status') === 'passed') {
+                return response()->json(['message' => 'Nhiệt độ nhận hàng vượt ngưỡng cài đặt cho nguyên liệu. Hãy chuyển sang Kiểm tra có điều kiện hoặc xử lý từ chối.'], 422);
+            }
         }
 
         if ($voucher->purchaseOrder) {
@@ -925,11 +1037,11 @@ class WarehouseStaffController extends Controller
         if ($voucher->purchaseOrder && blank($voucher->invoice_number)) {
             return response()->json(['message' => 'GRN gắn với PO bắt buộc có số hóa đơn để đối chiếu 3 bên.'], 422);
         }
-        if ($threeWayStatus === 'discrepancy' && blank($request->input('notes'))) {
+        if ($voucher->purchase_order_id && $threeWayStatus === 'discrepancy' && blank($request->input('notes'))) {
             return response()->json(['message' => 'PO, hóa đơn và thực nhận có chênh lệch. Bắt buộc ghi chú đối soát trước khi xác nhận.'], 422);
         }
 
-        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus): void {
+        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus, $isExternalReceipt, $verificationItems): void {
             // Khóa phiếu trong transaction để hai người không thể đồng thời hạch toán
             // cùng một GRN thành hai lần nhập kho.
             $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
@@ -942,6 +1054,39 @@ class WarehouseStaffController extends Controller
                 ->findOrFail($id);
 
             $voucher->loadMissing(['items.location', 'items.ingredient', 'purchaseOrder.items']);
+
+            if ($isExternalReceipt) {
+                $totalExpected = 0;
+                $totalActual = 0;
+                $totalValue = 0;
+
+                foreach ($voucher->items as $voucherItem) {
+                    $verified = $verificationItems->firstWhere('voucher_item_id', $voucherItem->id);
+                    $expectedQty = (float) $voucherItem->expected_qty;
+                    $actualQty = (float) ($verified['actual_qty'] ?? 0);
+                    $difference = $actualQty - $expectedQty;
+                    $itemStatus = abs($difference) <= 0.0005 ? 'ok' : ($difference < 0 ? 'short' : 'over');
+
+                    $voucherItem->update([
+                        'actual_qty' => $actualQty,
+                        'item_status' => $itemStatus,
+                        'discrepancy_reason' => $itemStatus === 'ok' ? null : ($voucherItem->discrepancy_reason ?: $request->input('notes')),
+                    ]);
+                    $voucherItem->actual_qty = $actualQty;
+                    $voucherItem->item_status = $itemStatus;
+
+                    $totalExpected += $expectedQty;
+                    $totalActual += $actualQty;
+                    $totalValue += $actualQty * (float) $voucherItem->unit_cost;
+                }
+
+                $voucher->update([
+                    'total_expected_qty' => $totalExpected,
+                    'total_actual_qty' => $totalActual,
+                    'total_discrepancy_qty' => $totalActual - $totalExpected,
+                    'invoice_total_amount' => round($totalValue, 2),
+                ]);
+            }
 
             // Serialize approvals on the same PO so two GRNs cannot consume the
             // remaining quantity concurrently.
@@ -962,7 +1107,7 @@ class WarehouseStaffController extends Controller
                 }
             }
 
-            if ($voucher->status === 'discrepancy' && blank($request->input('notes'))) {
+            if ($voucher->purchase_order_id && $voucher->status === 'discrepancy' && blank($request->input('notes'))) {
                 abort(422, 'Phiếu nhận hàng có chênh lệch so với đơn đặt. Bắt buộc nhập ghi chú giải trình trước khi xác nhận nhập kho.');
             }
 
@@ -1016,7 +1161,7 @@ class WarehouseStaffController extends Controller
                         'inventory_id' => $inventory->id,
                         'supplier_id' => $voucher->supplier_id,
                         'performed_by' => $user->id,
-                        'type' => 'purchase',
+                        'type' => $voucher->purchase_order_id ? 'purchase' : 'external_receipt',
                         'direction' => 'in',
                         'quantity' => $actualQty,
                         'unit_cost' => $unitCost,
@@ -1024,7 +1169,9 @@ class WarehouseStaffController extends Controller
                         'source_type' => 'warehouse_receiving_voucher',
                         'source_id' => $voucher->id,
                         'idempotency_key' => "grn_{$voucher->id}_item_{$voucherItem->id}",
-                        'notes' => "Nhập hàng theo phiếu {$voucher->voucher_code}",
+                        'notes' => $voucher->purchase_order_id
+                            ? "Nhập hàng theo phiếu {$voucher->voucher_code}"
+                            : "Nhập ngoài theo phiếu {$voucher->voucher_code} ({$voucher->external_receipt_reason})",
                         'occurred_at' => $voucher->received_at ?: now(),
                     ]);
 
@@ -1123,9 +1270,11 @@ class WarehouseStaffController extends Controller
                 'notes' => $request->notes ?? $voucher->notes,
                 'quality_status' => $request->quality_status,
                 'quality_notes' => $request->quality_notes ?? $voucher->quality_notes,
-                'temperature_min_c' => $hasTemperature ? $temperatureMin : $voucher->temperature_min_c,
-                'temperature_max_c' => $hasTemperature ? $temperatureMax : $voucher->temperature_max_c,
-                'temperature_status' => $hasTemperature ? ($temperatureOutOfRange ? 'failed' : 'passed') : 'not_recorded',
+                'temperature_min_c' => $isExternalReceipt ? null : ($hasTemperature ? $temperatureMin : $voucher->temperature_min_c),
+                'temperature_max_c' => $isExternalReceipt ? null : ($hasTemperature ? $temperatureMax : $voucher->temperature_max_c),
+                'temperature_status' => $isExternalReceipt
+                    ? 'not_recorded'
+                    : ($hasTemperature ? ($temperatureOutOfRange ? 'failed' : 'passed') : 'not_recorded'),
                 'three_way_match_status' => $threeWayStatus,
                 'disposition' => 'accepted',
                 'verified_by' => $user->id,
@@ -1136,7 +1285,7 @@ class WarehouseStaffController extends Controller
 
             if ($needsPutaway) {
                 $assignee = User::where('restaurant_id', $user->restaurant_id)
-                    ->whereKey($voucher->received_by)
+                    ->whereKey($isExternalReceipt ? $voucher->verified_by : $voucher->received_by)
                     ->where('status', 'active')
                     ->where(function ($query) {
                         $query->whereNull('warehouse_staff_status')
@@ -1170,11 +1319,25 @@ class WarehouseStaffController extends Controller
             }
         });
 
+        $ownerNotified = false;
+        if ($isExternalReceipt) {
+            $voucher = $voucher->fresh(['receivedBy', 'verifiedBy', 'verificationAssignedTo']);
+            $owner = $user->restaurant?->owner;
+            if ($owner) {
+                $owner->notify(new ExternalReceiptVerifiedNotification($voucher));
+                $voucher->update(['owner_notified_at' => now()]);
+                $ownerNotified = true;
+            }
+        }
+
         $this->logAudit($user, 'warehouse.receiving.confirmed', $voucher, [
             'voucher_code' => $voucher->voucher_code,
+            'receipt_type' => $isExternalReceipt ? 'external_receipt' : 'purchase_receipt',
+            'verified_by' => $user->id,
+            'owner_notified' => $ownerNotified,
         ]);
 
-        return response()->json(['message' => 'Phiếu nhận hàng đã được xác nhận.']);
+        return response()->json(['message' => 'Phiếu nhập ngoài đã được xác nhận.']);
     }
 
     /**
@@ -1189,7 +1352,7 @@ class WarehouseStaffController extends Controller
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         $data = $request->validate([
-            'disposition' => 'required|in:return_supplier,destroy',
+            'disposition' => 'required|in:return_external,return_supplier,destroy',
             'reason' => 'required|string|max:1000',
             'evidence' => 'nullable|array',
             'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
@@ -1221,6 +1384,10 @@ class WarehouseStaffController extends Controller
                 ->with('items')
                 ->findOrFail($id);
 
+            if ($data['disposition'] === 'return_supplier' && ! $lockedVoucher->supplier_id) {
+                abort(422, 'Phiếu nhập ngoài không được xử lý theo nhà cung cấp. Hãy chọn trả lại bên giao bên ngoài.');
+            }
+
             $reverseLogistics = app(WarehouseReverseLogisticsService::class);
             foreach ($lockedVoucher->items as $voucherItem) {
                 $quantity = (float) $voucherItem->actual_qty;
@@ -1244,9 +1411,8 @@ class WarehouseStaffController extends Controller
                     $data['reason'],
                 );
 
-                if ($data['disposition'] === 'return_supplier') {
+                if (in_array($data['disposition'], ['return_external', 'return_supplier'], true)) {
                     $reverseLogistics->createReturnFromQuarantine($quarantine, $user, [
-                        'supplier_id' => $lockedVoucher->supplier_id,
                         'reason' => $data['reason'],
                         'notes' => 'HoÃ n hÃ ng khÃ´ng Ä‘áº¡t tá»« GRN '.$lockedVoucher->voucher_code,
                         'evidence_paths' => $evidencePaths,
@@ -1285,7 +1451,11 @@ class WarehouseStaffController extends Controller
         ]);
 
         return response()->json([
-            'message' => $data['disposition'] === 'destroy' ? 'ÄÃ£ ghi nháº­n tiÃªu há»§y hÃ ng.' : 'ÄÃ£ ghi nháº­n tráº£ hÃ ng cho nhÃ  cung cáº¥p.',
+            'message' => match ($data['disposition']) {
+                'destroy' => 'Đã ghi nhận tiêu hủy hàng.',
+                'return_supplier' => 'Đã ghi nhận trả hàng cho nhà cung cấp của phiếu cũ.',
+                default => 'Đã ghi nhận trả hàng cho bên giao/nguồn bên ngoài.',
+            },
             'voucher' => $voucher->fresh(),
         ]);
     }
@@ -1306,6 +1476,12 @@ class WarehouseStaffController extends Controller
             ->where('branch_id', $centralBranch->id)
             ->where('received_by', $user->id)
             ->findOrFail($id);
+
+        abort_if(
+            $voucher->external_receipt_reason !== null,
+            422,
+            'Phiếu nhập ngoài không sử dụng nghiệp vụ chênh lệch theo đơn mua hàng. Hãy chỉnh phiếu trước khi gửi duyệt hoặc báo sự cố riêng.',
+        );
 
         $evidencePaths = $voucher->evidence_paths ?? [];
         if ($request->hasFile('evidence')) {

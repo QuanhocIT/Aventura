@@ -715,7 +715,7 @@ class NegativeInventoryService
             ->where('restaurant_id', $case->restaurant_id)
             ->where('inventory_id', $case->inventory_id)
             ->where('direction', 'in')
-            ->whereIn('type', ['purchase', 'adjustment', 'return', 'transfer', 'inventory_count', 'stocktake'])
+            ->whereIn('type', ['purchase', 'external_receipt', 'adjustment', 'return', 'transfer', 'inventory_count', 'stocktake'])
             ->where('occurred_at', '>=', $case->detected_at ?? $case->created_at)
             ->latest('occurred_at')
             ->first();

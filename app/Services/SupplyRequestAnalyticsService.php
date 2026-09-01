@@ -108,6 +108,7 @@ class SupplyRequestAnalyticsService
                 'documents',
                 'receivedBy',
                 'verifiedBy',
+                'verificationAssignedTo',
                 'supplier:id,name,phone',
                 'purchaseOrder:id,po_number,status',
             ])

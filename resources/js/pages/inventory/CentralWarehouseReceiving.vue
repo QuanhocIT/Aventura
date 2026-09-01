@@ -59,23 +59,6 @@ type IngredientOption = {
     unit?: { symbol: string } | null;
 };
 
-type PurchaseOrderItem = {
-    ingredient_id: number;
-    ingredient_name: string | null;
-    quantity_ordered: number;
-    quantity_received: number;
-    price_per_unit: number;
-    unit: string | null;
-};
-
-type PurchaseOrderOption = {
-    id: number;
-    po_number: string;
-    status: string;
-    is_frozen: boolean;
-    items: PurchaseOrderItem[];
-};
-
 type VoucherItem = {
     id: number;
     ingredient_id: number;
@@ -84,6 +67,7 @@ type VoucherItem = {
         sku?: string | null;
         unit?: { symbol: string } | null;
     } | null;
+    unit_label?: string | null;
     expected_qty: number | string;
     actual_qty: number | string;
     unit_cost: number | string;
@@ -110,15 +94,9 @@ type Voucher = {
     invoice_date?: string | null;
     invoice_total_amount?: number | string | null;
     vat_amount?: number | string | null;
-    vehicle_number: string | null;
-    seal_code: string | null;
-    carrier_name?: string | null;
     receiving_dock?: string | null;
     quality_status: 'pending' | 'passed' | 'conditional' | 'failed' | string;
     quality_notes: string | null;
-    temperature_min_c?: number | string | null;
-    temperature_max_c?: number | string | null;
-    temperature_status?: string | null;
     three_way_match_status?: string | null;
     disposition?: string | null;
     total_expected_qty: number | string;
@@ -133,15 +111,17 @@ type Voucher = {
     documents?: ReceivingDocument[];
     received_by?: { id?: number; name: string } | null;
     verified_by?: { id?: number; name: string } | null;
-    purchase_order?: { po_number: string; status: string } | null;
+    verification_assigned_to?: { id?: number; name: string } | null;
+    external_receipt_reason?: string | null;
+    external_source_name?: string | null;
+    external_reference?: string | null;
     items: VoucherItem[];
 };
 
 type ReceivingDocument = {
     id: number;
     document_type:
-        | 'invoice'
-        | 'delivery_note'
+        | 'external_record'
         | 'qc'
         | 'receiving_photo'
         | 'other'
@@ -153,14 +133,13 @@ type ReceivingDocument = {
 
 type GrnLine = {
     ingredient_id: number | null;
-    expected_qty: number;
+    unit_label: string;
     actual_qty: number;
     unit_cost: number;
     lot_number: string;
     expiry_date: string;
     manufactured_date: string;
     location_id: number | null;
-    discrepancy_reason: string;
 };
 
 const props = defineProps<{
@@ -170,10 +149,11 @@ const props = defineProps<{
     inventorySummary: Record<string, number>;
     warehouseLocations: Location[];
     ingredients: IngredientOption[];
-    purchaseOrders: PurchaseOrderOption[];
+    warehouseStaff: Array<{ id: number; name: string; job_title?: string | null }>;
     canManageWarehouse: boolean;
     canCreateReceiving: boolean;
     currentUserId: number;
+    currentUserName: string;
     canApproveOwnReceiving: boolean;
 }>();
 
@@ -192,11 +172,9 @@ const confirmNotes = ref('');
 const confirmError = ref('');
 const confirmQualityStatus = ref<'passed' | 'conditional' | 'failed'>('passed');
 const confirmQualityNotes = ref('');
-const confirmTemperatureMin = ref<number | string | undefined>(undefined);
-const confirmTemperatureMax = ref<number | string | undefined>(undefined);
 const confirmEvidence = ref<File[]>([]);
 const dispositionVoucher = ref<Voucher | null>(null);
-const dispositionKind = ref<'return_supplier' | 'destroy'>('return_supplier');
+const dispositionKind = ref<'return_external' | 'destroy'>('return_external');
 const dispositionReason = ref('');
 const dispositionEvidence = ref<File[]>([]);
 const isDisposing = ref(false);
@@ -209,44 +187,37 @@ const grnErrors = ref<string[]>([]);
 const grnErrorSummary = ref<HTMLElement | null>(null);
 const grnFiles = ref<File[]>([]);
 const grnDocumentType = ref<
-    'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other'
->('other');
+    'external_record' | 'qc' | 'receiving_photo' | 'other'
+>('external_record');
 const receivedAtPicker = ref<HTMLInputElement | null>(null);
-const invoiceDatePicker = ref<HTMLInputElement | null>(null);
 const rowDatePickers = ref<Record<string, HTMLInputElement | null>>({});
 
 const emptyLine = (): GrnLine => ({
     ingredient_id: null,
-    expected_qty: 0,
+    unit_label: '',
     actual_qty: 0,
     unit_cost: 0,
     lot_number: '',
     expiry_date: '',
     manufactured_date: '',
     location_id: null,
-    discrepancy_reason: '',
 });
 
 const grnForm = ref({
     received_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
         .toISOString()
         .slice(0, 16),
-    purchase_order_id: null as number | null,
+    external_receipt_reason: 'other' as
+        | 'external_donation'
+        | 'external_return'
+        | 'other',
+    external_source_name: '',
+    external_reference: '',
+    verification_assigned_to: null as number | null,
     notes: '',
-    delivery_note_number: '',
-    invoice_number: '',
-    invoice_series: '',
-    invoice_date: '',
-    invoice_total_amount: '' as string | number,
-    vat_amount: '' as string | number,
-    vehicle_number: '',
-    seal_code: '',
-    carrier_name: '',
     receiving_dock: '',
     quality_status: 'pending',
     quality_notes: '',
-    temperature_min_c: '' as string | number,
-    temperature_max_c: '' as string | number,
     items: [emptyLine()],
 });
 
@@ -289,22 +260,27 @@ const formatDateOnly = (value: string | null | undefined) => {
         : date.toLocaleDateString('vi-VN');
 };
 
-const statusLabel = (status: string) =>
-    status === 'pending_disposition'
+const statusLabel = (status: string, isExternal = false) => {
+    if (isExternal && status === 'pending_review') {
+        return 'Chờ nhân viên kiểm kê';
+    }
+
+    return status === 'pending_disposition'
         ? 'Chờ trả/hủy'
         : status === 'returned'
-          ? 'Đã trả NCC'
+          ? 'Đã hoàn tất trả'
           : status === 'destroyed'
             ? 'Đã tiêu hủy'
             : status === 'rejected'
               ? 'Bị từ chối — cần sửa'
               : {
                     draft: 'Chờ xác minh',
-                    discrepancy: 'Có chênh lệch',
+                    discrepancy: 'Có chênh lệch (phiếu cũ)',
                     pending_review: 'Chờ xem xét',
                     confirmed: 'Đã nhập kho',
                     closed: 'Đã đóng',
                 }[status] || status;
+};
 
 const statusClass = (status: string) =>
     status === 'pending_disposition'
@@ -336,20 +312,41 @@ const qualityLabel = (status: string | null | undefined) =>
     status ||
     'Chưa kiểm tra';
 
-const itemStatusLabel = (status: string) =>
-    ({ ok: 'Khớp', short: 'Thiếu', over: 'Thừa' })[status] || status;
-const itemStatusClass = (status: string) =>
+const externalReceiptReasonLabel = (reason: string | null | undefined) =>
     ({
-        ok: 'text-emerald-300',
-        short: 'text-rose-300',
-        over: 'text-amber-300',
-    })[status] || 'text-muted-foreground';
+        external_donation: 'Biếu tặng / hỗ trợ từ bên ngoài',
+        external_return: 'Tiếp nhận hoàn từ bên ngoài',
+        other: 'Nhập ngoài khác',
+    })[reason || 'other'] || 'Nhập ngoài';
+
 const ingredientUnit = (ingredientId: number | null) =>
     props.ingredients.find((item) => item.id === ingredientId)?.unit?.symbol ??
     'đv';
 
+const lineTotal = (line: {
+    actual_qty: number | string | null | undefined;
+    unit_cost: number | string | null | undefined;
+}) =>
+    Math.max(0, Number(line.actual_qty || 0) * Number(line.unit_cost || 0));
+
+const voucherItemTotal = (item: Pick<VoucherItem, 'actual_qty' | 'unit_cost'>) =>
+    lineTotal(item);
+
+const totalReceiptValue = computed(() =>
+    grnForm.value.items.reduce((total, line) => total + lineTotal(line), 0),
+);
+
+const voucherTotal = (voucher: Voucher) => {
+    const recordedTotal = Number(voucher.invoice_total_amount ?? 0);
+
+    return recordedTotal > 0
+        ? recordedTotal
+        : voucher.items.reduce((total, item) => total + voucherItemTotal(item), 0);
+};
+
 const canReview = (voucher: Voucher) =>
     props.canManageWarehouse &&
+    !voucher.external_receipt_reason &&
     (props.canApproveOwnReceiving ||
         voucher.received_by?.id !== props.currentUserId);
 
@@ -374,7 +371,8 @@ const filteredVouchers = computed(() => {
                 ['confirmed', 'closed'].includes(voucher.status));
         const haystack = [
             voucher.voucher_code,
-            voucher.purchase_order?.po_number,
+            voucher.external_source_name,
+            voucher.external_reference,
             voucher.received_by?.name,
         ]
             .filter(Boolean)
@@ -434,8 +432,6 @@ const openConfirm = (voucher: Voucher) => {
     confirmQualityStatus.value =
         voucher.quality_status === 'conditional' ? 'conditional' : 'passed';
     confirmQualityNotes.value = voucher.quality_notes ?? '';
-    confirmTemperatureMin.value = voucher.temperature_min_c ?? undefined;
-    confirmTemperatureMax.value = voucher.temperature_max_c ?? undefined;
     confirmEvidence.value = [];
 };
 
@@ -445,8 +441,6 @@ const closeConfirm = () => {
     confirmError.value = '';
     confirmQualityStatus.value = 'passed';
     confirmQualityNotes.value = '';
-    confirmTemperatureMin.value = undefined;
-    confirmTemperatureMax.value = undefined;
     confirmEvidence.value = [];
 };
 
@@ -511,7 +505,7 @@ const handleDispositionEvidence = (event: Event) => {
 
 const openDisposition = (voucher: Voucher) => {
     dispositionVoucher.value = voucher;
-    dispositionKind.value = 'return_supplier';
+    dispositionKind.value = 'return_external';
     dispositionReason.value = '';
     dispositionEvidence.value = [];
 };
@@ -529,14 +523,7 @@ const confirmVoucher = async () => {
 
     if (discrepancyItems.value.length > 0 && !confirmNotes.value.trim()) {
         confirmError.value =
-            'Phiếu có chênh lệch, bắt buộc nhập giải trình trước khi xác minh.';
-
-        return;
-    }
-
-    if (false && confirmQualityStatus.value === 'failed') {
-        confirmError.value =
-            'Chất lượng không đạt không thể nhập kho. Hãy lập biên bản trả hàng hoặc xử lý cách ly.';
+            'Phiếu cũ có chênh lệch theo đơn mua hàng, bắt buộc nhập giải trình trước khi xác minh.';
 
         return;
     }
@@ -569,26 +556,6 @@ const confirmVoucher = async () => {
                           confirmQualityNotes.value.trim(),
                       );
 
-                      if (
-                          confirmTemperatureMin.value !== null &&
-                          confirmTemperatureMin.value !== ''
-                      ) {
-                          formData.append(
-                              'temperature_min_c',
-                              String(confirmTemperatureMin.value),
-                          );
-                      }
-
-                      if (
-                          confirmTemperatureMax.value !== null &&
-                          confirmTemperatureMax.value !== ''
-                      ) {
-                          formData.append(
-                              'temperature_max_c',
-                              String(confirmTemperatureMax.value),
-                          );
-                      }
-
                       confirmEvidence.value.forEach((file) =>
                           formData.append('evidence[]', file),
                       );
@@ -599,8 +566,6 @@ const confirmVoucher = async () => {
                       notes: confirmNotes.value.trim(),
                       quality_status: confirmQualityStatus.value,
                       quality_notes: confirmQualityNotes.value.trim(),
-                      temperature_min_c: confirmTemperatureMin.value,
-                      temperature_max_c: confirmTemperatureMax.value,
                   };
         await axios.post(
             `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
@@ -610,8 +575,6 @@ const confirmVoucher = async () => {
         voucher.verified_at = new Date().toISOString();
         voucher.quality_status = confirmQualityStatus.value;
         voucher.quality_notes = confirmQualityNotes.value.trim();
-        voucher.temperature_min_c = confirmTemperatureMin.value;
-        voucher.temperature_max_c = confirmTemperatureMax.value;
         summary.value.pending_review = Math.max(
             0,
             (summary.value.pending_review ?? 1) - 1,
@@ -634,7 +597,7 @@ const confirmVoucher = async () => {
             closeConfirm();
             openDisposition(voucher);
             toast.warning(
-                'Lô không đạt đã được cách ly. Hãy ghi nhận trả NCC hoặc tiêu hủy.',
+            'Lô không đạt đã được cách ly. Hãy ghi nhận trả bên giao hoặc tiêu hủy.',
             );
 
             return;
@@ -783,6 +746,9 @@ const onIngredientChange = (line: GrnLine) => {
         return;
     }
 
+    if (!line.unit_label.trim()) {
+        line.unit_label = ingredient.unit?.symbol ?? '';
+    }
     line.unit_cost = Number(ingredient.average_cost || 0);
 
     if (!line.expiry_date) {
@@ -805,6 +771,18 @@ const removeGrnFile = (index: number) => {
 const validateGrn = () => {
     const errors: string[] = [];
 
+    if (!grnForm.value.verification_assigned_to) {
+        errors.push('Phải phân công một nhân viên Kho Tổng đi kiểm kê và xác nhận.');
+    }
+
+    if (!grnForm.value.external_receipt_reason) {
+        errors.push('Phải chọn lý do nhập ngoài.');
+    }
+
+    if (!grnForm.value.external_source_name.trim()) {
+        errors.push('Phải ghi rõ bên giao hoặc nguồn bên ngoài; không nhập tên nhà cung cấp vào trường này.');
+    }
+
     if (grnForm.value.items.length === 0) {
         errors.push('Phiếu phải có ít nhất một dòng nguyên liệu.');
     }
@@ -816,12 +794,12 @@ const validateGrn = () => {
             errors.push(`Dòng ${lineNo}: chưa chọn nguyên liệu.`);
         }
 
-        if (line.expected_qty <= 0) {
-            errors.push(`Dòng ${lineNo}: số lượng dự kiến phải lớn hơn 0.`);
+        if (line.actual_qty <= 0) {
+            errors.push(`Dòng ${lineNo}: số lượng nhập phải lớn hơn 0.`);
         }
 
-        if (line.actual_qty < 0) {
-            errors.push(`Dòng ${lineNo}: số lượng thực nhận không được âm.`);
+        if (line.actual_qty > 0 && !line.unit_label.trim()) {
+            errors.push(`Dòng ${lineNo}: phải nhập đơn vị tính.`);
         }
 
         if (line.actual_qty > 0 && !line.lot_number.trim()) {
@@ -830,37 +808,7 @@ const validateGrn = () => {
             );
         }
 
-        if (line.actual_qty > 0 && !line.location_id) {
-            errors.push(
-                `Dòng ${lineNo}: phải chọn vị trí cất hàng để truy vết lô.`,
-            );
-        }
-
-        if (
-            Math.abs(line.actual_qty - line.expected_qty) > 0.001 &&
-            !line.discrepancy_reason.trim()
-        ) {
-            errors.push(`Dòng ${lineNo}: phải ghi lý do thiếu/thừa.`);
-        }
     });
-
-    if (
-        grnForm.value.temperature_min_c !== null &&
-        grnForm.value.temperature_max_c !== null &&
-        Number(grnForm.value.temperature_min_c) >
-            Number(grnForm.value.temperature_max_c)
-    ) {
-        errors.push('Nhiệt độ tối thiểu không được lớn hơn nhiệt độ tối đa.');
-    }
-
-    if (
-        grnForm.value.invoice_total_amount !== '' &&
-        grnForm.value.vat_amount !== '' &&
-        Number(grnForm.value.vat_amount) >
-            Number(grnForm.value.invoice_total_amount)
-    ) {
-        errors.push('Tiền thuế không được lớn hơn tổng tiền hóa đơn.');
-    }
 
     grnErrors.value = errors;
 
@@ -896,83 +844,22 @@ const submitGrn = async () => {
     const formData = new FormData();
     formData.append('received_at', normalizeDateTime(grnForm.value.received_at));
 
-    if (grnForm.value.purchase_order_id) {
-        formData.append(
-            'purchase_order_id',
-            String(grnForm.value.purchase_order_id),
-        );
-    }
-
     formData.append('submit_for_review', '1');
+    formData.append('external_receipt_reason', grnForm.value.external_receipt_reason);
+    formData.append('external_source_name', grnForm.value.external_source_name.trim());
+    formData.append('verification_assigned_to', String(grnForm.value.verification_assigned_to));
+    formData.append('invoice_total_amount', String(totalReceiptValue.value));
+
+    if (grnForm.value.external_reference.trim()) {
+        formData.append('external_reference', grnForm.value.external_reference.trim());
+    }
 
     if (grnForm.value.notes.trim()) {
         formData.append('notes', grnForm.value.notes.trim());
     }
 
-    if (grnForm.value.delivery_note_number.trim()) {
-        formData.append(
-            'delivery_note_number',
-            grnForm.value.delivery_note_number.trim(),
-        );
-    }
-
-    if (grnForm.value.invoice_number.trim()) {
-        formData.append('invoice_number', grnForm.value.invoice_number.trim());
-    }
-
-    if (grnForm.value.invoice_series.trim()) {
-        formData.append('invoice_series', grnForm.value.invoice_series.trim());
-    }
-
-    if (grnForm.value.invoice_date) {
-        formData.append('invoice_date', normalizeDate(grnForm.value.invoice_date));
-    }
-
-    if (grnForm.value.invoice_total_amount !== '') {
-        formData.append(
-            'invoice_total_amount',
-            String(grnForm.value.invoice_total_amount),
-        );
-    }
-
-    if (grnForm.value.vat_amount !== '') {
-        formData.append('vat_amount', String(grnForm.value.vat_amount));
-    }
-
-    if (grnForm.value.vehicle_number.trim()) {
-        formData.append('vehicle_number', grnForm.value.vehicle_number.trim());
-    }
-
-    if (grnForm.value.seal_code.trim()) {
-        formData.append('seal_code', grnForm.value.seal_code.trim());
-    }
-
-    if (grnForm.value.carrier_name.trim()) {
-        formData.append('carrier_name', grnForm.value.carrier_name.trim());
-    }
-
     if (grnForm.value.receiving_dock.trim()) {
         formData.append('receiving_dock', grnForm.value.receiving_dock.trim());
-    }
-
-    if (
-        grnForm.value.temperature_min_c !== null &&
-        grnForm.value.temperature_min_c !== ''
-    ) {
-        formData.append(
-            'temperature_min_c',
-            String(grnForm.value.temperature_min_c),
-        );
-    }
-
-    if (
-        grnForm.value.temperature_max_c !== null &&
-        grnForm.value.temperature_max_c !== ''
-    ) {
-        formData.append(
-            'temperature_max_c',
-            String(grnForm.value.temperature_max_c),
-        );
     }
 
     grnForm.value.items.forEach((line, index) => {
@@ -980,10 +867,7 @@ const submitGrn = async () => {
             `items[${index}][ingredient_id]`,
             String(line.ingredient_id),
         );
-        formData.append(
-            `items[${index}][expected_qty]`,
-            String(line.expected_qty),
-        );
+        formData.append(`items[${index}][unit_label]`, line.unit_label.trim());
         formData.append(`items[${index}][actual_qty]`, String(line.actual_qty));
         formData.append(`items[${index}][unit_cost]`, String(line.unit_cost));
 
@@ -1015,12 +899,6 @@ const submitGrn = async () => {
             );
         }
 
-        if (line.discrepancy_reason.trim()) {
-            formData.append(
-                `items[${index}][discrepancy_reason]`,
-                line.discrepancy_reason.trim(),
-            );
-        }
     });
     grnFiles.value.forEach((file, index) => {
         formData.append('evidence[]', file);
@@ -1033,16 +911,12 @@ const submitGrn = async () => {
             formData,
             { headers: { 'Content-Type': 'multipart/form-data' } },
         );
-        const purchaseOrder = props.purchaseOrders.find(
-            (item) => item.id === grnForm.value.purchase_order_id,
-        );
         vouchers.value.unshift({
             ...data.voucher,
-            purchase_order: purchaseOrder,
         });
         summary.value.pending_review = (summary.value.pending_review ?? 0) + 1;
         summary.value.today = (summary.value.today ?? 0) + 1;
-        toast.success(data.message ?? 'Đã tạo phiếu nhận hàng.');
+        toast.success(data.message ?? 'Đã tạo phiếu nhập ngoài.');
         showGrnForm.value = false;
         grnForm.value = {
             received_at: new Date(
@@ -1050,26 +924,18 @@ const submitGrn = async () => {
             )
                 .toISOString()
                 .slice(0, 16),
-            purchase_order_id: null,
+            external_receipt_reason: 'other',
+            external_source_name: '',
+            external_reference: '',
+            verification_assigned_to: null,
             notes: '',
-            delivery_note_number: '',
-            invoice_number: '',
-            invoice_series: '',
-            invoice_date: '',
-            invoice_total_amount: '',
-            vat_amount: '',
-            vehicle_number: '',
-            seal_code: '',
-            carrier_name: '',
             receiving_dock: '',
             quality_status: 'pending',
             quality_notes: '',
-            temperature_min_c: '',
-            temperature_max_c: '',
             items: [emptyLine()],
         };
         grnFiles.value = [];
-        grnDocumentType.value = 'other';
+        grnDocumentType.value = 'external_record';
         grnErrors.value = [];
     } catch (error: any) {
         const responseErrors = error.response?.data?.errors;
@@ -1077,10 +943,10 @@ const submitGrn = async () => {
             ? Object.values(responseErrors).flat().map(String)
             : [
                   error.response?.data?.message ??
-                      'Không thể tạo phiếu nhận hàng.',
+                      'Không thể tạo phiếu nhập ngoài.',
               ];
         toast.error(
-            grnErrors.value[0] ?? 'Không thể tạo phiếu nhận hàng.',
+            grnErrors.value[0] ?? 'Không thể tạo phiếu nhập ngoài.',
         );
     } finally {
         isSubmittingGrn.value = false;
@@ -1097,8 +963,9 @@ const documentUrl = (voucher: Voucher, document: ReceivingDocument) =>
 
 const documentTypeLabel = (type: string) =>
     ({
-        invoice: 'Hóa đơn',
-        delivery_note: 'Phiếu giao hàng',
+        external_record: 'Biên bản nguồn bên ngoài',
+        invoice: 'Chứng từ cũ',
+        delivery_note: 'Chứng từ cũ',
         qc: 'Biên bản QC',
         receiving_photo: 'Ảnh giao nhận',
         other: 'Chứng từ khác',
@@ -1130,13 +997,13 @@ const documentTypeLabel = (type: string) =>
                             <h1
                                 class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
                             >
-                                Nhận hàng & GRN
+                                Nhập ngoài vào Kho Tổng
                             </h1>
                             <p
                                 class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400"
                             >
-                                Kiểm soát chứng từ, số lượng thực nhận, lô, HSD
-                                và vị trí trước khi nhập Kho Tổng.
+                                Ghi nhận nguồn bên ngoài, số lượng, lô, HSD và vị trí
+                                trước khi cập nhật tồn Kho Tổng.
                             </p>
                         </div>
                     </div>
@@ -1197,7 +1064,7 @@ const documentTypeLabel = (type: string) =>
             <Card class="border-rose-500/20 bg-rose-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-rose-300 uppercase">
-                        Phiếu lệch
+                        Phiếu lệch (phiếu cũ)
                     </p>
                     <p class="mt-2 text-2xl font-black text-rose-100">
                         {{ discrepancyCount }}
@@ -1210,7 +1077,7 @@ const documentTypeLabel = (type: string) =>
             <Card class="border-amber-500/20 bg-amber-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-amber-300 uppercase">
-                        Chênh lệch
+                        Chênh lệch (phiếu cũ)
                     </p>
                     <p class="mt-2 text-2xl font-black text-amber-100">
                         {{ formatQuantity(summary.discrepancy_quantity) }}
@@ -1292,12 +1159,11 @@ const documentTypeLabel = (type: string) =>
                     <div>
                         <CardTitle class="flex items-center gap-2 text-base"
                             ><Warehouse class="size-5 text-orange-300" /> Phiếu
-                            nhận hàng tại
+                            nhập ngoài tại
                             {{ centralBranch?.name || 'Kho Tổng' }}</CardTitle
                         ><CardDescription class="mt-1 text-xs"
-                            >Mở chi tiết từng phiếu để kiểm tra dòng hàng, lý do
-                            chênh lệch, lô và vị trí trước khi xác
-                            minh.</CardDescription
+                            >Mở chi tiết để kiểm tra nguồn nhập, dòng nguyên liệu,
+                            lô và vị trí trước khi xác minh.</CardDescription
                         >
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -1307,7 +1173,7 @@ const documentTypeLabel = (type: string) =>
                             /><Input
                                 v-model="search"
                                 class="h-9 pl-9 text-xs"
-                                placeholder="Tìm mã GRN hoặc người nhận..."
+                                placeholder="Tìm mã phiếu, nguồn nhập hoặc người nhập..."
                             />
                         </div>
                         <select
@@ -1315,7 +1181,7 @@ const documentTypeLabel = (type: string) =>
                             class="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground"
                         >
                             <option value="pending">Chờ xử lý</option>
-                            <option value="discrepancy">Có chênh lệch</option>
+                            <option value="discrepancy">Có chênh lệch (phiếu cũ)</option>
                             <option value="confirmed">Đã nhập kho</option>
                             <option value="all">Tất cả phiếu</option>
                         </select>
@@ -1324,17 +1190,17 @@ const documentTypeLabel = (type: string) =>
             >
             <CardContent class="p-0"
                 ><div class="overflow-x-auto">
-                    <table class="w-full min-w-[1100px] text-left text-xs">
+                    <table class="w-full min-w-[1220px] text-left text-xs">
                         <thead
                             class="border-b border-border bg-muted/50 text-muted-foreground"
                         >
                             <tr>
                                 <th class="w-8 p-3"></th>
-                                <th class="p-3">Mã GRN</th>
-                                <th class="p-3">Người nhận / Thời gian</th>
+                                <th class="p-3">Mã phiếu</th>
+                                <th class="p-3">Người nhập / kiểm nhận</th>
                                 <th class="p-3 text-right">Dòng hàng</th>
-                                <th class="p-3 text-right">Thực nhận</th>
-                                <th class="p-3 text-right">Chênh lệch</th>
+                                <th class="p-3 text-right">Số lượng nhập</th>
+                                <th class="p-3 text-right">Tổng giá trị</th>
                                 <th class="p-3">Trạng thái</th>
                                 <th class="p-3 text-right">Xử lý</th>
                             </tr>
@@ -1377,9 +1243,18 @@ const documentTypeLabel = (type: string) =>
                                         <p
                                             class="mt-1 text-[10px] text-muted-foreground"
                                         >
+                                            Kiểm nhận:
+                                            {{ voucher.verified_by?.name || 'Chưa xác minh' }}
+                                        </p>
+                                        <p
+                                            class="mt-1 text-[10px] text-muted-foreground"
+                                        >
                                             {{
                                                 formatDate(voucher.received_at)
                                             }}
+                                        </p>
+                                        <p class="mt-1 text-[10px] text-indigo-300">
+                                            Kiểm kê: {{ voucher.verification_assigned_to?.name || 'Chưa phân công' }}
                                         </p>
                                     </td>
                                     <td
@@ -1396,33 +1271,15 @@ const documentTypeLabel = (type: string) =>
                                             )
                                         }}
                                     </td>
-                                    <td
-                                        class="p-3 text-right font-bold"
-                                        :class="
-                                            Number(
-                                                voucher.total_discrepancy_qty,
-                                            ) === 0
-                                                ? 'text-emerald-300'
-                                                : 'text-rose-300'
-                                        "
-                                    >
-                                        {{
-                                            formatQuantity(
-                                                Math.abs(
-                                                    Number(
-                                                        voucher.total_discrepancy_qty ||
-                                                            0,
-                                                    ),
-                                                ),
-                                            )
-                                        }}
+                                    <td class="p-3 text-right font-bold text-orange-300">
+                                        {{ formatCurrency(voucherTotal(voucher)) }}
                                     </td>
                                     <td class="p-3">
                                         <span
                                             class="rounded-full border px-2 py-1 text-[10px] font-semibold"
                                             :class="statusClass(voucher.status)"
                                             >{{
-                                                statusLabel(voucher.status)
+                                                statusLabel(voucher.status, !!voucher.external_receipt_reason)
                                             }}</span
                                         >
                                     </td>
@@ -1476,7 +1333,7 @@ const documentTypeLabel = (type: string) =>
                                     v-if="expandedId === voucher.id"
                                     class="bg-muted/10"
                                 >
-                                    <td colspan="9" class="p-4 sm:p-5">
+                                    <td colspan="8" class="p-4 sm:p-5">
                                         <div
                                             class="grid gap-4 xl:grid-cols-[0.7fr_1.3fr]"
                                         >
@@ -1501,7 +1358,7 @@ const documentTypeLabel = (type: string) =>
                                                             <dt
                                                                 class="text-muted-foreground"
                                                             >
-                                                                Người nhận
+                                                                Người nhập
                                                             </dt>
                                                             <dd
                                                                 class="text-right text-foreground"
@@ -1520,7 +1377,7 @@ const documentTypeLabel = (type: string) =>
                                                             <dt
                                                                 class="text-muted-foreground"
                                                             >
-                                                                Xác minh bởi
+                                                                Người kiểm nhận
                                                             </dt>
                                                             <dd
                                                                 class="text-right text-foreground"
@@ -1557,25 +1414,7 @@ const documentTypeLabel = (type: string) =>
                                                             <dt
                                                                 class="text-muted-foreground"
                                                             >
-                                                                Tổng dự kiến
-                                                            </dt>
-                                                            <dd
-                                                                class="text-right text-foreground"
-                                                            >
-                                                                {{
-                                                                    formatQuantity(
-                                                                        voucher.total_expected_qty,
-                                                                    )
-                                                                }}
-                                                            </dd>
-                                                        </div>
-                                                        <div
-                                                            class="flex justify-between gap-3"
-                                                        >
-                                                            <dt
-                                                                class="text-muted-foreground"
-                                                            >
-                                                                Tổng thực nhận
+                                                                Tổng số lượng nhập
                                                             </dt>
                                                             <dd
                                                                 class="text-right font-bold text-sky-300"
@@ -1587,51 +1426,30 @@ const documentTypeLabel = (type: string) =>
                                                                 }}
                                                             </dd>
                                                         </div>
+                                                        <div
+                                                            class="flex justify-between gap-3"
+                                                        >
+                                                            <dt class="text-muted-foreground">Tổng hóa đơn / giá trị</dt>
+                                                            <dd class="text-right font-bold text-orange-300">
+                                                                {{ formatCurrency(voucherTotal(voucher)) }}
+                                                                <span class="ml-2 text-indigo-300">· Kiểm kê: {{ voucher.verification_assigned_to?.name || 'Chưa phân công' }}</span>
+                                                            </dd>
+                                                        </div>
                                                     </dl>
                                                     <div
                                                         class="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]"
                                                     >
                                                         <p>
-                                                            <span
-                                                                class="text-muted-foreground"
-                                                                >Phiếu
-                                                                giao:</span
-                                                            >
-                                                            {{
-                                                                voucher.delivery_note_number ||
-                                                                '-'
-                                                            }}
+                                                            <span class="text-muted-foreground">Lý do nhập:</span>
+                                                            {{ externalReceiptReasonLabel(voucher.external_receipt_reason) }}
                                                         </p>
                                                         <p>
-                                                            <span
-                                                                class="text-muted-foreground"
-                                                                >Hóa đơn:</span
-                                                            >
-                                                            {{
-                                                                voucher.invoice_number ||
-                                                                '-'
-                                                            }}
+                                                            <span class="text-muted-foreground">Bên giao / nguồn:</span>
+                                                            {{ voucher.external_source_name || '-' }}
                                                         </p>
                                                         <p>
-                                                            <span
-                                                                class="text-muted-foreground"
-                                                                >Xe:</span
-                                                            >
-                                                            {{
-                                                                voucher.vehicle_number ||
-                                                                '-'
-                                                            }}
-                                                        </p>
-                                                        <p>
-                                                            <span
-                                                                class="text-muted-foreground"
-                                                                >Niêm
-                                                                phong:</span
-                                                            >
-                                                            {{
-                                                                voucher.seal_code ||
-                                                                '-'
-                                                            }}
+                                                            <span class="text-muted-foreground">Tham chiếu:</span>
+                                                            {{ voucher.external_reference || '-' }}
                                                         </p>
                                                         <p class="col-span-2">
                                                             <span
@@ -1652,17 +1470,6 @@ const documentTypeLabel = (type: string) =>
                                                             >
                                                             {{
                                                                 voucher.receiving_dock ||
-                                                                '-'
-                                                            }}
-                                                        </p>
-                                                        <p>
-                                                            <span
-                                                                class="text-muted-foreground"
-                                                                >Đơn vị vận
-                                                                chuyển:</span
-                                                            >
-                                                            {{
-                                                                voucher.carrier_name ||
                                                                 '-'
                                                             }}
                                                         </p>
@@ -1699,7 +1506,6 @@ const documentTypeLabel = (type: string) =>
                                                 <div
                                                     v-if="
                                                         voucher.notes ||
-                                                        voucher.discrepancy_reason ||
                                                         voucher.quality_notes ||
                                                         voucher.rejection_reason
                                                     "
@@ -1715,16 +1521,6 @@ const documentTypeLabel = (type: string) =>
                                                         class="text-muted-foreground"
                                                     >
                                                         {{ voucher.notes }}
-                                                    </p>
-                                                    <p
-                                                        v-if="
-                                                            voucher.discrepancy_reason
-                                                        "
-                                                        class="mt-2 text-amber-100"
-                                                    >
-                                                        {{
-                                                            voucher.discrepancy_reason
-                                                        }}
                                                     </p>
                                                     <p
                                                         v-if="
@@ -1833,7 +1629,7 @@ const documentTypeLabel = (type: string) =>
                                                         <PackageCheck
                                                             class="size-4 text-orange-300"
                                                         />
-                                                        Đối chiếu từng dòng hàng
+                                                        Chi tiết từng dòng hàng
                                                     </p>
                                                     <span
                                                         class="text-[10px] text-muted-foreground"
@@ -1845,7 +1641,7 @@ const documentTypeLabel = (type: string) =>
                                                 </div>
                                                 <div class="overflow-x-auto">
                                                     <table
-                                                        class="w-full min-w-[760px] text-xs"
+                                                        class="w-full min-w-[980px] text-xs"
                                                     >
                                                         <thead
                                                             class="border-b border-border text-[10px] text-muted-foreground"
@@ -1856,21 +1652,10 @@ const documentTypeLabel = (type: string) =>
                                                                 >
                                                                     Nguyên liệu
                                                                 </th>
-                                                                <th
-                                                                    class="p-2 text-right"
-                                                                >
-                                                                    Dự kiến
-                                                                </th>
-                                                                <th
-                                                                    class="p-2 text-right"
-                                                                >
-                                                                    Thực nhận
-                                                                </th>
-                                                                <th
-                                                                    class="p-2 text-right"
-                                                                >
-                                                                    Lệch
-                                                                </th>
+                                                                <th class="p-2 text-left">Đơn vị tính</th>
+                                                                <th class="p-2 text-right">Số lượng nhập</th>
+                                                                <th class="p-2 text-right">Đơn giá nguyên liệu</th>
+                                                                <th class="p-2 text-right">Thành tiền</th>
                                                                 <th class="p-2">
                                                                     Lô / HSD
                                                                 </th>
@@ -1900,70 +1685,22 @@ const documentTypeLabel = (type: string) =>
                                                                             `Nguyên liệu #${item.ingredient_id}`
                                                                         }}
                                                                     </p>
-                                                                    <p
-                                                                        class="mt-1 text-[10px] text-muted-foreground"
-                                                                    >
-                                                                        {{
-                                                                            item
-                                                                                .ingredient
-                                                                                ?.unit
-                                                                                ?.symbol ||
-                                                                            'đv'
-                                                                        }}
-                                                                        ·
-                                                                        {{
-                                                                            formatCurrency(
-                                                                                item.unit_cost,
-                                                                            )
-                                                                        }}
-                                                                    </p>
                                                                 </td>
-                                                                <td
-                                                                    class="p-2 text-right"
-                                                                >
-                                                                    {{
-                                                                        formatQuantity(
-                                                                            item.expected_qty,
-                                                                        )
-                                                                    }}
+                                                                <td class="p-2 text-foreground">
+                                                                    {{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}
                                                                 </td>
-                                                                <td
-                                                                    class="p-2 text-right font-bold text-sky-300"
-                                                                >
+                                                                <td class="p-2 text-right font-bold text-sky-300">
                                                                     {{
                                                                         formatQuantity(
                                                                             item.actual_qty,
                                                                         )
                                                                     }}
                                                                 </td>
-                                                                <td
-                                                                    class="p-2 text-right font-bold"
-                                                                    :class="
-                                                                        itemStatusClass(
-                                                                            item.item_status,
-                                                                        )
-                                                                    "
-                                                                >
-                                                                    {{
-                                                                        Number(
-                                                                            item.actual_qty,
-                                                                        ) -
-                                                                            Number(
-                                                                                item.expected_qty,
-                                                                            ) >
-                                                                        0
-                                                                            ? '+'
-                                                                            : ''
-                                                                    }}{{
-                                                                        formatQuantity(
-                                                                            Number(
-                                                                                item.actual_qty,
-                                                                            ) -
-                                                                                Number(
-                                                                                    item.expected_qty,
-                                                                                ),
-                                                                        )
-                                                                    }}
+                                                                <td class="p-2 text-right text-foreground">
+                                                                    {{ formatCurrency(item.unit_cost) }}
+                                                                </td>
+                                                                <td class="p-2 text-right font-bold text-orange-300">
+                                                                    {{ formatCurrency(voucherItemTotal(item)) }}
                                                                 </td>
                                                                 <td class="p-2">
                                                                     <p
@@ -2012,29 +1749,7 @@ const documentTypeLabel = (type: string) =>
                                                                     >
                                                                 </td>
                                                                 <td class="p-2">
-                                                                    <span
-                                                                        class="font-semibold"
-                                                                        :class="
-                                                                            itemStatusClass(
-                                                                                item.item_status,
-                                                                            )
-                                                                        "
-                                                                        >{{
-                                                                            itemStatusLabel(
-                                                                                item.item_status,
-                                                                            )
-                                                                        }}</span
-                                                                    >
-                                                                    <p
-                                                                        v-if="
-                                                                            item.discrepancy_reason
-                                                                        "
-                                                                        class="mt-1 max-w-[160px] text-[10px] text-muted-foreground"
-                                                                    >
-                                                                        {{
-                                                                            item.discrepancy_reason
-                                                                        }}
-                                                                    </p>
+                                                                    <span class="font-semibold text-emerald-300">Đã ghi nhận</span>
                                                                 </td>
                                                             </tr>
                                                         </tbody>
@@ -2102,97 +1817,36 @@ const documentTypeLabel = (type: string) =>
                         <p
                             class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
                         >
-                            Xác minh GRN
+                            Xác minh phiếu nhập ngoài
                         </p>
                         <h2 class="mt-1 text-xl font-black">
-                            {{ confirming.voucher_code }} · Nhập vào Kho Tổng
+                            {{ confirming.voucher_code }} · Cập nhật Kho Tổng
                         </h2>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            Sau khi xác nhận, hệ thống tạo giao dịch nhập, cập
-                            nhật giá vốn bình quân và tạo lô hàng.
+                            Sau khi xác nhận, hệ thống ghi giao dịch nhập ngoài,
+                            cập nhật giá vốn quy đổi và tạo lô hàng. Không phát sinh
+                            đối chiếu nhà cung cấp hay công nợ mua hàng.
                         </p>
                     </div>
                     <Button variant="ghost" size="icon" @click="closeConfirm"
                         ><X class="size-4"
                     /></Button>
                 </div>
-                <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="grid grid-cols-2 gap-2 text-xs">
                     <div class="rounded-xl bg-muted/30 p-3">
-                        <p class="text-muted-foreground">Dự kiến</p>
+                        <p class="text-muted-foreground">Số dòng nguyên liệu</p>
                         <strong class="mt-1 block text-foreground">{{
-                            formatQuantity(confirming.total_expected_qty)
+                            confirming.items.length
                         }}</strong>
                     </div>
                     <div class="rounded-xl bg-sky-500/10 p-3">
-                        <p class="text-sky-200/70">Thực nhận</p>
+                        <p class="text-sky-200/70">Tổng số lượng nhập</p>
                         <strong class="mt-1 block text-sky-200">{{
                             formatQuantity(confirming.total_actual_qty)
                         }}</strong>
                     </div>
-                    <div class="rounded-xl bg-rose-500/10 p-3">
-                        <p class="text-rose-200/70">Chênh lệch</p>
-                        <strong class="mt-1 block text-rose-200">{{
-                            formatQuantity(
-                                Math.abs(
-                                    Number(
-                                        confirming.total_discrepancy_qty || 0,
-                                    ),
-                                ),
-                            )
-                        }}</strong>
-                    </div>
-                </div>
-                <div
-                    v-if="discrepancyItems.length"
-                    class="mt-4 rounded-xl border border-rose-400/25 bg-rose-500/5 p-4 text-xs"
-                >
-                    <p class="flex items-center gap-2 font-bold text-rose-200">
-                        <AlertTriangle class="size-4" /> Phiếu có
-                        {{ discrepancyItems.length }} dòng chênh lệch
-                    </p>
-                    <p class="mt-1 text-muted-foreground">
-                        Cần ghi rõ nguyên nhân và trách nhiệm xử lý trước khi
-                        hạch toán.
-                    </p>
-                    <ul class="mt-3 space-y-1 text-rose-100">
-                        <li v-for="item in discrepancyItems" :key="item.id">
-                            •
-                            {{
-                                item.ingredient?.name ||
-                                `Nguyên liệu #${item.ingredient_id}`
-                            }}: {{ itemStatusLabel(item.item_status) }}
-                        </li>
-                    </ul>
                 </div>
                 <form class="mt-5 space-y-4" @submit.prevent="confirmVoucher">
-                    <div
-                        class="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4"
-                    >
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <div class="flex flex-col gap-1.5">
-                                <Label>Nhiệt độ thấp nhất (°C)</Label>
-                                <Input
-                                    v-model="confirmTemperatureMin"
-                                    type="number"
-                                    step="0.1"
-                                    placeholder="Ví dụ 2"
-                                />
-                            </div>
-                            <div class="flex flex-col gap-1.5">
-                                <Label>Nhiệt độ cao nhất (°C)</Label>
-                                <Input
-                                    v-model="confirmTemperatureMax"
-                                    type="number"
-                                    step="0.1"
-                                    placeholder="Ví dụ 6"
-                                />
-                            </div>
-                        </div>
-                        <p class="mt-2 text-[11px] text-muted-foreground">
-                            Bắt buộc với hàng tươi, kho lạnh hoặc nguyên liệu có
-                            cài ngưỡng.
-                        </p>
-                    </div>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
                             <Label>Kết quả kiểm tra chất lượng</Label>
@@ -2215,7 +1869,7 @@ const documentTypeLabel = (type: string) =>
                             <Label>Ghi chú chất lượng</Label>
                             <Input
                                 v-model="confirmQualityNotes"
-                                placeholder="Nhiệt độ, bao bì, ngoại quan..."
+                                placeholder="Bao bì, ngoại quan, chất lượng..."
                             />
                         </div>
                     </div>
@@ -2232,20 +1886,12 @@ const documentTypeLabel = (type: string) =>
                         />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label>{{
-                            discrepancyItems.length
-                                ? 'Giải trình bắt buộc'
-                                : 'Ghi chú xác minh'
-                        }}</Label
+                        <Label>Ghi chú xác minh</Label
                         ><textarea
                             v-model="confirmNotes"
                             rows="4"
                             class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            :placeholder="
-                                discrepancyItems.length
-                                    ? 'Nêu nguyên nhân thiếu/thừa, biên bản, hướng xử lý...'
-                                    : 'Ghi nhận tình trạng thực tế khi nhập hàng...'
-                            "
+                            placeholder="Ghi nhận tình trạng thực tế, kết quả kiểm tra và hướng xử lý nếu có..."
                         />
                     </div>
                     <p
@@ -2313,7 +1959,7 @@ const documentTypeLabel = (type: string) =>
                             rows="5"
                             required
                             class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Thiếu hóa đơn, sai số lô, chênh lệch chưa có biên bản..."
+                            placeholder="Thiếu biên bản nguồn, sai số lô, thông tin bàn giao chưa đầy đủ..."
                         />
                     </div>
                     <div class="flex justify-end gap-2">
@@ -2374,8 +2020,8 @@ const documentTypeLabel = (type: string) =>
                             v-model="dispositionKind"
                             class="h-10 rounded-md border border-input bg-background px-3 text-sm"
                         >
-                            <option value="return_supplier">
-                                Trả nhà cung cấp
+                            <option value="return_external">
+                                Trả lại bên giao bên ngoài
                             </option>
                             <option value="destroy">Tiêu hủy</option>
                         </select>
@@ -2440,14 +2086,15 @@ const documentTypeLabel = (type: string) =>
                         <p
                             class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
                         >
-                            Phiếu nhập nguyên liệu mới
+                            Phiếu nhập ngoài mới
                         </p>
                         <h2 class="mt-1 text-2xl font-black">
-                            Tạo GRN và ghi nhận hàng thực nhận
+                            Tạo phiếu nhập nguyên liệu vào Kho Tổng
                         </h2>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            Mỗi dòng cần số lượng thực nhận, lô/HSD nếu có và vị
-                            trí cất hàng. Chênh lệch phải có lý do.
+                            Đây là luồng nhập từ bên ngoài, độc lập với nhà cung cấp và
+                            đơn mua hàng. Phiếu chỉ ghi nhận số lượng thực tế sau khi
+                            được Trưởng kho xác minh.
                         </p>
                     </div>
                     <Button
@@ -2458,9 +2105,9 @@ const documentTypeLabel = (type: string) =>
                     /></Button>
                 </div>
                 <form class="space-y-6" @submit.prevent="submitGrn">
-                    <!-- Nhóm 1: Tiếp nhận & Vận chuyển cơ bản -->
+                    <!-- Nhóm 1: Nguồn nhập ngoài và tiếp nhận -->
                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div class="flex flex-col gap-1.5 sm:col-span-2">
+                        <div class="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-1">
                             <Label class="text-xs font-bold text-foreground">Thời điểm nhận</Label>
                             <div class="relative">
                                 <Input
@@ -2490,16 +2137,37 @@ const documentTypeLabel = (type: string) =>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Đơn vị vận chuyển / Người giao</Label>
+                        <div class="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-2">
+                            <Label class="text-xs font-bold text-foreground">Bên giao / nguồn bên ngoài *</Label>
                             <Input
-                                v-model="grnForm.carrier_name"
+                                v-model="grnForm.external_source_name"
                                 class="text-xs"
-                                placeholder="Tên đơn vị / tài xế / người giao"
+                                placeholder="Ví dụ: Đơn vị tặng, đối tác, người giao..."
                             />
                         </div>
 
-                        <div class="flex flex-col gap-1.5">
+                        <div class="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-1">
+                            <Label class="text-xs font-bold text-foreground">Lý do nhập ngoài *</Label>
+                            <select
+                                v-model="grnForm.external_receipt_reason"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground"
+                            >
+                                <option value="external_donation">Biếu tặng / hỗ trợ</option>
+                                <option value="external_return">Tiếp nhận hoàn trả</option>
+                                <option value="other">Nhập ngoài khác</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-2">
+                            <Label class="text-xs font-bold text-foreground">Số tham chiếu / Giấy tờ</Label>
+                            <Input
+                                v-model="grnForm.external_reference"
+                                class="text-xs font-mono"
+                                placeholder="Số biên bản / giấy tờ nếu có"
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-2">
                             <Label class="text-xs font-bold text-foreground">Cửa / khu tiếp nhận</Label>
                             <Input
                                 v-model="grnForm.receiving_dock"
@@ -2509,149 +2177,47 @@ const documentTypeLabel = (type: string) =>
                         </div>
                     </div>
 
-                    <!-- Nhóm 2: Thông tin Chứng từ & Xe hàng -->
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Ký hiệu / mẫu số HĐ</Label>
-                            <Input
-                                v-model="grnForm.invoice_series"
-                                class="text-xs font-mono"
-                                placeholder="01GTKT0/001"
-                            />
+                    <!-- Nhóm 2: Người lập và người kiểm nhận -->
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="rounded-xl border border-orange-400/20 bg-orange-500/5 p-3">
+                            <p class="text-[10px] font-bold tracking-wide text-orange-300 uppercase">Người nhập</p>
+                            <p class="mt-1 text-sm font-bold text-foreground">{{ currentUserName }}</p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">Tài khoản đang lập phiếu sẽ được ghi tự động.</p>
                         </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Số hóa đơn</Label>
-                            <Input
-                                v-model="grnForm.invoice_number"
-                                class="text-xs font-mono"
-                                placeholder="INV-..."
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Ngày hóa đơn</Label>
-                            <div class="relative">
-                                <Input
-                                    :model-value="displayDateValue(grnForm.invoice_date)"
-                                    type="text"
-                                    readonly
-                                    class="cursor-default pr-10 text-xs font-medium"
-                                    placeholder="Chọn ngày"
-                                />
-                                <button
-                                    type="button"
-                                    class="absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-orange-400"
-                                    title="Chọn ngày hóa đơn"
-                                    aria-label="Chọn ngày hóa đơn"
-                                    @click="openDatePicker(invoiceDatePicker)"
+                        <div class="rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-3">
+                            <p class="text-[10px] font-bold tracking-wide text-indigo-300 uppercase">Phân công người kiểm kê *</p>
+                            <select
+                                v-model="grnForm.verification_assigned_to"
+                                class="mt-1 h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground"
+                            >
+                                <option :value="null">Chọn nhân viên Kho Tổng</option>
+                                <option
+                                    v-for="staff in warehouseStaff"
+                                    :key="staff.id"
+                                    :value="staff.id"
                                 >
-                                    <CalendarDays class="size-4" />
-                                </button>
-                                <input
-                                    ref="invoiceDatePicker"
-                                    v-model="grnForm.invoice_date"
-                                    type="date"
-                                    tabindex="-1"
-                                    aria-hidden="true"
-                                    class="pointer-events-none absolute top-0 right-0 h-9 w-9 opacity-0"
-                                />
-                            </div>
+                                    {{ staff.name }}{{ staff.job_title ? ` · ${staff.job_title}` : '' }}
+                                </option>
+                            </select>
+                            <p class="mt-1 text-[11px] text-muted-foreground">Nhân viên được chọn sẽ kiểm đếm độc lập; phiếu chưa được cộng tồn kho trước khi họ xác nhận.</p>
                         </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Số phiếu giao hàng</Label>
-                            <Input
-                                v-model="grnForm.delivery_note_number"
-                                class="text-xs font-mono"
-                                placeholder="DN-..."
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Biển số xe</Label>
-                            <Input
-                                v-model="grnForm.vehicle_number"
-                                class="text-xs font-mono"
-                                placeholder="51A-..."
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Mã niêm phong</Label>
-                            <Input
-                                v-model="grnForm.seal_code"
-                                class="text-xs font-mono"
-                                placeholder="SEAL-..."
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Tổng tiền hóa đơn (đ)</Label>
-                            <Input
-                                v-model="grnForm.invoice_total_amount"
-                                type="number"
-                                min="0"
-                                step="1"
-                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                placeholder="0"
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Thuế GTGT (đ)</Label>
-                            <Input
-                                v-model="grnForm.vat_amount"
-                                type="number"
-                                min="0"
-                                step="1"
-                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                placeholder="0"
-                            />
+                        <div class="hidden rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-3">
+                            <p class="text-[10px] font-bold tracking-wide text-indigo-300 uppercase">Người kiểm nhận</p>
+                            <p class="mt-1 text-sm font-bold text-foreground">Trưởng kho xác minh</p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">Hệ thống tự ghi nhận người thực hiện lúc xác minh.</p>
                         </div>
                     </div>
 
-                    <!-- Nhóm 3: Kiểm soát Nhiệt độ & Lưu ý -->
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Nhiệt độ thấp nhất (°C)</Label>
-                            <Input
-                                v-model="grnForm.temperature_min_c"
-                                type="number"
-                                step="0.1"
-                                placeholder="Ví dụ: 2"
-                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            />
-                        </div>
-
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Nhiệt độ cao nhất (°C)</Label>
-                            <Input
-                                v-model="grnForm.temperature_max_c"
-                                type="number"
-                                step="0.1"
-                                placeholder="Ví dụ: 6"
-                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            />
-                        </div>
-
-                        <div class="flex items-center sm:col-span-2">
-                            <p class="w-full rounded-xl border border-sky-400/20 bg-sky-500/5 p-2.5 text-[11px] text-muted-foreground">
-                                ❄️ Hàng tươi / kho lạnh sẽ không được xác minh nếu thiếu thông tin nhiệt độ nhận hàng thực tế.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Nhóm 4: Bảng Dòng Hàng Thực Nhận -->
+                    <!-- Nhóm 3: Bảng Dòng Hàng Thực Nhận -->
                     <div class="rounded-2xl border border-border bg-card shadow-sm">
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 p-4">
                             <div>
                                 <p class="flex items-center gap-2 text-sm font-bold text-foreground">
                                     <PackageCheck class="size-4 text-orange-400" />
-                                    Dòng hàng thực nhận
+                                    Dòng nguyên liệu nhập
                                 </p>
                                 <p class="mt-0.5 text-[11px] text-muted-foreground">
-                                    Nhập số lượng thực nhận, số lô, hạn sử dụng và vị trí lưu trữ trong kho.
+                                    Mỗi dòng là một nguyên liệu/lô nhập từ bên ngoài; số lượng bên dưới là số thực tế đưa vào Kho Tổng. Nếu chưa biết vị trí, hệ thống sẽ tạo task cất hàng sau khi duyệt.
                                 </p>
                             </div>
                             <Button
@@ -2666,19 +2232,19 @@ const documentTypeLabel = (type: string) =>
                         </div>
 
                         <div class="overflow-x-auto p-3">
-                            <table class="w-full min-w-[1300px] text-xs">
+                            <table class="w-full min-w-[1080px] text-xs">
                                 <thead class="text-[11px] font-bold text-muted-foreground">
                                     <tr class="border-b border-border">
-                                        <th class="w-72 min-w-[240px] p-2.5 text-left">Nguyên liệu</th>
-                                        <th class="w-24 min-w-[90px] p-2.5 text-right">Dự kiến</th>
-                                        <th class="w-24 min-w-[90px] p-2.5 text-right">Thực nhận</th>
-                                        <th class="w-28 min-w-[105px] p-2.5 text-right">Đơn giá (đ)</th>
-                                        <th class="w-32 min-w-[120px] p-2.5 text-left">Số lô</th>
-                                        <th class="w-40 min-w-[150px] p-2.5 text-left">NSX</th>
-                                        <th class="w-40 min-w-[150px] p-2.5 text-left">HSD</th>
-                                        <th class="w-44 min-w-[160px] p-2.5 text-left">Vị trí cất</th>
-                                        <th class="min-w-[180px] p-2.5 text-left">Lý do chênh lệch</th>
-                                        <th class="w-10 p-2.5"></th>
+                                        <th class="w-56 min-w-[200px] p-2 text-left">Nguyên liệu</th>
+                                        <th class="w-24 min-w-[85px] p-2 text-left">ĐVT (nhập)</th>
+                                        <th class="w-24 min-w-[85px] p-2 text-right">Số lượng</th>
+                                        <th class="w-28 min-w-[100px] p-2 text-right">Đơn giá (đ)</th>
+                                        <th class="w-28 min-w-[100px] p-2 text-right">Thành tiền (đ)</th>
+                                        <th class="w-28 min-w-[95px] p-2 text-left">Số lô *</th>
+                                        <th class="w-32 min-w-[120px] p-2 text-left">NSX</th>
+                                        <th class="w-32 min-w-[120px] p-2 text-left">HSD</th>
+                                        <th class="w-36 min-w-[130px] p-2 text-left">Vị trí cất</th>
+                                        <th class="w-10 p-2 text-center"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
@@ -2703,24 +2269,21 @@ const documentTypeLabel = (type: string) =>
                                                 </option>
                                             </select>
                                             <span class="mt-1 block text-[10px] text-muted-foreground">
-                                                Đơn vị: <strong class="text-foreground">{{ ingredientUnit(line.ingredient_id) }}</strong>
+                                                Đơn vị chuẩn: <strong class="text-foreground">{{ ingredientUnit(line.ingredient_id) }}</strong>
                                             </span>
                                         </td>
                                         <td class="p-2">
                                             <Input
-                                                v-model="line.expected_qty"
-                                                type="number"
-                                                min="0"
-                                                step="0.001"
-                                                class="h-9 text-right text-xs font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                v-model="line.unit_label"
+                                                class="h-9 text-xs"
+                                                placeholder="kg, túi..."
                                             />
                                         </td>
                                         <td class="p-2">
                                             <Input
                                                 v-model="line.actual_qty"
-                                                @input="if (!line.expected_qty || Number(line.expected_qty) === 0) { line.expected_qty = line.actual_qty; }"
                                                 type="number"
-                                                min="0"
+                                                min="0.001"
                                                 step="0.001"
                                                 class="h-9 text-right text-xs font-bold text-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                             />
@@ -2733,6 +2296,9 @@ const documentTypeLabel = (type: string) =>
                                                 step="1"
                                                 class="h-9 text-right text-xs font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                             />
+                                        </td>
+                                        <td class="p-2 text-right font-semibold text-foreground">
+                                            {{ formatCurrency(lineTotal(line)) }}
                                         </td>
                                         <td class="p-2">
                                             <Input
@@ -2748,7 +2314,7 @@ const documentTypeLabel = (type: string) =>
                                                     type="text"
                                                     readonly
                                                     placeholder="YYYY-MM-DD"
-                                                    class="h-9 w-full cursor-default pr-8 pl-2.5 text-xs font-mono"
+                                                    class="h-9 w-full cursor-default pr-8 pl-2 text-xs font-mono"
                                                 />
                                                 <button
                                                     type="button"
@@ -2776,7 +2342,7 @@ const documentTypeLabel = (type: string) =>
                                                     type="text"
                                                     readonly
                                                     placeholder="YYYY-MM-DD"
-                                                    class="h-9 w-full cursor-default pr-8 pl-2.5 text-xs font-mono"
+                                                    class="h-9 w-full cursor-default pr-8 pl-2 text-xs font-mono"
                                                 />
                                                 <button
                                                     type="button"
@@ -2800,7 +2366,7 @@ const documentTypeLabel = (type: string) =>
                                         <td class="p-2">
                                             <select
                                                 v-model="line.location_id"
-                                                class="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                                                class="h-9 w-full rounded-lg border border-input bg-background px-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
                                             >
                                                 <option :value="null">Chọn vị trí</option>
                                                 <option
@@ -2812,14 +2378,7 @@ const documentTypeLabel = (type: string) =>
                                                 </option>
                                             </select>
                                         </td>
-                                        <td class="p-2">
-                                            <Input
-                                                v-model="line.discrepancy_reason"
-                                                class="h-9 text-xs"
-                                                placeholder="Bắt buộc nếu lệch"
-                                            />
-                                        </td>
-                                        <td class="p-2 text-right">
+                                        <td class="p-2 text-center">
                                             <Button
                                                 type="button"
                                                 variant="ghost"
@@ -2833,28 +2392,35 @@ const documentTypeLabel = (type: string) =>
                                         </td>
                                     </tr>
                                 </tbody>
+                                <tfoot>
+                                    <tr class="border-t border-orange-400/20 bg-orange-500/5 font-bold">
+                                        <td colspan="4" class="p-3 text-right text-foreground">Tổng hóa đơn / giá trị nhập ngoài</td>
+                                        <td class="p-3 text-right text-base text-orange-300">{{ formatCurrency(totalReceiptValue) }}</td>
+                                        <td colspan="5" class="p-3 text-right text-xs text-muted-foreground">Tổng số lượng: {{ formatQuantity(grnForm.items.reduce((total, line) => total + Number(line.actual_qty || 0), 0)) }}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Nhóm 5: Ghi chú & Đính kèm chứng từ -->
+                    <!-- Nhóm 5: Ghi chú & bằng chứng nguồn nhập -->
                     <div class="grid gap-4 lg:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Ghi chú phiếu</Label>
+                            <Label class="text-xs font-bold text-foreground">Ghi chú nghiệp vụ</Label>
                             <textarea
                                 v-model="grnForm.notes"
                                 rows="3"
                                 class="rounded-xl border border-input bg-background px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 focus:outline-none"
-                                placeholder="Tình trạng xe, niêm phong, nhiệt độ, biên bản giao nhận..."
+                                placeholder="Mô tả lý do, tình trạng nguyên liệu, cách định giá hoặc thông tin bàn giao..."
                             />
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-foreground">Hóa đơn / ảnh giao nhận</Label>
+                            <Label class="text-xs font-bold text-foreground">Bằng chứng nguồn nhập</Label>
                             <div class="flex gap-2">
                                 <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-input bg-background p-2 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary">
                                     <Upload class="size-4" />
-                                    <span>Chọn tệp đính kèm (Ảnh / PDF)</span>
+                                    <span>Chọn biên bản / ảnh / PDF nếu có</span>
                                     <input
                                         type="file"
                                         multiple
@@ -2867,8 +2433,7 @@ const documentTypeLabel = (type: string) =>
                                     v-model="grnDocumentType"
                                     class="h-10 w-40 rounded-xl border border-input bg-background px-3 text-xs focus:ring-2 focus:ring-primary/20 focus:outline-none"
                                 >
-                                    <option value="invoice">Hóa đơn</option>
-                                    <option value="delivery_note">Phiếu giao hàng</option>
+                                    <option value="external_record">Biên bản nguồn bên ngoài</option>
                                     <option value="qc">Biên bản QC</option>
                                     <option value="receiving_photo">Ảnh giao nhận</option>
                                     <option value="other">Chứng từ khác</option>
@@ -2914,10 +2479,9 @@ const documentTypeLabel = (type: string) =>
                         class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
                     >
                         <p class="max-w-xl text-[11px] text-muted-foreground">
-                            Phiếu có chênh lệch sẽ ở trạng thái chờ xác minh,
-                            chưa cộng vào tồn kho. Sau khi được xác minh, hệ
-                            thống sẽ tạo giao dịch nhập, lô hàng và cập nhật tồn
-                            Kho Tổng.
+                            Phiếu sẽ chờ Trưởng kho xác minh; trước thời điểm đó
+                            chưa cộng vào tồn kho. Sau khi xác minh, hệ thống tạo
+                            giao dịch nhập ngoài, lô hàng và cập nhật tồn Kho Tổng.
                         </p>
                         <div class="flex gap-2">
                             <Button
@@ -2933,7 +2497,7 @@ const documentTypeLabel = (type: string) =>
                                 {{
                                     isSubmittingGrn
                                         ? 'Đang lưu...'
-                                        : 'Tạo phiếu nhập nguyên liệu'
+                                        : 'Tạo phiếu nhập ngoài'
                                 }}</Button
                             >
                         </div>

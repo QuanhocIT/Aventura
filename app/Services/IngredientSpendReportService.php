@@ -7,6 +7,7 @@ use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
 use App\Models\StockTransferRequest;
 use App\Models\SupplyRequest;
+use App\Models\WarehouseReceivingVoucher;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
@@ -49,7 +50,7 @@ class IngredientSpendReportService
             ->where('restaurant_id', $restaurantId)
             ->whereIn('branch_id', $visibleBranchIds)
             ->whereBetween('occurred_at', [$dateFrom->startOfDay(), $dateTo->endOfDay()])
-            ->whereIn('type', ['purchase', 'transfer', 'adjustment'])
+            ->whereIn('type', ['purchase', 'external_receipt', 'transfer', 'adjustment'])
             ->with([
                 'branch:id,name',
                 'ingredient:id,name,unit_id',
@@ -61,6 +62,18 @@ class IngredientSpendReportService
             ->get();
 
         $reversalOriginals = $this->loadReversalOriginals($transactions, $restaurantId);
+        $externalReceiptVouchers = WarehouseReceivingVoucher::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn(
+                'id',
+                $transactions
+                    ->where('source_type', 'warehouse_receiving_voucher')
+                    ->pluck('source_id')
+                    ->filter()
+                    ->unique(),
+            )
+            ->get(['id', 'external_source_name'])
+            ->keyBy('id');
         $sourceIds = [
             'supply_request' => $transactions->where('source_type', 'supply_request')->pluck('source_id')->filter()->unique()->values(),
             'stock_transfer' => $transactions->where('source_type', 'stock_transfer')->pluck('source_id')->filter()->unique()->values(),
@@ -91,6 +104,7 @@ class IngredientSpendReportService
                 'branch_code' => $branch->code,
                 'is_central' => (bool) ($branch->is_central_warehouse || $branch->warehouse_type === 'central'),
                 'central_purchase_amount' => 0.0,
+                'external_receipt_amount' => 0.0,
                 'central_supply_amount' => 0.0,
                 'external_purchase_amount' => 0.0,
                 'interbranch_transfer_amount' => 0.0,
@@ -100,6 +114,7 @@ class IngredientSpendReportService
 
         $totals = [
             'central_purchase_amount' => 0.0,
+            'external_receipt_amount' => 0.0,
             'central_supply_amount' => 0.0,
             'external_purchase_amount' => 0.0,
             'interbranch_transfer_amount' => 0.0,
@@ -152,7 +167,9 @@ class IngredientSpendReportService
                 'quantity' => (float) $transaction->quantity,
                 'unit_cost' => (float) $transaction->unit_cost,
                 'amount' => round($amount, 2),
-                'supplier_name' => $transaction->supplier?->name,
+                'supplier_name' => $classification === 'external_receipt'
+                    ? ($externalReceiptVouchers->get((int) $transaction->source_id)?->external_source_name ?: 'Không qua nhà cung cấp')
+                    : $transaction->supplier?->name,
                 'source_type' => $transaction->source_type,
                 'source_id' => $transaction->source_id,
                 'notes' => $transaction->notes,
@@ -160,7 +177,7 @@ class IngredientSpendReportService
         }
 
         $branchRows = $branchTotals->values()->map(function (array $row): array {
-            foreach (['central_purchase_amount', 'central_supply_amount', 'external_purchase_amount', 'interbranch_transfer_amount', 'total_inbound_value'] as $key) {
+            foreach (['central_purchase_amount', 'external_receipt_amount', 'central_supply_amount', 'external_purchase_amount', 'interbranch_transfer_amount', 'total_inbound_value'] as $key) {
                 $row[$key] = round((float) $row[$key], 2);
             }
 
@@ -179,6 +196,7 @@ class IngredientSpendReportService
             ] : null,
             'summary' => [
                 'central_purchase_amount' => round($totals['central_purchase_amount'], 2),
+                'external_receipt_amount' => round($totals['external_receipt_amount'], 2),
                 'central_supply_amount' => round($totals['central_supply_amount'], 2),
                 'external_purchase_amount' => round($totals['external_purchase_amount'], 2),
                 'interbranch_transfer_amount' => round($totals['interbranch_transfer_amount'], 2),
@@ -218,6 +236,10 @@ class IngredientSpendReportService
             return $centralBranchId !== null && (int) $transaction->branch_id === (int) $centralBranchId
                 ? 'central_purchase'
                 : 'external_purchase';
+        }
+
+        if ($transaction->type === 'external_receipt') {
+            return 'external_receipt';
         }
 
         if ($transaction->source_type === 'supply_request') {
@@ -300,6 +322,7 @@ class IngredientSpendReportService
     {
         return match ($category) {
             'central_purchase' => 'Mua vào Kho Tổng',
+            'external_receipt' => 'Nhập ngoài (không qua nhà cung cấp)',
             'central_supply' => 'Cấp từ Kho Tổng',
             'external_purchase' => 'Chi nhánh tự mua ngoài',
             'interbranch_transfer' => 'Điều chuyển liên chi nhánh',
@@ -315,6 +338,7 @@ class IngredientSpendReportService
             'central_branch' => $centralBranch ? ['id' => $centralBranch->id, 'name' => $centralBranch->name] : null,
             'summary' => [
                 'central_purchase_amount' => 0.0,
+                'external_receipt_amount' => 0.0,
                 'central_supply_amount' => 0.0,
                 'external_purchase_amount' => 0.0,
                 'interbranch_transfer_amount' => 0.0,

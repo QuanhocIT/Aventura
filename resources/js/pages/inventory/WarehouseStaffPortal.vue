@@ -52,14 +52,14 @@ const props = defineProps<{
     myTasks: Array<any>;
     taskSummary: any;
     myVouchers: Array<any>;
+    assignedVerificationVouchers: Array<any>;
     myHandovers: Array<any>;
     myDisputes: Array<any>;
     myReceivingReports: Array<any>;
     handoverRecipients: Array<any>;
     locations: Array<any>;
     ingredients: Array<any>;
-    suppliers: Array<any>;
-    purchaseOrders: Array<any>;
+    warehouseStaff: Array<{ id: number; name: string; job_title?: string | null }>;
     notifications: Array<any>;
     canManageWarehouse: boolean;
     currentUser: any;
@@ -82,6 +82,7 @@ const activeTab = ref<TabId>('today');
 const isLoading = ref(false);
 const taskList = ref([...props.myTasks]);
 const voucherList = ref([...props.myVouchers]);
+const assignedVerificationList = ref([...props.assignedVerificationVouchers]);
 const handoverList = ref([...props.myHandovers]);
 const disputeList = ref([...props.myDisputes]);
 const receivingReportList = ref([...props.myReceivingReports]);
@@ -102,35 +103,41 @@ let cameraStream: MediaStream | null = null;
 // GRN Form
 const grnForm = ref({
     received_at: new Date().toISOString().slice(0, 16),
-    supplier_id: null as number | null,
-    purchase_order_id: null as number | null,
-    delivery_note_number: '',
-    invoice_number: '',
-    vehicle_number: '',
-    seal_code: '',
+    external_receipt_reason: 'other' as
+        | 'external_donation'
+        | 'external_return'
+        | 'other',
+    external_source_name: '',
+    external_reference: '',
+    verification_assigned_to: null as number | null,
     quality_status: 'pending' as
         | 'pending'
         | 'passed'
         | 'conditional'
         | 'failed',
     quality_notes: '',
-    temperature_min_c: undefined as number | undefined,
-    temperature_max_c: undefined as number | undefined,
     notes: '',
     items: [] as Array<{
         ingredient_id: number | null;
         ingredient_name: string;
-        expected_qty: number;
+        unit_label: string;
         actual_qty: number;
         unit_cost: number;
         lot_number: string;
+        manufactured_date: string;
         expiry_date: string;
         location_id: number | null;
-        discrepancy_reason: string;
     }>,
 });
 const grnFiles = ref<File[]>([]);
 const isSubmittingGrn = ref(false);
+
+const activeVerificationVoucher = ref<any | null>(null);
+const verificationItems = ref<Array<{ voucher_item_id: number; actual_qty: number }>>([]);
+const verificationNotes = ref('');
+const verificationQualityStatus = ref<'passed' | 'conditional' | 'failed'>('passed');
+const verificationQualityNotes = ref('');
+const isSubmittingVerification = ref(false);
 
 // Incident Form
 const incidentForm = ref({
@@ -193,11 +200,13 @@ const tabs = computed(() => [
     },
     {
         id: 'receiving' as TabId,
-        label: 'Nhập Hàng GRN',
+        label: 'Nhập ngoài vào Kho Tổng',
         icon: PackageOpen,
-        count: voucherList.value.filter(
-            (v) => v.status === 'draft' || v.status === 'discrepancy',
-        ).length,
+        count:
+            assignedVerificationList.value.length +
+            voucherList.value.filter(
+                (v) => v.status === 'draft' || v.status === 'discrepancy',
+            ).length,
     },
     {
         id: 'putaway' as TabId,
@@ -284,7 +293,7 @@ function priorityLabel(priority: string): string {
 
 function taskTypeLabel(type: string): string {
     const map: Record<string, string> = {
-        receiving: 'Nhận hàng (GRN)',
+        receiving: 'Nhập ngoài vào Kho Tổng',
         putaway: 'Cất hàng vào vị trí',
         picking: 'Soạn hàng theo đơn',
         packing: 'Đóng gói kiện hàng',
@@ -378,7 +387,7 @@ function voucherStatusLabel(s: string): string {
     const map: Record<string, string> = {
         draft: 'Bản nháp',
         confirmed: 'Đã nhập kho',
-        discrepancy: 'Có chênh lệch',
+        discrepancy: 'Có chênh lệch (phiếu cũ)',
         pending_review: 'Chờ duyệt giải trình',
         closed: 'Đã hoàn tất',
     };
@@ -566,17 +575,131 @@ async function completeTask(taskId: number) {
 }
 
 // GRN
+const formatQuantity = (value: number | string | null | undefined) =>
+    new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(
+        Number(value || 0),
+    );
+
+const formatCurrency = (value: number | string | null | undefined) =>
+    new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+
+const ingredientUnit = (ingredientId: number | null) =>
+    props.ingredients.find((ingredient: any) => ingredient.id === ingredientId)?.unit
+        ?.symbol ?? 'đv';
+
+const grnLineTotal = (item: { actual_qty: number; unit_cost: number }) =>
+    Math.max(0, Number(item.actual_qty || 0) * Number(item.unit_cost || 0));
+
+const totalReceiptValue = computed(() =>
+    grnForm.value.items.reduce(
+        (total, item) => total + grnLineTotal(item),
+        0,
+    ),
+);
+
+const voucherTotal = (voucher: any) => {
+    const recordedTotal = Number(voucher.invoice_total_amount ?? 0);
+
+    return recordedTotal > 0
+        ? recordedTotal
+        : (voucher.items ?? []).reduce(
+              (total: number, item: any) => total + grnLineTotal(item),
+              0,
+          );
+};
+
+function openVerification(voucher: any) {
+    activeVerificationVoucher.value = voucher;
+    verificationItems.value = (voucher.items ?? []).map((item: any) => ({
+        voucher_item_id: item.id,
+        actual_qty: Number(item.expected_qty ?? item.actual_qty ?? 0),
+    }));
+    verificationNotes.value = '';
+    verificationQualityStatus.value = 'passed';
+    verificationQualityNotes.value = '';
+}
+
+function closeVerification() {
+    activeVerificationVoucher.value = null;
+    verificationItems.value = [];
+    verificationNotes.value = '';
+    verificationQualityStatus.value = 'passed';
+    verificationQualityNotes.value = '';
+}
+
+async function submitVerification() {
+    const voucher = activeVerificationVoucher.value;
+    if (!voucher || isSubmittingVerification.value) {
+        return;
+    }
+
+    if (verificationItems.value.some((item) => Number(item.actual_qty) <= 0)) {
+        toast.error('Mỗi dòng phải có số lượng kiểm kê thực tế lớn hơn 0.');
+
+        return;
+    }
+
+    const hasDiscrepancy = verificationItems.value.some((item) => {
+        const sourceItem = (voucher.items ?? []).find((row: any) => row.id === item.voucher_item_id);
+
+        return Math.abs(Number(item.actual_qty) - Number(sourceItem?.expected_qty ?? 0)) > 0.0005;
+    });
+    if (hasDiscrepancy && !verificationNotes.value.trim()) {
+        toast.error('Số lượng lệch với khai báo của Trưởng kho; cần ghi chú giải trình.');
+
+        return;
+    }
+    if (verificationQualityStatus.value === 'conditional' && !verificationQualityNotes.value.trim()) {
+        toast.error('Hàng đạt có điều kiện phải có ghi chú xử lý chất lượng.');
+
+        return;
+    }
+
+    isSubmittingVerification.value = true;
+    try {
+        const { data } = await axios.post(
+            `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
+            {
+                notes: verificationNotes.value.trim(),
+                quality_status: verificationQualityStatus.value,
+                quality_notes: verificationQualityNotes.value.trim(),
+                verification_items: verificationItems.value,
+            },
+        );
+        assignedVerificationList.value = assignedVerificationList.value.filter(
+            (item) => item.id !== voucher.id,
+        );
+        voucherList.value.unshift({
+            ...voucher,
+            status: 'confirmed',
+            verified_by: { id: props.currentUser.id, name: props.currentUser.name },
+            verified_at: new Date().toISOString(),
+            total_actual_qty: verificationItems.value.reduce((sum, item) => sum + Number(item.actual_qty), 0),
+        });
+        closeVerification();
+        toast.success(data.message || 'Đã kiểm kê và xác nhận nhập nguyên liệu thành công.');
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể xác nhận phiếu nhập nguyên liệu.');
+    } finally {
+        isSubmittingVerification.value = false;
+    }
+}
+
 function addGrnItem() {
     const newItem = {
         ingredient_id: null,
         ingredient_name: '',
-        expected_qty: 1,
+        unit_label: '',
         actual_qty: 1,
         unit_cost: 0,
         lot_number: '',
+        manufactured_date: '',
         expiry_date: '',
         location_id: null,
-        discrepancy_reason: '',
     };
 
     grnForm.value.items = [...grnForm.value.items, newItem];
@@ -586,6 +709,12 @@ function removeGrnItem(index: number) {
     grnForm.value.items.splice(index, 1);
 }
 
+function onGrnItemIngredientChange(item: { ingredient_id: number | null; unit_label: string }) {
+    if (!item.unit_label.trim()) {
+        item.unit_label = ingredientUnit(item.ingredient_id);
+    }
+}
+
 async function submitGrn() {
     if (grnForm.value.items.length === 0) {
         toast.error('Vui lòng thêm ít nhất 1 nguyên liệu.');
@@ -593,13 +722,29 @@ async function submitGrn() {
         return;
     }
 
+    if (!grnForm.value.external_source_name.trim()) {
+        toast.error('Vui lòng ghi rõ bên giao hoặc nguồn bên ngoài. Đây không phải là trường nhà cung cấp.');
+
+        return;
+    }
+
+    if (props.canManageWarehouse && !grnForm.value.verification_assigned_to) {
+        toast.error('Trưởng kho phải phân công một nhân viên Kho Tổng kiểm kê trước khi lập phiếu.');
+
+        return;
+    }
+
     const invalidIndex = grnForm.value.items.findIndex(
-        (item) => !item.ingredient_id,
+        (item) =>
+            !item.ingredient_id ||
+            Number(item.actual_qty) <= 0 ||
+            !item.unit_label.trim() ||
+            !item.lot_number.trim(),
     );
 
     if (invalidIndex !== -1) {
         toast.error(
-            `Vui lòng chọn nguyên liệu cho mặt hàng #${invalidIndex + 1}.`,
+            `Dòng #${invalidIndex + 1}: cần chọn nguyên liệu, đơn vị tính, số lượng lớn hơn 0 và số lô.`,
         );
 
         return;
@@ -608,20 +753,23 @@ async function submitGrn() {
     isSubmittingGrn.value = true;
     const formData = new FormData();
     formData.append('received_at', grnForm.value.received_at);
+    formData.append('external_receipt_reason', grnForm.value.external_receipt_reason);
+    formData.append('external_source_name', grnForm.value.external_source_name.trim());
+    if (grnForm.value.verification_assigned_to) {
+        formData.append('verification_assigned_to', String(grnForm.value.verification_assigned_to));
+    }
+    formData.append('invoice_total_amount', String(totalReceiptValue.value));
+    if (grnForm.value.external_reference.trim()) {
+        formData.append('external_reference', grnForm.value.external_reference.trim());
+    }
     const idempotencyKey =
         typeof crypto !== 'undefined' && crypto.randomUUID
             ? crypto.randomUUID()
             : `grn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     formData.append('idempotency_key', idempotencyKey);
     const grnMeta = {
-        delivery_note_number: grnForm.value.delivery_note_number,
-        invoice_number: grnForm.value.invoice_number,
-        vehicle_number: grnForm.value.vehicle_number,
-        seal_code: grnForm.value.seal_code,
         quality_status: grnForm.value.quality_status,
         quality_notes: grnForm.value.quality_notes,
-        temperature_min_c: grnForm.value.temperature_min_c,
-        temperature_max_c: grnForm.value.temperature_max_c,
     };
     Object.entries(grnMeta).forEach(([key, value]) => {
         if (value !== '' && value !== null && value !== undefined) {
@@ -641,12 +789,19 @@ async function submitGrn() {
             );
         }
 
-        formData.append(`items[${i}][expected_qty]`, String(item.expected_qty));
+        formData.append(`items[${i}][unit_label]`, item.unit_label.trim());
         formData.append(`items[${i}][actual_qty]`, String(item.actual_qty));
         formData.append(`items[${i}][unit_cost]`, String(item.unit_cost));
 
         if (item.lot_number) {
             formData.append(`items[${i}][lot_number]`, item.lot_number);
+        }
+
+        if (item.manufactured_date) {
+            formData.append(
+                `items[${i}][manufactured_date]`,
+                item.manufactured_date,
+            );
         }
 
         if (item.expiry_date) {
@@ -660,15 +815,12 @@ async function submitGrn() {
             );
         }
 
-        if (item.discrepancy_reason) {
-            formData.append(
-                `items[${i}][discrepancy_reason]`,
-                item.discrepancy_reason,
-            );
-        }
     });
 
-    grnFiles.value.forEach((f) => formData.append('evidence[]', f));
+    grnFiles.value.forEach((f) => {
+        formData.append('evidence[]', f);
+        formData.append('evidence_types[]', 'external_record');
+    });
 
     try {
         const { data } = await axios.post(
@@ -678,13 +830,17 @@ async function submitGrn() {
                 headers: { 'Content-Type': 'multipart/form-data' },
             },
         );
-        toast.success(data.message || 'Tạo phiếu nhận hàng thành công.');
+        toast.success(data.message || 'Tạo phiếu nhập ngoài thành công.');
 
         if (data.voucher) {
             voucherList.value.unshift(data.voucher);
         }
 
         grnForm.value.items = [];
+        grnForm.value.external_receipt_reason = 'other';
+        grnForm.value.external_source_name = '';
+        grnForm.value.external_reference = '';
+        grnForm.value.verification_assigned_to = null;
         addGrnItem();
         grnFiles.value = [];
         activeTab.value = 'today';
@@ -700,7 +856,7 @@ async function submitGrn() {
             }
         }
 
-        toast.error(errorMessage ?? 'Lỗi tạo phiếu nhận hàng.');
+        toast.error(errorMessage ?? 'Lỗi tạo phiếu nhập ngoài.');
     } finally {
         isSubmittingGrn.value = false;
     }
@@ -1796,19 +1952,61 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- 3. NHẬP HÀNG (GRN) -->
+        <!-- 3. NHẬP NGOÀI VÀO KHO TỔNG -->
         <div v-if="activeTab === 'receiving'" class="flex flex-col gap-6">
-            <Card class="border-slate-200 shadow-sm dark:border-slate-800">
+            <Card
+                v-if="!canManageWarehouse"
+                class="border-indigo-200 shadow-sm dark:border-indigo-900/50"
+            >
+                <CardHeader>
+                    <CardTitle class="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+                        Phiếu nhập ngoài được phân công kiểm kê
+                    </CardTitle>
+                    <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
+                        Trưởng kho Tổng đã lập phiếu. Bạn phải kiểm đếm thực tế từng dòng và xác nhận; chỉ sau bước này nguyên liệu mới được cộng vào tồn Kho Tổng.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                    <div
+                        v-if="assignedVerificationList.length === 0"
+                        class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500 dark:border-slate-800"
+                    >
+                        Hiện không có phiếu nhập ngoài nào đang chờ bạn kiểm kê.
+                    </div>
+                    <div
+                        v-for="voucher in assignedVerificationList"
+                        :key="voucher.id"
+                        class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                    >
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="text-xs">
+                                <p class="font-bold text-slate-900 dark:text-slate-100">{{ voucher.voucher_code }}</p>
+                                <p class="mt-1 text-slate-600 dark:text-slate-300">Nguồn ngoài: {{ voucher.external_source_name || 'Không ghi nhận' }}</p>
+                                <p class="mt-1 text-slate-500">Người lập: {{ voucher.received_by?.name || '---' }} · {{ voucher.items?.length || 0 }} dòng · Khai báo: {{ formatQuantity(voucher.total_expected_qty) }}</p>
+                            </div>
+                            <Button
+                                size="sm"
+                                class="shrink-0 gap-1.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                                @click="openVerification(voucher)"
+                            >
+                                <CheckCircle class="size-3.5" /> Kiểm kê & xác nhận
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card v-if="canManageWarehouse" class="border-slate-200 shadow-sm dark:border-slate-800">
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <div>
                             <CardTitle
                                 class="text-lg font-bold text-slate-900 dark:text-slate-100"
-                                >Tạo Phiếu Nhận Hàng (GRN)</CardTitle
+                                >Tạo Phiếu Nhập Ngoài Vào Kho Tổng</CardTitle
                             >
                             <CardDescription class="text-xs text-slate-500"
-                                >Ghi nhận số lượng thực nhận, kiểm tra sai lệch
-                                và cất vào vị trí kho</CardDescription
+                                >Ghi nhận nguyên liệu từ bên ngoài, không qua nhà cung cấp;
+                                sau đó chờ Trưởng kho xác minh</CardDescription
                             >
                         </div>
                         <Button
@@ -1837,39 +2035,61 @@ onBeforeUnmount(() => {
                         <div class="flex flex-col gap-1.5">
                             <Label
                                 class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Ghi chú chung</Label
+                                >Bên giao / nguồn bên ngoài *</Label
                             >
                             <Input
-                                v-model="grnForm.notes"
-                                placeholder="Tình trạng niêm phong, số xe giao hàng..."
+                                v-model="grnForm.external_source_name"
+                                placeholder="Đơn vị tặng, đối tác hỗ trợ, người bàn giao..."
                                 class="h-9 text-xs"
                             />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="rounded-xl border border-amber-100 bg-amber-50/60 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                            <p class="text-[10px] font-bold tracking-wide text-amber-700 uppercase dark:text-amber-300">Người nhập</p>
+                            <p class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">{{ currentUser?.name || 'Tài khoản hiện tại' }}</p>
+                            <p class="mt-1 text-[11px] text-slate-500">Được ghi tự động theo tài khoản lập phiếu.</p>
+                        </div>
+                        <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                            <p class="text-[10px] font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">Phân công người kiểm kê *</p>
+                            <select v-model="grnForm.verification_assigned_to" class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                <option :value="null">Chọn nhân viên Kho Tổng</option>
+                                <option v-for="staff in warehouseStaff" :key="staff.id" :value="staff.id">
+                                    {{ staff.name }}{{ staff.job_title ? ` · ${staff.job_title}` : '' }}
+                                </option>
+                            </select>
+                            <p class="mt-1 text-[11px] text-slate-500">Nhân viên được chọn sẽ kiểm đếm độc lập; phiếu chưa được cộng tồn kho trước khi họ xác nhận.</p>
+                        </div>
+                        <div class="hidden rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                            <p class="text-[10px] font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">Người kiểm nhận</p>
+                            <p class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">Trưởng kho xác minh</p>
+                            <p class="mt-1 text-[11px] text-slate-500">Hệ thống ghi nhận người xác minh khi duyệt phiếu.</p>
                         </div>
                     </div>
 
                     <div
                         class="grid grid-cols-1 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-indigo-900/50 dark:bg-indigo-950/20"
                     >
-                        <Input
-                            v-model="grnForm.delivery_note_number"
-                            placeholder="Số phiếu giao hàng"
-                            class="h-9 text-xs"
-                        />
-                        <Input
-                            v-model="grnForm.invoice_number"
-                            placeholder="Số hóa đơn"
-                            class="h-9 text-xs"
-                        />
-                        <Input
-                            v-model="grnForm.vehicle_number"
-                            placeholder="Biển số xe"
-                            class="h-9 text-xs"
-                        />
-                        <Input
-                            v-model="grnForm.seal_code"
-                            placeholder="Mã niêm phong"
-                            class="h-9 text-xs"
-                        />
+                        <div class="flex flex-col gap-1">
+                            <Label class="text-[11px] font-semibold">Số tham chiếu bên ngoài</Label>
+                            <Input
+                                v-model="grnForm.external_reference"
+                                placeholder="Biên bản / giấy tờ nếu có"
+                                class="h-9 text-xs"
+                            />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <Label class="text-[11px] font-semibold">Lý do nhập ngoài *</Label>
+                            <select
+                                v-model="grnForm.external_receipt_reason"
+                                class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900"
+                            >
+                                <option value="external_donation">Biếu tặng / hỗ trợ từ bên ngoài</option>
+                                <option value="external_return">Tiếp nhận hoàn từ bên ngoài</option>
+                                <option value="other">Nhập ngoài khác</option>
+                            </select>
+                        </div>
                         <div class="flex flex-col gap-1">
                             <Label class="text-[11px] font-semibold"
                                 >Kết quả QC</Label
@@ -1887,20 +2107,8 @@ onBeforeUnmount(() => {
                             </select>
                         </div>
                         <Input
-                            v-model.number="grnForm.temperature_min_c"
-                            type="number"
-                            placeholder="Nhiệt độ min °C"
-                            class="h-9 text-xs"
-                        />
-                        <Input
-                            v-model.number="grnForm.temperature_max_c"
-                            type="number"
-                            placeholder="Nhiệt độ max °C"
-                            class="h-9 text-xs"
-                        />
-                        <Input
                             v-model="grnForm.quality_notes"
-                            placeholder="Ghi chú QC / cold-chain"
+                            placeholder="Ghi chú QC / bao bì / ngoại quan"
                             class="h-9 text-xs lg:col-span-2"
                         />
                     </div>
@@ -1947,7 +2155,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div
-                                class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                                class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6"
                             >
                                 <div class="flex flex-col gap-1 sm:col-span-2">
                                     <Label
@@ -1956,6 +2164,7 @@ onBeforeUnmount(() => {
                                     >
                                     <select
                                         v-model="item.ingredient_id"
+                                        @change="onGrnItemIngredientChange(item)"
                                         class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
                                     >
                                         <option :value="null">
@@ -1974,42 +2183,58 @@ onBeforeUnmount(() => {
                                 <div class="flex flex-col gap-1">
                                     <Label
                                         class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
-                                        >SL theo chứng từ</Label
+                                        >Đơn vị tính *</Label
                                     >
                                     <Input
-                                        type="number"
-                                        v-model.number="item.expected_qty"
-                                        min="0"
-                                        step="0.001"
+                                        v-model="item.unit_label"
+                                        placeholder="kg / túi / thùng"
                                         class="h-9 text-xs"
                                     />
+                                    <span class="text-[10px] text-slate-500">Mặc định theo danh mục; tồn kho vẫn theo đơn vị chuẩn.</span>
                                 </div>
 
                                 <div class="flex flex-col gap-1">
                                     <Label
                                         class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
-                                        >SL thực nhận *</Label
+                                        >Số lượng nhập *</Label
                                     >
                                     <Input
                                         type="number"
                                         v-model.number="item.actual_qty"
-                                        min="0"
                                         step="0.001"
                                         class="h-9 text-xs"
-                                        :class="{
-                                            'border-rose-400 bg-rose-50/50 dark:bg-rose-950/20':
-                                                Math.abs(
-                                                    item.actual_qty -
-                                                        item.expected_qty,
-                                                ) > 0.001,
-                                        }"
+                                        min="0.001"
                                     />
                                 </div>
 
                                 <div class="flex flex-col gap-1">
                                     <Label
                                         class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
-                                        >Mã lô (Lot Number)</Label
+                                        >Đơn giá nguyên liệu (đ) *</Label
+                                    >
+                                    <Input
+                                        type="number"
+                                        v-model.number="item.unit_cost"
+                                        min="0"
+                                        step="1"
+                                        class="h-9 text-xs"
+                                    />
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <Label
+                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        >Thành tiền (đ)</Label
+                                    >
+                                    <div class="flex h-9 items-center justify-end rounded-md border border-slate-200 bg-slate-100 px-2.5 text-xs font-bold text-amber-700 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-300">
+                                        {{ formatCurrency(grnLineTotal(item)) }}
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-col gap-1">
+                                    <Label
+                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        >Mã lô (Lot Number) *</Label
                                     >
                                     <Input
                                         type="text"
@@ -2031,10 +2256,10 @@ onBeforeUnmount(() => {
                                     />
                                 </div>
 
-                                <div class="flex flex-col gap-1 sm:col-span-2">
+                                <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-2">
                                     <Label
                                         class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
-                                        >Vị trí cất hàng</Label
+                                        >Vị trí cất hàng (nếu đã biết)</Label
                                     >
                                     <select
                                         v-model="item.location_id"
@@ -2054,25 +2279,21 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
 
-                            <div
-                                v-if="
-                                    Math.abs(
-                                        item.actual_qty - item.expected_qty,
-                                    ) > 0.001
-                                "
-                                class="mt-3 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-900/60 dark:bg-rose-950/30"
-                            >
-                                <Label
-                                    class="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-400"
-                                >
-                                    <AlertTriangle class="size-3.5" /> Bắt buộc
-                                    giải trình chênh lệch SL *
-                                </Label>
-                                <Input
-                                    v-model="item.discrepancy_reason"
-                                    placeholder="Lý do chênh lệch: thiếu từ NCC, hao hụt vận chuyển..."
-                                    class="mt-1.5 h-8 border-rose-300 bg-white text-xs dark:bg-slate-900"
-                                />
+                            </div>
+
+                        <div class="grid grid-cols-1 gap-3 rounded-xl border border-amber-100 bg-amber-50/60 p-4 sm:grid-cols-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+                            <div>
+                                <p class="text-[11px] font-semibold text-slate-500">Tổng số lượng nhập</p>
+                                <p class="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
+                                    {{ formatQuantity(grnForm.items.reduce((total, item) => total + Number(item.actual_qty || 0), 0)) }}
+                                </p>
+                            </div>
+                            <div class="sm:text-right">
+                                <p class="text-[11px] font-semibold text-slate-500">Tổng hóa đơn / giá trị nhập ngoài</p>
+                                <p class="mt-1 text-lg font-black text-amber-700 dark:text-amber-300">
+                                    {{ formatCurrency(totalReceiptValue) }}
+                                </p>
+                                <p class="mt-1 text-[10px] text-slate-500">Dùng định giá tồn kho, không tạo công nợ nhà cung cấp.</p>
                             </div>
                         </div>
 
@@ -2080,7 +2301,7 @@ onBeforeUnmount(() => {
                         <div class="flex flex-col gap-1.5 pt-2">
                             <Label
                                 class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Ảnh hóa đơn / Biên bản giao hàng</Label
+                        >Biên bản / ảnh chứng minh nguồn nhập</Label
                             >
                             <div
                                 class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-all hover:bg-slate-100/60 dark:border-slate-700 dark:bg-slate-900/40"
@@ -2088,8 +2309,7 @@ onBeforeUnmount(() => {
                                 <Upload class="size-5 text-slate-400" />
                                 <span
                                     class="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300"
-                                    >Nhấn để chọn ảnh hoặc kéo thả chứng
-                                    từ</span
+                                    >Nhấn để chọn ảnh hoặc kéo thả chứng từ</span
                                 >
                                 <input
                                     type="file"
@@ -2129,7 +2349,7 @@ onBeforeUnmount(() => {
                                 {{
                                     isSubmittingGrn
                                         ? 'Đang tạo phiếu...'
-                                        : 'Tạo Phiếu Nhận Hàng'
+                                        : 'Tạo Phiếu Nhập Ngoài'
                                 }}
                             </Button>
                         </div>
@@ -2137,18 +2357,18 @@ onBeforeUnmount(() => {
                 </CardContent>
             </Card>
 
-            <!-- Lịch sử phiếu GRN -->
+            <!-- Lịch sử phiếu nhập ngoài -->
             <div class="flex flex-col gap-3">
                 <h3
                     class="text-sm font-bold tracking-wider text-slate-500 uppercase"
                 >
-                    Phiếu Nhận Hàng Gần Đây Của Tôi
+                    Phiếu Nhập Ngoài Gần Đây Của Tôi
                 </h3>
                 <div
                     v-if="voucherList.length === 0"
                     class="rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-800"
                 >
-                    Chưa có phiếu nhận hàng nào được tạo.
+                    Chưa có phiếu nhập ngoài nào được tạo.
                 </div>
                 <div
                     v-else
@@ -2184,13 +2404,26 @@ onBeforeUnmount(() => {
                                     ).toLocaleString('vi-VN')
                                 }}
                             </p>
+                            <div class="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                                <p>
+                                    <span class="text-slate-500">Người nhập:</span>
+                                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ currentUser?.name || 'Tôi' }}</span>
+                                </p>
+                                <p>
+                                    <span class="text-slate-500">Người kiểm nhận:</span>
+                                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ voucher.verified_by?.name || 'Chưa xác minh' }}</span>
+                                </p>
+                                <p class="col-span-2 font-bold text-amber-700 dark:text-amber-300">
+                                    Tổng hóa đơn / giá trị: {{ formatCurrency(voucherTotal(voucher)) }}
+                                </p>
+                            </div>
                             <div
                                 v-if="
                                     (voucher.total_discrepancy_qty ?? 0) !== 0
                                 "
                                 class="mt-2 flex items-center gap-1 rounded bg-rose-50 px-2 py-1 text-xs font-bold text-rose-600 dark:bg-rose-950/40"
                             >
-                                <AlertTriangle class="size-3.5" /> Chênh lệch:
+                                <AlertTriangle class="size-3.5" /> Chênh lệch (phiếu cũ):
                                 {{ voucher.total_discrepancy_qty }}
                             </div>
                         </CardContent>
@@ -3044,6 +3277,92 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- ── Modal: Hoàn Thành Tác Vụ ── -->
+        <Teleport to="body">
+            <div
+                v-if="activeVerificationVoucher"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+                @click.self="closeVerification"
+            >
+                <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-indigo-200 bg-white p-5 shadow-2xl dark:border-indigo-900 dark:bg-slate-900">
+                    <div class="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+                        <div>
+                            <p class="text-[10px] font-bold tracking-wider text-indigo-600 uppercase dark:text-indigo-300">Kiểm kê độc lập trước khi nhập tồn</p>
+                            <h3 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{{ activeVerificationVoucher.voucher_code }}</h3>
+                            <p class="mt-1 text-xs text-slate-500">Người lập: {{ activeVerificationVoucher.received_by?.name || '---' }} · Nguồn ngoài: {{ activeVerificationVoucher.external_source_name || '---' }}</p>
+                        </div>
+                        <button type="button" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" @click="closeVerification">
+                            <X class="size-5" />
+                        </button>
+                    </div>
+
+                    <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                        <table class="w-full min-w-[720px] text-xs">
+                            <thead class="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+                                <tr>
+                                    <th class="p-3 text-left">Nguyên liệu / lô</th>
+                                    <th class="p-3 text-right">SL Trưởng kho khai báo</th>
+                                    <th class="p-3 text-left">Đơn vị</th>
+                                    <th class="p-3 text-right">SL kiểm kê thực tế *</th>
+                                    <th class="p-3 text-right">Đơn giá</th>
+                                    <th class="p-3 text-right">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                                <tr v-for="(item, index) in (activeVerificationVoucher.items || [])" :key="item.id">
+                                    <td class="p-3">
+                                        <p class="font-semibold text-slate-900 dark:text-slate-100">{{ item.ingredient?.name || 'Nguyên liệu' }}</p>
+                                        <p class="mt-1 font-mono text-[11px] text-slate-500">Lô: {{ item.lot_number || '---' }}</p>
+                                    </td>
+                                    <td class="p-3 text-right font-semibold text-amber-700 dark:text-amber-300">{{ formatQuantity(item.expected_qty) }}</td>
+                                    <td class="p-3 text-slate-600 dark:text-slate-300">{{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}</td>
+                                    <td class="p-3">
+                                        <Input
+                                            v-model.number="verificationItems[index].actual_qty"
+                                            type="number"
+                                            min="0.001"
+                                            step="0.001"
+                                            class="h-9 text-right text-xs font-bold"
+                                        />
+                                    </td>
+                                    <td class="p-3 text-right">{{ formatCurrency(item.unit_cost) }}</td>
+                                    <td class="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(Number(verificationItems[index]?.actual_qty || 0) * Number(item.unit_cost || 0)) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold">Kết quả kiểm tra chất lượng *</Label>
+                            <select v-model="verificationQualityStatus" class="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground">
+                                <option value="passed">Đạt</option>
+                                <option value="conditional">Đạt có điều kiện</option>
+                                <option value="failed">Không đạt</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold">Ghi chú chất lượng</Label>
+                            <Input v-model="verificationQualityNotes" class="h-9 text-xs" placeholder="Ngoại quan, bao bì, điều kiện bảo quản..." />
+                        </div>
+                    </div>
+                    <div class="mt-3 flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold">Biên bản kiểm kê / giải trình chênh lệch</Label>
+                        <textarea v-model="verificationNotes" rows="3" class="rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground" placeholder="Ghi rõ kết quả đếm thực tế; bắt buộc nếu lệch số Trưởng kho khai báo." />
+                    </div>
+
+                    <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                        <p class="max-w-xl text-[11px] text-slate-500">Xác nhận này sẽ là căn cứ duy nhất để hạch toán số lượng thực tế vào tồn Kho Tổng và gửi báo cáo cho Chủ doanh nghiệp.</p>
+                        <div class="flex gap-2">
+                            <Button type="button" variant="outline" @click="closeVerification">Hủy</Button>
+                            <Button type="button" class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700" :disabled="isSubmittingVerification" @click="submitVerification">
+                                <CheckCircle class="size-4" /> {{ isSubmittingVerification ? 'Đang xác nhận...' : 'Xác nhận kiểm kê & nhập tồn' }}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
         <Teleport to="body">
             <div
                 v-if="activeTaskId !== null"

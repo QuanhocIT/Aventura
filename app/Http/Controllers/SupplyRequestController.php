@@ -113,10 +113,11 @@ class SupplyRequestController extends Controller
             'inventorySummary' => $props['inventorySummary'],
             'warehouseLocations' => $props['warehouseLocations'],
             'ingredients' => $props['ingredients'],
-            'purchaseOrders' => $props['warehousePurchaseOrders'],
+            'warehouseStaff' => $props['warehouseStaff'],
             'canManageWarehouse' => $props['canManageWarehouse'],
-            'canCreateReceiving' => $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.receiving.create') || $user->can('warehouse.manage') || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff']),
+            'canCreateReceiving' => ! $user->hasRole('warehouse_staff') && ($user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage') || $user->hasRole('warehouse_manager') || $user->can('warehouse.receiving.create')),
             'currentUserId' => $user->id,
+            'currentUserName' => $user->name,
             'canApproveOwnReceiving' => $user->isOwner() || $user->isSuperAdmin(),
             'centralWarehouseAi' => $props['centralWarehouseAi'],
         ]);

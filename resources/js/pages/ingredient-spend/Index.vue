@@ -27,6 +27,7 @@ type BranchRow = {
     branch_code?: string | null;
     is_central?: boolean;
     central_purchase_amount: number;
+    external_receipt_amount: number;
     central_supply_amount: number;
     external_purchase_amount: number;
     interbranch_transfer_amount: number;
@@ -52,6 +53,7 @@ type Transaction = {
 type Report = {
     summary: {
         central_purchase_amount: number;
+        external_receipt_amount: number;
         central_supply_amount: number;
         external_purchase_amount: number;
         interbranch_transfer_amount: number;
@@ -167,13 +169,30 @@ function resetFilters() {
                 <Button variant="ghost" @click="resetFilters">Đặt lại</Button>
             </div>
             <p class="mt-3 text-xs text-muted-foreground">
-                Nguồn số liệu là giao dịch kho đã ghi nhận thực tế. Đơn PO chưa
-                nhận chưa được tính vào chi phí. Giá trị cấp phát nội bộ chỉ là
+                Nguồn số liệu là giao dịch kho đã ghi nhận thực tế. Nhập ngoài vào
+                Kho Tổng được tách riêng, không phải mua hàng và không tạo công nợ.
+                Đơn PO chưa nhận chưa được tính vào chi phí; cấp phát nội bộ chỉ là
                 giá trị luân chuyển, không cộng lại vào tiền mua.
             </p>
         </section>
 
-        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div
+                class="rounded-2xl border border-border/60 bg-card/80 p-5 shadow-sm"
+            >
+                <div
+                    class="flex items-center justify-between text-muted-foreground"
+                >
+                    <span class="text-sm">Nhập ngoài vào Kho Tổng</span
+                    ><Package class="size-5 text-orange-600" />
+                </div>
+                <p class="mt-4 text-2xl font-semibold tabular-nums">
+                    {{ money(report.summary.external_receipt_amount) }}
+                </p>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    Không qua nhà cung cấp, không tạo công nợ mua hàng
+                </p>
+            </div>
             <div
                 class="rounded-2xl border border-border/60 bg-card/80 p-5 shadow-sm"
             >
@@ -296,6 +315,7 @@ function resetFilters() {
                                 Nhận từ Kho Tổng
                             </th>
                             <th class="px-5 py-3 text-right">Mua ngoài</th>
+                            <th class="px-5 py-3 text-right">Nhập ngoài Kho Tổng</th>
                             <th class="px-5 py-3 text-right">Điều chuyển</th>
                             <th class="px-5 py-3 text-right">
                                 Tổng vào chi nhánh
@@ -326,6 +346,9 @@ function resetFilters() {
                                 {{ money(row.external_purchase_amount) }}
                             </td>
                             <td class="px-5 py-3 text-right tabular-nums">
+                                {{ money(row.external_receipt_amount) }}
+                            </td>
+                            <td class="px-5 py-3 text-right tabular-nums">
                                 {{ money(row.interbranch_transfer_amount) }}
                             </td>
                             <td
@@ -336,7 +359,7 @@ function resetFilters() {
                         </tr>
                         <tr v-if="report.branch_rows.length === 0">
                             <td
-                                colspan="6"
+                                colspan="7"
                                 class="px-5 py-10 text-center text-sm text-muted-foreground"
                             >
                                 Chưa có dữ liệu trong khoảng thời gian này.
@@ -376,7 +399,7 @@ function resetFilters() {
                             <th class="px-5 py-3">Nguyên liệu</th>
                             <th class="px-5 py-3 text-right">SL</th>
                             <th class="px-5 py-3 text-right">Giá trị</th>
-                            <th class="px-5 py-3">Nhà cung cấp</th>
+                            <th class="px-5 py-3">Nhà cung cấp / nguồn bên ngoài</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-border/60">

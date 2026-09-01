@@ -31,6 +31,8 @@ class WarehouseReceivingVoucher extends Model
             'invoice_total_amount' => 'decimal:2',
             'vat_amount' => 'decimal:2',
             'submitted_at' => 'datetime',
+            'verification_assigned_at' => 'datetime',
+            'owner_notified_at' => 'datetime',
             'rejected_at' => 'datetime',
             'putaway_started_at' => 'datetime',
             'putaway_completed_at' => 'datetime',
@@ -47,7 +49,8 @@ class WarehouseReceivingVoucher extends Model
     {
         static::creating(function (self $model) {
             if (empty($model->voucher_code)) {
-                $model->voucher_code = self::generateVoucherCode($model->restaurant_id);
+                $prefix = filled($model->external_receipt_reason) ? 'NXT' : 'GRN';
+                $model->voucher_code = self::generateVoucherCode($model->restaurant_id, $prefix);
             }
             if (empty($model->idempotency_key)) {
                 $model->idempotency_key = Str::uuid()->toString();
@@ -55,14 +58,14 @@ class WarehouseReceivingVoucher extends Model
         });
     }
 
-    public static function generateVoucherCode(int $restaurantId): string
+    public static function generateVoucherCode(int $restaurantId, string $prefix = 'GRN'): string
     {
         $date = now()->format('Ymd');
         $seq = self::where('restaurant_id', $restaurantId)
             ->whereDate('created_at', now()->toDateString())
             ->count() + 1;
 
-        return 'GRN-'.$date.'-'.str_pad($seq, 4, '0', STR_PAD_LEFT);
+        return strtoupper($prefix).'-'.$date.'-'.str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
     // ── Relations ────────────────────────────────────────────────────────────
@@ -110,6 +113,11 @@ class WarehouseReceivingVoucher extends Model
     public function submittedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    public function verificationAssignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verification_assigned_to');
     }
 
     // ── Scopes ───────────────────────────────────────────────────────────────
