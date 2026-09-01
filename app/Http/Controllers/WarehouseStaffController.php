@@ -237,6 +237,43 @@ class WarehouseStaffController extends Controller
             ->get()
             ->map(fn ($t) => $this->formatTask($t));
 
+        $assignedVerificationVouchers = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('verification_assigned_to', $user->id)
+            ->whereNotNull('external_receipt_reason')
+            ->where('status', 'pending_review')
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
+            ->with(['items.ingredient.unit', 'receivedBy', 'verificationAssignedTo'])
+            ->orderByDesc('verification_assigned_at')
+            ->limit(30)
+            ->get();
+
+        $myVouchers = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('received_by', $user->id)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
+            ->with(['items.ingredient.unit', 'verifiedBy', 'verificationAssignedTo', 'receivedBy'])
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        $myHandovers = WarehouseShiftHandover::where('restaurant_id', $user->restaurant_id)
+            ->where(fn ($q) => $q->where('handover_by', $user->id)->orWhere('received_by', $user->id))
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
+            ->with(['handoverBy', 'receivedBy'])
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        $myReceivingReports = SupplyRequestReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('status', [
+                SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK,
+                SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED,
+            ])
+            ->whereHas('supplyRequest', fn ($query) => $query->where('transporter_id', $user->id))
+            ->with(['items.ingredient.unit', 'transporter', 'supplyRequest.toBranch', 'supplyRequest.transporter'])
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
         return response()->json([
             'tasks' => $tasks,
             'summary' => [
@@ -248,6 +285,10 @@ class WarehouseStaffController extends Controller
                     ->filter(fn ($t) => isset($t['completed_at']) && Carbon::parse($t['completed_at'])->isToday())
                     ->count(),
             ],
+            'assigned_verification_vouchers' => $assignedVerificationVouchers,
+            'my_vouchers' => $myVouchers,
+            'my_handovers' => $myHandovers,
+            'my_receiving_reports' => $myReceivingReports,
         ]);
     }
 
@@ -352,20 +393,36 @@ class WarehouseStaffController extends Controller
                     ->firstOrFail();
 
                 abort_unless(
-                    (int) $supplyRequest->transporter_id === (int) $user->id,
+                    (int) $supplyRequest->transporter_id === (int) $user->id || (int) $task->assigned_to === (int) $user->id,
                     403,
                     'Chỉ nhân viên giao hàng được phân công mới có thể xác nhận giao đơn này.'
                 );
-                abort_unless(
-                    $supplyRequest->status === SupplyRequest::STATUS_DISPATCHED,
+
+                abort_if(
+                    in_array($supplyRequest->status, [SupplyRequest::STATUS_CANCELLED, SupplyRequest::STATUS_REJECTED], true),
                     422,
-                    'Đơn hàng không còn ở trạng thái đang giao để xác nhận.'
+                    'Đơn hàng đã bị hủy hoặc từ chối, không thể xác nhận giao.'
+                );
+
+                $allowedDeliveryStatuses = [
+                    SupplyRequest::STATUS_DISPATCHED,
+                    SupplyRequest::STATUS_RECEIVING_REVIEW,
+                    SupplyRequest::STATUS_PARTIAL_RECEIVED,
+                    SupplyRequest::STATUS_DISPUTED,
+                    SupplyRequest::STATUS_COMPLETED,
+                ];
+
+                abort_unless(
+                    in_array($supplyRequest->status, $allowedDeliveryStatuses, true),
+                    422,
+                    'Đơn hàng chưa xuất kho hoặc không ở trạng thái hợp lệ để xác nhận giao.'
                 );
 
                 $supplyRequest->update([
+                    'transporter_id' => $supplyRequest->transporter_id ?: $user->id,
                     'delivery_confirmed_by' => $user->id,
-                    'delivery_confirmed_at' => now(),
-                    'delivery_confirmed_notes' => $request->result_notes,
+                    'delivery_confirmed_at' => $supplyRequest->delivery_confirmed_at ?: now(),
+                    'delivery_confirmed_notes' => $request->result_notes ?: $supplyRequest->delivery_confirmed_notes,
                 ]);
             }
 
@@ -539,6 +596,16 @@ class WarehouseStaffController extends Controller
             422,
             'Mỗi dòng có số lượng nhập phải có số lô để truy xuất nguồn gốc.',
         );
+
+        foreach ($items as $index => $item) {
+            if (! empty($item['manufactured_date']) && ! empty($item['expiry_date'])) {
+                abort_if(
+                    $item['expiry_date'] < $item['manufactured_date'],
+                    422,
+                    'Dòng '.($index + 1).': Hạn sử dụng (HSD) không được nhỏ hơn Ngày sản xuất (NSX).'
+                );
+            }
+        }
 
         $duplicateLots = $items
             ->map(fn (array $item): string => (int) ($item['ingredient_id'] ?? 0).'|'.mb_strtolower(trim((string) ($item['lot_number'] ?? ''))))

@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\SupplyRequest;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -89,14 +90,11 @@ class SupplyRequestStatusNotification extends Notification
             ],
         };
 
-        $isReceivingBranchUser = (int) ($notifiable->branch_id ?? 0) === (int) $this->supplyRequest->to_branch_id
-            && (method_exists($notifiable, 'isBranchManager') && $notifiable->isBranchManager()
-                || (method_exists($notifiable, 'hasAnyRole') && $notifiable->hasAnyRole(['branch_staff', 'inventory_staff', 'staff']))
-                || (method_exists($notifiable, 'can') && $notifiable->can('supply_requests.receive')));
+        $isCentralUser = $notifiable instanceof User && ($notifiable->isSuperAdmin() || $notifiable->isOwner() || $notifiable->hasRole('warehouse_manager'));
 
-        $url = $isReceivingBranchUser
-            ? '/inventory/branch-requisition?branch_id='.$this->supplyRequest->to_branch_id
-            : '/inventory/central-warehouse';
+        $url = $isCentralUser
+            ? '/inventory/central-warehouse'
+            : '/inventory/branch-requisition?branch_id='.($notifiable->assignedBranchId() ?? $this->supplyRequest->to_branch_id).'&request_id='.$this->supplyRequest->id;
 
         return [
             'type' => 'supply_request_status_'.$this->stage,

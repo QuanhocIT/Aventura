@@ -8,8 +8,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
 /**
- * Báo tiến trình điều chuyển hàng liên chi nhánh theo từng bước (yêu cầu / định tuyến
- * / xuất). Gửi tới đúng người cần hành động tiếp theo.
+ * Báo tiến trình điều chuyển hàng liên chi nhánh theo từng bước (yêu cầu / định tuyến / xuất / nhận).
+ * Gửi tới đúng người cần hành động tiếp theo.
  */
 class StockTransferStageNotification extends Notification
 {
@@ -17,7 +17,7 @@ class StockTransferStageNotification extends Notification
 
     public function __construct(
         private StockTransferRequest $transfer,
-        private string $stage,   // requested | routed | dispatched | received | discrepancy
+        private string $stage,   // requested | routed | dispatched | received | discrepancy | rejected | cancelled
         private string $byName,
     ) {}
 
@@ -28,33 +28,57 @@ class StockTransferStageNotification extends Notification
 
     public function toArray(object $notifiable): array
     {
+        $this->transfer->loadMissing(['toBranch', 'fromBranch', 'ingredient.unit']);
+
         $ing = $this->transfer->ingredient?->name ?? 'nguyên liệu';
-        $isOwnerOrWarehouse = $notifiable instanceof User
-            && $notifiable->hasAnyRole(['owner', 'warehouse_manager']);
-        $isRequester = $notifiable instanceof User
-            && (int) $this->transfer->requested_by === (int) $notifiable->id;
-        $urgentLabel = ($this->transfer->priority ?? 'normal') === 'urgent'
-            ? ' KHẨN CẤP'
-            : '';
-        $messages = [
-            'requested' => $isOwnerOrWarehouse
-                ? "📦 Yêu cầu bổ sung{$urgentLabel} {$ing} — cần xem xét và điều phối."
-                : "📦 Yêu cầu bổ sung{$urgentLabel} {$ing} đã được gửi tới Chủ doanh nghiệp để xem xét.",
-            'routed' => $isRequester
-                ? "➡️ Yêu cầu bổ sung {$ing} đã được Chủ doanh nghiệp điều phối; đang chờ kho thực hiện."
-                : "➡️ Điều chuyển {$ing} đã được điều phối — chờ kho thực hiện (mã: {$this->transfer->handover_code}).",
-            'dispatched' => "📥 Hàng {$ing} đã xuất kho — đang chờ xác nhận nhận hàng (mã: {$this->transfer->handover_code}).",
-            'received' => "✅ Điều chuyển {$ing} đã được nhận đủ và cộng vào tồn kho.",
-            'discrepancy' => "⚠️ Điều chuyển {$ing} phát sinh chênh lệch — cần kiểm tra và chốt biên bản.",
-        ];
+        $unit = $this->transfer->ingredient?->unit?->symbol ?? '';
+        $qty = rtrim(rtrim((string) $this->transfer->quantity_requested, '0'), '.');
+        $toBranchName = $this->transfer->toBranch?->name ?? 'Chi nhánh nhận';
+        $fromBranchName = $this->transfer->fromBranch?->name ?? 'Kho cấp';
+        $isSourceBranchUser = $notifiable instanceof User && (int) $notifiable->assignedBranchId() === (int) $this->transfer->from_branch_id;
+        $isDestBranchUser = $notifiable instanceof User && (int) $notifiable->assignedBranchId() === (int) $this->transfer->to_branch_id;
+        $isRequester = $notifiable instanceof User && (int) $this->transfer->requested_by === (int) $notifiable->id;
+        $isOwnerOrWarehouse = $notifiable instanceof User && $notifiable->hasAnyRole(['owner', 'warehouse_manager']);
+        $urgentLabel = ($this->transfer->priority ?? 'normal') === 'urgent' ? ' [Khẩn cấp]' : '';
+
+        $title = match ($this->stage) {
+            'requested' => "Yêu cầu điều chuyển hàng{$urgentLabel}",
+            'routed' => $isSourceBranchUser ? "Yêu cầu xuất kho điều chuyển{$urgentLabel}" : "Đã định tuyến điều chuyển",
+            'dispatched' => "Hàng điều chuyển đang vận chuyển",
+            'received' => "Hoàn tất nhận hàng điều chuyển",
+            'discrepancy' => "Cảnh báo chênh lệch điều chuyển",
+            'rejected' => "Yêu cầu điều chuyển bị từ chối",
+            'cancelled' => "Yêu cầu điều chuyển đã hủy",
+            default => "Cập nhật điều chuyển hàng",
+        };
+
+        $message = match ($this->stage) {
+            'requested' => "Chi nhánh {$toBranchName} vừa tạo yêu cầu bổ sung {$qty} {$unit} {$ing} (Người tạo: {$this->byName}).",
+            'routed' => $isSourceBranchUser
+                ? "Chi nhánh {$toBranchName} yêu cầu xuất kho {$qty} {$unit} {$ing} từ chi nhánh của bạn (Người tạo: {$this->byName})."
+                : ($isRequester
+                    ? "Yêu cầu điều chuyển {$qty} {$unit} {$ing} tới {$fromBranchName} đã được định tuyến; đang chờ kho cấp xuất hàng."
+                    : "Đơn điều chuyển {$qty} {$unit} {$ing} đã được chỉ định kho cấp {$fromBranchName}."),
+            'dispatched' => "Kho {$fromBranchName} đã xuất {$qty} {$unit} {$ing} giao tới {$toBranchName} (Mã bàn giao: {$this->transfer->handover_code}).",
+            'received' => "Chi nhánh {$toBranchName} đã kiểm đếm và nhận đủ {$qty} {$unit} {$ing} vào tồn kho.",
+            'discrepancy' => "Phát hiện lệch số lượng khi nhận {$ing} tại {$toBranchName} — cần kiểm tra và chốt biên bản.",
+            'rejected' => "Yêu cầu điều chuyển {$ing} tới {$fromBranchName} đã bị từ chối: ".($this->transfer->reject_reason ?? 'Không đủ điều kiện.'),
+            'cancelled' => "Yêu cầu điều chuyển {$ing} đã bị hủy bởi {$this->byName}.",
+            default => "Đơn điều chuyển {$ing} có cập nhật trạng thái mới.",
+        };
 
         return [
-            'transfer_id' => $this->transfer->id,
+            'type' => 'stock_transfer_'.$this->stage,
             'stage' => $this->stage,
+            'title' => $title,
+            'message' => $message,
+            'transfer_id' => $this->transfer->id,
+            'request_group_id' => $this->transfer->request_group_id,
             'priority' => $this->transfer->priority ?? 'normal',
             'ingredient' => $ing,
+            'from_branch_id' => $this->transfer->from_branch_id,
+            'to_branch_id' => $this->transfer->to_branch_id,
             'handover_code' => $this->transfer->handover_code,
-            'message' => ($messages[$this->stage] ?? 'Cập nhật điều chuyển').' ('.$this->byName.')',
             'url' => '/inventory/transfers',
         ];
     }

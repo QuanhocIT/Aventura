@@ -137,6 +137,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::delete('product-categories/{category}', [ProductManagementController::class, 'destroyCategory'])->name('product-categories.destroy');
 
     Route::get('inventory', [InventoryManagementController::class, 'inventoryPage'])->name('inventory.index');
+    Route::get('inventory/recipes', [InventoryManagementController::class, 'inventoryPage'])->name('inventory.recipes.index');
     Route::get('api/inventory/ai-forecast', [InventoryManagementController::class, 'aiForecast'])->name('inventory.ai-forecast');
     Route::post('inventory/ingredients', [InventoryManagementController::class, 'storeIngredient'])->name('inventory.ingredients.store');
     Route::put('inventory/ingredients/{id}', [InventoryManagementController::class, 'updateIngredient'])->name('inventory.ingredients.update');

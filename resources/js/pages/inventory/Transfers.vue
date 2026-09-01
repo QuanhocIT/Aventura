@@ -148,6 +148,7 @@ const props = defineProps<{
         can_execute: boolean;
         request_only: boolean;
     };
+    assigned_branch_id?: number | null;
     summary: {
         requested: number;
         routed: number;
@@ -158,6 +159,9 @@ const props = defineProps<{
 }>();
 
 const requestOnly = computed(() => props.permissions.request_only === true);
+const isBranchScoped = computed(
+    () => Boolean(props.assigned_branch_id && !props.permissions.can_route),
+);
 
 const showRequest = ref(false);
 const routing = ref<Transfer | null>(null);
@@ -170,15 +174,15 @@ const detailTransfer = ref<Transfer | null>(null);
 const batchRoutingGroup = ref<TransferGroup | null>(null);
 const batchRejectingGroup = ref<TransferGroup | null>(null);
 const batchCancellingGroup = ref<TransferGroup | null>(null);
-const search = ref('');
 const statusFilter = ref<'all' | TransferStatus>('all');
+const search = ref('');
+const branchFilter = ref<number | 'all'>('all');
+const workQueueOnly = ref(false);
+
 interface RequestLine {
     ingredient_id: number | '';
     quantity_requested: number;
 }
-
-const branchFilter = ref<number | 'all'>('all');
-const workQueueOnly = ref(false);
 
 const createRequestLine = (): RequestLine => ({
     ingredient_id: '',
@@ -187,11 +191,13 @@ const createRequestLine = (): RequestLine => ({
 
 const requestForm = useForm<{
     to_branch_id: number | '';
+    from_branch_id: number | '' | null;
     items: RequestLine[];
     priority: 'normal' | 'urgent';
     reason: string;
 }>({
-    to_branch_id: props.branches[0]?.id ?? '',
+    to_branch_id: props.assigned_branch_id ?? props.branches[0]?.id ?? '',
+    from_branch_id: null,
     items: [createRequestLine()],
     priority: requestOnly.value ? 'urgent' : 'normal',
     reason: '',
@@ -854,10 +860,26 @@ const openRoute = (transfer: Transfer) => {
     routeForm.reset();
 };
 
+const getDispatchMaxAllowed = (transfer: Transfer | null) => {
+    if (!transfer) {
+        return 0;
+    }
+
+    const available = Number(transfer.source_available_quantity || 0);
+    const requested = Number(transfer.quantity_requested || 0);
+
+    if (available >= requested) {
+        return requested;
+    }
+
+    return Math.max(0.001, Number((available * (2 / 3)).toFixed(3)));
+};
+
 const openDispatch = (transfer: Transfer) => {
     detailTransfer.value = null;
     dispatching.value = transfer;
-    dispatchForm.quantity_dispatched = transfer.quantity_requested;
+    const maxAllowed = getDispatchMaxAllowed(transfer);
+    dispatchForm.quantity_dispatched = maxAllowed > 0 ? maxAllowed : transfer.quantity_requested;
     dispatchForm.dispatch_note = '';
 };
 
@@ -900,9 +922,12 @@ const openReject = (transfer: Transfer) => {
 const openCreateRequest = () => {
     requestForm.reset();
     requestForm.items = [createRequestLine()];
+    requestForm.from_branch_id = null;
     requestForm.priority = requestOnly.value ? 'urgent' : 'normal';
 
-    if (props.branches.length > 0 && !requestForm.to_branch_id) {
+    if (props.assigned_branch_id) {
+        requestForm.to_branch_id = props.assigned_branch_id;
+    } else if (props.branches.length > 0 && !requestForm.to_branch_id) {
         requestForm.to_branch_id = props.branches[0].id;
     }
 
@@ -2142,27 +2167,67 @@ const formatDuration = (hours: number) => {
                         /></Button>
                     </div>
                     <form @submit.prevent="submitRequest" class="space-y-4">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Chi nhánh cần hàng</Label>
-                            <select
-                                v-model="requestForm.to_branch_id"
-                                required
-                                class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                            >
-                                <option
-                                    v-for="branch in props.branches"
-                                    :key="branch.id"
-                                    :value="branch.id"
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1.5">
+                                <Label>Chi nhánh cần hàng <span class="text-rose-500">*</span></Label>
+                                <select
+                                    v-model="requestForm.to_branch_id"
+                                    required
+                                    :disabled="isBranchScoped"
+                                    class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground disabled:opacity-85 disabled:cursor-not-allowed disabled:bg-muted/40 font-medium"
                                 >
-                                    {{ branch.name }}
-                                </option>
-                            </select>
-                            <p
-                                v-if="requestForm.errors.to_branch_id"
-                                class="text-xs text-rose-500"
-                            >
-                                {{ requestForm.errors.to_branch_id }}
-                            </p>
+                                    <option
+                                        v-for="branch in props.branches"
+                                        :key="branch.id"
+                                        :value="branch.id"
+                                    >
+                                        {{ branch.name }}
+                                    </option>
+                                </select>
+                                <p
+                                    v-if="requestForm.errors.to_branch_id"
+                                    class="text-xs text-rose-500"
+                                >
+                                    {{ requestForm.errors.to_branch_id }}
+                                </p>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label>Kho cấp hàng (Trực tiếp)</Label>
+                                    <span class="text-[10px] text-teal-400 font-bold uppercase tracking-wider">Tùy chọn</span>
+                                </div>
+                                <select
+                                    v-model="requestForm.from_branch_id"
+                                    class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                                >
+                                    <option :value="null">
+                                        — Để Chủ / Trưởng kho định tuyến —
+                                    </option>
+                                    <option
+                                        v-for="branch in props.branches.filter(b => b.id !== requestForm.to_branch_id)"
+                                        :key="branch.id"
+                                        :value="branch.id"
+                                    >
+                                        {{ branch.name }}
+                                    </option>
+                                </select>
+                                <p
+                                    v-if="requestForm.errors.from_branch_id"
+                                    class="text-xs text-rose-500"
+                                >
+                                    {{ requestForm.errors.from_branch_id }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+                            <span v-if="requestForm.from_branch_id" class="text-emerald-400 font-medium flex items-center gap-1.5">
+                                ⚡ <span><strong>Gửi trực tiếp:</strong> Đơn sẽ chuyển thẳng đến kho cấp để họ chuẩn bị xuất hàng ngay mà không cần qua duyệt định tuyến.</span>
+                            </span>
+                            <span v-else class="flex items-center gap-1.5">
+                                💡 <span><strong>Hàng chờ điều phối:</strong> Nếu không chọn trước kho cấp, đơn sẽ chuyển đến Chủ nhà hàng / Trưởng kho Tổng để chọn nguồn cấp phù hợp.</span>
+                            </span>
                         </div>
 
                         <!-- Multi-item ingredients list -->
@@ -2715,35 +2780,48 @@ const formatDuration = (hours: number) => {
                         /></Button>
                     </div>
                     <div
-                        class="mb-4 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
+                        v-if="Number(dispatching.source_available_quantity || 0) < Number(dispatching.quantity_requested || 0)"
+                        class="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200"
+                    >
+                        <div class="flex items-center gap-1.5 font-bold text-amber-300">
+                            <Info class="size-4 shrink-0" />
+                            <span>Quy tắc chia sẻ kho (Tối đa 2/3 tồn kho)</span>
+                        </div>
+                        <div class="mt-2 space-y-1.5 text-amber-100/90">
+                            <p>
+                                • Đơn yêu cầu: <b>{{ formatNumber(dispatching.quantity_requested) }} {{ dispatching.unit }}</b>
+                                &nbsp;|&nbsp;
+                                Tồn hiện có: <b>{{ formatNumber(dispatching.source_available_quantity) }} {{ dispatching.unit }}</b>
+                            </p>
+                            <p class="rounded-lg bg-amber-950/40 p-2 text-amber-200">
+                                💡 Do kho nguồn không đủ số lượng yêu cầu, hệ thống cho phép xuất tối đa <b>2/3 tồn kho ({{ formatNumber(getDispatchMaxAllowed(dispatching)) }} {{ dispatching.unit }})</b> để vừa hỗ trợ điều chuyển, vừa giữ lại 1/3 ({{ formatNumber(Math.max(0, Number((Number(dispatching.source_available_quantity) - getDispatchMaxAllowed(dispatching)).toFixed(3)))) }} {{ dispatching.unit }}) phục vụ vận hành tại chỗ.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        v-else
+                        class="mb-4 rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-3 text-xs text-emerald-100"
                     >
                         <p>
                             Tồn hiện tại kho nguồn:
-                            <b
-                                >{{
-                                    formatNumber(
-                                        dispatching.source_available_quantity,
-                                    )
-                                }}
-                                {{ dispatching.unit }}</b
-                            >
-                        </p>
-                        <p class="mt-1 text-amber-100/70">
-                            Hệ thống chỉ cho xuất đủ
-                            {{ formatNumber(dispatching.quantity_requested) }}
-                            {{ dispatching.unit }} để tránh tạo yêu cầu hoàn tất
-                            giả.
+                            <b class="text-emerald-300">{{ formatNumber(dispatching.source_available_quantity) }} {{ dispatching.unit }}</b>
+                            (Đủ đáp ứng đơn yêu cầu {{ formatNumber(dispatching.quantity_requested) }} {{ dispatching.unit }}).
                         </p>
                     </div>
                     <form @submit.prevent="submitDispatch" class="space-y-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Số lượng xuất</Label
-                            ><Input
+                            <div class="flex items-center justify-between">
+                                <Label>Số lượng xuất</Label>
+                                <span class="text-xs text-muted-foreground">
+                                    Tối đa: <b class="text-amber-400">{{ formatNumber(getDispatchMaxAllowed(dispatching)) }} {{ dispatching.unit }}</b>
+                                </span>
+                            </div>
+                            <Input
                                 v-model="dispatchForm.quantity_dispatched"
                                 type="number"
                                 step="0.001"
                                 min="0.001"
-                                :max="dispatching.quantity_requested"
+                                :max="getDispatchMaxAllowed(dispatching)"
                                 required
                             />
                             <p

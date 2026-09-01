@@ -380,17 +380,33 @@ class ShiftSwapController extends Controller
     public function getNotifications(Request $request)
     {
         $user = $request->user();
+        $canAccessCentralWarehouse = $user->isSuperAdmin() || $user->isOwner() || $user->hasRole('warehouse_manager');
 
         $notifications = $user->unreadNotifications()
             ->get()
-            ->map(function ($n) {
+            ->map(function ($n) use ($user, $canAccessCentralWarehouse) {
+                $data = $n->data;
+                $url = $data['url'] ?? null;
+
+                // Dynamically sanitize URL for branch managers / scoped users who don't have central warehouse / governance access
+                if (! $canAccessCentralWarehouse && $url) {
+                    if (str_starts_with($url, '/inventory/central-warehouse')) {
+                        $branchId = $user->assignedBranchId() ?? ($data['branch_id'] ?? null);
+                        $requestId = $data['supply_request_id'] ?? null;
+                        $url = '/inventory/branch-requisition'.($branchId ? '?branch_id='.$branchId : '').($requestId ? '&request_id='.$requestId : '');
+                    } elseif (str_starts_with($url, '/inventory/warehouse-governance')) {
+                        $branchId = $user->assignedBranchId() ?? ($data['branch_id'] ?? null);
+                        $url = '/inventory/branch-requisition'.($branchId ? '?branch_id='.$branchId : '');
+                    }
+                }
+
                 return [
                     'id' => $n->id,
-                    'type' => $n->data['type'] ?? 'general',
-                    'action' => $n->data['action'] ?? 'info',
-                    'title' => $n->data['title'] ?? null,
-                    'message' => $n->data['message'] ?? '',
-                    'url' => $n->data['url'] ?? null,
+                    'type' => $data['type'] ?? 'general',
+                    'action' => $data['action'] ?? 'info',
+                    'title' => $data['title'] ?? null,
+                    'message' => $data['message'] ?? '',
+                    'url' => $url,
                     'created_at' => $n->created_at->diffForHumans(),
                 ];
             });

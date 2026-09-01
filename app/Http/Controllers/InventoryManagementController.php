@@ -368,23 +368,29 @@ class InventoryManagementController extends Controller
 
         $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
 
-        return Inertia::render('inventory/Index', [
-            'ingredients' => $ingredients,
-            'products' => $products,
-            'units' => $units,
-            'suppliers' => $suppliers,
-            'recentPurchases' => $recentPurchases,
-            'employees' => $employees,
-            'recentWastes' => $recentWastes,
-            'safety' => $safety,
-            'activeBranchId' => $branchId,
-            'activeBranchName' => $activeBranchName,
-            'negativeStockCases' => $negativeStockCases,
-            'centralBranch' => $centralBranch,
-            'centralIngredients' => $centralIngredients,
-            'branchReplenishmentSuggestions' => $branchReplenishmentSuggestions,
-            'canCreateSupplyRequests' => $user->isOwner() || $user->isSuperAdmin() || $user->can('supply_requests.create'),
-        ]);
+        $isRecipePage = $request->routeIs('inventory.recipes.index');
+
+        return Inertia::render(
+            $isRecipePage ? 'inventory/Recipes' : 'inventory/Index',
+            [
+                'view' => $isRecipePage ? 'recipes' : 'inventory',
+                'ingredients' => $ingredients,
+                'products' => $products,
+                'units' => $units,
+                'suppliers' => $suppliers,
+                'recentPurchases' => $recentPurchases,
+                'employees' => $employees,
+                'recentWastes' => $recentWastes,
+                'safety' => $safety,
+                'activeBranchId' => $branchId,
+                'activeBranchName' => $activeBranchName,
+                'negativeStockCases' => $negativeStockCases,
+                'centralBranch' => $centralBranch,
+                'centralIngredients' => $centralIngredients,
+                'branchReplenishmentSuggestions' => $branchReplenishmentSuggestions,
+                'canCreateSupplyRequests' => $user->isOwner() || $user->isSuperAdmin() || $user->can('supply_requests.create'),
+            ],
+        );
     }
 
     /**

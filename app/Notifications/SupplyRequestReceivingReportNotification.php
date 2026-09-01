@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\SupplyRequestReceivingReport;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -26,6 +27,7 @@ class SupplyRequestReceivingReportNotification extends Notification
         $requestCode = $request?->request_code ?? 'đơn cấp phát';
         $branchName = $request?->toBranch?->name ?? 'chi nhánh';
         $isDriver = (int) ($request?->transporter_id ?? 0) === (int) ($notifiable->id ?? 0);
+        $isCentralUser = $notifiable instanceof User && ($notifiable->isSuperAdmin() || $notifiable->isOwner() || $notifiable->hasRole('warehouse_manager'));
 
         [$title, $message] = match ($this->stage) {
             'confirmed' => $isDriver
@@ -51,6 +53,12 @@ class SupplyRequestReceivingReportNotification extends Notification
             ],
         };
 
+        $url = $isDriver
+            ? '/inventory/staff-portal?tab=incident&report_id='.$this->report->id
+            : ($isCentralUser
+                ? '/inventory/warehouse-governance?report_id='.$this->report->id
+                : '/inventory/branch-requisition?branch_id='.($request?->to_branch_id ?? ($notifiable instanceof User ? $notifiable->assignedBranchId() : 0)).'&report_id='.$this->report->id);
+
         return [
             'type' => 'supply_request_receiving_report_'.$this->stage,
             'stage' => $this->stage,
@@ -61,9 +69,7 @@ class SupplyRequestReceivingReportNotification extends Notification
             'supply_request_id' => $request?->id,
             'request_code' => $requestCode,
             'branch_id' => $request?->to_branch_id,
-            'url' => $isDriver
-                ? '/inventory/staff-portal?tab=incident&report_id='.$this->report->id
-                : '/inventory/warehouse-governance?report_id='.$this->report->id,
+            'url' => $url,
         ];
     }
 }

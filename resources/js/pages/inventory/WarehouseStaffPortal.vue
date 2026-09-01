@@ -453,6 +453,36 @@ async function refreshTasks(silent = false) {
         taskList.value = data.tasks;
         taskSummaryData.value = data.summary;
 
+        if (data.assigned_verification_vouchers) {
+            const oldVoucherIds = new Set(
+                assignedVerificationList.value.map((v) => v.id),
+            );
+            const newVouchers = (
+                data.assigned_verification_vouchers || []
+            ).filter((v: any) => !oldVoucherIds.has(v.id));
+
+            if (silent && newVouchers.length > 0) {
+                toast.info(
+                    `Bạn có ${newVouchers.length} phiếu nhập ngoài mới (${newVouchers.map((v: any) => v.voucher_code).join(', ')}) chờ kiểm kê!`,
+                    { duration: 5000 },
+                );
+            }
+
+            assignedVerificationList.value = data.assigned_verification_vouchers;
+        }
+
+        if (data.my_vouchers) {
+            voucherList.value = data.my_vouchers;
+        }
+
+        if (data.my_handovers) {
+            handoverList.value = data.my_handovers;
+        }
+
+        if (data.my_receiving_reports) {
+            receivingReportList.value = data.my_receiving_reports;
+        }
+
         if (!silent) {
             toast.success('Đã làm mới danh sách tác vụ.');
         }
@@ -751,6 +781,21 @@ async function submitGrn() {
     if (invalidIndex !== -1) {
         toast.error(
             `Dòng #${invalidIndex + 1}: cần chọn nguyên liệu, đơn vị tính, số lượng lớn hơn 0 và số lô.`,
+        );
+
+        return;
+    }
+
+    const invalidDateIndex = grnForm.value.items.findIndex(
+        (item) =>
+            item.manufactured_date &&
+            item.expiry_date &&
+            item.expiry_date < item.manufactured_date,
+    );
+
+    if (invalidDateIndex !== -1) {
+        toast.error(
+            `Dòng #${invalidDateIndex + 1}: Hạn sử dụng (HSD) không được nhỏ hơn Ngày sản xuất (NSX).`,
         );
 
         return;

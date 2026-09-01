@@ -21,7 +21,7 @@ import {
     Warehouse,
     X,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { Button } from '@/components/ui/button';
@@ -160,6 +160,53 @@ const props = defineProps<{
 const vouchers = ref<Voucher[]>([...props.receivingVouchers]);
 const summary = ref({ ...props.receivingSummary });
 const inventory = ref({ ...props.inventorySummary });
+
+watch(
+    () => props.receivingVouchers,
+    (newVal) => {
+        if (newVal) {
+            vouchers.value = [...newVal];
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.receivingSummary,
+    (newVal) => {
+        if (newVal) {
+            summary.value = { ...newVal };
+        }
+    },
+    { deep: true },
+);
+
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+    autoRefreshTimer = setInterval(() => {
+        if (
+            !document.hidden &&
+            !showGrnForm.value &&
+            !confirming.value &&
+            !rejecting.value &&
+            !dispositionVoucher.value
+        ) {
+            router.reload({
+                only: ['receivingVouchers', 'receivingSummary'],
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+    }, 4000);
+});
+
+onBeforeUnmount(() => {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+});
 const filter = ref('pending');
 const search = ref('');
 const expandedId = ref<number | null>(null);
@@ -202,6 +249,16 @@ const emptyLine = (): GrnLine => ({
     manufactured_date: '',
     location_id: null,
 });
+
+const onManufacturedDateChange = (line: GrnLine) => {
+    if (
+        line.expiry_date &&
+        line.manufactured_date &&
+        line.expiry_date < line.manufactured_date
+    ) {
+        line.expiry_date = line.manufactured_date;
+    }
+};
 
 const grnForm = ref({
     received_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
@@ -809,6 +866,13 @@ const validateGrn = () => {
             );
         }
 
+        if (line.manufactured_date && line.expiry_date) {
+            if (line.expiry_date < line.manufactured_date) {
+                errors.push(
+                    `Dòng ${lineNo}: Hạn sử dụng (HSD: ${line.expiry_date}) không được nhỏ hơn Ngày sản xuất (NSX: ${line.manufactured_date}).`,
+                );
+            }
+        }
     });
 
     grnErrors.value = errors;
@@ -1191,19 +1255,19 @@ const documentTypeLabel = (type: string) =>
             >
             <CardContent class="p-0"
                 ><div class="overflow-x-auto">
-                    <table class="w-full min-w-[1220px] text-left text-xs">
+                    <table class="w-full min-w-[960px] text-left text-xs">
                         <thead
                             class="border-b border-border bg-muted/50 text-muted-foreground"
                         >
                             <tr>
                                 <th class="w-8 p-3"></th>
-                                <th class="p-3">Mã phiếu</th>
+                                <th class="p-3 whitespace-nowrap">Mã phiếu</th>
                                 <th class="p-3">Người nhập / kiểm nhận</th>
-                                <th class="p-3 text-right">Dòng hàng</th>
-                                <th class="p-3 text-right">Số lượng nhập</th>
-                                <th class="p-3 text-right">Tổng giá trị</th>
-                                <th class="p-3">Trạng thái</th>
-                                <th class="p-3 text-right">Xử lý</th>
+                                <th class="p-3 text-right whitespace-nowrap">Dòng hàng</th>
+                                <th class="p-3 text-right whitespace-nowrap">Số lượng nhập</th>
+                                <th class="p-3 text-right whitespace-nowrap">Tổng giá trị</th>
+                                <th class="p-3 whitespace-nowrap">Trạng thái</th>
+                                <th class="p-3 text-right whitespace-nowrap">Xử lý</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-border">
@@ -1334,11 +1398,11 @@ const documentTypeLabel = (type: string) =>
                                     v-if="expandedId === voucher.id"
                                     class="bg-muted/10"
                                 >
-                                    <td colspan="8" class="p-4 sm:p-5">
+                                    <td colspan="8" class="p-3 sm:p-4">
                                         <div
-                                            class="grid gap-4 xl:grid-cols-[0.7fr_1.3fr]"
+                                            class="grid gap-4 min-w-0 lg:grid-cols-12"
                                         >
-                                            <div class="space-y-3">
+                                            <div class="space-y-3 min-w-0 lg:col-span-4 xl:col-span-4">
                                                 <div
                                                     class="rounded-xl border border-border bg-background/50 p-4"
                                                 >
@@ -1557,33 +1621,38 @@ const documentTypeLabel = (type: string) =>
                                                         class="mb-2 flex items-center gap-2 font-bold text-foreground"
                                                     >
                                                         <FileText
-                                                            class="size-4 text-indigo-300"
+                                                            class="size-4 text-indigo-300 shrink-0"
                                                         />
                                                         Chứng từ đã phân loại
                                                     </p>
-                                                    <a
-                                                        v-for="document in voucher.documents"
-                                                        :key="document.id"
-                                                        :href="
-                                                            documentUrl(
-                                                                voucher,
-                                                                document,
-                                                            )
-                                                        "
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        class="mb-1 block truncate text-indigo-300 hover:text-indigo-200"
-                                                    >
-                                                        {{
-                                                            documentTypeLabel(
-                                                                document.document_type,
-                                                            )
-                                                        }}
-                                                        ·
-                                                        {{
-                                                            document.original_name
-                                                        }}
-                                                    </a>
+                                                    <div class="space-y-1.5">
+                                                        <a
+                                                            v-for="document in voucher.documents"
+                                                            :key="document.id"
+                                                            :href="
+                                                                documentUrl(
+                                                                    voucher,
+                                                                    document,
+                                                                )
+                                                            "
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            class="flex items-start gap-1.5 rounded-lg border border-indigo-400/10 bg-indigo-500/10 p-2 text-indigo-300 hover:bg-indigo-500/20 hover:text-indigo-200 transition"
+                                                        >
+                                                            <FileText class="size-3.5 mt-0.5 shrink-0" />
+                                                            <span class="break-all leading-relaxed">
+                                                                <span class="font-medium">{{
+                                                                    documentTypeLabel(
+                                                                        document.document_type,
+                                                                    )
+                                                                }}</span>
+                                                                <span class="text-muted-foreground"> · </span>
+                                                                <span>{{
+                                                                    document.original_name
+                                                                }}</span>
+                                                            </span>
+                                                        </a>
+                                                    </div>
                                                 </div>
                                                 <div
                                                     v-if="
@@ -1596,30 +1665,33 @@ const documentTypeLabel = (type: string) =>
                                                         class="mb-2 flex items-center gap-2 font-bold text-foreground"
                                                     >
                                                         <Upload
-                                                            class="size-4 text-indigo-300"
+                                                            class="size-4 text-indigo-300 shrink-0"
                                                         />
                                                         Chứng từ đính kèm
                                                     </p>
-                                                    <a
-                                                        v-for="(
-                                                            path, index
-                                                        ) in voucher.evidence_paths"
-                                                        :key="path"
-                                                        :href="
-                                                            evidenceUrl(
-                                                                voucher,
-                                                                path,
-                                                            )
-                                                        "
-                                                        target="_blank"
-                                                        class="block truncate text-indigo-300 hover:text-indigo-200"
-                                                        >Tệp {{ index + 1 }} ·
-                                                        {{ path }}</a
-                                                    >
+                                                    <div class="space-y-1.5">
+                                                        <a
+                                                            v-for="(
+                                                                path, index
+                                                            ) in voucher.evidence_paths"
+                                                            :key="path"
+                                                            :href="
+                                                                evidenceUrl(
+                                                                    voucher,
+                                                                    path,
+                                                                )
+                                                            "
+                                                            target="_blank"
+                                                            class="flex items-start gap-1.5 rounded-lg border border-border bg-muted/20 p-2 text-indigo-300 hover:bg-muted/40 hover:text-indigo-200 transition"
+                                                        >
+                                                            <Upload class="size-3.5 mt-0.5 shrink-0" />
+                                                            <span class="break-all leading-relaxed">Tệp {{ index + 1 }} · {{ path }}</span>
+                                                        </a>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div
-                                                class="rounded-xl border border-border bg-background/50 p-4"
+                                                class="min-w-0 rounded-xl border border-border bg-background/50 p-4 lg:col-span-8 xl:col-span-8"
                                             >
                                                 <div
                                                     class="mb-3 flex items-center justify-between gap-3"
@@ -1640,9 +1712,9 @@ const documentTypeLabel = (type: string) =>
                                                         dòng</span
                                                     >
                                                 </div>
-                                                <div class="overflow-x-auto">
+                                                <div class="overflow-x-auto min-w-0">
                                                     <table
-                                                        class="w-full min-w-[980px] text-xs"
+                                                        class="w-full min-w-[640px] text-xs"
                                                     >
                                                         <thead
                                                             class="border-b border-border text-[10px] text-muted-foreground"
@@ -1653,17 +1725,17 @@ const documentTypeLabel = (type: string) =>
                                                                 >
                                                                     Nguyên liệu
                                                                 </th>
-                                                                <th class="p-2 text-left">Đơn vị tính</th>
-                                                                <th class="p-2 text-right">Số lượng nhập</th>
-                                                                <th class="p-2 text-right">Đơn giá nguyên liệu</th>
-                                                                <th class="p-2 text-right">Thành tiền</th>
-                                                                <th class="p-2">
+                                                                <th class="p-2 text-left whitespace-nowrap">ĐVT</th>
+                                                                <th class="p-2 text-right whitespace-nowrap">SL nhập</th>
+                                                                <th class="p-2 text-right whitespace-nowrap">Đơn giá</th>
+                                                                <th class="p-2 text-right whitespace-nowrap">Thành tiền</th>
+                                                                <th class="p-2 text-left whitespace-nowrap">
                                                                     Lô / HSD
                                                                 </th>
-                                                                <th class="p-2">
+                                                                <th class="p-2 text-left whitespace-nowrap">
                                                                     Vị trí
                                                                 </th>
-                                                                <th class="p-2">
+                                                                <th class="p-2 text-left whitespace-nowrap">
                                                                     Trạng thái
                                                                 </th>
                                                             </tr>
@@ -1677,7 +1749,7 @@ const documentTypeLabel = (type: string) =>
                                                             >
                                                                 <td class="p-2">
                                                                     <p
-                                                                        class="font-semibold text-foreground"
+                                                                        class="font-semibold text-foreground break-words"
                                                                     >
                                                                         {{
                                                                             item
@@ -1687,23 +1759,23 @@ const documentTypeLabel = (type: string) =>
                                                                         }}
                                                                     </p>
                                                                 </td>
-                                                                <td class="p-2 text-foreground">
+                                                                <td class="p-2 text-foreground whitespace-nowrap">
                                                                     {{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}
                                                                 </td>
-                                                                <td class="p-2 text-right font-bold text-sky-300">
+                                                                <td class="p-2 text-right font-bold text-sky-300 whitespace-nowrap">
                                                                     {{
                                                                         formatQuantity(
                                                                             item.actual_qty,
                                                                         )
                                                                     }}
                                                                 </td>
-                                                                <td class="p-2 text-right text-foreground">
+                                                                <td class="p-2 text-right text-foreground whitespace-nowrap">
                                                                     {{ formatCurrency(item.unit_cost) }}
                                                                 </td>
-                                                                <td class="p-2 text-right font-bold text-orange-300">
+                                                                <td class="p-2 text-right font-bold text-orange-300 whitespace-nowrap">
                                                                     {{ formatCurrency(voucherItemTotal(item)) }}
                                                                 </td>
-                                                                <td class="p-2">
+                                                                <td class="p-2 whitespace-nowrap">
                                                                     <p
                                                                         class="font-mono text-foreground"
                                                                     >
@@ -1716,7 +1788,7 @@ const documentTypeLabel = (type: string) =>
                                                                         }}
                                                                     </p>
                                                                     <p
-                                                                        class="mt-1 text-[10px] text-muted-foreground"
+                                                                        class="mt-0.5 text-[10px] text-muted-foreground"
                                                                     >
                                                                         HSD:
                                                                         {{
@@ -1726,7 +1798,7 @@ const documentTypeLabel = (type: string) =>
                                                                         }}
                                                                     </p>
                                                                 </td>
-                                                                <td class="p-2">
+                                                                <td class="p-2 whitespace-nowrap">
                                                                     <span
                                                                         v-if="
                                                                             item
@@ -1745,11 +1817,10 @@ const documentTypeLabel = (type: string) =>
                                                                         v-else
                                                                         class="text-rose-300"
                                                                         >Chưa
-                                                                        gán vị
-                                                                        trí</span
+                                                                        gán</span
                                                                     >
                                                                 </td>
-                                                                <td class="p-2">
+                                                                <td class="p-2 whitespace-nowrap">
                                                                     <span class="font-semibold text-emerald-300">Đã ghi nhận</span>
                                                                 </td>
                                                             </tr>
@@ -2330,9 +2401,11 @@ const documentTypeLabel = (type: string) =>
                                                     :ref="(element) => setRowDatePickerRef(`manufactured-${index}`, element)"
                                                     v-model="line.manufactured_date"
                                                     type="date"
+                                                    :max="line.expiry_date || undefined"
                                                     tabindex="-1"
                                                     aria-hidden="true"
                                                     class="pointer-events-none absolute top-0 right-0 h-9 w-8 opacity-0"
+                                                    @change="onManufacturedDateChange(line)"
                                                 />
                                             </div>
                                         </td>
@@ -2358,6 +2431,7 @@ const documentTypeLabel = (type: string) =>
                                                     :ref="(element) => setRowDatePickerRef(`expiry-${index}`, element)"
                                                     v-model="line.expiry_date"
                                                     type="date"
+                                                    :min="line.manufactured_date || undefined"
                                                     tabindex="-1"
                                                     aria-hidden="true"
                                                     class="pointer-events-none absolute top-0 right-0 h-9 w-8 opacity-0"

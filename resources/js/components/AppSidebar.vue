@@ -20,6 +20,7 @@ import {
     ShoppingCart,
     Package,
     PackageCheck,
+    Scale,
     Boxes,
     Calculator,
     Landmark,
@@ -433,6 +434,13 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Công thức định lượng',
+            href: '/inventory/recipes',
+            icon: Scale,
+            feature: 'inventory_basic',
+            section: 'supply',
+        },
+        {
             title: 'Điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
@@ -828,6 +836,7 @@ const ownerNav = computed<NavItem[]>(() => {
         '/menu-engineering': 'menu',
         '/best-sellers': 'menu',
         '/inventory': 'supply',
+        '/inventory/recipes': 'supply',
         '/inventory/transfers': 'supply',
         '/waste-management': 'supply',
         '/inventory/central-warehouse': 'supply',
@@ -945,6 +954,13 @@ const managerNav = computed<NavItem[]>(() => {
             href: '/inventory',
             icon: Package,
             feature: 'inventory_basic',
+        },
+        {
+            title: 'Công thức định lượng',
+            href: '/inventory/recipes',
+            icon: Scale,
+            feature: 'inventory_basic',
+            section: 'supply',
         },
         {
             title: 'Nhận hàng Kho Tổng',
@@ -1285,8 +1301,8 @@ const kitchenNav = computed<NavItem[]>(() => {
 
 // ─── INVENTORY STAFF MENU ─────────────────────────────────────────────────────
 const inventoryNav = computed<NavItem[]>(() => {
-    // Nhập kho & lịch sử giao dịch nằm sẵn dưới dạng tab trong trang Tồn kho,
-    // không phải route riêng — không tạo mục menu trỏ tới URL không tồn tại.
+    // Nhập kho & lịch sử giao dịch vẫn nằm dưới dạng tab trong trang Tồn kho;
+    // Công thức định lượng đã có route riêng để không trộn với danh sách tồn.
     // 'Trang chủ' trỏ /dashboard, DashboardController sẽ tự redirect thẳng vào /inventory
     // (giống pattern Kitchen/Cashier), đồng thời giữ đúng vị trí item[0] để mainNavItems
     // chèn 'Cổng nhân sự' vào item[1] thay vì đẩy lên đầu danh sách.
@@ -1297,6 +1313,13 @@ const inventoryNav = computed<NavItem[]>(() => {
             href: '/inventory',
             icon: Package,
             feature: 'inventory_basic',
+        },
+        {
+            title: 'Công thức định lượng',
+            href: '/inventory/recipes',
+            icon: Scale,
+            feature: 'inventory_basic',
+            section: 'supply',
         },
         {
             title: 'Nhận hàng Kho Tổng',
