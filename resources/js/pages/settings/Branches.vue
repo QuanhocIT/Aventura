@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Form, Head, router } from '@inertiajs/vue3';
-import { Building2, Pencil, Plus, Trash2, Users } from 'lucide-vue-next';
+import { Form, Head } from '@inertiajs/vue3';
+import { Building2, Pencil, Plus, Users } from 'lucide-vue-next';
 import { ref } from 'vue';
 import BackButton from '@/components/BackButton.vue';
 import InputError from '@/components/InputError.vue';
@@ -28,7 +28,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { confirmDialog } from '@/composables/useConfirm';
 
 type Branch = {
     id: number;
@@ -40,6 +39,8 @@ type Branch = {
     status: 'active' | 'inactive';
     manager_user_id: number | null;
     manager_name: string | null;
+    is_central_warehouse?: boolean;
+    warehouse_type?: string;
     employees_count: number;
     tables_count: number;
 };
@@ -52,7 +53,7 @@ type ManagerCandidate = {
 
 const props = defineProps<{
     branches: Branch[];
-    managerCandidates: ManagerCandidate[];
+    managerCandidates?: ManagerCandidate[];
     limit: number | null;
     canAddMore: boolean;
 }>();
@@ -68,23 +69,6 @@ function openCreate() {
 function openEdit(branch: Branch) {
     editingBranch.value = branch;
     showForm.value = true;
-}
-
-async function destroyBranch(branch: Branch) {
-    const ok = await confirmDialog({
-        title: `Xoá chi nhánh "${branch.name}"?`,
-        description:
-            'Hành động này không thể hoàn tác. Chi nhánh phải hết nhân viên trước khi xoá được.',
-        confirmText: 'Xoá chi nhánh',
-    });
-
-    if (!ok) {
-        return;
-    }
-
-    router.delete(`/settings/branches/${branch.id}`, {
-        preserveScroll: true,
-    });
 }
 
 defineOptions({
@@ -155,13 +139,30 @@ defineOptions({
                     >
                         <div class="flex items-start justify-between gap-2">
                             <div>
+                                <div class="flex items-center gap-2">
+                                    <p
+                                        class="font-mono text-[10px] font-bold tracking-wider text-neutral-400 uppercase"
+                                    >
+                                        {{ branch.code }}
+                                    </p>
+                                    <span
+                                        v-if="
+                                            branch.is_central_warehouse ||
+                                            branch.warehouse_type === 'central'
+                                        "
+                                        class="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400"
+                                    >
+                                        🏬 Kho Tổng
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-sky-600 uppercase dark:text-sky-400"
+                                    >
+                                        🍽️ Chi nhánh bán hàng
+                                    </span>
+                                </div>
                                 <p
-                                    class="font-mono text-[10px] font-bold tracking-wider text-neutral-400 uppercase"
-                                >
-                                    {{ branch.code }}
-                                </p>
-                                <p
-                                    class="text-sm font-bold text-neutral-900 dark:text-neutral-50"
+                                    class="mt-1 text-sm font-bold text-neutral-900 dark:text-neutral-50"
                                 >
                                     {{ branch.name }}
                                 </p>
@@ -190,15 +191,24 @@ defineOptions({
                         </p>
 
                         <div
-                            class="mt-3 flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400"
+                            class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400"
                         >
                             <span class="flex items-center gap-1"
                                 ><Users class="size-3.5" />
                                 {{ branch.employees_count }} nhân viên</span
                             >
-                            <span v-if="branch.manager_name"
-                                >QL: {{ branch.manager_name }}</span
+                            <span
+                                v-if="branch.manager_name"
+                                class="flex items-center gap-1 font-semibold text-neutral-800 dark:text-neutral-200"
                             >
+                                👤 QL: {{ branch.manager_name }}
+                            </span>
+                            <span
+                                v-else
+                                class="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400"
+                            >
+                                ⚠️ Chưa có quản lý
+                            </span>
                         </div>
 
                         <div class="mt-3 flex items-center gap-2">
@@ -208,15 +218,7 @@ defineOptions({
                                 class="h-8 cursor-pointer gap-1 rounded-lg text-xs"
                                 @click="openEdit(branch)"
                             >
-                                <Pencil class="size-3.5" /> Sửa
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                class="h-8 cursor-pointer gap-1 rounded-lg text-xs text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
-                                @click="destroyBranch(branch)"
-                            >
-                                <Trash2 class="size-3.5" /> Xoá
+                                <Pencil class="size-3.5" /> Sửa thông tin
                             </Button>
                         </div>
                     </div>
@@ -314,6 +316,70 @@ defineOptions({
                         <InputError :message="errors.name" />
                     </div>
 
+                    <!-- Mô hình chi nhánh: Cho phép chọn khi tạo mới, Cố định khi sửa -->
+                    <div v-if="!editingBranch" class="grid gap-2">
+                        <Label
+                            for="warehouse_type"
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Mô hình chi nhánh
+                            <span class="text-rose-500">*</span></Label
+                        >
+                        <Select
+                            name="warehouse_type"
+                            default-value="business"
+                        >
+                            <SelectTrigger class="rounded-xl">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="business">
+                                    🍽️ Chi nhánh bán hàng (Nhà hàng / Điểm bán)
+                                </SelectItem>
+                                <SelectItem value="central">
+                                    🏬 Kho Tổng chuỗi (Trung tâm điều phối & lưu trữ)
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p class="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                            • <b>Chi nhánh bán hàng:</b> Có bàn ăn, menu gọi món, POS thu ngân và gửi yêu cầu cấp hàng.<br />
+                            • <b>Kho Tổng chuỗi:</b> Nhập hàng từ NCC, xuất kho cấp phát cho toàn chuỗi, điều phối logistics.
+                        </p>
+                        <InputError :message="errors.warehouse_type" />
+                    </div>
+
+                    <div v-else class="grid gap-2">
+                        <Label
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                            >Mô hình chi nhánh</Label
+                        >
+                        <div
+                            class="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50/80 px-3.5 py-2.5 text-xs font-semibold text-neutral-800 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-200"
+                        >
+                            <span
+                                v-if="
+                                    editingBranch.is_central_warehouse ||
+                                    editingBranch.warehouse_type === 'central'
+                                "
+                                class="flex items-center gap-1.5 text-amber-600 dark:text-amber-400"
+                            >
+                                🏬 <span>Kho Tổng chuỗi (Trung tâm điều phối & lưu trữ)</span>
+                            </span>
+                            <span
+                                v-else
+                                class="flex items-center gap-1.5 text-sky-600 dark:text-sky-400"
+                            >
+                                🍽️ <span>Chi nhánh bán hàng (Nhà hàng / Điểm bán)</span>
+                            </span>
+                            <span
+                                class="rounded bg-neutral-200/80 px-1.5 py-0.5 text-[10px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400"
+                                >Cố định</span
+                            >
+                        </div>
+                        <p class="text-[11px] text-neutral-400 dark:text-neutral-500">
+                            🔒 Mô hình chi nhánh được thiết lập cố định khi tạo để bảo toàn toàn vẹn dữ liệu vận hành và tồn kho.
+                        </p>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-4">
                         <div class="grid gap-2">
                             <Label
@@ -363,40 +429,36 @@ defineOptions({
 
                     <div class="grid gap-2">
                         <Label
-                            for="manager_user_id"
                             class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
                             >Quản lý chi nhánh</Label
                         >
-                        <Select
-                            name="manager_user_id"
-                            :default-value="
-                                editingBranch?.manager_user_id
-                                    ? String(editingBranch.manager_user_id)
-                                    : '0'
-                            "
+                        <div
+                            v-if="editingBranch?.manager_name"
+                            class="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
                         >
-                            <SelectTrigger class="rounded-xl">
-                                <SelectValue placeholder="Chưa gán quản lý" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="0"
-                                    >Chưa gán quản lý</SelectItem
-                                >
-                                <SelectItem
-                                    v-for="manager in managerCandidates"
-                                    :key="manager.id"
-                                    :value="String(manager.id)"
-                                >
-                                    {{ manager.name }}
-                                    <template
-                                        v-if="manager.assigned_branch_name"
-                                    >
-                                        — {{ manager.assigned_branch_name }}
-                                    </template>
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <InputError :message="errors.manager_user_id" />
+                            <span class="flex items-center gap-2">
+                                <span class="text-base">👤</span>
+                                <span>{{ editingBranch.manager_name }}</span>
+                            </span>
+                            <span
+                                class="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                            >
+                                Đang phụ trách
+                            </span>
+                        </div>
+                        <div
+                            v-else
+                            class="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-3.5 py-2.5 text-xs font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+                        >
+                            <span class="flex items-center gap-1.5">
+                                <span>⚠️</span>
+                                <span>Chưa có quản lý chi nhánh</span>
+                            </span>
+                            <span class="text-[11px] text-neutral-400">Chưa gán</span>
+                        </div>
+                        <p class="text-[11px] leading-relaxed text-neutral-400 dark:text-neutral-500">
+                            💡 Quản lý chi nhánh được tạo và phân quyền trực tiếp tại mục <b>Nhân sự & Hiệu suất</b>.
+                        </p>
                     </div>
 
                     <DialogFooter>

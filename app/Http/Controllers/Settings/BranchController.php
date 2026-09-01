@@ -46,6 +46,8 @@ class BranchController extends Controller
                 'status' => $branch->status,
                 'manager_user_id' => $branch->manager_user_id,
                 'manager_name' => $branch->manager?->name,
+                'is_central_warehouse' => (bool) $branch->is_central_warehouse,
+                'warehouse_type' => $branch->warehouse_type ?? ($branch->is_central_warehouse ? 'central' : 'business'),
                 'employees_count' => (int) $branch->employees_count,
                 'tables_count' => (int) $branch->tables_count,
             ])->values();
@@ -82,10 +84,6 @@ class BranchController extends Controller
         abort_unless($restaurant, 403, 'Không tìm thấy nhà hàng.');
         abort_unless($request->user()->isOwner(), 403, 'Chỉ chủ nhà hàng mới có quyền tạo chi nhánh.');
 
-        if ($request->input('manager_user_id') === '0') {
-            $request->merge(['manager_user_id' => null]);
-        }
-
         $data = $request->validate([
             'code' => [
                 'required', 'string', 'max:50',
@@ -95,19 +93,24 @@ class BranchController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
-            'manager_user_id' => [
-                'nullable', 'integer',
-                Rule::exists('users', 'id')->where('restaurant_id', $restaurant->id),
-            ],
+            'warehouse_type' => ['nullable', 'string', 'in:business,central'],
         ]);
 
-        $manager = $this->resolveManager($restaurant->id, $data['manager_user_id'] ?? null);
-        unset($data['manager_user_id']);
+        $isCentral = ($data['warehouse_type'] ?? 'business') === 'central';
+        $data['is_central_warehouse'] = $isCentral;
+        $data['warehouse_type'] = $isCentral ? 'central' : 'business';
 
-        DB::transaction(function () use ($restaurant, $data, $manager, $branchDataAssignment): void {
+        DB::transaction(function () use ($restaurant, $data, $branchDataAssignment, $isCentral): void {
             $branch = $restaurant->branches()->create($data + ['status' => 'active']);
-            $this->syncManagerAssignment($branch, $manager, null);
             $branchDataAssignment->assignLegacyRowsToSoleBranch($branch);
+
+            if ($isCentral) {
+                DB::table('central_warehouse_assignments')->updateOrInsert(
+                    ['restaurant_id' => $restaurant->id],
+                    ['branch_id' => $branch->id, 'updated_at' => now(), 'created_at' => now()]
+                );
+                $restaurant->branches()->where('id', '!=', $branch->id)->update(['is_central_warehouse' => false]);
+            }
         });
 
         return back()->with('success', "Đã tạo chi nhánh \"{$data['name']}\" thành công.");
@@ -119,10 +122,6 @@ class BranchController extends Controller
         abort_unless($restaurant && $branch->restaurant_id === $restaurant->id, 403, 'Chi nhánh không thuộc nhà hàng của bạn.');
         abort_unless($request->user()->isOwner(), 403, 'Chỉ chủ nhà hàng mới có quyền sửa chi nhánh.');
 
-        if ($request->input('manager_user_id') === '0') {
-            $request->merge(['manager_user_id' => null]);
-        }
-
         $data = $request->validate([
             'code' => [
                 'required', 'string', 'max:50',
@@ -133,10 +132,6 @@ class BranchController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
             'status' => ['required', 'string', 'in:active,inactive'],
-            'manager_user_id' => [
-                'nullable', 'integer',
-                Rule::exists('users', 'id')->where('restaurant_id', $restaurant->id),
-            ],
         ]);
 
         if (($data['status'] ?? null) === 'inactive') {
@@ -147,19 +142,8 @@ class BranchController extends Controller
             }
         }
 
-        $managerAssignmentChanged = array_key_exists('manager_user_id', $data);
-        $manager = $managerAssignmentChanged
-            ? $this->resolveManager($restaurant->id, $data['manager_user_id'], $branch->id)
-            : null;
-        $previousManagerId = $branch->getRawOriginal('manager_user_id');
-        unset($data['manager_user_id']);
-
-        DB::transaction(function () use ($branch, $data, $managerAssignmentChanged, $manager, $previousManagerId): void {
+        DB::transaction(function () use ($branch, $data): void {
             $branch->update($data);
-
-            if ($managerAssignmentChanged) {
-                $this->syncManagerAssignment($branch, $manager, $previousManagerId);
-            }
         });
 
         return back()->with('success', "Đã cập nhật chi nhánh \"{$branch->name}\".");
@@ -169,66 +153,11 @@ class BranchController extends Controller
     {
         $restaurant = $request->user()->restaurant;
         abort_unless($restaurant && $branch->restaurant_id === $restaurant->id, 403, 'Chi nhánh không thuộc nhà hàng của bạn.');
-        abort_unless($request->user()->isOwner(), 403, 'Chỉ chủ nhà hàng mới có quyền xoá chi nhánh.');
+        abort_unless($request->user()->isOwner(), 403, 'Chỉ chủ nhà hàng mới có quyền quản lý chi nhánh.');
 
-        if ($restaurant->branches()->count() <= 1) {
-            return back()->withErrors(['branch' => 'Không thể xoá chi nhánh cuối cùng — nhà hàng phải có ít nhất 1 chi nhánh.']);
-        }
-
-        // Chặn xóa nếu là Kho Tổng active
-        if ($branch->is_central_warehouse || $branch->warehouse_type === 'central') {
-            return back()->withErrors(['branch' => 'Không thể xoá Kho Tổng đang kích hoạt. Vui lòng thiết lập Kho Tổng sang chi nhánh khác trước khi xoá.']);
-        }
-
-        if ($branch->employees()->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh vẫn còn nhân viên đang được gán — vui lòng chuyển nhân viên sang chi nhánh khác trước khi xoá.']);
-        }
-
-        // Chặn xóa nếu còn tồn kho nguyên liệu > 0
-        if (Inventory::where('branch_id', $branch->id)->where('quantity_on_hand', '>', 0)->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh vẫn còn tồn kho nguyên vật liệu (> 0). Vui lòng luân chuyển hoặc xuất huỷ tồn kho trước khi xoá.']);
-        }
-
-        // Chặn xóa nếu còn lô hàng chưa xuất hết
-        if (InventoryBatch::where('branch_id', $branch->id)->where('quantity_remaining', '>', 0)->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh vẫn còn các lô hàng chưa xuất hết. Vui lòng xử lý lô hàng trước khi xoá.']);
-        }
-
-        // Chặn xóa nếu có đơn cấp phát kho tổng chưa hoàn tất
-        if (SupplyRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
-            ->whereNotIn('status', SupplyRequest::terminalStatuses())
-            ->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh đang có đơn yêu cầu cấp phát chưa hoàn tất hoặc đang xử lý.']);
-        }
-
-        // Chặn xóa nếu có đơn luân chuyển kho chưa đóng
-        if (StockTransferRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
-            ->whereNotIn('status', ['received', 'returned', 'destroyed', 'cancelled', 'rejected'])
-            ->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh đang có đơn luân chuyển kho chưa hoàn tất.']);
-        }
-
-        // Chặn xóa nếu có phiên kiểm kê chưa duyệt / chưa hủy
-        if (InventoryCountSession::where('branch_id', $branch->id)
-            ->whereNotIn('status', ['approved', 'cancelled', 'rejected'])
-            ->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh đang có phiên kiểm kê kho chưa kết thúc.']);
-        }
-
-        // Chặn xóa nếu có tranh chấp kho đang mở
-        if (InventoryDiscrepancyDispute::whereHas('supplyRequest', fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
-            ->where('status', 'open')
-            ->exists()) {
-            return back()->withErrors(['branch' => 'Chi nhánh đang có hồ sơ tranh chấp khiếu nại kho chưa giải quyết.']);
-        }
-
-        $previousManagerId = $branch->getRawOriginal('manager_user_id');
-        DB::transaction(function () use ($branch, $previousManagerId): void {
-            $this->syncManagerAssignment($branch, null, $previousManagerId);
-            $branch->delete();
-        });
-
-        return back()->with('success', "Đã xoá chi nhánh \"{$branch->name}\".");
+        return back()->withErrors([
+            'branch' => 'Hệ thống không cho phép xoá chi nhánh nhằm bảo toàn toàn vẹn dữ liệu lịch sử đơn hàng, chứng từ và báo cáo tài chính. Nếu chi nhánh không còn hoạt động, vui lòng chuyển trạng thái sang "Tạm ngưng".',
+        ]);
     }
 
     private function resolveManager(int $restaurantId, mixed $managerUserId, ?int $exceptBranchId = null): ?User

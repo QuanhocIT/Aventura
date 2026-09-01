@@ -62,14 +62,14 @@ class HandleInertiaRequests extends Middleware
                         "tenant_branches:v3:{$restaurant->id}:all",
                         300,
                         fn () => $restaurant->branches()
-                            ->select('id', 'name')
+                            ->select('id', 'name', 'code', 'is_central_warehouse', 'warehouse_type')
                             ->get()
                             ->toArray()
                     )
                     : ($tenantContext->isBranchScoped()
                         ? $restaurant->branches()
                             ->whereKey($tenantContext->activeBranchId())
-                            ->select('id', 'name')
+                            ->select('id', 'name', 'code', 'is_central_warehouse', 'warehouse_type')
                             ->get()
                             ->toArray()
                         : []);

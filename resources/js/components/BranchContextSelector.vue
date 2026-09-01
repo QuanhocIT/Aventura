@@ -62,7 +62,7 @@ const handleChange = (event: Event) => {
                 :key="branch.id"
                 :value="branch.id"
             >
-                {{ branch.name }}
+                {{ branch.name }}{{ branch.is_central_warehouse || branch.warehouse_type === 'central' ? ' (Kho Tổng)' : '' }}
             </option>
         </select>
 

@@ -24,13 +24,17 @@ class RestaurantBranch extends Model
     {
         // Xóa cache branches trong Inertia share khi branch thay đổi
         $invalidate = function (self $branch) {
+            Cache::forget("tenant_branches:v3:{$branch->restaurant_id}:all");
             Cache::forget("tenant_branches:v2:{$branch->restaurant_id}:all");
             Cache::forget("tenant_branches:{$branch->restaurant_id}");
+            Cache::forget("quota_summary:{$branch->restaurant_id}");
         };
 
         static::created($invalidate);
         static::updated($invalidate);
         static::deleted($invalidate);
+        static::restored($invalidate);
+        static::forceDeleted($invalidate);
     }
 
     public function restaurant(): BelongsTo

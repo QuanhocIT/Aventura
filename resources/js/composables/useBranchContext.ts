@@ -4,6 +4,9 @@ import { computed } from 'vue';
 export type BranchContextItem = {
     id: number;
     name: string;
+    code?: string;
+    is_central_warehouse?: boolean;
+    warehouse_type?: 'central' | 'business' | string;
 };
 
 function normalizeRoles(raw: unknown): string[] {
