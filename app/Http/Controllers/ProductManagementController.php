@@ -12,6 +12,7 @@ use App\Models\ProductRecipe;
 use App\Models\RestaurantBranch;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Models\User;
 use App\Notifications\ProductRecipeRequiredNotification;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -368,7 +369,7 @@ class ProductManagementController extends Controller
         return back()->with('success', 'Đã xóa nhóm món ăn.');
     }
 
-    private function resolveCatalogBranch($user, TenantContext $context, array $data): ?int
+    private function resolveCatalogBranch(User $user, TenantContext $context, array $data): ?int
     {
         if (($data['scope'] ?? 'branch') === 'shared') {
             if (! $user->isOwner()) {

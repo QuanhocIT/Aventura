@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\ApprovalRequest;
+use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\CashPostingService;
 use App\Services\QuotaService;
@@ -821,7 +822,7 @@ class CashFlowController extends Controller
         return "{$restaurantId}:{$branchId}:".($areaId ?? 'default');
     }
 
-    private function requireActiveBranch($user): int
+    private function requireActiveBranch(User $user): int
     {
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? $user->assignedBranchId() : null);

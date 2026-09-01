@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\WorkShift;
 use App\Services\CashPostingService;
 use App\Services\FinancialPostingService;
+use Illuminate\Support\Facades\Auth;
 
 class PaymentObserver
 {
@@ -31,7 +32,7 @@ class PaymentObserver
         }
 
         $isRefund = $payment->status === 'refunded';
-        $userId = $payment->processed_by ?? auth()->id();
+        $userId = $payment->processed_by ?? Auth::id();
         $account = match (strtolower((string) $payment->payment_method)) {
             'cash' => '1111',
             'bank_transfer', 'vietqr', 'vnpay' => '1121',

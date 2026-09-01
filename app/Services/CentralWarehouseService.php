@@ -26,6 +26,7 @@ use App\Notifications\SupplyRequestReceivingReportNotification;
 use App\Notifications\SupplyRequestStatusNotification;
 use App\Notifications\WarehouseTaskAssignedNotification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -1629,7 +1630,7 @@ class CentralWarehouseService
         });
     }
 
-    private function buildReceivingReportSnapshot($items, array $receivedItems): array
+    private function buildReceivingReportSnapshot(Collection $items, array $receivedItems): array
     {
         return $items->map(function (SupplyRequestItem $item) use ($receivedItems): array {
             $received = collect($receivedItems)->firstWhere('id', $item->id);
