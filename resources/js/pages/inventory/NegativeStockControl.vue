@@ -4,11 +4,17 @@ import axios from 'axios';
 import {
     AlertTriangle,
     ArrowLeft,
+    ArrowRight,
     CheckCircle2,
+    ChevronRight,
     ClipboardCheck,
     Clock3,
     FileWarning,
+    History,
+    Layers,
+    ShieldAlert,
     ShieldCheck,
+    Sparkles,
     UserRound,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -134,50 +140,47 @@ const status = computed(() => selectedStatus.value || 'active');
 const severity = computed(() => selectedSeverity.value || '');
 
 const processSteps = [
-    ['1', 'Phát hiện', 'Hệ thống ghi nhận tồn < 0'],
-    ['2', 'Điều tra', 'Phân loại nguyên nhân & giao việc'],
-    ['3', 'Phê duyệt', 'Cao/Critical cần Chủ duyệt'],
-    ['4', 'Khắc phục', 'Nhập bù/điều chỉnh bằng giao dịch thật'],
-    ['5', 'Đối chiếu', 'Người độc lập kiểm tra'],
-    ['6', 'Chốt', 'Đóng hồ sơ và lưu dấu vết'],
+    { num: '1', name: 'Phát hiện', desc: 'Hệ thống ghi nhận tồn < 0' },
+    { num: '2', name: 'Điều tra', desc: 'Phân loại nguyên nhân & giao việc' },
+    { num: '3', name: 'Phê duyệt', desc: 'Mức Cao/Critical cần Chủ duyệt' },
+    { num: '4', name: 'Khắc phục', desc: 'Nhập bù/điều chỉnh giao dịch thật' },
+    { num: '5', name: 'Đối chiếu', desc: 'Người độc lập kiểm tra số dư' },
+    { num: '6', name: 'Chốt', desc: 'Đóng hồ sơ & lưu vết kiểm toán' },
 ];
 
 const statusLabel = (value: string): string =>
     ({
         open: 'Chưa lập phương án',
         in_progress: 'Đang xử lý',
-        pending_owner_approval: 'Chờ Chủ doanh nghiệp duyệt',
+        pending_owner_approval: 'Chờ Chủ duyệt',
         pending_verification: 'Chờ đối chiếu độc lập',
-        resolved: 'Đã chốt',
+        resolved: 'Đã chốt xong',
     })[value] || value;
+
+const statusClass = (value: string): string =>
+    ({
+        open: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+        in_progress: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+        pending_owner_approval: 'border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300',
+        pending_verification: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+        resolved: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    })[value] || 'border-border bg-muted text-muted-foreground';
 
 const severityClass = (value: string): string =>
     ({
-        critical:
-            'border-red-300 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300',
-        high: 'border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300',
-        medium: 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-        low: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300',
-    })[value] || 'border-border bg-muted text-foreground';
+        critical: 'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-400 font-extrabold',
+        high: 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold',
+        medium: 'border-indigo-500/30 bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 font-medium',
+        low: 'border-slate-500/30 bg-slate-500/15 text-slate-700 dark:text-slate-400 font-medium',
+    })[value] || 'border-border bg-muted text-muted-foreground';
 
-const statusClass = (value: string): string =>
-    value === 'resolved'
-        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-        : value === 'pending_owner_approval'
-          ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300'
-          : value === 'pending_verification'
-            ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300'
-            : value === 'in_progress'
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-              : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300';
-
-function formatQuantity(value: number): string {
+function formatQuantity(value: number | undefined): string {
     return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(
         value || 0,
     );
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined): string {
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
@@ -191,9 +194,9 @@ function planDraft(item: NegativeCase): string {
 
 function beginEdit(item: NegativeCase): void {
     editingId.value = item.id;
-    plans.value[item.id] = planDraft(item);
+    plans.value[item.id] = item.handling_plan ?? item.auto_plan ?? '';
     causes.value[item.id] = item.root_cause ?? '';
-    causeCodes.value[item.id] = item.root_cause_code ?? 'unknown';
+    causeCodes.value[item.id] = item.root_cause_code ?? '';
     containmentActions.value[item.id] = item.containment_action ?? '';
     correctiveActions.value[item.id] = item.corrective_action ?? '';
     dates.value[item.id] = item.expected_restock_at ?? '';
@@ -389,386 +392,372 @@ function canResolve(item: NegativeCase): boolean {
         item.on_hand >= 0
     );
 }
+
+const summaryCards = computed(() => [
+    {
+        title: 'Hồ sơ đang mở',
+        value: props.summary.active_cases,
+        subtitle: `${props.summary.open_cases ?? 0} chưa lập phương án`,
+        colorClass: 'text-rose-600 dark:text-rose-400',
+        badge: 'Cần xử lý',
+        badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
+        icon: AlertTriangle,
+        iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
+    },
+    {
+        title: 'Đang âm thực tế',
+        value: props.summary.negative_cases,
+        subtitle: `${formatQuantity(props.summary.negative_quantity)} đv nguyên liệu`,
+        colorClass: 'text-amber-600 dark:text-amber-400',
+        badge: 'Tồn kho âm',
+        badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+        icon: FileWarning,
+        iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+    },
+    {
+        title: 'Giá trị âm ước tính',
+        value: formatCurrency(props.summary.estimated_value),
+        subtitle: 'Thiệt hại/chênh lệch dự kiến',
+        colorClass: 'text-foreground',
+        badge: 'Tài chính',
+        badgeClass: 'bg-muted text-muted-foreground border-border',
+        icon: Layers,
+        iconBg: 'bg-muted text-muted-foreground border border-border',
+    },
+    {
+        title: 'Chờ Chủ duyệt',
+        value: props.summary.pending_owner_approval,
+        subtitle: `Cao ${props.summary.high_cases} · Critical ${props.summary.critical_cases}`,
+        colorClass: 'text-purple-600 dark:text-purple-400',
+        badge: 'Cấp thẩm quyền',
+        badgeClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
+        icon: ShieldAlert,
+        iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20',
+    },
+    {
+        title: 'Chờ đối chiếu',
+        value: props.summary.pending_verification,
+        subtitle: `Quá hạn: ${props.summary.overdue_cases} hồ sơ`,
+        colorClass: 'text-cyan-600 dark:text-cyan-400',
+        badge: 'Kiểm toán',
+        badgeClass: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/20',
+        icon: ShieldCheck,
+        iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20',
+    },
+    {
+        title: 'Đã chốt 30 ngày',
+        value: props.summary.resolved_last_30_days,
+        subtitle: formatCurrency(props.summary.resolved_value_last_30_days),
+        colorClass: 'text-emerald-600 dark:text-emerald-400',
+        badge: 'Hoàn tất',
+        badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+        icon: CheckCircle2,
+        iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+    },
+]);
 </script>
 
 <template>
     <Head title="Trung tâm xử lý âm nguyên liệu" />
 
-    <div class="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <div
-                    class="mb-2 flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                    <Link
-                        href="/inventory"
-                        class="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                        <ArrowLeft class="size-3.5" /> Tồn kho
-                    </Link>
-                    <span>/</span>
-                    <span>Kiểm soát âm nguyên liệu</span>
-                </div>
-                <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
-                    Trung tâm xử lý âm nguyên liệu
-                </h1>
-                <p class="mt-1 max-w-3xl text-sm text-muted-foreground">
-                    Một hồ sơ cho mọi trường hợp âm: xác định nguyên nhân, lập
-                    phương án bù/điều chỉnh, phê duyệt theo mức độ và chỉ chốt
-                    sau khi tồn thực tế không còn âm.
-                </p>
-            </div>
-            <div
-                class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200"
-            >
-                <div
-                    class="text-[11px] font-semibold tracking-wider uppercase opacity-70"
-                >
-                    Phạm vi tài khoản
-                </div>
-                <div class="mt-1 flex items-center gap-2 font-semibold">
-                    <ShieldCheck class="size-4" /> {{ scopeLabel }}
-                </div>
-            </div>
-        </div>
-
-        <Card
-            class="border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/20"
+    <div class="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 pb-16">
+        <!-- ── 1. HEADER CHUẨN ENTERPRISE ─────────────────────────────── -->
+        <header
+            class="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/30 p-5.5 shadow-xs sm:flex-row sm:items-center"
         >
-            <CardContent class="p-4">
-                <div
-                    class="mb-3 flex flex-wrap items-center justify-between gap-2"
-                >
-                    <div
-                        class="text-sm font-semibold text-indigo-950 dark:text-indigo-100"
-                    >
-                        Quy trình chuẩn 6 bước
+            <div class="pointer-events-none absolute -top-12 -right-12 size-48 rounded-full bg-amber-500/10 blur-2xl" />
+
+            <div class="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                    <div class="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+                        <Link
+                            href="/inventory"
+                            class="inline-flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground transition"
+                        >
+                            <ArrowLeft class="size-3.5" /> Tồn kho
+                        </Link>
+                        <span>/</span>
+                        <span class="font-medium text-foreground">Kiểm soát âm nguyên liệu</span>
                     </div>
-                    <div
-                        class="text-xs text-indigo-700/80 dark:text-indigo-300/80"
-                    >
-                        Không được bỏ qua bước giao dịch kho và đối chiếu
+
+                    <h1 class="text-xl font-bold tracking-tight text-foreground sm:text-2xl lg:text-3xl">
+                        Trung tâm xử lý âm nguyên liệu
+                    </h1>
+
+                    <p class="mt-1 max-w-3xl text-xs text-muted-foreground leading-relaxed">
+                        Quy trình đóng hồ sơ chặt chẽ: xác định nguyên nhân, lập phương án bù/điều chỉnh, phê duyệt theo thẩm quyền và chỉ chốt sau khi tồn thực tế không còn âm.
+                    </p>
+                </div>
+
+                <!-- Scope Pill -->
+                <div
+                    class="rounded-xl border border-border bg-background/80 px-4 py-2.5 text-xs shadow-xs backdrop-blur-xs"
+                >
+                    <div class="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+                        Phạm vi tài khoản
+                    </div>
+                    <div class="mt-0.5 flex items-center gap-2 font-bold text-foreground">
+                        <ShieldCheck class="size-4 text-primary" />
+                        {{ scopeLabel }}
                     </div>
                 </div>
-                <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            </div>
+        </header>
+
+        <!-- ── 2. PROCESS STEPPER CARD (QUY TRÌNH CHUẨN 6 BƯỚC) ───────── -->
+        <Card class="overflow-hidden border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs">
+            <CardHeader class="border-b border-border/60 bg-muted/20 py-3.5 px-5">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-xs font-bold text-foreground">
+                        <Sparkles class="size-3.5 text-primary" />
+                        Quy trình kiểm soát âm tồn 6 bước tiêu chuẩn
+                    </div>
+                    <span class="text-[11px] font-medium text-muted-foreground">
+                        Không được bỏ qua bước giao dịch kho và đối chiếu độc lập
+                    </span>
+                </div>
+            </CardHeader>
+
+            <CardContent class="p-4 sm:p-5">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                     <div
                         v-for="step in processSteps"
-                        :key="step[0]"
-                        class="rounded-lg border border-indigo-200/80 bg-background/70 p-3 dark:border-indigo-800"
+                        :key="step.num"
+                        class="rounded-xl border border-border/70 bg-muted/20 p-3 shadow-xs transition hover:border-primary/40 hover:bg-muted/30"
                     >
-                        <div
-                            class="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                        >
+                        <div class="flex items-center gap-2 text-xs font-bold text-foreground">
                             <span
-                                class="flex size-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] text-white"
-                                >{{ step[0] }}</span
-                            >{{ step[1] }}
+                                class="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-black text-primary-foreground"
+                            >
+                                {{ step.num }}
+                            </span>
+                            {{ step.name }}
                         </div>
-                        <div
-                            class="mt-1 text-[11px] leading-4 text-muted-foreground"
-                        >
-                            {{ step[2] }}
-                        </div>
+                        <p class="mt-1.5 text-[11px] leading-snug text-muted-foreground font-medium">
+                            {{ step.desc }}
+                        </p>
                     </div>
                 </div>
             </CardContent>
         </Card>
 
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <Card
-                class="border-red-200 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20"
+        <!-- ── 3. 6 KPI METRICS SUMMARY CARDS ──────────────────────────── -->
+        <section class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-6">
+            <div
+                v-for="card in summaryCards"
+                :key="card.title"
+                class="rounded-2xl border border-border/80 bg-card p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
             >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Hồ sơ đang mở
-                    </div>
-                    <div
-                        class="mt-1 text-2xl font-bold text-red-700 dark:text-red-300"
+                <div class="flex items-center justify-between gap-2">
+                    <span
+                        class="rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase"
+                        :class="card.badgeClass"
                     >
-                        {{ summary.active_cases }}
-                    </div></CardContent
-                >
-            </Card>
-            <Card
-                class="border-orange-200 bg-orange-50/60 dark:border-orange-900 dark:bg-orange-950/20"
-            >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Đang âm thực tế
-                    </div>
+                        {{ card.badge }}
+                    </span>
                     <div
-                        class="mt-1 text-2xl font-bold text-orange-700 dark:text-orange-300"
+                        class="flex size-7 items-center justify-center rounded-lg"
+                        :class="card.iconBg"
                     >
-                        {{ summary.negative_cases }}
+                        <component :is="card.icon" class="size-3.5" />
                     </div>
-                    <div class="text-xs text-muted-foreground">
-                        {{ formatQuantity(summary.negative_quantity) }} đơn vị
-                    </div></CardContent
-                >
-            </Card>
-            <Card
-                class="border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20"
-            >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Giá trị âm ước tính
-                    </div>
-                    <div
-                        class="mt-1 text-xl font-bold text-amber-700 dark:text-amber-300"
-                    >
-                        {{ formatCurrency(summary.estimated_value) }}
-                    </div></CardContent
-                >
-            </Card>
-            <Card
-                class="border-purple-200 bg-purple-50/60 dark:border-purple-900 dark:bg-purple-950/20"
-            >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Chờ Chủ duyệt
-                    </div>
-                    <div
-                        class="mt-1 text-2xl font-bold text-purple-700 dark:text-purple-300"
-                    >
-                        {{ summary.pending_owner_approval }}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                        Cao {{ summary.high_cases }} · Critical
-                        {{ summary.critical_cases }}
-                    </div></CardContent
-                >
-            </Card>
-            <Card
-                class="border-cyan-200 bg-cyan-50/60 dark:border-cyan-900 dark:bg-cyan-950/20"
-            >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Chờ đối chiếu
-                    </div>
-                    <div
-                        class="mt-1 text-2xl font-bold text-cyan-700 dark:text-cyan-300"
-                    >
-                        {{ summary.pending_verification }}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                        Quá hạn {{ summary.overdue_cases }}
-                    </div></CardContent
-                >
-            </Card>
-            <Card
-                class="border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20"
-            >
-                <CardContent class="p-4"
-                    ><div class="text-xs text-muted-foreground">
-                        Đã chốt 30 ngày
-                    </div>
-                    <div
-                        class="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300"
-                    >
-                        {{ summary.resolved_last_30_days }}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                        {{
-                            formatCurrency(summary.resolved_value_last_30_days)
-                        }}
-                    </div></CardContent
-                >
-            </Card>
-        </div>
+                </div>
 
-        <Card>
-            <CardHeader
-                class="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-                <CardTitle class="flex items-center gap-2 text-base"
-                    ><FileWarning class="size-4 text-red-500" /> Danh sách hồ
-                    sơ</CardTitle
-                >
-                <div class="flex flex-wrap gap-2">
-                    <select
-                        v-if="canViewAllBranches"
-                        v-model="selectedBranchId"
-                        class="h-9 rounded-md border bg-background px-3 text-xs"
-                        @change="applyFilters"
-                    >
-                        <option :value="null">Toàn hệ thống</option>
-                        <option
-                            v-for="branch in branches"
-                            :key="branch.id"
-                            :value="branch.id"
+                <p class="mt-3 text-[11px] font-semibold text-muted-foreground">
+                    {{ card.title }}
+                </p>
+
+                <p class="mt-1 text-2xl font-black tracking-tight" :class="card.colorClass">
+                    {{ card.value }}
+                </p>
+
+                <p class="mt-1 truncate text-[11px] font-medium text-muted-foreground" :title="card.subtitle">
+                    {{ card.subtitle }}
+                </p>
+            </div>
+        </section>
+
+        <!-- ── 4. DANH SÁCH HỒ SƠ ÂM TỒN ───────────────────────────────── -->
+        <Card class="border-border/80 bg-card shadow-xs">
+            <CardHeader class="border-b border-border/60 pb-3.5">
+                <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                    <CardTitle class="flex items-center gap-2 text-base font-bold text-foreground">
+                        <FileWarning class="size-4 text-rose-500" />
+                        Danh sách hồ sơ âm tồn
+                    </CardTitle>
+
+                    <!-- Filter Controls -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select
+                            v-if="canViewAllBranches"
+                            v-model="selectedBranchId"
+                            class="h-9 rounded-xl border border-border bg-background px-3 text-xs text-foreground font-medium outline-none focus:border-primary"
+                            @change="applyFilters"
                         >
-                            {{ branch.name
-                            }}{{ branch.is_central ? ' (Kho Tổng)' : '' }}
-                        </option>
-                    </select>
-                    <select
-                        v-model="selectedStatus"
-                        class="h-9 rounded-md border bg-background px-3 text-xs"
-                        @change="applyFilters"
-                    >
-                        <option value="active">Hồ sơ đang mở</option>
-                        <option value="resolved">Đã chốt</option>
-                        <option value="all">Tất cả</option>
-                    </select>
-                    <select
-                        v-model="selectedSeverity"
-                        class="h-9 rounded-md border bg-background px-3 text-xs"
-                        @change="applyFilters"
-                    >
-                        <option value="">Tất cả mức độ</option>
-                        <option value="critical">Critical</option>
-                        <option value="high">Cao</option>
-                        <option value="medium">Trung bình</option>
-                        <option value="low">Thấp</option>
-                    </select>
+                            <option :value="null">Toàn hệ thống</option>
+                            <option
+                                v-for="branch in branches"
+                                :key="branch.id"
+                                :value="branch.id"
+                            >
+                                {{ branch.name }}{{ branch.is_central ? ' (Kho Tổng)' : '' }}
+                            </option>
+                        </select>
+
+                        <select
+                            v-model="selectedStatus"
+                            class="h-9 rounded-xl border border-border bg-background px-3 text-xs text-foreground font-medium outline-none focus:border-primary"
+                            @change="applyFilters"
+                        >
+                            <option value="active">Hồ sơ đang mở</option>
+                            <option value="resolved">Đã chốt xong</option>
+                            <option value="all">Tất cả hồ sơ</option>
+                        </select>
+
+                        <select
+                            v-model="selectedSeverity"
+                            class="h-9 rounded-xl border border-border bg-background px-3 text-xs text-foreground font-medium outline-none focus:border-primary"
+                            @change="applyFilters"
+                        >
+                            <option value="">Tất cả mức độ</option>
+                            <option value="critical">Critical (Nghiêm trọng)</option>
+                            <option value="high">Cao</option>
+                            <option value="medium">Trung bình</option>
+                            <option value="low">Thấp</option>
+                        </select>
+                    </div>
                 </div>
             </CardHeader>
-            <CardContent class="space-y-4">
+
+            <CardContent class="space-y-4 p-5">
+                <!-- Empty state -->
                 <div
                     v-if="!cases.length"
-                    class="rounded-xl border border-dashed border-emerald-300 bg-emerald-50 p-8 text-center dark:border-emerald-800 dark:bg-emerald-950/20"
+                    class="rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.03] p-10 text-center"
                 >
-                    <CheckCircle2 class="mx-auto size-8 text-emerald-500" />
-                    <div
-                        class="mt-2 font-semibold text-emerald-800 dark:text-emerald-300"
-                    >
-                        Không có hồ sơ phù hợp
-                    </div>
-                    <p
-                        class="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80"
-                    >
-                        Hệ thống vẫn theo dõi tồn thực tế; khi bất kỳ kho nào
-                        xuống dưới 0, hồ sơ sẽ tự động xuất hiện tại đây.
+                    <CheckCircle2 class="mx-auto size-9 text-emerald-500" />
+                    <h3 class="mt-2 text-sm font-bold text-foreground">
+                        Không có hồ sơ âm nguyên liệu
+                    </h3>
+                    <p class="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+                        Hệ thống đang theo dõi tồn kho theo thời gian thực; khi bất kỳ chi nhánh hoặc kho nào xuống dưới 0, hồ sơ sẽ tự động xuất hiện tại đây.
                     </p>
                 </div>
 
+                <!-- Case items -->
                 <div
                     v-for="item in cases"
                     :key="item.id"
-                    class="rounded-xl border bg-card p-4 shadow-sm"
+                    class="rounded-2xl border bg-card p-4 transition-all duration-200 hover:shadow-xs"
                     :class="
                         item.severity === 'critical'
-                            ? 'border-red-300 dark:border-red-800'
-                            : 'border-border'
+                            ? 'border-rose-500/40 bg-rose-500/[0.02]'
+                            : 'border-border/80 hover:border-border'
                     "
                 >
-                    <div
-                        class="flex flex-wrap items-start justify-between gap-3"
-                    >
+                    <!-- Header of case item -->
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="font-semibold">
+                                <h3 class="font-bold text-foreground text-sm">
                                     {{ item.ingredient_name || 'Nguyên liệu' }}
                                 </h3>
+                                <span class="font-mono text-[11px] text-muted-foreground font-semibold">
+                                    {{ item.case_code }}
+                                </span>
                                 <span
-                                    class="font-mono text-[11px] text-muted-foreground"
-                                    >{{ item.case_code }}</span
-                                >
-                                <span
-                                    class="rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                                    class="rounded-md border px-2 py-0.5 text-[10px]"
                                     :class="severityClass(item.severity)"
-                                    >{{ item.severity_label }}</span
                                 >
+                                    {{ item.severity_label }}
+                                </span>
                                 <span
-                                    class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                    class="rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                                     :class="statusClass(item.status)"
-                                    >{{ statusLabel(item.status) }}</span
                                 >
+                                    {{ statusLabel(item.status) }}
+                                </span>
                             </div>
-                            <div
-                                class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"
-                            >
-                                <span>{{
-                                    item.branch_name || 'Kho chưa xác định'
-                                }}</span>
-                                <span>{{ item.source_label }}</span>
+
+                            <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground font-medium">
+                                <span class="font-semibold text-foreground">
+                                    {{ item.branch_name || 'Kho chưa xác định' }}
+                                </span>
+                                <span>· {{ item.source_label }}</span>
+                                <span>· Phát hiện {{ item.detected_at || '—' }}</span>
                                 <span
-                                    >Phát hiện
-                                    {{ item.detected_at || '—' }}</span
+                                    :class="item.is_overdue ? 'font-bold text-rose-600 dark:text-rose-400' : ''"
                                 >
-                                <span
-                                    :class="
-                                        item.is_overdue
-                                            ? 'font-semibold text-red-600 dark:text-red-400'
-                                            : ''
-                                    "
-                                    >Hạn SLA {{ item.due_at || '—'
-                                    }}{{
-                                        item.is_overdue ? ' · QUÁ HẠN' : ''
-                                    }}</span
-                                >
+                                    · Hạn SLA: {{ item.due_at || '—' }}{{ item.is_overdue ? ' (QUÁ HẠN)' : '' }}
+                                </span>
                             </div>
                         </div>
+
+                        <!-- Right Stats -->
                         <div class="text-right text-xs">
                             <div
                                 v-if="item.on_hand < 0"
-                                class="font-bold text-red-600 dark:text-red-400"
+                                class="text-sm font-black text-rose-600 dark:text-rose-400"
                             >
-                                Âm {{ formatQuantity(item.negative_quantity) }}
-                                {{ item.unit_symbol || '' }}
+                                Âm {{ formatQuantity(item.negative_quantity) }} {{ item.unit_symbol || '' }}
                             </div>
                             <div
                                 v-else
-                                class="font-semibold text-emerald-600 dark:text-emerald-400"
+                                class="text-sm font-black text-emerald-600 dark:text-emerald-400"
                             >
                                 Đã bù tồn, chờ chốt
                             </div>
-                            <div class="mt-1 text-muted-foreground">
-                                Giá trị
-                                {{ formatCurrency(item.estimated_value) }}
+                            <div class="mt-0.5 text-xs text-muted-foreground font-medium">
+                                Giá trị: <strong class="text-foreground">{{ formatCurrency(item.estimated_value) }}</strong>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-3 grid gap-3 text-xs md:grid-cols-4">
-                        <div class="rounded-lg bg-muted/50 p-3">
-                            <div class="font-semibold text-foreground">
+                    <!-- 4 Info Columns Grid -->
+                    <div class="mt-3.5 grid gap-2.5 text-xs md:grid-cols-4">
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <div class="font-bold text-foreground">
                                 Cách xử lý bắt buộc
                             </div>
-                            <div class="mt-1 text-muted-foreground">
+                            <div class="mt-1 text-muted-foreground font-medium leading-relaxed">
                                 {{ item.auto_plan }}
                             </div>
                         </div>
-                        <div class="rounded-lg bg-muted/50 p-3">
-                            <div class="font-semibold text-foreground">
+
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <div class="font-bold text-foreground">
                                 Người phụ trách
                             </div>
-                            <div
-                                class="mt-1 flex items-center gap-1 text-muted-foreground"
-                            >
-                                <UserRound class="size-3.5" />
-                                {{
-                                    item.responsible_user_name ||
-                                    'Chưa giao người phụ trách'
-                                }}
+                            <div class="mt-1 flex items-center gap-1.5 text-muted-foreground font-medium">
+                                <UserRound class="size-3.5 text-primary" />
+                                {{ item.responsible_user_name || 'Chưa giao người phụ trách' }}
                             </div>
                             <div
                                 v-if="item.expected_restock_at"
-                                class="mt-1 flex items-center gap-1 text-muted-foreground"
+                                class="mt-1 flex items-center gap-1.5 text-muted-foreground"
                             >
-                                <Clock3 class="size-3.5" /> Bù dự kiến
-                                {{ item.expected_restock_at }}
+                                <Clock3 class="size-3.5 text-amber-500" />
+                                Bù dự kiến: {{ item.expected_restock_at }}
                             </div>
                         </div>
-                        <div class="rounded-lg bg-muted/50 p-3">
-                            <div class="font-semibold text-foreground">
+
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <div class="font-bold text-foreground">
                                 Nguyên nhân & kiểm soát
                             </div>
-                            <div class="mt-1 text-muted-foreground">
-                                {{
-                                    item.root_cause_label ||
-                                    'Chưa phân loại nguyên nhân'
-                                }}
+                            <div class="mt-1 text-muted-foreground font-medium">
+                                {{ item.root_cause_label || 'Chưa phân loại nguyên nhân' }}
                             </div>
-                            <div v-if="item.root_cause" class="mt-1">
+                            <div v-if="item.root_cause" class="mt-1 text-foreground font-semibold">
                                 {{ item.root_cause }}
                             </div>
                         </div>
-                        <div class="rounded-lg bg-muted/50 p-3">
-                            <div class="font-semibold text-foreground">
-                                Phê duyệt / đối chiếu
+
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <div class="font-bold text-foreground">
+                                Phê duyệt & Đối chiếu
                             </div>
-                            <div class="mt-1 text-muted-foreground">
+                            <div class="mt-1 text-muted-foreground font-medium">
                                 {{
                                     item.owner_approval_status === 'approved'
                                         ? `Đã duyệt${item.approved_by_name ? ` bởi ${item.approved_by_name}` : ''}`
@@ -779,30 +768,29 @@ function canResolve(item: NegativeCase): boolean {
                             </div>
                             <div
                                 v-if="item.status === 'pending_verification'"
-                                class="mt-1 font-medium text-cyan-700 dark:text-cyan-300"
+                                class="mt-1 font-bold text-cyan-600 dark:text-cyan-400"
                             >
-                                Đã gửi
-                                {{ item.verification_requested_at || '' }}, chờ
-                                người khác xác minh
+                                Đã gửi {{ item.verification_requested_at || '' }}, chờ đối chiếu
                             </div>
                         </div>
                     </div>
 
+                    <!-- Expandable Edit Form -->
                     <div
                         v-if="editingId === item.id"
-                        class="mt-4 space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20"
+                        class="mt-3.5 space-y-2.5 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-transparent to-transparent p-4 shadow-xs"
                     >
-                        <div class="grid gap-2 md:grid-cols-2">
+                        <div class="grid gap-2.5 md:grid-cols-2">
                             <textarea
                                 v-model="plans[item.id]"
-                                rows="4"
-                                class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                rows="3"
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                                 placeholder="Phương án bù/điều chỉnh, giao dịch cần thực hiện và cách đối chiếu..."
                             />
                             <div class="space-y-2">
                                 <select
                                     v-model="causeCodes[item.id]"
-                                    class="h-9 w-full rounded-md border bg-background px-3 text-xs"
+                                    class="h-9 w-full rounded-xl border border-border bg-background px-3 text-xs font-medium outline-none focus:border-primary"
                                 >
                                     <option value="">
                                         Chọn nguyên nhân gốc bắt buộc
@@ -817,174 +805,147 @@ function canResolve(item: NegativeCase): boolean {
                                 </select>
                                 <textarea
                                     v-model="causes[item.id]"
-                                    rows="3"
-                                    class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                    rows="2"
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                                     placeholder="Mô tả bằng chứng/nguyên nhân cụ thể..."
                                 />
                             </div>
                         </div>
-                        <div class="grid gap-2 md:grid-cols-2">
+
+                        <div class="grid gap-2.5 md:grid-cols-2">
                             <textarea
                                 v-model="containmentActions[item.id]"
                                 rows="2"
-                                class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                                 placeholder="Hành động tức thời: khóa bán, kiểm tra lô, tạm dừng xuất..."
                             />
                             <textarea
                                 v-model="correctiveActions[item.id]"
                                 rows="2"
-                                class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                                 placeholder="Hành động phòng ngừa tái diễn: sửa BOM, đào tạo, chỉnh quy trình..."
                             />
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <select
-                                v-model="responsibleIds[item.id]"
-                                class="h-9 rounded-md border bg-background px-3 text-xs"
-                            >
-                                <option :value="null">Tôi phụ trách</option>
-                                <option
-                                    v-for="candidate in responsibleUsers"
-                                    :key="candidate.id"
-                                    :value="candidate.id"
+
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <select
+                                    v-model="responsibleIds[item.id]"
+                                    class="h-8.5 rounded-lg border border-border bg-background px-3 text-xs font-medium"
                                 >
-                                    {{ candidate.name }}
-                                </option>
-                            </select>
-                            <label
-                                class="flex items-center gap-2 text-xs text-muted-foreground"
-                                >Ngày bù dự kiến
-                                <input
-                                    v-model="dates[item.id]"
-                                    type="date"
-                                    class="h-9 rounded border bg-background px-2 text-xs"
-                            /></label>
-                            <Button
-                                size="sm"
-                                :disabled="busyId === item.id"
-                                @click="savePlan(item)"
-                                ><ClipboardCheck class="mr-1 size-3.5" /> Lưu
-                                phương án</Button
-                            >
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                @click="editingId = null"
-                                >Hủy</Button
-                            >
+                                    <option :value="null">Tôi phụ trách</option>
+                                    <option
+                                        v-for="candidate in responsibleUsers"
+                                        :key="candidate.id"
+                                        :value="candidate.id"
+                                    >
+                                        {{ candidate.name }}
+                                    </option>
+                                </select>
+                                <label
+                                    class="flex items-center gap-1.5 text-xs text-muted-foreground font-medium"
+                                >
+                                    Ngày bù dự kiến:
+                                    <input
+                                        v-model="dates[item.id]"
+                                        type="date"
+                                        class="h-8.5 rounded-lg border border-border bg-background px-2 text-xs"
+                                    />
+                                </label>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    class="h-8.5 rounded-lg text-xs"
+                                    @click="editingId = null"
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    class="h-8.5 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
+                                    :disabled="busyId === item.id"
+                                    @click="savePlan(item)"
+                                >
+                                    <ClipboardCheck class="mr-1.5 size-3.5" />
+                                    Lưu phương án
+                                </Button>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- Resolved Banner -->
                     <div
                         v-if="item.status === 'resolved'"
-                        class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300"
+                        class="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3 text-xs text-emerald-800 dark:text-emerald-300 font-medium"
                     >
-                        Đã chốt {{ item.resolved_at || ''
-                        }}<span v-if="item.resolved_by_name">
-                            bởi {{ item.resolved_by_name }}</span
-                        >. {{ item.resolution_note || '' }}
+                        Đã chốt xong {{ item.resolved_at || '' }}
+                        <span v-if="item.resolved_by_name">bởi {{ item.resolved_by_name }}</span>. {{ item.resolution_note || '' }}
                     </div>
 
+                    <!-- Timeline Details -->
                     <div
                         v-if="expandedId === item.id"
-                        class="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-950/40"
+                        class="mt-3.5 rounded-2xl border border-border/80 bg-muted/20 p-4 text-xs shadow-inner"
                     >
-                        <div
-                            v-if="detailLoadingId === item.id"
-                            class="text-muted-foreground"
-                        >
-                            Đang tải timeline...
+                        <div v-if="detailLoadingId === item.id" class="text-muted-foreground font-medium">
+                            Đang tải lịch sử giao dịch & timeline...
                         </div>
                         <template v-else-if="details[item.id]">
-                            <div class="grid gap-3 md:grid-cols-2">
+                            <div class="grid gap-4 md:grid-cols-2">
                                 <div>
-                                    <div class="font-semibold">
-                                        Giao dịch nguồn
+                                    <div class="font-bold text-foreground">
+                                        Giao dịch nguồn làm âm tồn
                                     </div>
                                     <div
-                                        v-if="
-                                            details[item.id].source_transaction
-                                        "
-                                        class="mt-1 text-muted-foreground"
+                                        v-if="details[item.id].source_transaction"
+                                        class="mt-1.5 text-muted-foreground font-medium"
                                     >
                                         {{
-                                            details[item.id].source_transaction
-                                                .document_code ||
+                                            details[item.id].source_transaction.document_code ||
                                             `#${details[item.id].source_transaction.id}`
                                         }}
-                                        ·
-                                        {{
-                                            details[item.id].source_transaction
-                                                .type
-                                        }}
-                                        ·
-                                        {{
-                                            formatQuantity(
-                                                details[item.id]
-                                                    .source_transaction
-                                                    .quantity,
-                                            )
-                                        }}
-                                        ·
-                                        {{
-                                            details[item.id].source_transaction
-                                                .occurred_at
-                                        }}
+                                        · {{ details[item.id].source_transaction.type }}
+                                        · {{ formatQuantity(details[item.id].source_transaction.quantity) }}
+                                        · {{ details[item.id].source_transaction.occurred_at }}
                                     </div>
-                                    <div
-                                        v-else
-                                        class="mt-1 text-muted-foreground"
-                                    >
+                                    <div v-else class="mt-1 text-muted-foreground">
                                         Chưa xác định được giao dịch nguồn.
                                     </div>
-                                    <div class="mt-3 font-semibold">
-                                        Giao dịch bù/điều chỉnh gần nhất
+
+                                    <div class="mt-3.5 font-bold text-foreground">
+                                        Giao dịch bù / điều chỉnh gần nhất
                                     </div>
                                     <div
-                                        v-for="transaction in details[
-                                            item.id
-                                        ].transactions?.slice(0, 5)"
+                                        v-for="transaction in details[item.id].transactions?.slice(0, 5)"
                                         :key="transaction.id"
-                                        class="mt-1 text-muted-foreground"
+                                        class="mt-1 text-muted-foreground font-medium"
                                     >
-                                        {{
-                                            transaction.document_code ||
-                                            `#${transaction.id}`
-                                        }}
-                                        ·
-                                        {{
-                                            transaction.direction === 'in'
-                                                ? 'Nhập'
-                                                : 'Xuất'
-                                        }}
-                                        {{
-                                            formatQuantity(transaction.quantity)
-                                        }}
+                                        {{ transaction.document_code || `#${transaction.id}` }}
+                                        · {{ transaction.direction === 'in' ? 'Nhập bù' : 'Xuất' }}
+                                        {{ formatQuantity(transaction.quantity) }}
                                         · {{ transaction.occurred_at }}
                                     </div>
                                 </div>
+
                                 <div>
-                                    <div class="font-semibold">
-                                        Timeline nghiệp vụ
+                                    <div class="font-bold text-foreground">
+                                        Timeline nghiệp vụ & kiểm toán
                                     </div>
                                     <div
-                                        v-for="event in details[
-                                            item.id
-                                        ].timeline?.slice(0, 6)"
+                                        v-for="event in details[item.id].timeline?.slice(0, 6)"
                                         :key="event.id"
-                                        class="mt-2 border-l-2 border-indigo-300 pl-2 dark:border-indigo-700"
+                                        class="mt-2.5 border-l-2 border-primary/50 pl-2.5"
                                     >
-                                        <div class="font-medium">
+                                        <div class="font-bold text-foreground">
                                             {{ event.event_label }}
                                         </div>
-                                        <div class="text-muted-foreground">
-                                            {{ event.created_at }} ·
-                                            {{ event.actor_name }}
+                                        <div class="text-[11px] text-muted-foreground">
+                                            {{ event.created_at }} · {{ event.actor_name }}
                                         </div>
-                                        <div
-                                            v-if="event.note"
-                                            class="text-muted-foreground"
-                                        >
+                                        <div v-if="event.note" class="mt-0.5 text-muted-foreground font-medium">
                                             {{ event.note }}
                                         </div>
                                     </div>
@@ -993,45 +954,44 @@ function canResolve(item: NegativeCase): boolean {
                         </template>
                     </div>
 
+                    <!-- Action Buttons Toolbar -->
                     <div
-                        v-if="
-                            editingId !== item.id && item.status !== 'resolved'
-                        "
-                        class="mt-4 flex flex-wrap items-center gap-2"
+                        v-if="editingId !== item.id && item.status !== 'resolved'"
+                        class="mt-3.5 flex flex-wrap items-center gap-2"
                     >
                         <Button
                             v-if="canManage"
                             size="sm"
                             variant="outline"
+                            class="h-8.5 rounded-lg border-border bg-background text-xs font-semibold text-foreground hover:bg-muted shadow-xs"
                             @click="beginEdit(item)"
-                            ><ClipboardCheck class="mr-1 size-3.5" />
-                            {{
-                                item.handling_plan
-                                    ? 'Cập nhật phương án'
-                                    : 'Lập phương án'
-                            }}</Button
                         >
+                            <ClipboardCheck class="mr-1.5 size-3.5 text-amber-500" />
+                            {{ item.handling_plan ? 'Cập nhật phương án' : 'Lập phương án' }}
+                        </Button>
+
                         <template
-                            v-if="
-                                item.status === 'pending_owner_approval' &&
-                                canApprove
-                            "
+                            v-if="item.status === 'pending_owner_approval' && canApprove"
                         >
                             <Button
                                 size="sm"
+                                class="h-8.5 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
                                 :disabled="busyId === item.id"
                                 @click="approveCase(item, 'approve')"
-                                ><ShieldCheck class="mr-1 size-3.5" /> Phê
-                                duyệt</Button
                             >
+                                <ShieldCheck class="mr-1.5 size-3.5" /> Phê duyệt
+                            </Button>
                             <Button
                                 size="sm"
                                 variant="destructive"
+                                class="h-8.5 rounded-lg text-xs font-bold shadow-xs"
                                 :disabled="busyId === item.id"
                                 @click="approveCase(item, 'reject')"
-                                >Từ chối</Button
                             >
+                                Từ chối
+                            </Button>
                         </template>
+
                         <Button
                             v-if="
                                 canManage &&
@@ -1039,89 +999,76 @@ function canResolve(item: NegativeCase): boolean {
                                 item.on_hand >= 0
                             "
                             size="sm"
-                            variant="outline"
+                            class="h-8.5 rounded-lg bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
                             :disabled="busyId === item.id"
                             @click="submitVerification(item)"
-                            ><ShieldCheck class="mr-1 size-3.5" /> Gửi đối
-                            chiếu</Button
                         >
+                            <ShieldCheck class="mr-1.5 size-3.5" /> Gửi đối chiếu
+                        </Button>
+
                         <Button
                             v-if="canResolve(item)"
                             size="sm"
-                            variant="ghost"
+                            class="h-8.5 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
                             :disabled="busyId === item.id"
                             @click="verifyCase(item)"
-                            ><CheckCircle2 class="mr-1 size-3.5" /> Xác minh &
-                            chốt</Button
                         >
+                            <CheckCircle2 class="mr-1.5 size-3.5" /> Xác minh & chốt
+                        </Button>
+
                         <Button
                             size="sm"
                             variant="ghost"
+                            class="h-8.5 rounded-lg text-xs text-muted-foreground hover:text-foreground"
                             :disabled="detailLoadingId === item.id"
                             @click="toggleDetail(item)"
-                            >{{
-                                expandedId === item.id
-                                    ? 'Ẩn chi tiết'
-                                    : 'Xem giao dịch & timeline'
-                            }}</Button
                         >
+                            <History class="mr-1.5 size-3.5" />
+                            {{ expandedId === item.id ? 'Ẩn timeline' : 'Xem timeline & giao dịch' }}
+                        </Button>
+
                         <span
-                            v-if="
-                                item.status === 'pending_owner_approval' &&
-                                !canApprove
-                            "
+                            v-if="item.status === 'pending_owner_approval' && !canApprove"
                             class="text-xs font-medium text-purple-700 dark:text-purple-300"
-                            >Đã gửi Chủ doanh nghiệp phê duyệt; chưa được tự
-                            chốt.</span
                         >
+                            Đã gửi Chủ doanh nghiệp phê duyệt; chưa được tự chốt.
+                        </span>
                     </div>
+
                     <div
                         v-else-if="item.status === 'resolved'"
-                        class="mt-3 flex flex-wrap items-center gap-2"
+                        class="mt-3.5 flex flex-wrap items-center gap-2"
                     >
                         <Button
                             size="sm"
                             variant="ghost"
+                            class="h-8.5 rounded-lg text-xs text-muted-foreground hover:text-foreground"
                             :disabled="detailLoadingId === item.id"
                             @click="toggleDetail(item)"
-                            >{{
-                                expandedId === item.id
-                                    ? 'Ẩn timeline'
-                                    : 'Xem timeline & giao dịch'
-                            }}</Button
                         >
-                        <span
-                            class="text-xs text-emerald-700 dark:text-emerald-300"
-                            >Đã xác minh
-                            {{
-                                item.verified_by_name
-                                    ? `bởi ${item.verified_by_name}`
-                                    : ''
-                            }}.</span
-                        >
+                            <History class="mr-1.5 size-3.5" />
+                            {{ expandedId === item.id ? 'Ẩn timeline' : 'Xem timeline & giao dịch' }}
+                        </Button>
+                        <span class="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                            Đã xác minh{{ item.verified_by_name ? ` bởi ${item.verified_by_name}` : '' }}.
+                        </span>
                     </div>
                 </div>
 
-                <p v-if="errorMessage" class="text-xs font-medium text-red-600">
+                <p v-if="errorMessage" class="text-xs font-bold text-rose-600 dark:text-rose-400">
                     {{ errorMessage }}
                 </p>
             </CardContent>
         </Card>
 
-        <Card
-            class="border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/20"
-        >
-            <CardContent
-                class="flex flex-wrap items-start gap-3 p-4 text-xs text-muted-foreground"
-            >
-                <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-500" />
-                <div>
-                    <strong class="text-foreground">Nguyên tắc chốt:</strong> hệ
-                    thống không tự xóa hồ sơ khi có phiếu nhập bù. Người phụ
-                    trách phải phân loại nguyên nhân, thực hiện giao dịch kho
-                    thật, gửi đối chiếu; một người khác xác minh giao dịch và
-                    tồn thực tế rồi mới chốt. Hồ sơ Cao/Critical cần Chủ doanh
-                    nghiệp phê duyệt.
+        <!-- ── 5. NGUYÊN TẮC CHỐT HỒ SƠ ────────────────────────────────── -->
+        <Card class="rounded-2xl border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-xs">
+            <CardContent class="flex flex-wrap items-start gap-3.5 p-4.5 text-xs text-muted-foreground">
+                <div class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle class="size-4" />
+                </div>
+                <div class="leading-relaxed">
+                    <strong class="text-foreground">Nguyên tắc chốt hồ sơ âm kho:</strong> Hệ thống không tự xóa hồ sơ khi chỉ tạo phiếu nhập bù trên giấy. Người phụ trách phải phân loại đúng nguyên nhân gốc, thực hiện giao dịch kho thật, gửi đối chiếu; một nhân sự độc lập kiểm tra thực tế và xác nhận số dư không còn âm mới được chốt. Các hồ sơ mức Cao/Critical bắt buộc phải có phê duyệt từ Chủ doanh nghiệp.
                 </div>
             </CardContent>
         </Card>

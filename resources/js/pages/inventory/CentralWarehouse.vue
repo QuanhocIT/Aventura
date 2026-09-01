@@ -143,16 +143,11 @@ const staffWorkload = computed(() =>
 // Filtered Requests
 const filteredRequests = computed(() => {
     return props.supplyRequests.filter((req) => {
-        const matchesTab =
-            activeTab.value === 'all' ||
-            activeTab.value === 'task_board' ||
-            (activeTab.value === 'exceptions' &&
-                ['partial_received', 'disputed'].includes(req.status)) ||
-            req.status === activeTab.value;
         const matchesBranch =
             selectedBranchFilter.value === 'all' ||
             req.to_branch_id === Number(selectedBranchFilter.value);
         const matchesSearch =
+            !searchQuery.value.trim() ||
             req.request_code
                 .toLowerCase()
                 .includes(searchQuery.value.toLowerCase()) ||
@@ -163,7 +158,7 @@ const filteredRequests = computed(() => {
                 ?.toLowerCase()
                 .includes(searchQuery.value.toLowerCase());
 
-        return matchesTab && matchesBranch && matchesSearch;
+        return matchesBranch && matchesSearch;
     });
 });
 
@@ -176,7 +171,8 @@ const stats = computed(() => ({
     preparing: props.supplyRequests.filter((r) => r.status === 'preparing')
         .length,
     dispatch_pending: props.supplyRequests.filter(
-        (r) => r.status === 'dispatch_pending_approval',
+        (r) =>
+            r.status === 'dispatch_pending_approval' || r.status === 'prepared',
     ).length,
     dispatched: props.supplyRequests.filter((r) => r.status === 'dispatched')
         .length,
@@ -287,6 +283,90 @@ const pipelineStages = computed(() => [
         key: 'completed' as const,
         label: 'Hoàn thành',
         count: stats.value.completed,
+    },
+]);
+
+const filterTabs = computed(() => [
+    {
+        key: 'all' as const,
+        label: 'Tất cả',
+        count: stats.value.total,
+        activeClass:
+            'bg-background text-foreground shadow-xs ring-1 ring-border/60 font-bold',
+        activeBadge:
+            'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold',
+    },
+    {
+        key: 'pending' as const,
+        label: 'Chờ duyệt',
+        count: stats.value.pending,
+        activeClass:
+            'bg-amber-500/15 text-amber-600 dark:text-amber-300 ring-1 ring-amber-500/30 font-bold',
+        activeBadge:
+            'bg-amber-500/25 text-amber-800 dark:text-amber-300 font-bold',
+    },
+    {
+        key: 'approved' as const,
+        label: 'Đã duyệt',
+        count: stats.value.approved,
+        activeClass:
+            'bg-blue-500/15 text-blue-600 dark:text-blue-300 ring-1 ring-blue-500/30 font-bold',
+        activeBadge:
+            'bg-blue-500/25 text-blue-800 dark:text-blue-300 font-bold',
+    },
+    {
+        key: 'preparing' as const,
+        label: 'Đang soạn',
+        count: stats.value.preparing,
+        activeClass:
+            'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-500/30 font-bold',
+        activeBadge:
+            'bg-indigo-500/25 text-indigo-800 dark:text-indigo-300 font-bold',
+    },
+    {
+        key: 'dispatch_pending_approval' as const,
+        label: 'Chờ duyệt xuất',
+        count: stats.value.dispatch_pending,
+        activeClass:
+            'bg-violet-500/15 text-violet-600 dark:text-violet-300 ring-1 ring-violet-500/30 font-bold',
+        activeBadge:
+            'bg-violet-500/25 text-violet-800 dark:text-violet-300 font-bold',
+    },
+    {
+        key: 'dispatched' as const,
+        label: 'Đang giao',
+        count: stats.value.dispatched,
+        activeClass:
+            'bg-sky-500/15 text-sky-600 dark:text-sky-300 ring-1 ring-sky-500/30 font-bold',
+        activeBadge:
+            'bg-sky-500/25 text-sky-800 dark:text-sky-300 font-bold',
+    },
+    {
+        key: 'partial_received' as const,
+        label: 'Nhận 1 phần',
+        count: stats.value.partial_received,
+        activeClass:
+            'bg-orange-500/15 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/30 font-bold',
+        activeBadge:
+            'bg-orange-500/25 text-orange-800 dark:text-orange-300 font-bold',
+    },
+    {
+        key: 'disputed' as const,
+        label: 'Tranh chấp',
+        count: stats.value.disputed,
+        activeClass:
+            'bg-rose-500/15 text-rose-600 dark:text-rose-300 ring-1 ring-rose-500/30 font-bold',
+        activeBadge:
+            'bg-rose-500/25 text-rose-800 dark:text-rose-300 font-bold',
+    },
+    {
+        key: 'completed' as const,
+        label: 'Hoàn thành',
+        count: stats.value.completed,
+        activeClass:
+            'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 ring-1 ring-emerald-500/30 font-bold',
+        activeBadge:
+            'bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 font-bold',
     },
 ]);
 
@@ -421,10 +501,23 @@ const submitPreparePicking = async () => {
         );
 
         if (res.data.success) {
-            toast.success(res.data.message || 'Đã hoàn thành bước soạn hàng.');
+            toast.success(res.data.message || 'Đã hoàn thành bước soạn hàng. Chờ Trưởng kho duyệt xuất.');
             isPickingModalOpen.value = false;
-            isDetailModalOpen.value = false;
-            router.reload();
+            const newStatus = res.data.data?.status || 'prepared';
+            if (res.data.data) {
+                selectedRequest.value = {
+                    ...selectedRequest.value,
+                    ...res.data.data,
+                    status: newStatus,
+                };
+            } else {
+                selectedRequest.value.status = newStatus;
+            }
+            const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+            if (found) {
+                Object.assign(found, selectedRequest.value);
+            }
+            router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
         toast.error(
@@ -448,9 +541,32 @@ const approveDispatchManager = async () => {
         );
 
         if (res.data.success) {
-            toast.success('Đã duyệt lệnh xuất kho!');
-            isDetailModalOpen.value = false;
-            router.reload();
+            toast.success('Đã duyệt lệnh xuất kho! Mở form bàn giao xuất kho.');
+            const newStatus =
+                res.data.data?.status || 'dispatch_pending_approval';
+            if (res.data.data) {
+                selectedRequest.value = {
+                    ...selectedRequest.value,
+                    ...res.data.data,
+                    status: newStatus,
+                };
+            } else {
+                selectedRequest.value.status = newStatus;
+            }
+            const found = props.supplyRequests.find(
+                (r) => r.id === selectedRequest.value.id,
+            );
+            if (found) {
+                Object.assign(found, selectedRequest.value);
+            }
+
+            // Mở trực tiếp form Bàn giao xuất kho để rút ngắn công đoạn
+            openDispatchModal(selectedRequest.value);
+
+            router.reload({
+                preserveState: true,
+                only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'],
+            });
         }
     } catch (e: any) {
         toast.error(
@@ -655,8 +771,21 @@ const approveRequest = async () => {
 
         if (res.data.success) {
             toast.success('Đã duyệt đơn cấp phát thành công.');
-            isDetailModalOpen.value = false;
-            router.reload();
+            const newStatus = res.data.data?.status || 'approved';
+            if (res.data.data) {
+                selectedRequest.value = {
+                    ...selectedRequest.value,
+                    ...res.data.data,
+                    status: newStatus,
+                };
+            } else {
+                selectedRequest.value.status = newStatus;
+            }
+            const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+            if (found) {
+                Object.assign(found, selectedRequest.value);
+            }
+            router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
         toast.error(
@@ -675,6 +804,18 @@ const dispatchForm = ref({
     notes: '',
 });
 
+const isTransporterAssignmentOnly = computed(() => {
+    const request = selectedRequest.value;
+
+    return Boolean(
+        request &&
+            ['dispatched', 'partial_received', 'disputed', 'receiving_review'].includes(
+                request.status,
+            ) &&
+            !request.transporter_id,
+    );
+});
+
 const openDispatchModal = (request: any) => {
     selectedRequest.value = request;
     const handoverTask = request?.warehouse_tasks?.find(
@@ -683,9 +824,9 @@ const openDispatchModal = (request: any) => {
 
     dispatchForm.value = {
         seal_code: '',
-        transporter_id: handoverTask
+        transporter_id: request?.transporter_id || (handoverTask
             ? handoverTask.assigned_to
-            : props.warehouseStaff[0]?.id || '',
+            : props.warehouseStaff[0]?.id || ''),
         manifest_id: '',
         notes: '',
     };
@@ -700,18 +841,27 @@ const submitDispatchModal = async () => {
     isProcessing.value = true;
 
     try {
+        const assignmentOnly = isTransporterAssignmentOnly.value;
+        const url = assignmentOnly
+            ? `/api/supply-requests/${selectedRequest.value.id}/transporter`
+            : `/api/supply-requests/${selectedRequest.value.id}/dispatch`;
+        const payload = assignmentOnly
+            ? {
+                  transporter_id: Number(dispatchForm.value.transporter_id),
+              }
+            : {
+                  seal_code: dispatchForm.value.seal_code || null,
+                  transporter_id: dispatchForm.value.transporter_id
+                      ? Number(dispatchForm.value.transporter_id)
+                      : null,
+                  manifest_id: dispatchForm.value.manifest_id
+                      ? Number(dispatchForm.value.manifest_id)
+                      : null,
+                  notes: dispatchForm.value.notes || null,
+              };
         const res = await axios.post(
-            `/api/supply-requests/${selectedRequest.value.id}/dispatch`,
-            {
-                seal_code: dispatchForm.value.seal_code || null,
-                transporter_id: dispatchForm.value.transporter_id
-                    ? Number(dispatchForm.value.transporter_id)
-                    : null,
-                manifest_id: dispatchForm.value.manifest_id
-                    ? Number(dispatchForm.value.manifest_id)
-                    : null,
-                notes: dispatchForm.value.notes || null,
-            },
+            url,
+            payload,
         );
 
         if (res.data.success) {
@@ -720,8 +870,21 @@ const submitDispatchModal = async () => {
                     'Đã xuất kho Tổng và bàn giao vận chuyển thành công!',
             );
             isDispatchModalOpen.value = false;
-            isDetailModalOpen.value = false;
-            router.reload();
+            const newStatus = res.data.data?.status || selectedRequest.value.status;
+            if (res.data.data) {
+                selectedRequest.value = {
+                    ...selectedRequest.value,
+                    ...res.data.data,
+                    status: newStatus,
+                };
+            } else {
+                selectedRequest.value.status = newStatus;
+            }
+            const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+            if (found) {
+                Object.assign(found, selectedRequest.value);
+            }
+            router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
         }
     } catch (e: any) {
         toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi xuất kho.');
@@ -751,8 +914,12 @@ const rejectRequest = async () => {
 
         if (res.data.success) {
             toast.success('Đã từ chối đơn yêu cầu.');
-            isDetailModalOpen.value = false;
-            router.reload();
+            selectedRequest.value.status = 'rejected';
+            const found = props.supplyRequests.find((r) => r.id === selectedRequest.value.id);
+            if (found) {
+                found.status = 'rejected';
+            }
+            router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics'] });
         }
     } catch (e: any) {
         toast.error(e.response?.data?.message || 'Không thể từ chối đơn.');
@@ -867,8 +1034,13 @@ const exportWarehouseReport = () => {
     window.location.href = '/inventory/central-warehouse/export';
 };
 
-const taskTypeLabel = (type: string) =>
-    type === 'handover' ? 'Bàn giao / xuất xe' : 'Soạn hàng FEFO';
+const taskTypeLabel = (type: string) => {
+    if (type === 'delivery') {
+        return 'Giao hàng tới chi nhánh';
+    }
+
+    return type === 'handover' ? 'Bàn giao / xuất xe' : 'Soạn hàng FEFO';
+};
 
 const taskStatusLabel = (status: string) => {
     switch (status) {
@@ -981,8 +1153,76 @@ const submitTaskAssignment = async () => {
 
         if (res.data.success) {
             toast.success(res.data.message || 'Đã giao việc Kho Tổng.');
+            const staffObj = props.warehouseStaff.find(
+                (s) => s.id === Number(taskForm.value.assigned_to),
+            );
+            const reqId = Number(taskForm.value.supply_request_id);
+
+            // Update selectedRequest locally if open
+            if (selectedRequest.value && selectedRequest.value.id === reqId) {
+                if (!selectedRequest.value.warehouse_tasks) {
+                    selectedRequest.value.warehouse_tasks = [];
+                }
+                const existingTaskIndex = selectedRequest.value.warehouse_tasks.findIndex(
+                    (t: any) => t.task_type === taskForm.value.task_type,
+                );
+                const newTaskData = {
+                    task_type: taskForm.value.task_type,
+                    assigned_to: Number(taskForm.value.assigned_to),
+                    assignee: staffObj
+                        ? {
+                              id: staffObj.id,
+                              name: staffObj.name,
+                              job_title: staffObj.job_title,
+                          }
+                        : null,
+                    status: 'assigned',
+                    priority: taskForm.value.priority,
+                    due_at: taskForm.value.due_at,
+                };
+                if (existingTaskIndex >= 0) {
+                    selectedRequest.value.warehouse_tasks[existingTaskIndex] = {
+                        ...selectedRequest.value.warehouse_tasks[existingTaskIndex],
+                        ...newTaskData,
+                    };
+                } else {
+                    selectedRequest.value.warehouse_tasks.push(newTaskData);
+                }
+            }
+
+            // Update in props.supplyRequests
+            const targetReq = props.supplyRequests.find((r) => r.id === reqId);
+            if (targetReq) {
+                if (!targetReq.warehouse_tasks) {
+                    targetReq.warehouse_tasks = [];
+                }
+                const existingTaskIndex = targetReq.warehouse_tasks.findIndex(
+                    (t: any) => t.task_type === taskForm.value.task_type,
+                );
+                const newTaskData = {
+                    task_type: taskForm.value.task_type,
+                    assigned_to: Number(taskForm.value.assigned_to),
+                    assignee: staffObj
+                        ? {
+                              id: staffObj.id,
+                              name: staffObj.name,
+                              job_title: staffObj.job_title,
+                          }
+                        : null,
+                    status: 'assigned',
+                };
+                if (existingTaskIndex >= 0) {
+                    targetReq.warehouse_tasks[existingTaskIndex] = {
+                        ...targetReq.warehouse_tasks[existingTaskIndex],
+                        ...newTaskData,
+                    };
+                } else {
+                    targetReq.warehouse_tasks.push(newTaskData);
+                }
+            }
+
             isTaskModalOpen.value = false;
-            router.reload();
+            router.reload({ preserveState: true, only: ['supplyRequests', 'warehouseTasks'] });
         }
     } catch (e: any) {
         toast.error(
@@ -2798,439 +3038,61 @@ const submitRecall = async () => {
             </CardContent>
         </Card>
 
-        <!-- Warehouse staff coordination -->
-        <Card v-if="canManageWarehouse" class="border-indigo-500/20 shadow-sm">
-            <CardHeader
-                class="border-b border-indigo-500/10 bg-indigo-950/10 py-4"
-            >
-                <div
-                    class="flex flex-col justify-between gap-3 lg:flex-row lg:items-center"
-                >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-2 text-base font-bold text-foreground"
-                        >
-                            <UserCheck class="h-5 w-5 text-indigo-400" /> Điều
-                            phối nhân viên Kho Tổng
-                        </CardTitle>
-                        <CardDescription class="mt-1 text-xs">
-                            Giao người phụ trách từng chặng soạn hàng và bàn
-                            giao để đơn từ chi nhánh không bị tồn giữa các bước.
-                        </CardDescription>
-                    </div>
-                    <div class="flex flex-wrap gap-2 text-[11px]">
-                        <span
-                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-semibold text-amber-300"
-                        >
-                            {{ taskSummary.assigned }} chờ nhận
-                        </span>
-                        <span
-                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 font-semibold text-indigo-300"
-                        >
-                            {{ taskSummary.in_progress }} đang làm
-                        </span>
-                        <span
-                            class="rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 font-semibold text-rose-300"
-                        >
-                            {{ taskSummary.unassigned }} chưa giao
-                        </span>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent class="space-y-4 p-4">
-                <div
-                    v-if="staffWorkload.length"
-                    class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-                >
-                    <div
-                        v-for="staff in staffWorkload"
-                        :key="staff.id"
-                        class="rounded-xl border border-border bg-muted/20 p-3"
-                    >
-                        <div class="flex items-start gap-3">
-                            <div
-                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-sm font-bold text-indigo-300"
-                            >
-                                {{
-                                    (staff.name || 'NV')
-                                        .slice(0, 2)
-                                        .toUpperCase()
-                                }}
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p
-                                    class="truncate text-xs font-bold text-foreground"
-                                >
-                                    {{ staff.name }}
-                                </p>
-                                <p
-                                    class="mt-0.5 truncate text-[10px] text-muted-foreground"
-                                >
-                                    {{ staff.job_title }}
-                                </p>
-                                <p
-                                    class="mt-2 text-[11px] text-muted-foreground"
-                                >
-                                    <strong class="text-indigo-300">{{
-                                        staff.activeTasks
-                                    }}</strong>
-                                    việc đang xử lý
-                                    <span class="mx-1 text-border">·</span>
-                                    {{ staff.completedTasks }} hoàn tất
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div
-                    v-else
-                    class="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200"
-                >
-                    Chưa có nhân viên Kho Tổng đang hoạt động. Hãy tạo tài khoản
-                    với vai trò <strong>Nhân viên Kho Tổng</strong> trong mục
-                    Nhân viên trước khi giao việc.
-                </div>
 
-                <div class="overflow-x-auto rounded-xl border border-border">
-                    <table class="w-full min-w-[760px] text-left text-xs">
-                        <thead
-                            class="border-b border-border bg-muted/50 font-semibold text-muted-foreground"
-                        >
-                            <tr>
-                                <th class="p-3 pl-4">Đơn / Chi nhánh</th>
-                                <th class="p-3">Chặng việc</th>
-                                <th class="p-3">Người phụ trách</th>
-                                <th class="p-3">Mức ưu tiên</th>
-                                <th class="p-3">Trạng thái</th>
-                                <th class="p-3 pr-4 text-right">Điều phối</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border">
-                            <tr v-if="taskAssignments.length === 0">
-                                <td
-                                    colspan="6"
-                                    class="p-6 text-center text-muted-foreground"
-                                >
-                                    Chưa có nhiệm vụ được giao. Hãy mở chi tiết
-                                    một đơn đã duyệt để phân công soạn hàng.
-                                </td>
-                            </tr>
-                            <tr
-                                v-for="task in taskAssignments.slice(0, 12)"
-                                :key="task.id"
-                                class="transition hover:bg-muted/30"
-                            >
-                                <td class="p-3 pl-4">
-                                    <button
-                                        class="text-left"
-                                        @click="
-                                            getSupplyRequestById(
-                                                task.supply_request_id,
-                                            ) &&
-                                            openDetailModal(
-                                                getSupplyRequestById(
-                                                    task.supply_request_id,
-                                                ),
-                                            )
-                                        "
-                                    >
-                                        <span
-                                            class="font-mono font-bold text-indigo-400"
-                                            >{{
-                                                task.request_code ||
-                                                `#${task.supply_request_id}`
-                                            }}</span
-                                        >
-                                        <span
-                                            class="mt-0.5 block text-[10px] text-muted-foreground"
-                                            >{{
-                                                task.branch_name || 'Chi nhánh'
-                                            }}</span
-                                        >
-                                    </button>
-                                </td>
-                                <td class="p-3 font-medium text-foreground">
-                                    {{ taskTypeLabel(task.task_type) }}
-                                </td>
-                                <td class="p-3">
-                                    <span
-                                        v-if="task.assignee_name"
-                                        class="inline-flex items-center gap-1.5 font-semibold text-foreground"
-                                    >
-                                        <UserRound
-                                            class="h-3.5 w-3.5 text-indigo-400"
-                                        />
-                                        {{ task.assignee_name }}
-                                    </span>
-                                    <span v-else class="text-rose-400"
-                                        >Chưa giao</span
-                                    >
-                                </td>
-                                <td class="p-3">
-                                    <span
-                                        :class="
-                                            task.priority === 'urgent'
-                                                ? 'text-rose-400'
-                                                : task.priority === 'high'
-                                                  ? 'text-amber-300'
-                                                  : 'text-muted-foreground'
-                                        "
-                                        class="font-semibold"
-                                    >
-                                        {{ taskPriorityLabel(task.priority) }}
-                                    </span>
-                                </td>
-                                <td class="p-3">
-                                    <span
-                                        :class="
-                                            task.status === 'completed'
-                                                ? 'bg-emerald-500/10 text-emerald-400'
-                                                : task.status === 'in_progress'
-                                                  ? 'bg-indigo-500/10 text-indigo-300'
-                                                  : 'bg-amber-500/10 text-amber-300'
-                                        "
-                                        class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                                    >
-                                        {{ taskStatusLabel(task.status) }}
-                                    </span>
-                                </td>
-                                <td class="p-3 pr-4 text-right">
-                                    <div class="flex justify-end gap-1.5">
-                                        <Button
-                                            v-if="
-                                                task.status === 'assigned' &&
-                                                task.assigned_to
-                                            "
-                                            @click="
-                                                updateTaskStatus(
-                                                    task,
-                                                    'in_progress',
-                                                )
-                                            "
-                                            size="sm"
-                                            variant="outline"
-                                            class="h-7 text-[10px]"
-                                        >
-                                            Bắt đầu
-                                        </Button>
-                                        <Button
-                                            v-if="task.status === 'in_progress'"
-                                            @click="
-                                                updateTaskStatus(
-                                                    task,
-                                                    'completed',
-                                                )
-                                            "
-                                            size="sm"
-                                            class="h-7 bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
-                                        >
-                                            Hoàn tất
-                                        </Button>
-                                        <Button
-                                            v-if="
-                                                canManageWarehouse &&
-                                                getSupplyRequestById(
-                                                    task.supply_request_id,
-                                                )
-                                            "
-                                            @click="
-                                                openTaskModal(
-                                                    getSupplyRequestById(
-                                                        task.supply_request_id,
-                                                    ),
-                                                    task.task_type,
-                                                )
-                                            "
-                                            size="sm"
-                                            variant="ghost"
-                                            class="h-7 text-[10px] text-indigo-300"
-                                        >
-                                            Đổi người
-                                        </Button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card class="border-sky-500/20 bg-sky-950/5 shadow-sm">
-            <CardContent
-                class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center"
-            >
-                <div>
-                    <p
-                        class="flex items-center gap-2 text-sm font-bold text-foreground"
-                    >
-                        <UserRound class="h-4 w-4 text-sky-300" /> Giao việc cho
-                        đội ngũ Kho Tổng
-                    </p>
-                    <p class="mt-1 text-xs text-muted-foreground">
-                        Quản lý nhân sự, tải việc và KPI đã được tách sang
-                        workspace riêng.
-                    </p>
-                </div>
-                <Link href="/warehouse/team"
-                    ><Button
-                        variant="outline"
-                        size="sm"
-                        class="gap-1.5 text-xs text-sky-300"
-                        >Mở Đội ngũ Kho Tổng
-                        <ArrowUpRight class="h-3.5 w-3.5" /></Button
-                ></Link>
-            </CardContent>
-        </Card>
-
-        <!-- Filter & Search Bar -->
-        <Card class="border-border">
-            <CardContent
-                class="flex flex-col items-center justify-between gap-4 p-4 md:flex-row"
-            >
-                <!-- Status Tabs -->
-                <div class="flex flex-wrap gap-1">
-                    <button
-                        @click="activeTab = 'preparing'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'preparing'
-                                ? 'bg-background text-indigo-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Đang soạn ({{ stats.preparing }})
-                    </button>
-                    <button
-                        @click="activeTab = 'dispatch_pending_approval'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'dispatch_pending_approval'
-                                ? 'bg-background text-violet-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Chờ duyệt xuất ({{ stats.dispatch_pending }})
-                    </button>
-                    <button
-                        @click="activeTab = 'partial_received'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'partial_received'
-                                ? 'bg-background text-orange-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Nhận một phần ({{ stats.partial_received }})
-                    </button>
-                    <button
-                        @click="activeTab = 'disputed'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'disputed'
-                                ? 'bg-background text-rose-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Tranh chấp ({{ stats.disputed }})
-                    </button>
-                </div>
-                <div
-                    class="flex w-full flex-wrap gap-1 rounded-xl bg-muted p-1 md:w-auto"
-                >
-                    <button
-                        @click="activeTab = 'all'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'all'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Tất cả ({{ stats.total }})
-                    </button>
-                    <button
-                        @click="activeTab = 'pending'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'pending'
-                                ? 'bg-background text-amber-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Chờ duyệt ({{ stats.pending }})
-                    </button>
-                    <button
-                        @click="activeTab = 'approved'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'approved'
-                                ? 'bg-background text-blue-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Đã duyệt ({{ stats.approved }})
-                    </button>
-                    <button
-                        @click="activeTab = 'dispatched'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'dispatched'
-                                ? 'bg-background text-purple-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Đang giao ({{ stats.dispatched }})
-                    </button>
-                    <button
-                        @click="activeTab = 'completed'"
-                        :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
-                            activeTab === 'completed'
-                                ? 'bg-background text-emerald-300 shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground',
-                        ]"
-                    >
-                        Hoàn thành ({{ stats.completed }})
-                    </button>
-                </div>
-
-                <!-- Controls -->
-                <div class="flex w-full items-center gap-3 md:w-auto">
-                    <select
-                        v-model="selectedBranchFilter"
-                        class="rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none"
-                    >
-                        <option value="all">Tất cả chi nhánh đặt</option>
-                        <option v-for="b in branches" :key="b.id" :value="b.id">
-                            {{ b.name }}
-                        </option>
-                    </select>
-
-                    <div class="relative w-full md:w-64">
-                        <Search
-                            class="absolute top-2.5 left-3 h-4 w-4 text-slate-400"
-                        />
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="Tìm mã đơn, tên chi nhánh..."
-                            class="pl-9 text-xs"
-                        />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
 
         <!-- Requests Table -->
         <Card class="border-border shadow-sm">
-            <CardHeader class="border-b border-border bg-muted/20 py-4">
-                <CardTitle class="text-base font-bold text-foreground"
-                    >Danh sách Đơn xin Cấp phát từ các Chi nhánh</CardTitle
+            <CardHeader
+                class="border-b border-border bg-muted/20 py-4 px-4 sm:px-6"
+            >
+                <div
+                    class="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between"
                 >
-                <CardDescription class="text-xs"
-                    >Duyệt đơn, chốt số lượng thực xuất và tạo lệnh xuất kho cho
-                    chi nhánh</CardDescription
-                >
+                    <div>
+                        <CardTitle class="text-base font-bold text-foreground">
+                            Danh sách Đơn xin Cấp phát từ các Chi nhánh
+                        </CardTitle>
+                        <CardDescription class="mt-0.5 text-xs">
+                            Duyệt đơn, chốt số lượng thực xuất và tạo lệnh xuất
+                            kho cho chi nhánh
+                        </CardDescription>
+                    </div>
+
+                    <!-- Search & Branch Filter Controls directly on Table Header -->
+                    <div class="flex flex-col sm:flex-row items-center gap-2.5">
+                        <select
+                            v-model="selectedBranchFilter"
+                            class="h-9 w-full sm:w-auto rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs transition focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                        >
+                            <option value="all">🏢 Tất cả chi nhánh đặt</option>
+                            <option
+                                v-for="b in branches"
+                                :key="b.id"
+                                :value="b.id"
+                            >
+                                {{ b.name }}
+                            </option>
+                        </select>
+
+                        <div class="relative w-full sm:w-72">
+                            <Search
+                                class="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground"
+                            />
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="Tìm mã đơn, tên chi nhánh..."
+                                class="h-9 rounded-xl border-input bg-background pl-9 pr-7 text-xs shadow-xs focus-visible:ring-2 focus-visible:ring-primary/20"
+                            />
+                            <button
+                                v-if="searchQuery"
+                                @click="searchQuery = ''"
+                                class="absolute top-2.5 right-2.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </CardHeader>
             <CardContent class="p-0">
                 <div class="overflow-x-auto">
@@ -3318,7 +3180,7 @@ const submitRecall = async () => {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+                    class="flex max-h-[92vh] w-full max-w-4xl lg:max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
                 >
                     <!-- Modal Header -->
                     <div
@@ -3560,19 +3422,19 @@ const submitRecall = async () => {
 
                     <!-- Modal Footer Actions -->
                     <div
-                        class="flex items-center justify-between border-t border-border bg-muted/20 p-4"
+                        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border bg-muted/20 p-4"
                     >
-                        <div class="text-xs text-muted-foreground">
+                        <div class="text-xs text-muted-foreground shrink-0">
                             Tổng giá trị cấp phát:
                             <strong
-                                class="ml-1 text-sm font-bold text-emerald-700"
+                                class="ml-1 text-sm font-bold text-emerald-600 dark:text-emerald-400"
                                 >{{
                                     formatCurrency(selectedRequest.total_amount)
                                 }}</strong
                             >
                         </div>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center justify-end gap-2">
                             <Button
                                 v-if="
                                     [
@@ -3586,7 +3448,7 @@ const submitRecall = async () => {
                                 variant="outline"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 text-xs text-rose-400"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs text-rose-500 hover:text-rose-600 border-rose-500/20 hover:bg-rose-500/10"
                             >
                                 Hủy đơn
                             </Button>
@@ -3600,7 +3462,7 @@ const submitRecall = async () => {
                                 variant="outline"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 text-xs text-orange-400"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs text-amber-500 hover:text-amber-600 border-amber-500/20 hover:bg-amber-500/10"
                             >
                                 Tạo giao bù
                             </Button>
@@ -3613,7 +3475,7 @@ const submitRecall = async () => {
                                 variant="destructive"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 text-xs"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs"
                             >
                                 <XCircle class="h-4 w-4" /> Từ chối
                             </Button>
@@ -3626,7 +3488,7 @@ const submitRecall = async () => {
                                 @click="approveRequest"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 bg-indigo-600 text-xs text-white hover:bg-indigo-700"
+                                class="gap-1.5 rounded-xl h-9 px-3 bg-indigo-600 text-xs font-bold text-white shadow-xs hover:bg-indigo-700"
                             >
                                 <Check class="h-4 w-4" /> Duyệt đơn hàng
                             </Button>
@@ -3636,20 +3498,18 @@ const submitRecall = async () => {
                                     canManageWarehouse &&
                                     warehouseStaff.length > 0 &&
                                     (selectedRequest.status === 'approved' ||
-                                        selectedRequest.status ===
-                                            'preparing' ||
-                                        selectedRequest.status === 'prepared')
+                                        selectedRequest.status === 'preparing')
                                 "
                                 @click="
                                     openTaskModal(selectedRequest, 'picking')
                                 "
                                 size="sm"
                                 variant="outline"
-                                class="gap-1 text-xs"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs shadow-xs"
                                 :class="
                                     getAssignedStaffName(selectedRequest)
-                                        ? 'border-emerald-500/50 bg-emerald-500/10 font-bold text-emerald-300 hover:bg-emerald-500/20'
-                                        : 'text-indigo-300'
+                                        ? 'border-emerald-500/50 bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20'
+                                        : 'text-indigo-600 dark:text-indigo-300 border-indigo-500/30'
                                 "
                             >
                                 <UserCheck class="h-4 w-4" />
@@ -3660,53 +3520,35 @@ const submitRecall = async () => {
                                 }}
                             </Button>
 
-                            <!-- Nút 1: Soạn hàng (cho đơn đã duyệt status == 'approved' hoặc 'preparing' hoặc 'prepared') -->
-                            <Button
-                                v-if="
-                                    (selectedRequest.status === 'approved' ||
-                                        selectedRequest.status ===
-                                            'preparing' ||
-                                        selectedRequest.status ===
-                                            'prepared') &&
-                                    (canDispatchRequests || canManageWarehouse)
-                                "
-                                @click="openPickingModal(selectedRequest)"
-                                size="sm"
-                                class="gap-1 bg-amber-600 text-xs text-white hover:bg-amber-700"
-                            >
-                                <Boxes class="h-4 w-4" /> Soạn Hàng (FEFO)
-                            </Button>
 
-                            <!-- Nút 2: Trưởng kho duyệt xuất (khi status == 'preparing' hoặc 'prepared') -->
+
+                            <!-- Nút 2: Duyệt xuất (khi status == 'prepared' hoặc 'preparing') -->
                             <Button
                                 v-if="
-                                    (selectedRequest.status === 'preparing' ||
+                                    (selectedRequest.status === 'prepared' ||
                                         selectedRequest.status ===
-                                            'prepared') &&
+                                            'preparing') &&
                                     canApproveRequests
                                 "
                                 @click="approveDispatchManager"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 bg-indigo-600 text-xs text-white hover:bg-indigo-700"
+                                class="gap-1.5 rounded-xl h-9 px-3 bg-indigo-600 text-xs font-bold text-white shadow-xs hover:bg-indigo-700"
                             >
-                                <CheckCircle2 class="h-4 w-4" /> Trưởng Kho
-                                Duyệt Xuất
+                                <CheckCircle2 class="h-4 w-4" /> Duyệt Xuất
                             </Button>
 
                             <!-- Nút 3: Thật xuất kho & bàn giao -->
                             <Button
                                 v-if="
-                                    (selectedRequest.status ===
-                                        'dispatch_pending_approval' ||
-                                        selectedRequest.status ===
-                                            'approved') &&
+                                    selectedRequest.status ===
+                                        'dispatch_pending_approval' &&
                                     canDispatchRequests
                                 "
                                 @click="openDispatchModal(selectedRequest)"
                                 size="sm"
                                 :disabled="isProcessing"
-                                class="gap-1 bg-purple-600 text-xs font-bold text-white hover:bg-purple-700"
+                                class="gap-1.5 rounded-xl h-9 px-3 bg-purple-600 text-xs font-bold text-white shadow-xs hover:bg-purple-700"
                             >
                                 <Truck class="h-4 w-4" /> Xuất Kho Bàn Giao
                             </Button>
@@ -3715,23 +3557,37 @@ const submitRecall = async () => {
                                 v-if="
                                     canManageWarehouse &&
                                     warehouseStaff.length > 0 &&
-                                    (selectedRequest.status ===
-                                        'dispatch_pending_approval' ||
-                                        selectedRequest.status === 'approved')
+                                    isTransporterAssignmentOnly
+                                "
+                                @click="openDispatchModal(selectedRequest)"
+                                size="sm"
+                                variant="outline"
+                                :disabled="isProcessing"
+                                class="gap-1.5 rounded-xl h-9 border-amber-500/40 px-3 text-xs font-bold text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+                            >
+                                <UserCheck class="h-4 w-4" /> Gán nhân viên giao
+                            </Button>
+
+                            <Button
+                                v-if="
+                                    canManageWarehouse &&
+                                    warehouseStaff.length > 0 &&
+                                    selectedRequest.status ===
+                                        'dispatch_pending_approval'
                                 "
                                 @click="
                                     openTaskModal(selectedRequest, 'handover')
                                 "
                                 size="sm"
                                 variant="outline"
-                                class="gap-1 text-xs"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs shadow-xs"
                                 :class="
                                     getAssignedStaffName(
                                         selectedRequest,
                                         'handover',
                                     )
-                                        ? 'border-emerald-500/50 bg-emerald-500/10 font-bold text-emerald-300 hover:bg-emerald-500/20'
-                                        : 'text-indigo-300'
+                                        ? 'border-emerald-500/50 bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20'
+                                        : 'text-indigo-600 dark:text-indigo-300 border-indigo-500/30'
                                 "
                             >
                                 <UserCheck class="h-4 w-4" />
@@ -3765,7 +3621,7 @@ const submitRecall = async () => {
                         <div class="flex items-center gap-2">
                             <Truck class="h-5 w-5 text-purple-400" />
                             <h3 class="text-base font-bold text-foreground">
-                                Bàn Giao Xuất Kho —
+                                {{ isTransporterAssignmentOnly ? 'Gán Nhân Viên Giao —' : 'Bàn Giao Xuất Kho —' }}
                                 {{ selectedRequest.request_code }}
                             </h3>
                         </div>
@@ -3800,7 +3656,7 @@ const submitRecall = async () => {
                             </div>
                         </div>
 
-                        <div>
+                        <div v-if="!isTransporterAssignmentOnly">
                             <label
                                 class="mb-1 block font-semibold text-muted-foreground"
                                 >Chọn Chuyến Xe Logistics (nếu gom chuyến
@@ -3828,14 +3684,14 @@ const submitRecall = async () => {
                         <div>
                             <label
                                 class="mb-1 block font-semibold text-muted-foreground"
-                                >Nhân viên bàn giao / Shipper / Tài xế *</label
+                                >Nhân viên giao hàng / Shipper / Tài xế *</label
                             >
                             <select
                                 v-model="dispatchForm.transporter_id"
                                 class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
                             >
                                 <option value="" disabled>
-                                    -- Chọn nhân viên bàn giao --
+                                    -- Chọn nhân viên giao hàng --
                                 </option>
                                 <option
                                     v-for="staff in warehouseStaff"
@@ -3850,9 +3706,23 @@ const submitRecall = async () => {
                                     }}
                                 </option>
                             </select>
+                            <p
+                                v-if="!isTransporterAssignmentOnly"
+                                class="mt-1 text-[11px] text-muted-foreground"
+                            >
+                                Sau khi xuất kho, tài khoản này sẽ nhận task
+                                “Giao hàng thành công” trong mục Công việc.
+                            </p>
+                            <p
+                                v-else
+                                class="mt-1 text-[11px] text-muted-foreground"
+                            >
+                                Tài khoản này sẽ nhận công việc “Giao hàng thành
+                                công” trong mục Công việc.
+                            </p>
                         </div>
 
-                        <div>
+                        <div v-if="!isTransporterAssignmentOnly">
                             <label
                                 class="mb-1 block font-semibold text-muted-foreground"
                                 >Mã Niêm Phong Kiện Hàng (Seal Code)</label
@@ -3893,8 +3763,8 @@ const submitRecall = async () => {
                             size="sm"
                             class="bg-purple-600 font-bold text-white hover:bg-purple-700"
                         >
-                            <Truck class="mr-1 h-4 w-4" /> Xác Nhận Xuất Kho Bàn
-                            Giao
+                            <Truck class="mr-1 h-4 w-4" />
+                            {{ isTransporterAssignmentOnly ? 'Lưu nhân viên giao' : 'Xác Nhận Xuất Kho Bàn Giao' }}
                         </Button>
                     </div>
                 </div>

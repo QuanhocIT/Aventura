@@ -54,6 +54,7 @@ const props = defineProps<{
     myVouchers: Array<any>;
     myHandovers: Array<any>;
     myDisputes: Array<any>;
+    myReceivingReports: Array<any>;
     handoverRecipients: Array<any>;
     locations: Array<any>;
     ingredients: Array<any>;
@@ -74,7 +75,8 @@ type TabId =
     | 'packing'
     | 'counting'
     | 'incident'
-    | 'handover';
+    | 'handover'
+    | 'delivery';
 
 const activeTab = ref<TabId>('today');
 const isLoading = ref(false);
@@ -82,6 +84,7 @@ const taskList = ref([...props.myTasks]);
 const voucherList = ref([...props.myVouchers]);
 const handoverList = ref([...props.myHandovers]);
 const disputeList = ref([...props.myDisputes]);
+const receivingReportList = ref([...props.myReceivingReports]);
 const notificationList = ref([...props.notifications]);
 const historyList = ref<any[]>([]);
 const taskSummaryData = ref({ ...props.taskSummary });
@@ -224,7 +227,15 @@ const tabs = computed(() => [
         id: 'incident' as TabId,
         label: 'Báo Sự Cố',
         icon: AlertTriangle,
-        count: 0,
+        count: receivingReportList.value.filter(
+            (report) => report.status === 'confirmed_pending_ack',
+        ).length,
+    },
+    {
+        id: 'delivery' as TabId,
+        label: 'Giao tới Chi nhánh',
+        icon: Truck,
+        count: tasksByType('delivery').length,
     },
     { id: 'handover' as TabId, label: 'Bàn Giao Ca', icon: Truck, count: 0 },
 ]);
@@ -278,6 +289,7 @@ function taskTypeLabel(type: string): string {
         picking: 'Soạn hàng theo đơn',
         packing: 'Đóng gói kiện hàng',
         handover: 'Bàn giao ca',
+        delivery: 'Giao hàng tới chi nhánh',
         counting: 'Kiểm kê kho',
         incident: 'Xử lý sự cố',
         discrepancy_resolution: 'Xử lý sai lệch',
@@ -374,29 +386,89 @@ function voucherStatusLabel(s: string): string {
     return map[s] ?? s;
 }
 
+// ── Lifecycle & Auto-Refresh ──────────────────────────────────────────────────
+
+onMounted(() => {
+    // Tự động kiểm tra và cập nhật tác vụ mới mỗi 3 giây
+    refreshTimer = setInterval(() => {
+        if (
+            !document.hidden &&
+            !isProcessingTask.value &&
+            !showPickingModal.value &&
+            !showScanModal.value
+        ) {
+            refreshTasks(true);
+        }
+    }, 3000);
+
+    const onVisibilityOrFocus = () => {
+        if (!document.hidden) {
+            refreshTasks(true);
+        }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+    window.addEventListener('focus', onVisibilityOrFocus);
+});
+
+onBeforeUnmount(() => {
+    if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+});
+
 // ── API Actions ───────────────────────────────────────────────────────────────
 
 async function refreshTasks(silent = false) {
-    isLoading.value = true;
+    if (!silent) {
+        isLoading.value = true;
+    }
 
     try {
         const { data } = await axios.get('/api/warehouse/my-tasks');
+        const oldTaskIds = new Set(taskList.value.map((t) => t.id));
+        const newTasks = (data.tasks || []).filter(
+            (t: any) => !oldTaskIds.has(t.id) && t.status !== 'completed',
+        );
+
+        if (silent && newTasks.length > 0) {
+            toast.info(
+                `Bạn có ${newTasks.length} nhiệm vụ mới vừa được phân công!`,
+                {
+                    duration: 4000,
+                },
+            );
+        }
+
         taskList.value = data.tasks;
         taskSummaryData.value = data.summary;
 
-        if (silent) {
-            return;
+        if (!silent) {
+            toast.success('Đã làm mới danh sách tác vụ.');
         }
-
-        toast.success('Đã làm mới danh sách tác vụ.');
     } catch {
-        toast.error('Không thể tải danh sách công việc.');
+        if (!silent) {
+            toast.error('Không thể tải danh sách công việc.');
+        }
     } finally {
-        isLoading.value = false;
+        if (!silent) {
+            isLoading.value = false;
+        }
     }
 }
 
-async function startTask(taskId: number) {
+async function startTask(taskOrId: any) {
+    const task =
+        typeof taskOrId === 'object'
+            ? taskOrId
+            : taskList.value.find((t) => t.id === taskOrId);
+    const taskId = task?.id ?? taskOrId;
+
+    if (!taskId) {
+        return;
+    }
+
     isProcessingTask.value = true;
 
     try {
@@ -415,14 +487,51 @@ async function startTask(taskId: number) {
             0,
             taskSummaryData.value.pending - 1,
         );
+
+        // Chỉ mở form thao tác trực tiếp nếu là task Soạn hàng FEFO ('picking')
+        // Đối với Giao hàng ('delivery') hoặc task khác, bắt đầu chỉ chuyển trạng thái sang "Đang thực hiện".
+        // Khi giao xong tới chi nhánh, tài xế/nhân viên mới ấn nút "Ấn giao hàng thành công" để xác nhận/hoàn thành.
+        const currentTask =
+            (idx !== -1 ? taskList.value[idx] : task) || { id: taskId };
+        if (currentTask.task_type === 'picking') {
+            openTaskCompletion(currentTask);
+        }
     } catch (e: any) {
-        toast.error(e.response?.data?.message ?? 'Lỗi khi bắt đầu công việc.');
+        if (task && task.task_type === 'picking') {
+            openTaskCompletion(task);
+        } else {
+            toast.error(
+                e.response?.data?.message ?? 'Lỗi khi bắt đầu công việc.',
+            );
+        }
     } finally {
         isProcessingTask.value = false;
     }
 }
 
+function getTaskActionButtonLabel(task: any) {
+    switch (task.task_type) {
+        case 'picking':
+            return 'Kiểm & Soạn Hàng FEFO';
+        case 'handover':
+            return 'Bàn Giao Xuất Xe';
+        case 'delivery':
+            return 'Giao hàng thành công';
+        case 'putaway':
+            return 'Cất Hàng Vào Vị Trí';
+        case 'packing':
+            return 'Đóng Gói Kiện Hàng';
+        case 'counting':
+            return 'Kiểm Kê Kho';
+        default:
+            return 'Tiến Hành Tác Vụ';
+    }
+}
+
 async function completeTask(taskId: number) {
+    if (isProcessingTask.value) {
+        return;
+    }
     isProcessingTask.value = true;
     const formData = new FormData();
     const idempotencyKey =
@@ -441,11 +550,12 @@ async function completeTask(taskId: number) {
         await axios.post(`/api/warehouse/tasks/${taskId}/complete`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
-        toast.success('Hoàn thành công việc xuất sắc!');
-        await refreshTasks();
+        toast.success('Hoàn thành công việc thành công!');
+        // Đóng modal ngay lập tức và reset form
         activeTaskId.value = null;
         taskResultNote.value = '';
         taskFiles.value = [];
+        await refreshTasks(true);
     } catch (e: any) {
         toast.error(
             e.response?.data?.message ?? 'Lỗi khi hoàn thành công việc.',
@@ -738,6 +848,34 @@ async function respondToDispute(dispute: any) {
     }
 }
 
+async function confirmReceivingReport(report: any) {
+    const notes = prompt(
+        `Xác nhận bạn đã đọc biên bản ${report.report_code}. Có thể ghi chú thêm (không bắt buộc):`,
+    );
+    if (notes === null) {
+        return;
+    }
+
+    try {
+        const { data } = await axios.post(
+            `/api/receiving-reports/${report.id}/driver-confirm`,
+            { notes: notes.trim() || null },
+        );
+        toast.success(
+            data.message || 'Đã xác nhận biên bản nhận hàng với tư cách tài xế.',
+        );
+        receivingReportList.value = receivingReportList.value.map((item) =>
+            item.id === report.id
+                ? { ...item, status: 'driver_confirmed', driver_confirmed_at: new Date().toISOString() }
+                : item,
+        );
+    } catch (e: any) {
+        toast.error(
+            e.response?.data?.message || 'Không thể xác nhận biên bản nhận hàng.',
+        );
+    }
+}
+
 async function confirmHandover(handoverId: number) {
     try {
         await axios.post(
@@ -816,11 +954,31 @@ async function confirmPutaway(task: any) {
     }
 }
 
-function openPickingModal(task: any) {
-    const items = task.supply_request?.items ?? [];
+async function openPickingModal(task: any) {
+    let items = task.supply_request?.items ?? [];
 
-    if (!task.supply_request?.id || items.length === 0) {
+    if (!task.supply_request?.id) {
         toast.error('Task soạn hàng chưa có dữ liệu đơn cấp phát.');
+
+        return;
+    }
+
+    if (items.length === 0) {
+        try {
+            const { data } = await axios.get(
+                `/api/supply-requests/${task.supply_request.id}`,
+            );
+            if (data.data?.items) {
+                items = data.data.items;
+                task.supply_request.items = items;
+            }
+        } catch {
+            // fallback
+        }
+    }
+
+    if (items.length === 0) {
+        toast.error('Không tìm thấy danh sách nguyên liệu cần soạn.');
 
         return;
     }
@@ -830,12 +988,23 @@ function openPickingModal(task: any) {
         id: item.id,
         ingredient_name:
             item.ingredient_name || item.ingredient?.name || 'Nguyên liệu',
-        approved_quantity: item.approved_quantity ?? item.quantity ?? 1,
-        actual_dispatched_quantity:
-            item.approved_quantity ?? item.quantity ?? 1,
+        approved_quantity: Number(
+            item.approved_quantity ?? item.requested_quantity ?? item.quantity ?? 1,
+        ),
+        actual_dispatched_quantity: Number(
+            item.actual_dispatched_quantity ??
+                item.approved_quantity ??
+                item.requested_quantity ??
+                item.quantity ??
+                1,
+        ),
         batch_id: item.batch_id ?? null,
         warehouse_location_id: item.warehouse_location_id ?? null,
-        unit_symbol: item.unit_symbol || item.ingredient?.unit?.symbol || 'đv',
+        unit_symbol:
+            item.unit_symbol ||
+            item.unit ||
+            item.ingredient?.unit?.symbol ||
+            'đv',
     }));
     showPickingModal.value = true;
 }
@@ -1072,6 +1241,14 @@ onMounted(() => {
         addGrnItem();
     }
 
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (
+        requestedTab &&
+        ['today', 'receiving', 'putaway', 'picking', 'packing', 'counting', 'incident', 'handover', 'delivery'].includes(requestedTab)
+    ) {
+        activeTab.value = requestedTab as TabId;
+    }
+
     // Tự refresh task mỗi 5 phút
     refreshTimer = setInterval(() => refreshTasks(true), 5 * 60 * 1000);
 });
@@ -1117,54 +1294,8 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-                <Button
-                    variant="outline"
-                    class="relative gap-2"
-                    @click="showNotifications = !showNotifications"
-                >
-                    <AlertCircle class="size-4 text-indigo-500" />
-                    Thông báo
-                    <span
-                        v-if="notificationList.length"
-                        class="rounded-full bg-rose-500 px-1.5 text-[10px] text-white"
-                        >{{ notificationList.length }}</span
-                    >
-                </Button>
-                <Button
-                    variant="outline"
-                    class="gap-2"
-                    @click="
-                        showHistory = !showHistory;
-                        loadHistory();
-                    "
-                >
-                    <Clock class="size-4 text-slate-500" />
-                    Lịch sử
-                </Button>
-                <Button
-                    variant="outline"
-                    class="gap-2 border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-                    @click="showScanModal = true"
-                >
-                    <Scan class="size-4 text-amber-500" />
-                    Quét Mã QR / Barcode
-                </Button>
-
-                <Button
-                    variant="outline"
-                    class="gap-2 border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-                    :disabled="isLoading"
-                    @click="refreshTasks"
-                >
-                    <RefreshCw
-                        class="size-4 text-slate-500"
-                        :class="{ 'animate-spin': isLoading }"
-                    />
-                    Làm mới
-                </Button>
-
-                <Link v-if="canManageWarehouse" href="/warehouse/team">
+            <div v-if="canManageWarehouse" class="flex items-center gap-2">
+                <Link href="/warehouse/team">
                     <Button
                         variant="outline"
                         class="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
@@ -1548,9 +1679,9 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="w-full gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700 dark:bg-amber-500"
+                                class="w-full gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700 dark:bg-amber-500"
                                 :disabled="isProcessingTask"
-                                @click="startTask(task.id)"
+                                @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu thực
                                 hiện
@@ -1558,15 +1689,15 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="w-full gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-500"
+                                class="w-full gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-500"
                                 @click="openTaskCompletion(task)"
                             >
-                                <CheckCircle class="size-3.5" /> Xác nhận hoàn
-                                tất
+                                <ClipboardList class="size-3.5" />
+                                {{ getTaskActionButtonLabel(task) }}
                             </Button>
                             <span
                                 v-if="task.status === 'completed'"
-                                class="flex w-full items-center justify-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                                class="flex w-full items-center justify-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400"
                             >
                                 <BadgeCheck class="size-4" /> Đã hoàn thành
                             </span>
@@ -1576,7 +1707,96 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- 2. NHẬP HÀNG (GRN) -->
+        <!-- 2. GIAO HÀNG TỚI CHI NHÁNH -->
+        <div v-if="activeTab === 'delivery'" class="flex flex-col gap-4">
+            <div>
+                <h2
+                    class="text-lg font-bold text-slate-900 dark:text-slate-100"
+                >
+                    Giao hàng tới Chi nhánh
+                </h2>
+                <p class="text-xs text-slate-500">
+                    Hoàn tất giao thực tế rồi bấm “Giao hàng thành công” để
+                    Quản lý chi nhánh được kiểm đếm và nghiệm thu.
+                </p>
+            </div>
+
+            <div
+                v-if="tasksByType('delivery').length === 0"
+                class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-10 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/20"
+            >
+                Không có đơn Kho Tổng nào đang chờ bạn giao.
+            </div>
+
+            <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Card
+                    v-for="task in tasksByType('delivery')"
+                    :key="task.id"
+                    class="border-purple-200 shadow-sm dark:border-purple-900/50"
+                >
+                    <CardHeader class="pb-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <CardTitle class="flex items-center gap-2 text-base">
+                                    <Truck class="size-5 text-purple-500" />
+                                    {{ task.supply_request?.request_code || `Task #${task.id}` }}
+                                </CardTitle>
+                                <CardDescription class="mt-1 text-xs">
+                                    Giao tới:
+                                    {{ formatBranchName(task.supply_request?.to_branch) || 'Chi nhánh nhận hàng' }}
+                                </CardDescription>
+                            </div>
+                            <Badge
+                                variant="outline"
+                                :class="statusBadgeClass(task.status)"
+                            >
+                                {{ statusLabel(task.status) }}
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent class="space-y-3">
+                        <p
+                            v-if="task.notes"
+                            class="rounded-lg bg-purple-50 p-3 text-xs leading-relaxed text-purple-900 dark:bg-purple-950/30 dark:text-purple-200"
+                        >
+                            {{ task.notes }}
+                        </p>
+                        <div
+                            v-if="task.supply_request?.items?.length"
+                            class="flex flex-wrap gap-1.5"
+                        >
+                            <span
+                                v-for="item in task.supply_request.items"
+                                :key="item.id"
+                                class="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                            >
+                                {{ item.ingredient_name }} ·
+                                {{ item.actual_dispatched_quantity ?? item.approved_quantity }}
+                                {{ item.unit || '' }}
+                            </span>
+                        </div>
+                        <Button
+                            v-if="task.status === 'assigned'"
+                            class="w-full gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                            :disabled="isProcessingTask"
+                            @click="startTask(task)"
+                        >
+                            <ArrowRight class="size-3.5" /> Bắt đầu giao hàng
+                        </Button>
+                        <Button
+                            v-if="task.status === 'in_progress'"
+                            class="w-full gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                            @click="openTaskCompletion(task)"
+                        >
+                            <CheckCircle class="size-4" />
+                            Giao hàng thành công
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+
+        <!-- 3. NHẬP HÀNG (GRN) -->
         <div v-if="activeTab === 'receiving'" class="flex flex-col gap-6">
             <Card class="border-slate-200 shadow-sm dark:border-slate-800">
                 <CardHeader>
@@ -2033,18 +2253,18 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-semibold text-white"
-                                @click="startTask(task.id)"
+                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu cất hàng
                             </Button>
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white"
+                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
-                                <CheckCircle class="size-3.5" /> Hoàn thành
+                                <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
                             </Button>
                         </div>
                     </CardContent>
@@ -2127,18 +2347,18 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-semibold text-white"
-                                @click="startTask(task.id)"
+                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu soạn
                             </Button>
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white"
+                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
-                                <CheckCircle class="size-3.5" /> Đã soạn xong
+                                <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
                             </Button>
                         </div>
                     </CardContent>
@@ -2200,19 +2420,18 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-semibold text-white"
-                                @click="startTask(task.id)"
+                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu đóng gói
                             </Button>
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white"
+                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
-                                <CheckCircle class="size-3.5" /> Đã đóng gói
-                                xong
+                                <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
                             </Button>
                         </div>
                     </CardContent>
@@ -2330,6 +2549,54 @@ onBeforeUnmount(() => {
 
         <!-- 7. BÁO CÁO SỰ CỐ (INCIDENT) -->
         <div v-if="activeTab === 'incident'" class="flex flex-col gap-6">
+            <Card
+                v-if="receivingReportList.length"
+                class="border-amber-200 shadow-sm dark:border-amber-900/50"
+            >
+                <CardHeader>
+                    <CardTitle class="text-base font-bold text-amber-700 dark:text-amber-300">
+                        Biên bản nhận hàng cần xác nhận
+                    </CardTitle>
+                    <CardDescription class="text-xs">
+                        Kiểm tra lại các nguyên liệu thiếu/hỏng/hết hạn/sai hàng rồi xác nhận để Trưởng Kho Tổng xử lý.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                    <div
+                        v-for="report in receivingReportList"
+                        :key="report.id"
+                        class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+                    >
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="text-xs">
+                                <div class="font-bold text-slate-800 dark:text-slate-100">
+                                    {{ report.report_code }} · Đơn {{ report.supply_request?.request_code }}
+                                </div>
+                                <div class="mt-1 text-slate-600 dark:text-slate-300">
+                                    Chi nhánh: {{ report.supply_request?.to_branch?.name || '---' }}
+                                </div>
+                                <div class="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
+                                    <div v-for="item in (report.items || []).filter((row: any) => Number(row.submitted_damaged_quantity || 0) + Number(row.submitted_expired_quantity || 0) + Number(row.submitted_wrong_item_quantity || 0) + Number(row.submitted_shortage_quantity || 0) > 0)" :key="item.id">
+                                        <strong>{{ item.ingredient?.name || item.ingredient_name_snapshot }}</strong>:
+                                        đạt {{ item.submitted_good_quantity }}, hỏng {{ item.submitted_damaged_quantity }}, hết hạn {{ item.submitted_expired_quantity }}, thiếu {{ item.submitted_shortage_quantity }}
+                                    </div>
+                                </div>
+                            </div>
+                            <Button
+                                v-if="report.status === 'confirmed_pending_ack'"
+                                size="sm"
+                                class="shrink-0 gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                                @click="confirmReceivingReport(report)"
+                            >
+                                <CheckCircle class="size-3.5" /> Xác nhận biên bản
+                            </Button>
+                            <Badge v-else variant="outline" class="shrink-0 border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                Đã xác nhận
+                            </Badge>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
             <Card
                 v-if="disputeList.length"
                 class="border-rose-200 shadow-sm dark:border-rose-900/50"
@@ -2781,6 +3048,7 @@ onBeforeUnmount(() => {
             <div
                 v-if="activeTaskId !== null"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                @click.self="activeTaskId = null"
             >
                 <div
                     class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
@@ -2819,22 +3087,32 @@ onBeforeUnmount(() => {
                                 class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                 >Ảnh bằng chứng hoàn thành (tuỳ chọn)</Label
                             >
-                            <div
-                                class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-950/40"
+                            <label
+                                class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
                             >
-                                <Upload class="size-5 text-slate-400" />
-                                <span
-                                    class="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300"
-                                    >Chọn ảnh chứng từ / hàng hóa</span
-                                >
                                 <input
                                     type="file"
                                     multiple
                                     accept="image/*,application/pdf"
-                                    class="mt-2 text-xs"
+                                    class="sr-only"
                                     @change="handleFileInput($event, 'task')"
                                 />
-                            </div>
+                                <div
+                                    class="flex size-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 transition group-hover:scale-110 dark:bg-emerald-500/20 dark:text-emerald-400"
+                                >
+                                    <Upload class="size-5" />
+                                </div>
+                                <span
+                                    class="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                                >
+                                    Nhấn vào đây để tải ảnh chứng từ / hàng hóa
+                                </span>
+                                <span
+                                    class="mt-0.5 text-[11px] text-muted-foreground"
+                                >
+                                    Hỗ trợ PNG, JPG, WEBP, PDF (Tối đa 10MB)
+                                </span>
+                            </label>
                             <div
                                 v-if="taskFiles.length > 0"
                                 class="flex flex-wrap gap-2 pt-2"

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\SupplyRequestReceivingReport;
 use App\Services\WarehouseGovernanceService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -30,12 +31,31 @@ class WarehouseGovernanceController extends Controller
             ->with('roles:id,name')
             ->orderBy('name')
             ->get();
+        $receivingReports = SupplyRequestReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('status', [
+                SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK,
+                SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED,
+                SupplyRequestReceivingReport::STATUS_RESOLVED,
+            ])
+            ->with([
+                'items.ingredient.unit',
+                'supplyRequest.toBranch',
+                'supplyRequest.transporter',
+                'transporter',
+                'confirmedBy',
+                'driverConfirmedBy',
+                'reviewedBy',
+            ])
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
 
         return Inertia::render('inventory/WarehouseGovernance', [
             'summary' => $summary,
             'rules' => $summary['rules'],
             'recentDisputes' => $summary['recent_disputes'],
             'employees' => $employees,
+            'receivingReports' => $receivingReports,
         ]);
     }
 

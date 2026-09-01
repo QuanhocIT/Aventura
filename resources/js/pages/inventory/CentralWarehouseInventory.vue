@@ -3,6 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     Boxes,
+    Building2,
     CalendarClock,
     Check,
     ChevronDown,
@@ -347,57 +348,53 @@ const activityTypeLabel = (type: string) =>
 <template>
     <Head title="Tồn kho Kho Tổng" />
 
-    <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
-        <section
-            class="rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-indigo-500/20 dark:bg-gradient-to-br dark:from-slate-950 dark:via-indigo-950/90 dark:to-slate-900 dark:text-white dark:shadow-xl"
+    <div class="w-full space-y-6 p-4 sm:p-6 lg:p-8">
+        <!-- Modern Unified Header -->
+        <div
+            class="flex flex-col gap-4 rounded-3xl border border-border/80 bg-card p-5 shadow-xs sm:p-6 md:flex-row md:items-center md:justify-between"
         >
-            <div
-                class="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"
-            >
-                <div>
-                    <Link
-                        href="/inventory/central-warehouse"
-                        class="mb-3 inline-flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 dark:text-indigo-200 dark:hover:text-white"
-                        >← Tổng quan Kho Tổng</Link
-                    >
-                    <div class="flex items-center gap-3">
-                        <div
-                            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200"
-                        >
-                            <Warehouse class="h-6 w-6" />
-                        </div>
-                        <div>
-                            <h1
-                                class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-white"
-                            >
-                                Tồn kho Kho Tổng
-                            </h1>
-                            <p
-                                class="mt-1 text-sm text-slate-600 dark:text-indigo-100/75"
-                            >
-                                Theo dõi tồn thực tế, tồn khả dụng và lô hàng
-                                tại kho nguồn.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+            <div class="flex items-center gap-4">
                 <div
-                    class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur-sm"
+                    class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm shadow-primary/20"
                 >
-                    <p
-                        class="text-[10px] font-semibold tracking-[0.16em] text-indigo-200/70 uppercase"
+                    <Warehouse class="size-6" />
+                </div>
+                <div>
+                    <h1
+                        class="text-xl font-bold tracking-tight text-foreground sm:text-2xl"
                     >
-                        Phạm vi dữ liệu
-                    </p>
-                    <p class="mt-1 font-semibold text-white">
-                        {{ centralBranch?.name || 'Kho Tổng chưa thiết lập' }}
-                    </p>
-                    <p class="mt-1 text-xs text-indigo-100/60">
-                        Không phụ thuộc chi nhánh đang chọn trên header
+                        Tồn kho Kho Tổng
+                    </h1>
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        Theo dõi tồn thực tế, tồn khả dụng và quản lý các lô hàng tại kho nguồn
                     </p>
                 </div>
             </div>
-        </section>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <div
+                    class="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-semibold text-foreground shadow-2xs backdrop-blur-sm"
+                >
+                    <Building2 class="size-4 text-primary" />
+                    <span>
+                        Phạm vi:
+                        <strong class="text-foreground">{{
+                            centralBranch?.name || 'Kho Tổng'
+                        }}</strong>
+                    </span>
+                </div>
+
+                <Button
+                    variant="outline"
+                    as-child
+                    class="h-9 gap-1.5 rounded-xl border-border px-3 text-xs font-semibold hover:bg-accent"
+                >
+                    <Link href="/inventory/central-warehouse">
+                        ← Tổng quan Kho Tổng
+                    </Link>
+                </Button>
+            </div>
+        </div>
 
         <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Card class="border-indigo-500/20 bg-indigo-950/10"

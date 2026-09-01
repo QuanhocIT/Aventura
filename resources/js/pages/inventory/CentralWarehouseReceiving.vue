@@ -353,11 +353,6 @@ const canReview = (voucher: Voucher) =>
     (props.canApproveOwnReceiving ||
         voucher.received_by?.id !== props.currentUserId);
 
-const selectedPurchaseOrder = computed(() =>
-    props.purchaseOrders.find(
-        (order) => order.id === grnForm.value.purchase_order_id,
-    ),
-);
 
 const filteredVouchers = computed(() => {
     const query = search.value.trim().toLowerCase();
@@ -795,39 +790,6 @@ const onIngredientChange = (line: GrnLine) => {
     }
 };
 
-const onPurchaseOrderChange = () => {
-    const order = selectedPurchaseOrder.value;
-
-    if (!order) {
-        grnForm.value.items = [emptyLine()];
-
-        return;
-    }
-
-    grnForm.value.items = order.items
-        .map((item) => ({
-            ingredient_id: item.ingredient_id,
-            expected_qty: Math.max(
-                0,
-                item.quantity_ordered - item.quantity_received,
-            ),
-            actual_qty: Math.max(
-                0,
-                item.quantity_ordered - item.quantity_received,
-            ),
-            unit_cost: item.price_per_unit,
-            lot_number: '',
-            expiry_date: '',
-            manufactured_date: '',
-            location_id: null,
-            discrepancy_reason: '',
-        }))
-        .filter((item) => item.expected_qty > 0);
-
-    if (grnForm.value.items.length === 0) {
-        grnForm.value.items = [emptyLine()];
-    }
-};
 
 const handleGrnFiles = (event: Event) => {
     const files = (event.target as HTMLInputElement).files;
@@ -1345,7 +1307,7 @@ const documentTypeLabel = (type: string) =>
                             /><Input
                                 v-model="search"
                                 class="h-9 pl-9 text-xs"
-                                placeholder="Tìm mã GRN, đơn mua hoặc người nhận..."
+                                placeholder="Tìm mã GRN hoặc người nhận..."
                             />
                         </div>
                         <select
@@ -1368,7 +1330,7 @@ const documentTypeLabel = (type: string) =>
                         >
                             <tr>
                                 <th class="w-8 p-3"></th>
-                                <th class="p-3">Mã GRN / Đơn mua</th>
+                                <th class="p-3">Mã GRN</th>
                                 <th class="p-3">Người nhận / Thời gian</th>
                                 <th class="p-3 text-right">Dòng hàng</th>
                                 <th class="p-3 text-right">Thực nhận</th>
@@ -1404,18 +1366,6 @@ const documentTypeLabel = (type: string) =>
                                             class="font-mono font-bold text-orange-300"
                                         >
                                             {{ voucher.voucher_code }}
-                                        </p>
-                                        <p
-                                            v-if="
-                                                voucher.purchase_order
-                                                    ?.po_number
-                                            "
-                                            class="mt-1 text-[10px] text-muted-foreground"
-                                        >
-                                            PO:
-                                            {{
-                                                voucher.purchase_order.po_number
-                                            }}
                                         </p>
                                     </td>
                                     <td class="p-3">
@@ -2507,16 +2457,17 @@ const documentTypeLabel = (type: string) =>
                         ><X class="size-4"
                     /></Button>
                 </div>
-                <form class="space-y-5" @submit.prevent="submitGrn">
-                    <div class="grid gap-3 md:grid-cols-3">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Thời điểm nhận</Label
-                            ><div class="relative">
+                <form class="space-y-6" @submit.prevent="submitGrn">
+                    <!-- Nhóm 1: Tiếp nhận & Vận chuyển cơ bản -->
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div class="flex flex-col gap-1.5 sm:col-span-2">
+                            <Label class="text-xs font-bold text-foreground">Thời điểm nhận</Label>
+                            <div class="relative">
                                 <Input
                                     :model-value="displayDateValue(grnForm.received_at)"
                                     type="text"
                                     readonly
-                                    class="cursor-default pr-10"
+                                    class="cursor-default pr-10 text-xs font-medium"
                                     placeholder="YYYY-MM-DD HH:mm"
                                 />
                                 <button
@@ -2538,40 +2489,54 @@ const documentTypeLabel = (type: string) =>
                                 />
                             </div>
                         </div>
-                        <div class="flex flex-col gap-1.5 md:col-span-2">
-                            <Label>Đối chiếu đơn mua hàng (khuyến nghị)</Label
-                            ><select
-                                v-model="grnForm.purchase_order_id"
-                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                                @change="onPurchaseOrderChange"
-                            >
-                                <option :value="null">Không gắn PO</option>
-                                <option
-                                    v-for="order in purchaseOrders"
-                                    :key="order.id"
-                                    :value="order.id"
-                                >
-                                    {{ order.po_number }} · {{ order.status }}
-                                </option>
-                            </select>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Đơn vị vận chuyển / Người giao</Label>
+                            <Input
+                                v-model="grnForm.carrier_name"
+                                class="text-xs"
+                                placeholder="Tên đơn vị / tài xế / người giao"
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Cửa / khu tiếp nhận</Label>
+                            <Input
+                                v-model="grnForm.receiving_dock"
+                                class="text-xs"
+                                placeholder="Cửa nhập số 1"
+                            />
                         </div>
                     </div>
-                    <div class="grid gap-3 md:grid-cols-4">
+
+                    <!-- Nhóm 2: Thông tin Chứng từ & Xe hàng -->
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Ký hiệu / mẫu số hóa đơn</Label>
+                            <Label class="text-xs font-bold text-foreground">Ký hiệu / mẫu số HĐ</Label>
                             <Input
                                 v-model="grnForm.invoice_series"
+                                class="text-xs font-mono"
                                 placeholder="01GTKT0/001"
                             />
                         </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Ngày hóa đơn</Label>
+                            <Label class="text-xs font-bold text-foreground">Số hóa đơn</Label>
+                            <Input
+                                v-model="grnForm.invoice_number"
+                                class="text-xs font-mono"
+                                placeholder="INV-..."
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Ngày hóa đơn</Label>
                             <div class="relative">
                                 <Input
                                     :model-value="displayDateValue(grnForm.invoice_date)"
                                     type="text"
                                     readonly
-                                    class="cursor-default pr-10"
+                                    class="cursor-default pr-10 text-xs font-medium"
                                     placeholder="Chọn ngày"
                                 />
                                 <button
@@ -2593,202 +2558,153 @@ const documentTypeLabel = (type: string) =>
                                 />
                             </div>
                         </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Tổng tiền hóa đơn (đ)</Label>
+                            <Label class="text-xs font-bold text-foreground">Số phiếu giao hàng</Label>
+                            <Input
+                                v-model="grnForm.delivery_note_number"
+                                class="text-xs font-mono"
+                                placeholder="DN-..."
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Biển số xe</Label>
+                            <Input
+                                v-model="grnForm.vehicle_number"
+                                class="text-xs font-mono"
+                                placeholder="51A-..."
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Mã niêm phong</Label>
+                            <Input
+                                v-model="grnForm.seal_code"
+                                class="text-xs font-mono"
+                                placeholder="SEAL-..."
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-foreground">Tổng tiền hóa đơn (đ)</Label>
                             <Input
                                 v-model="grnForm.invoice_total_amount"
                                 type="number"
                                 min="0"
                                 step="1"
+                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                placeholder="0"
                             />
                         </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Thuế GTGT (đ)</Label>
+                            <Label class="text-xs font-bold text-foreground">Thuế GTGT (đ)</Label>
                             <Input
                                 v-model="grnForm.vat_amount"
                                 type="number"
                                 min="0"
                                 step="1"
+                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                placeholder="0"
                             />
                         </div>
                     </div>
-                    <div class="grid gap-3 md:grid-cols-4">
+
+                    <!-- Nhóm 3: Kiểm soát Nhiệt độ & Lưu ý -->
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Đơn vị vận chuyển</Label>
-                            <Input
-                                v-model="grnForm.carrier_name"
-                                placeholder="Tên đơn vị / tài xế"
-                            />
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Cửa / khu tiếp nhận</Label>
-                            <Input
-                                v-model="grnForm.receiving_dock"
-                                placeholder="Cửa nhập số 1"
-                            />
-                        </div>
-                        <div class="flex items-end md:col-span-2">
-                            <p
-                                class="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3 text-[11px] text-muted-foreground"
-                            >
-                                Phiếu sẽ được gửi thẳng vào hàng đợi duyệt. Tồn
-                                kho chỉ tăng sau khi Trưởng kho hoặc người có
-                                thẩm quyền xác minh.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-4">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Số phiếu giao hàng</Label
-                            ><Input
-                                v-model="grnForm.delivery_note_number"
-                                placeholder="DN-..."
-                            />
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Số hóa đơn</Label
-                            ><Input
-                                v-model="grnForm.invoice_number"
-                                placeholder="INV-..."
-                            />
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Biển số xe</Label
-                            ><Input
-                                v-model="grnForm.vehicle_number"
-                                placeholder="51A-..."
-                            />
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Mã niêm phong</Label
-                            ><Input
-                                v-model="grnForm.seal_code"
-                                placeholder="SEAL-..."
-                            />
-                        </div>
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-4">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Nhiệt độ thấp nhất (°C)</Label>
+                            <Label class="text-xs font-bold text-foreground">Nhiệt độ thấp nhất (°C)</Label>
                             <Input
                                 v-model="grnForm.temperature_min_c"
                                 type="number"
                                 step="0.1"
-                                placeholder="Ví dụ 2"
+                                placeholder="Ví dụ: 2"
+                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                         </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Nhiệt độ cao nhất (°C)</Label>
+                            <Label class="text-xs font-bold text-foreground">Nhiệt độ cao nhất (°C)</Label>
                             <Input
                                 v-model="grnForm.temperature_max_c"
                                 type="number"
                                 step="0.1"
-                                placeholder="Ví dụ 6"
+                                placeholder="Ví dụ: 6"
+                                class="text-xs text-right font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             />
                         </div>
-                        <div class="flex items-end md:col-span-2">
-                            <p
-                                class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground"
-                            >
-                                Hàng tươi/kho lạnh sẽ không được xác minh nếu
-                                thiếu nhiệt độ nhận hàng.
+
+                        <div class="flex items-center sm:col-span-2">
+                            <p class="w-full rounded-xl border border-sky-400/20 bg-sky-500/5 p-2.5 text-[11px] text-muted-foreground">
+                                ❄️ Hàng tươi / kho lạnh sẽ không được xác minh nếu thiếu thông tin nhiệt độ nhận hàng thực tế.
                             </p>
                         </div>
                     </div>
-                    <div class="rounded-2xl border border-border">
-                        <div
-                            class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/20 p-4"
-                        >
+
+                    <!-- Nhóm 4: Bảng Dòng Hàng Thực Nhận -->
+                    <div class="rounded-2xl border border-border bg-card shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 p-4">
                             <div>
-                                <p
-                                    class="flex items-center gap-2 text-sm font-bold"
-                                >
-                                    <PackageCheck
-                                        class="size-4 text-orange-300"
-                                    />
+                                <p class="flex items-center gap-2 text-sm font-bold text-foreground">
+                                    <PackageCheck class="size-4 text-orange-400" />
                                     Dòng hàng thực nhận
                                 </p>
-                                <p
-                                    class="mt-1 text-[11px] text-muted-foreground"
-                                >
-                                    Nếu giao thiếu/thừa, nhập số thực tế và lý
-                                    do ngay trên dòng.
+                                <p class="mt-0.5 text-[11px] text-muted-foreground">
+                                    Nhập số lượng thực nhận, số lô, hạn sử dụng và vị trí lưu trữ trong kho.
                                 </p>
                             </div>
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                class="gap-1.5"
+                                class="gap-1.5 rounded-xl border-border text-xs font-semibold hover:bg-accent"
                                 @click="addGrnLine"
-                                ><Plus class="size-3.5" /> Thêm dòng</Button
                             >
+                                <Plus class="size-3.5" /> Thêm dòng
+                            </Button>
                         </div>
+
                         <div class="overflow-x-auto p-3">
-                            <table class="w-full min-w-[1250px] text-xs">
-                                <thead
-                                    class="text-[10px] text-muted-foreground"
-                                >
-                                    <tr>
-                                        <th class="w-80 min-w-[280px] p-2 text-left">
-                                            Nguyên liệu
-                                        </th>
-                                        <th class="w-24 min-w-[90px] p-2 text-right">
-                                            Dự kiến
-                                        </th>
-                                        <th class="w-24 min-w-[90px] p-2 text-right">
-                                            Thực nhận
-                                        </th>
-                                        <th class="w-28 min-w-[110px] p-2 text-right">
-                                            Đơn giá
-                                        </th>
-                                        <th class="w-28 min-w-[110px] p-2">Số lô</th>
-                                        <th class="w-36 min-w-[140px] p-2">NSX</th>
-                                        <th class="w-36 min-w-[140px] p-2">HSD</th>
-                                        <th class="w-44 min-w-[160px] p-2">Vị trí cất</th>
-                                        <th class="min-w-[180px] p-2">
-                                            Lý do chênh lệch
-                                        </th>
-                                        <th class="w-12 p-2"></th>
+                            <table class="w-full min-w-[1300px] text-xs">
+                                <thead class="text-[11px] font-bold text-muted-foreground">
+                                    <tr class="border-b border-border">
+                                        <th class="w-72 min-w-[240px] p-2.5 text-left">Nguyên liệu</th>
+                                        <th class="w-24 min-w-[90px] p-2.5 text-right">Dự kiến</th>
+                                        <th class="w-24 min-w-[90px] p-2.5 text-right">Thực nhận</th>
+                                        <th class="w-28 min-w-[105px] p-2.5 text-right">Đơn giá (đ)</th>
+                                        <th class="w-32 min-w-[120px] p-2.5 text-left">Số lô</th>
+                                        <th class="w-40 min-w-[150px] p-2.5 text-left">NSX</th>
+                                        <th class="w-40 min-w-[150px] p-2.5 text-left">HSD</th>
+                                        <th class="w-44 min-w-[160px] p-2.5 text-left">Vị trí cất</th>
+                                        <th class="min-w-[180px] p-2.5 text-left">Lý do chênh lệch</th>
+                                        <th class="w-10 p-2.5"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
                                     <tr
                                         v-for="(line, index) in grnForm.items"
                                         :key="index"
+                                        class="hover:bg-muted/20"
                                     >
-                                        <td class="w-80 min-w-[280px] p-2">
+                                        <td class="p-2">
                                             <select
                                                 v-model="line.ingredient_id"
-                                                class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
-                                                @change="
-                                                    onIngredientChange(line)
-                                                "
+                                                class="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                                                @change="onIngredientChange(line)"
                                             >
-                                                <option :value="null">
-                                                    Chọn nguyên liệu
-                                                </option>
+                                                <option :value="null">Chọn nguyên liệu</option>
                                                 <option
                                                     v-for="ingredient in ingredients"
                                                     :key="ingredient.id"
                                                     :value="ingredient.id"
                                                 >
-                                                    {{ ingredient.name
-                                                    }}{{
-                                                        ingredient.sku
-                                                            ? ` · ${ingredient.sku}`
-                                                            : ''
-                                                    }}
-                                                </option></select
-                                            ><span
-                                                class="mt-1 block text-[10px] text-muted-foreground"
-                                                >Đơn vị:
-                                                {{
-                                                    ingredientUnit(
-                                                        line.ingredient_id,
-                                                    )
-                                                }}</span
-                                            >
+                                                    {{ ingredient.name }}{{ ingredient.sku ? ` · ${ingredient.sku}` : '' }}
+                                                </option>
+                                            </select>
+                                            <span class="mt-1 block text-[10px] text-muted-foreground">
+                                                Đơn vị: <strong class="text-foreground">{{ ingredientUnit(line.ingredient_id) }}</strong>
+                                            </span>
                                         </td>
                                         <td class="p-2">
                                             <Input
@@ -2796,16 +2712,17 @@ const documentTypeLabel = (type: string) =>
                                                 type="number"
                                                 min="0"
                                                 step="0.001"
-                                                class="h-9 text-right text-xs"
+                                                class="h-9 text-right text-xs font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                             />
                                         </td>
                                         <td class="p-2">
                                             <Input
                                                 v-model="line.actual_qty"
+                                                @input="if (!line.expected_qty || Number(line.expected_qty) === 0) { line.expected_qty = line.actual_qty; }"
                                                 type="number"
                                                 min="0"
                                                 step="0.001"
-                                                class="h-9 text-right text-xs"
+                                                class="h-9 text-right text-xs font-bold text-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                             />
                                         </td>
                                         <td class="p-2">
@@ -2813,25 +2730,25 @@ const documentTypeLabel = (type: string) =>
                                                 v-model="line.unit_cost"
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
-                                                class="h-9 text-right text-xs"
+                                                step="1"
+                                                class="h-9 text-right text-xs font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                             />
                                         </td>
                                         <td class="p-2">
                                             <Input
                                                 v-model="line.lot_number"
-                                                class="h-9 text-xs"
+                                                class="h-9 text-xs font-mono"
                                                 placeholder="LOT-..."
                                             />
                                         </td>
                                         <td class="p-2">
-                                            <div class="relative">
+                                            <div class="relative flex items-center">
                                                 <Input
                                                     :model-value="displayDateValue(line.manufactured_date)"
                                                     type="text"
                                                     readonly
                                                     placeholder="YYYY-MM-DD"
-                                                    class="h-9 cursor-default pr-8 text-xs"
+                                                    class="h-9 w-full cursor-default pr-8 pl-2.5 text-xs font-mono"
                                                 />
                                                 <button
                                                     type="button"
@@ -2853,13 +2770,13 @@ const documentTypeLabel = (type: string) =>
                                             </div>
                                         </td>
                                         <td class="p-2">
-                                            <div class="relative">
+                                            <div class="relative flex items-center">
                                                 <Input
                                                     :model-value="displayDateValue(line.expiry_date)"
                                                     type="text"
                                                     readonly
                                                     placeholder="YYYY-MM-DD"
-                                                    class="h-9 cursor-default pr-8 text-xs"
+                                                    class="h-9 w-full cursor-default pr-8 pl-2.5 text-xs font-mono"
                                                 />
                                                 <button
                                                     type="button"
@@ -2883,31 +2800,21 @@ const documentTypeLabel = (type: string) =>
                                         <td class="p-2">
                                             <select
                                                 v-model="line.location_id"
-                                                class="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                                class="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
                                             >
-                                                <option :value="null">
-                                                    Chọn vị trí
-                                                </option>
+                                                <option :value="null">Chọn vị trí</option>
                                                 <option
                                                     v-for="location in warehouseLocations"
                                                     :key="location.id"
                                                     :value="location.id"
                                                 >
-                                                    {{ location.location_code }}
-                                                    · {{ location.zone
-                                                    }}{{
-                                                        location.is_quarantine
-                                                            ? ' · Cách ly'
-                                                            : ''
-                                                    }}
+                                                    {{ location.location_code }} · {{ location.zone }}{{ location.is_quarantine ? ' · Cách ly' : '' }}
                                                 </option>
                                             </select>
                                         </td>
                                         <td class="p-2">
                                             <Input
-                                                v-model="
-                                                    line.discrepancy_reason
-                                                "
+                                                v-model="line.discrepancy_reason"
                                                 class="h-9 text-xs"
                                                 placeholder="Bắt buộc nếu lệch"
                                             />
@@ -2917,50 +2824,57 @@ const documentTypeLabel = (type: string) =>
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                class="size-8 text-rose-300"
+                                                class="size-8 text-rose-400 hover:bg-rose-500/10 hover:text-rose-500"
                                                 title="Xóa dòng"
                                                 @click="removeGrnLine(index)"
-                                                ><X class="size-4"
-                                            /></Button>
+                                            >
+                                                <X class="size-4" />
+                                            </Button>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+
+                    <!-- Nhóm 5: Ghi chú & Đính kèm chứng từ -->
+                    <div class="grid gap-4 lg:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Ghi chú phiếu</Label
-                            ><textarea
+                            <Label class="text-xs font-bold text-foreground">Ghi chú phiếu</Label>
+                            <textarea
                                 v-model="grnForm.notes"
                                 rows="3"
-                                class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                class="rounded-xl border border-input bg-background px-3 py-2 text-xs focus:ring-2 focus:ring-primary/20 focus:outline-none"
                                 placeholder="Tình trạng xe, niêm phong, nhiệt độ, biên bản giao nhận..."
                             />
                         </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Hóa đơn / ảnh giao nhận</Label
-                            ><input
-                                type="file"
-                                multiple
-                                accept="image/*,.pdf"
-                                class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs"
-                                @change="handleGrnFiles"
-                            />
-                            <select
-                                v-model="grnDocumentType"
-                                class="h-9 rounded-md border border-input bg-background px-3 text-xs"
-                            >
-                                <option value="invoice">Hóa đơn</option>
-                                <option value="delivery_note">
-                                    Phiếu giao hàng
-                                </option>
-                                <option value="qc">Biên bản QC</option>
-                                <option value="receiving_photo">
-                                    Ảnh giao nhận
-                                </option>
-                                <option value="other">Chứng từ khác</option>
-                            </select>
+                            <Label class="text-xs font-bold text-foreground">Hóa đơn / ảnh giao nhận</Label>
+                            <div class="flex gap-2">
+                                <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-input bg-background p-2 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary">
+                                    <Upload class="size-4" />
+                                    <span>Chọn tệp đính kèm (Ảnh / PDF)</span>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*,.pdf"
+                                        class="hidden"
+                                        @change="handleGrnFiles"
+                                    />
+                                </label>
+                                <select
+                                    v-model="grnDocumentType"
+                                    class="h-10 w-40 rounded-xl border border-input bg-background px-3 text-xs focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                >
+                                    <option value="invoice">Hóa đơn</option>
+                                    <option value="delivery_note">Phiếu giao hàng</option>
+                                    <option value="qc">Biên bản QC</option>
+                                    <option value="receiving_photo">Ảnh giao nhận</option>
+                                    <option value="other">Chứng từ khác</option>
+                                </select>
+                            </div>
+
                             <div
                                 v-if="grnFiles.length"
                                 class="mt-1 flex flex-wrap gap-1.5"
@@ -2968,17 +2882,17 @@ const documentTypeLabel = (type: string) =>
                                 <span
                                     v-for="(file, index) in grnFiles"
                                     :key="`${file.name}-${index}`"
-                                    class="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] text-foreground"
-                                    ><span class="max-w-[220px] truncate">{{
-                                        file.name
-                                    }}</span
-                                    ><button
+                                    class="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1 text-[11px] font-medium text-foreground"
+                                >
+                                    <span class="max-w-[200px] truncate">{{ file.name }}</span>
+                                    <button
                                         type="button"
-                                        class="text-rose-300"
+                                        class="text-rose-400 hover:text-rose-600"
                                         @click="removeGrnFile(index)"
                                     >
-                                        <X class="size-3" /></button
-                                ></span>
+                                        <X class="size-3" />
+                                    </button>
+                                </span>
                             </div>
                         </div>
                     </div>

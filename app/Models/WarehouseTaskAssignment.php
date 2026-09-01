@@ -23,6 +23,7 @@ class WarehouseTaskAssignment extends Model
         'picking',    // Soạn hàng theo đơn
         'packing',    // Đóng gói hàng
         'handover',   // Bàn giao vận chuyển
+        'delivery',   // Giao hàng tới chi nhánh
         'counting',   // Kiểm kê tồn kho
         'incident',   // Xử lý sự cố
     ];

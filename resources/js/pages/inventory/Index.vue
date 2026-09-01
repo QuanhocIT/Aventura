@@ -2623,7 +2623,7 @@ const recallBatch = (batchId: number) => {
                                     href="/inventory/branch-requisition"
                                     class="shrink-0 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
                                 >
-                                    Xem lịch sử yêu cầu →
+                                    Nhận hàng Kho Tổng / Theo dõi đơn →
                                 </a>
                             </div>
                         </CardHeader>

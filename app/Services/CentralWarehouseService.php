@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\DeliveryManifest;
 use App\Models\Ingredient;
 use App\Models\Inventory;
@@ -16,10 +17,14 @@ use App\Models\RestaurantBranch;
 use App\Models\StockTransferRequest;
 use App\Models\SupplyRequest;
 use App\Models\SupplyRequestItem;
+use App\Models\SupplyRequestReceivingReport;
+use App\Models\SupplyRequestReceivingReportItem;
 use App\Models\User;
 use App\Models\WarehouseTaskAssignment;
 use App\Notifications\SupplyRequestCreatedNotification;
+use App\Notifications\SupplyRequestReceivingReportNotification;
 use App\Notifications\SupplyRequestStatusNotification;
+use App\Notifications\WarehouseTaskAssignedNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -562,9 +567,9 @@ class CentralWarehouseService
                 ]);
             }
 
+            $request->load('items');
             $isFullyPrepared = $request->items->every(fn (SupplyRequestItem $item): bool =>
                 $item->actual_dispatched_quantity !== null
-                && (float) $item->actual_dispatched_quantity >= (float) $item->approved_quantity
             );
             $nextStatus = $isFullyPrepared
                 ? SupplyRequest::STATUS_PREPARED
@@ -890,6 +895,82 @@ class CentralWarehouseService
     }
 
     /**
+     * Gán người giao sau khi Kho Tổng đã xuất hàng và tạo task xác nhận giao.
+     */
+    public function assignTransporter(SupplyRequest $request, User $transporter, User $assignedBy): SupplyRequest
+    {
+        $this->assertSameRestaurant($request, $transporter);
+
+        if ($transporter->status !== 'active'
+            || ! $transporter->hasAnyRole(['warehouse_staff', 'shipper'])
+            || ($transporter->hasRole('warehouse_staff') && ($transporter->warehouse_staff_status ?? 'active') !== 'active')) {
+            throw new InvalidArgumentException('Tài khoản được chọn làm nhân viên giao hàng không còn hoạt động hoặc không đúng vai trò.');
+        }
+
+        $central = $this->getCentralWarehouse((int) $request->restaurant_id);
+        $transporterBranchId = $transporter->warehouse_branch_id ?: $transporter->assignedBranchId();
+        if (! $central || ! $transporterBranchId || (int) $transporterBranchId !== (int) $central->id) {
+            throw new InvalidArgumentException('Nhân viên giao hàng phải thuộc Kho Tổng hiện tại.');
+        }
+
+        $updated = DB::transaction(function () use ($request, $transporter, $assignedBy): SupplyRequest {
+            $lockedRequest = SupplyRequest::where('restaurant_id', $request->restaurant_id)
+                ->whereKey($request->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $lockedRequest->loadMissing('transporter');
+
+            if (! in_array($lockedRequest->status, SupplyRequest::receivingStatuses(), true)) {
+                throw new InvalidArgumentException('Chỉ đơn đã xuất kho mới có thể gán nhân viên giao hàng.');
+            }
+
+            $lockedRequest->update([
+                'transporter_id' => $transporter->id,
+                'delivery_confirmed_by' => null,
+                'delivery_confirmed_at' => null,
+                'delivery_confirmed_notes' => null,
+            ]);
+
+            SupplyRequestReceivingReport::where('restaurant_id', $lockedRequest->restaurant_id)
+                ->where('supply_request_id', $lockedRequest->id)
+                ->where('status', SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION)
+                ->update([
+                    'transporter_id' => $transporter->id,
+                    'transporter_name_snapshot' => $transporter->name,
+                ]);
+
+            $task = WarehouseTaskAssignment::updateOrCreate(
+                [
+                    'restaurant_id' => $lockedRequest->restaurant_id,
+                    'supply_request_id' => $lockedRequest->id,
+                    'task_type' => 'delivery',
+                ],
+                [
+                    'assigned_to' => $transporter->id,
+                    'assigned_by' => $assignedBy->id,
+                    'status' => 'assigned',
+                    'priority' => 'high',
+                    'due_at' => $lockedRequest->requested_delivery_date,
+                    'notes' => 'Giao '.$lockedRequest->request_code.' tới '.$lockedRequest->toBranch?->name.'. Sau khi giao, Ấn giao hàng thành công để mở bước nhận hàng tại chi nhánh.',
+                    'started_at' => null,
+                    'completed_at' => null,
+                    'result_notes' => null,
+                    'evidence_paths' => null,
+                    'idempotency_key' => null,
+                ]
+            );
+
+            $transporter->notify(new WarehouseTaskAssignedNotification($task));
+
+            return $lockedRequest->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'dispatcher', 'transporter', 'deliveryTask']);
+        });
+
+        $this->notifyStakeholders($updated, 'delivery_assigned');
+
+        return $updated;
+    }
+
+    /**
      * Nhận hàng tại Chi Nhánh (chống gian lận: bắt buộc đếm thực tế, ảnh, chữ ký, tạo dispute nếu thiếu).
      */
     public function receiveSupplyRequest(
@@ -900,7 +981,8 @@ class CentralWarehouseService
         ?string $signaturePath = null,
         ?string $notes = null,
         ?string $receiptPhotoHash = null,
-        ?string $signatureHash = null
+        ?string $signatureHash = null,
+        bool $notify = true,
     ): SupplyRequest {
         $this->assertSameRestaurant($request, $receiver);
         $this->assertActorCanReceive($request, $receiver);
@@ -930,7 +1012,7 @@ class CentralWarehouseService
 
         $receivedItems = $receivedItems ?? [];
 
-        return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash) {
+        return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash, $notify) {
             $lockedRequest = SupplyRequest::where('id', $request->id)->lockForUpdate()->firstOrFail();
             if (! in_array($lockedRequest->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED], true)) {
                 throw new InvalidArgumentException('Đơn nhận hàng đã được xử lý hoặc không còn ở trạng thái có thể xác nhận.');
@@ -1174,13 +1256,465 @@ class CentralWarehouseService
             // Nếu có nhận thiếu/hỏng: Tự động kích hoạt Governance Service để mở tranh chấp.
             if (($hasShortage || $hasDamage) && ! empty($receivedItems)) {
                 app(WarehouseGovernanceService::class)->checkAndCreateDisputesFromSupplyRequest($lockedRequest, $receivedItems);
-                $this->notifyStakeholders($lockedRequest, 'disputed');
-            } else {
-                $this->notifyStakeholders($lockedRequest, 'received');
+                if ($notify) {
+                    $this->notifyStakeholders($lockedRequest, 'disputed');
+                }
+            } elseif ($notify) {
+                $this->notifyStakeholders($lockedRequest, 'received_clean');
             }
 
             return $lockedRequest->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'receiver']);
         });
+    }
+
+    /**
+     * Lưu lần đối soát đầu tiên thành biên bản nháp. Chưa hạch toán tồn kho
+     * cho tới khi chi nhánh bấm xác nhận biên bản lần cuối.
+     */
+    public function saveReceivingReport(
+        SupplyRequest $request,
+        User $receiver,
+        array $receivedItems,
+        ?string $receiptPhotoPath = null,
+        ?string $signaturePath = null,
+        ?string $notes = null,
+        ?string $receiptPhotoHash = null,
+        ?string $signatureHash = null,
+        ?float $temperatureMin = null,
+        ?float $temperatureMax = null,
+    ): SupplyRequestReceivingReport {
+        $this->assertSameRestaurant($request, $receiver);
+        $this->assertActorCanReceive($request, $receiver);
+        $this->assertCompleteItemSet($request, $receivedItems, 'lập biên bản nhận hàng');
+
+        $report = DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash, $temperatureMin, $temperatureMax): SupplyRequestReceivingReport {
+            $lockedRequest = SupplyRequest::where('restaurant_id', $request->restaurant_id)
+                ->whereKey($request->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $lockedRequest->loadMissing('transporter');
+
+            $report = SupplyRequestReceivingReport::where('restaurant_id', $request->restaurant_id)
+                ->where('supply_request_id', $request->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($report && $report->status !== SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION) {
+                throw new InvalidArgumentException('Biên bản đã được xác nhận cuối và không thể sửa lại số liệu đã hạch toán.');
+            }
+
+            if (! in_array($lockedRequest->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED, SupplyRequest::STATUS_RECEIVING_REVIEW], true)) {
+                throw new InvalidArgumentException('Đơn chưa ở trạng thái có thể lập biên bản nhận hàng.');
+            }
+
+            $lockedItems = $lockedRequest->items()->with(['ingredient.unit'])->lockForUpdate()->get();
+            $snapshot = $this->buildReceivingReportSnapshot($lockedItems, $receivedItems);
+            if (! collect($snapshot)->contains('has_issue', true)) {
+                throw new InvalidArgumentException('Không có nguyên liệu lỗi; hệ thống sẽ tự động nhập kho theo luồng nhận đủ.');
+            }
+
+            $payloadHash = $this->hashReceivingReportSnapshot($snapshot);
+            $values = [
+                'restaurant_id' => $lockedRequest->restaurant_id,
+                'supply_request_id' => $lockedRequest->id,
+                'transporter_id' => $lockedRequest->transporter_id,
+                'transporter_name_snapshot' => $lockedRequest->transporter?->name,
+                'status' => SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION,
+                'version' => $report ? ((int) $report->version + 1) : 1,
+                'submitted_by' => $receiver->id,
+                'submitted_at' => now(),
+                'receipt_photo_path' => $receiptPhotoPath ?: $report?->receipt_photo_path,
+                'receipt_photo_hash' => $receiptPhotoHash ?: $report?->receipt_photo_hash,
+                'receiver_signature_path' => $signaturePath ?: $report?->receiver_signature_path,
+                'receiver_signature_hash' => $signatureHash ?: $report?->receiver_signature_hash,
+                'temperature_min_c' => $temperatureMin ?? $report?->temperature_min_c,
+                'temperature_max_c' => $temperatureMax ?? $report?->temperature_max_c,
+                'notes' => $notes ?: $report?->notes,
+                'submitted_payload_hash' => $payloadHash,
+                'confirmed_payload_hash' => null,
+                'confirmed_by' => null,
+                'confirmed_at' => null,
+                'driver_confirmed_by' => null,
+                'driver_confirmed_at' => null,
+                'driver_confirmation_notes' => null,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'review_notes' => null,
+            ];
+
+            if ($report) {
+                $report->update($values);
+            } else {
+                $values['report_code'] = $this->generateReceivingReportCode((int) $lockedRequest->restaurant_id);
+                $report = SupplyRequestReceivingReport::create($values);
+            }
+
+            $report->items()->delete();
+            foreach ($snapshot as $row) {
+                unset($row['has_issue']);
+                $report->items()->create($row);
+            }
+
+            $lockedRequest->update([
+                'status' => SupplyRequest::STATUS_RECEIVING_REVIEW,
+                'discrepancy_flag' => true,
+            ]);
+
+            app(WarehouseReverseLogisticsService::class)->recordShipmentEvent(
+                (int) $lockedRequest->restaurant_id,
+                'supply_request',
+                (int) $lockedRequest->id,
+                'receiving_report_drafted',
+                $receiver,
+                [
+                    'branch_id' => $lockedRequest->to_branch_id,
+                    'notes' => 'Đối soát phát hiện nguyên liệu cần lập biên bản '.$report->report_code,
+                ],
+            );
+
+            $this->auditReceivingReport($receiver, $report, 'supply_request_receiving_report.saved', [
+                'version' => $report->version,
+                'payload_hash' => $payloadHash,
+            ]);
+
+            return $report->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+        });
+
+        return $report;
+    }
+
+    /**
+     * Xác nhận biên bản lần cuối và thực hiện hạch toán nguyên liệu theo từng
+     * trạng thái: đạt nhập tồn, lỗi tạo lô khóa + hồ sơ cách ly.
+     */
+    public function confirmReceivingReport(SupplyRequestReceivingReport $report, User $receiver): array
+    {
+        $this->assertSameRestaurant($report->supplyRequest, $receiver);
+        $this->assertActorCanReceive($report->supplyRequest, $receiver);
+
+        $result = DB::transaction(function () use ($report, $receiver): array {
+            $lockedReport = SupplyRequestReceivingReport::where('restaurant_id', $receiver->restaurant_id)
+                ->whereKey($report->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $lockedRequest = SupplyRequest::where('restaurant_id', $receiver->restaurant_id)
+                ->whereKey($lockedReport->supply_request_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedReport->status !== SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION) {
+                if ($lockedReport->isConfirmed()) {
+                    return [
+                        'report' => $lockedReport->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']),
+                        'request' => $lockedRequest->fresh(['items.ingredient.unit', 'fromBranch', 'toBranch', 'receiver']),
+                        'idempotent' => true,
+                    ];
+                }
+
+                throw new InvalidArgumentException('Biên bản không còn ở trạng thái chờ xác nhận.');
+            }
+
+            $lockedRequest->loadMissing('deliveryTask');
+            if (! $lockedRequest->transporter_id) {
+                throw new InvalidArgumentException('Chưa có nhân viên giao hàng được lưu cho đơn này.');
+            }
+            if (
+                ! $lockedRequest->deliveryTask
+                || $lockedRequest->deliveryTask->status !== 'completed'
+                || ! $lockedRequest->delivery_confirmed_at
+            ) {
+                throw new InvalidArgumentException('Nhân viên giao hàng phải bấm "Giao hàng thành công" trước khi xác nhận biên bản.');
+            }
+
+            $reportItems = $lockedReport->items()->lockForUpdate()->get();
+            if ($reportItems->isEmpty()) {
+                throw new InvalidArgumentException('Biên bản không có dữ liệu nguyên liệu để xác nhận.');
+            }
+
+            $receivedItems = $reportItems->map(fn (SupplyRequestReceivingReportItem $item): array => [
+                'id' => $item->supply_request_item_id,
+                'received_quantity' => (float) $item->submitted_received_quantity,
+                'received_good_quantity' => (float) $item->submitted_good_quantity,
+                'received_damaged_quantity' => (float) $item->submitted_damaged_quantity,
+                'received_expired_quantity' => (float) $item->submitted_expired_quantity,
+                'received_wrong_item_quantity' => (float) $item->submitted_wrong_item_quantity,
+                'received_missing_quantity' => (float) $item->submitted_shortage_quantity,
+                'received_condition' => $item->submitted_condition,
+                'received_note' => $item->submitted_note,
+                'received_temperature_min_c' => $lockedReport->temperature_min_c !== null
+                    ? (float) $lockedReport->temperature_min_c
+                    : null,
+                'received_temperature_max_c' => $lockedReport->temperature_max_c !== null
+                    ? (float) $lockedReport->temperature_max_c
+                    : null,
+            ])->all();
+
+            // receiveSupplyRequest owns the atomic inventory ledger/quarantine
+            // writes. Temporarily restoring the physical delivery state keeps
+            // that existing invariant in one place.
+            $lockedRequest->update(['status' => SupplyRequest::STATUS_DISPATCHED]);
+            $updatedRequest = $this->receiveSupplyRequest(
+                $lockedRequest->fresh(['items.ingredient', 'fromBranch', 'toBranch']),
+                $receiver,
+                $receivedItems,
+                $lockedReport->receipt_photo_path,
+                $lockedReport->receiver_signature_path,
+                $lockedReport->notes,
+                $lockedReport->receipt_photo_hash,
+                $lockedReport->receiver_signature_hash,
+                false,
+            );
+
+            $confirmedPayload = $reportItems->map(fn (SupplyRequestReceivingReportItem $item): array => [
+                'id' => $item->supply_request_item_id,
+                'received_quantity' => $item->submitted_received_quantity,
+                'good' => $item->submitted_good_quantity,
+                'damaged' => $item->submitted_damaged_quantity,
+                'expired' => $item->submitted_expired_quantity,
+                'wrong_item' => $item->submitted_wrong_item_quantity,
+                'shortage' => $item->submitted_shortage_quantity,
+                'condition' => $item->submitted_condition,
+                'note' => $item->submitted_note,
+            ])->values()->all();
+
+            foreach ($reportItems as $item) {
+                $inventoryTransactionId = InventoryTransaction::where('restaurant_id', $updatedRequest->restaurant_id)
+                    ->where('source_type', 'supply_request')
+                    ->where('source_id', $updatedRequest->id)
+                    ->where('idempotency_key', 'like', "receive_sr_{$updatedRequest->id}_item_{$item->supply_request_item_id}_good_%")
+                    ->latest('id')
+                    ->value('id');
+                $updatedSupplyItem = $updatedRequest->items->firstWhere('id', $item->supply_request_item_id);
+                $item->update([
+                    'confirmed_received_quantity' => $item->submitted_received_quantity,
+                    'confirmed_good_quantity' => $item->submitted_good_quantity,
+                    'confirmed_damaged_quantity' => $item->submitted_damaged_quantity,
+                    'confirmed_expired_quantity' => $item->submitted_expired_quantity,
+                    'confirmed_wrong_item_quantity' => $item->submitted_wrong_item_quantity,
+                    'confirmed_shortage_quantity' => $item->submitted_shortage_quantity,
+                    'confirmed_condition' => $item->submitted_condition,
+                    'confirmed_note' => $item->submitted_note,
+                    'resolution' => $item->submitted_good_quantity > 0 && ($item->submitted_damaged_quantity + $item->submitted_expired_quantity + $item->submitted_wrong_item_quantity + $item->submitted_shortage_quantity) > 0
+                        ? 'stocked_and_quarantined'
+                        : ($item->submitted_good_quantity > 0 ? 'stocked' : 'shortage_recorded'),
+                    'inventory_transaction_id' => $inventoryTransactionId,
+                    'quarantine_id' => $updatedSupplyItem?->quarantine_id,
+                ]);
+            }
+
+            $lockedReport->update([
+                'status' => SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK,
+                'confirmed_by' => $receiver->id,
+                'confirmed_at' => now(),
+                'confirmed_payload_hash' => $this->hashReceivingReportSnapshot($confirmedPayload),
+            ]);
+
+            $this->auditReceivingReport($receiver, $lockedReport, 'supply_request_receiving_report.confirmed', [
+                'status' => SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION,
+                'confirmed_payload_hash' => $lockedReport->confirmed_payload_hash,
+                'request_status' => $updatedRequest->status,
+            ]);
+
+            return [
+                'report' => $lockedReport->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']),
+                'request' => $updatedRequest->fresh(['items.ingredient.unit', 'fromBranch', 'toBranch', 'receiver']),
+                'idempotent' => false,
+            ];
+        });
+
+        if (! $result['idempotent']) {
+            $this->notifyReceivingReportStakeholders($result['report'], 'confirmed');
+        }
+
+        return $result;
+    }
+
+    public function confirmReceivingReportByDriver(SupplyRequestReceivingReport $report, User $driver, ?string $notes = null): SupplyRequestReceivingReport
+    {
+        $report->loadMissing(['supplyRequest.transporter', 'supplyRequest.toBranch']);
+        if ((int) $report->supplyRequest?->transporter_id !== (int) $driver->id) {
+            throw new InvalidArgumentException('Chỉ nhân viên giao hàng được phân công mới có thể xác nhận biên bản này.');
+        }
+        if ($report->status === SupplyRequestReceivingReport::STATUS_RESOLVED) {
+            return $report->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+        }
+        if (! in_array($report->status, [SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK, SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED], true)) {
+            throw new InvalidArgumentException('Biên bản chưa sẵn sàng để tài xế xác nhận.');
+        }
+
+        $updated = DB::transaction(function () use ($report, $driver, $notes): SupplyRequestReceivingReport {
+            $locked = SupplyRequestReceivingReport::where('restaurant_id', $driver->restaurant_id)
+                ->whereKey($report->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $request = $locked->supplyRequest()->with('transporter')->firstOrFail();
+            if ((int) $request->transporter_id !== (int) $driver->id) {
+                throw new InvalidArgumentException('Tài khoản không khớp nhân viên giao được phân công.');
+            }
+            if ($locked->status === SupplyRequestReceivingReport::STATUS_RESOLVED) {
+                return $locked->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+            }
+            $locked->update([
+                'status' => SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED,
+                'driver_confirmed_by' => $driver->id,
+                'driver_confirmed_at' => now(),
+                'driver_confirmation_notes' => $notes,
+            ]);
+            $this->auditReceivingReport($driver, $locked, 'supply_request_receiving_report.driver_confirmed', [
+                'notes' => $notes,
+            ]);
+
+            return $locked->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+        });
+
+        $this->notifyReceivingReportStakeholders($updated, 'driver_confirmed');
+
+        return $updated;
+    }
+
+    public function reviewReceivingReport(SupplyRequestReceivingReport $report, User $reviewer, string $notes): SupplyRequestReceivingReport
+    {
+        $this->assertActorCan($reviewer, ['warehouse_manager'], ['warehouse.manage', 'warehouse_governance.manage'], 'Bạn không có quyền xử lý biên bản nhận hàng.');
+        if (blank(trim($notes))) {
+            throw new InvalidArgumentException('Bắt buộc nhập kết luận xử lý biên bản.');
+        }
+
+        $updated = DB::transaction(function () use ($report, $reviewer, $notes): SupplyRequestReceivingReport {
+            $locked = SupplyRequestReceivingReport::where('restaurant_id', $reviewer->restaurant_id)
+                ->whereKey($report->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if (! in_array($locked->status, [SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK, SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED], true)) {
+                if ($locked->status === SupplyRequestReceivingReport::STATUS_RESOLVED) {
+                    return $locked->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+                }
+                throw new InvalidArgumentException('Biên bản chưa ở trạng thái có thể xử lý.');
+            }
+            $locked->update([
+                'status' => SupplyRequestReceivingReport::STATUS_RESOLVED,
+                'reviewed_by' => $reviewer->id,
+                'reviewed_at' => now(),
+                'review_notes' => trim($notes),
+            ]);
+            $this->auditReceivingReport($reviewer, $locked, 'supply_request_receiving_report.reviewed', [
+                'notes' => trim($notes),
+            ]);
+
+            return $locked->fresh(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter']);
+        });
+
+        $this->notifyReceivingReportStakeholders($updated, 'resolved');
+
+        return $updated;
+    }
+
+    public function voidPendingReceivingReport(SupplyRequestReceivingReport $report, User $receiver): void
+    {
+        $this->assertSameRestaurant($report->supplyRequest, $receiver);
+        DB::transaction(function () use ($report, $receiver): void {
+            $locked = SupplyRequestReceivingReport::where('restaurant_id', $receiver->restaurant_id)
+                ->whereKey($report->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if ($locked->status !== SupplyRequestReceivingReport::STATUS_PENDING_BRANCH_CONFIRMATION) {
+                throw new InvalidArgumentException('Biên bản không còn ở trạng thái nháp để quay lại nhập liệu.');
+            }
+            $locked->update(['status' => 'voided']);
+            SupplyRequest::where('restaurant_id', $receiver->restaurant_id)
+                ->whereKey($locked->supply_request_id)
+                ->update(['status' => SupplyRequest::STATUS_DISPATCHED]);
+            $this->auditReceivingReport($receiver, $locked, 'supply_request_receiving_report.voided', [
+                'reason' => 'Đối soát đã được sửa lại thành đạt toàn bộ.',
+            ]);
+        });
+    }
+
+    private function buildReceivingReportSnapshot($items, array $receivedItems): array
+    {
+        return $items->map(function (SupplyRequestItem $item) use ($receivedItems): array {
+            $received = collect($receivedItems)->firstWhere('id', $item->id);
+            if (! $received) {
+                throw new InvalidArgumentException('Thiếu dữ liệu đối soát của một nguyên liệu.');
+            }
+
+            $dispatched = (float) $item->effective_dispatched_quantity;
+            $good = max(0, (float) ($received['received_good_quantity'] ?? $received['received_quantity'] ?? 0));
+            $damaged = max(0, (float) ($received['received_damaged_quantity'] ?? 0));
+            $expired = max(0, (float) ($received['received_expired_quantity'] ?? 0));
+            $wrong = max(0, (float) ($received['received_wrong_item_quantity'] ?? 0));
+            $receivedTotal = round($good + $damaged + $expired + $wrong, 3);
+            $shortage = max(0, round($dispatched - $receivedTotal, 3));
+            $hasIssue = $shortage > 0.0005 || $damaged > 0.0005 || $expired > 0.0005 || $wrong > 0.0005;
+
+            return [
+                'supply_request_item_id' => $item->id,
+                'ingredient_id' => $item->ingredient_id,
+                'ingredient_name_snapshot' => $item->ingredient?->name ?? 'Nguyên liệu #'.$item->ingredient_id,
+                'unit_symbol_snapshot' => $item->ingredient?->unit?->symbol ?? $item->unit_symbol,
+                'dispatched_quantity' => $dispatched,
+                'submitted_received_quantity' => $receivedTotal,
+                'submitted_good_quantity' => $good,
+                'submitted_damaged_quantity' => $damaged,
+                'submitted_expired_quantity' => $expired,
+                'submitted_wrong_item_quantity' => $wrong,
+                'submitted_shortage_quantity' => $shortage,
+                'submitted_condition' => $received['received_condition'] ?? ($hasIssue ? ($damaged || $expired || $wrong ? 'damaged' : 'shortage') : 'good'),
+                'submitted_note' => $received['received_note'] ?? null,
+                'has_issue' => $hasIssue,
+            ];
+        })->values()->all();
+    }
+
+    private function hashReceivingReportSnapshot(array $snapshot): string
+    {
+        return hash('sha256', json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function generateReceivingReportCode(int $restaurantId): string
+    {
+        $prefix = 'RR-'.now()->format('Ymd').'-';
+        $next = (int) SupplyRequestReceivingReport::withoutGlobalScopes()->where('restaurant_id', $restaurantId)->count() + 1;
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $candidate = $prefix.str_pad((string) ($next + $attempt), 4, '0', STR_PAD_LEFT);
+            if (! SupplyRequestReceivingReport::withoutGlobalScopes()->where('report_code', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return $prefix.strtoupper(bin2hex(random_bytes(3)));
+    }
+
+    private function notifyReceivingReportStakeholders(SupplyRequestReceivingReport $report, string $stage): void
+    {
+        $report->loadMissing(['supplyRequest.toBranch', 'supplyRequest.transporter']);
+        $recipients = collect();
+        if ($report->supplyRequest?->transporter) {
+            $recipients->push($report->supplyRequest->transporter);
+        }
+        User::where('restaurant_id', $report->restaurant_id)
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['owner', 'super_admin', 'warehouse_manager']))
+            ->get()
+            ->each(fn (User $user) => $recipients->push($user));
+
+        $recipients->unique('id')->each(fn (User $user) => $user->notify(new SupplyRequestReceivingReportNotification($report, $stage)));
+    }
+
+    private function auditReceivingReport(User $actor, SupplyRequestReceivingReport $report, string $action, array $newValues): void
+    {
+        AuditLog::create([
+            'restaurant_id' => $actor->restaurant_id,
+            'branch_id' => $report->supplyRequest?->to_branch_id,
+            'user_id' => $actor->id,
+            'user_role' => $actor->roles()->pluck('name')->first() ?? 'staff',
+            'event' => 'updated',
+            'action' => $action,
+            'subject_type' => SupplyRequestReceivingReport::class,
+            'subject_id' => $report->id,
+            'new_values' => $newValues,
+            'ip_address' => request()?->ip(),
+            'user_agent' => request()?->userAgent(),
+        ]);
     }
 
     /**

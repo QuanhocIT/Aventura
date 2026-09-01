@@ -35,12 +35,14 @@ const props = defineProps<{
     rules: any;
     recentDisputes: Array<any>;
     employees: Array<any>;
+    receivingReports: Array<any>;
 }>();
 
 const activeTab = ref<'disputes' | 'rules' | 'analytics'>('disputes');
 const isProcessing = ref(false);
 const selectedDispute = ref<any>(null);
 const isResolveModalOpen = ref(false);
+const receivingReportList = ref([...props.receivingReports]);
 
 // Governance Form State
 const rulesForm = ref({
@@ -191,6 +193,33 @@ const submitResolution = async () => {
         toast.error(
             e.response?.data?.message || 'Có lỗi xảy ra khi xử lý biên bản.',
         );
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const reviewReceivingReport = async (report: any) => {
+    const notes = prompt(
+        `Nhập kết luận xử lý biên bản ${report.report_code} (hàng lỗi đã cách ly, phương án trả/tiêu hủy/bồi thường...):`,
+    );
+    if (!notes?.trim()) {
+        return;
+    }
+
+    isProcessing.value = true;
+    try {
+        const { data } = await axios.post(
+            `/api/receiving-reports/${report.id}/review`,
+            { notes: notes.trim() },
+        );
+        toast.success(data.message || 'Đã xử lý biên bản nhận hàng.');
+        receivingReportList.value = receivingReportList.value.map((item) =>
+            item.id === report.id
+                ? { ...item, status: 'resolved', review_notes: notes.trim(), reviewed_at: new Date().toISOString() }
+                : item,
+        );
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể xử lý biên bản nhận hàng.');
     } finally {
         isProcessing.value = false;
     }
@@ -360,6 +389,57 @@ const getResponsibleLabel = (type: string) => {
                         <ShieldCheck class="h-4 w-4 text-indigo-400" /> Bộ Quy
                         Tắc & Hạn Mức Kiểm Soát
                     </button>
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card v-if="receivingReportList.length" class="border-amber-500/30 bg-amber-950/10 shadow-sm">
+            <CardHeader class="border-b border-amber-500/20 bg-amber-950/10 py-4">
+                <CardTitle class="text-base font-bold text-amber-200">
+                    Biên bản nhận hàng Kho Tổng
+                </CardTitle>
+                <CardDescription class="text-xs text-amber-100/70">
+                    Theo dõi xác nhận của tài xế và xử lý phần nguyên liệu thiếu/hỏng/hết hạn/sai hàng.
+                </CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-3 p-4">
+                <div
+                    v-for="report in receivingReportList"
+                    :key="report.id"
+                    class="rounded-xl border border-amber-500/20 bg-background/50 p-4"
+                >
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="space-y-1 text-xs">
+                            <div class="font-bold text-foreground">
+                                {{ report.report_code }} · Đơn {{ report.supply_request?.request_code }} · {{ report.supply_request?.to_branch?.name || 'Chi nhánh' }}
+                            </div>
+                            <div class="text-muted-foreground">
+                                Tài xế: {{ report.supply_request?.transporter?.name || '---' }} ·
+                                Trạng thái: <span class="font-bold text-amber-300">{{ report.status }}</span>
+                            </div>
+                            <div class="mt-2 grid gap-1 text-muted-foreground sm:grid-cols-2">
+                                <div v-for="item in (report.items || []).filter((row: any) => Number(row.submitted_damaged_quantity || 0) + Number(row.submitted_expired_quantity || 0) + Number(row.submitted_wrong_item_quantity || 0) + Number(row.submitted_shortage_quantity || 0) > 0)" :key="item.id">
+                                    {{ item.ingredient?.name || item.ingredient_name_snapshot }}:
+                                    đạt {{ item.submitted_good_quantity }}, lỗi {{ Number(item.submitted_damaged_quantity || 0) + Number(item.submitted_expired_quantity || 0) + Number(item.submitted_wrong_item_quantity || 0) }}, thiếu {{ item.submitted_shortage_quantity }}
+                                </div>
+                            </div>
+                            <div v-if="report.driver_confirmation_notes" class="text-indigo-300">
+                                Tài xế ghi chú: {{ report.driver_confirmation_notes }}
+                            </div>
+                            <div v-if="report.review_notes" class="text-emerald-300">
+                                Kết luận: {{ report.review_notes }}
+                            </div>
+                        </div>
+                        <Button
+                            v-if="report.status !== 'resolved'"
+                            size="sm"
+                            class="shrink-0 gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                            @click="reviewReceivingReport(report)"
+                        >
+                            <UserCheck class="size-3.5" /> Ghi nhận xử lý
+                        </Button>
+                        <span v-else class="shrink-0 text-xs font-bold text-emerald-400">Đã xử lý</span>
+                    </div>
                 </div>
             </CardContent>
         </Card>

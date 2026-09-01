@@ -7,6 +7,7 @@ use App\Models\DeliveryManifestItem;
 use App\Models\Inventory;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
+use App\Models\SupplyRequestReceivingReport;
 use App\Models\User;
 use App\Models\WarehouseTaskAssignment;
 use App\Notifications\WarehouseTaskAssignedNotification;
@@ -161,7 +162,7 @@ class SupplyRequestController extends Controller
 
         $requests = SupplyRequest::where('restaurant_id', $restaurantId)
             ->when($activeBranchId, fn ($q) => $q->where('to_branch_id', $activeBranchId))
-            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver'])
+            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver', 'transporter', 'deliveryTask.assignee', 'receivingReport.items.ingredient.unit', 'receivingReport.transporter', 'receivingReport.submittedBy', 'receivingReport.confirmedBy', 'receivingReport.driverConfirmedBy', 'receivingReport.reviewedBy'])
             ->orderByDesc('id')
             ->get();
 
@@ -241,7 +242,7 @@ class SupplyRequestController extends Controller
         $restaurantId = $user->restaurant_id;
 
         $query = SupplyRequest::where('restaurant_id', $restaurantId)
-            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver']);
+            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver', 'transporter', 'deliveryTask.assignee', 'receivingReport.items.ingredient.unit', 'receivingReport.transporter', 'receivingReport.submittedBy', 'receivingReport.confirmedBy', 'receivingReport.driverConfirmedBy', 'receivingReport.reviewedBy']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -474,29 +475,6 @@ class SupplyRequestController extends Controller
                 ->whereIn('status', ['assigned', 'in_progress'])
                 ->update(['status' => 'completed', 'completed_at' => now()]);
 
-            $assignee = $this->preferredCentralWarehouseStaff($user);
-            $packingTask = WarehouseTaskAssignment::firstOrCreate(
-                [
-                    'restaurant_id' => $user->restaurant_id,
-                    'supply_request_id' => $supplyRequest->id,
-                    'task_type' => 'packing',
-                ],
-                [
-                    'assigned_to' => $assignee?->id,
-                    'assigned_by' => $user->id,
-                    'status' => $assignee ? 'assigned' : 'pending',
-                    'priority' => 'normal',
-                    'due_at' => now()->addHours(2),
-                    'notes' => 'Đóng gói đơn '.$supplyRequest->request_code.' sau khi hoàn tất soạn FEFO.',
-                ],
-            );
-            if ($packingTask->assigned_to === null && $assignee) {
-                $packingTask->update(['assigned_to' => $assignee->id, 'status' => 'assigned']);
-            }
-            if ($packingTask->wasRecentlyCreated || $packingTask->wasChanged('assigned_to')) {
-                $assignee?->notify(new WarehouseTaskAssignedNotification($packingTask));
-            }
-
             return response()->json([
                 'success' => true,
                 'message' => 'Đã hoàn thành bước soạn hàng. Đơn chuyển sang chờ Trưởng kho duyệt xuất.',
@@ -565,9 +543,9 @@ class SupplyRequestController extends Controller
     public function dispatch(Request $request, int $id): JsonResponse
     {
         $this->assertWarehouseStaffCanOperate($request->user());
-        $request->validate([
+        $data = $request->validate([
             'seal_code' => 'nullable|string|max:100',
-            'transporter_id' => 'nullable|integer',
+            'transporter_id' => 'required|integer',
             'manifest_id' => 'nullable|integer',
             'notes' => 'nullable|string|max:500',
         ]);
@@ -581,7 +559,8 @@ class SupplyRequestController extends Controller
             $this->approvalService->submitRequest('warehouse_supply_dispatch', [
                 'supply_request_id' => $supplyRequest->id,
                 'branch_id' => $supplyRequest->to_branch_id,
-                'seal_code' => $request->seal_code,
+                'seal_code' => $data['seal_code'] ?? null,
+                'transporter_id' => $data['transporter_id'] ?? null,
             ], $user);
 
             return response()->json(['success' => true, 'message' => 'Yêu cầu xuất kho đã gửi Chủ nhà hàng.'], 202);
@@ -589,27 +568,12 @@ class SupplyRequestController extends Controller
 
         try {
             $dispatchedUser = $user;
-            if ($request->filled('transporter_id')) {
-                $transporter = User::where('restaurant_id', $user->restaurant_id)->find($request->transporter_id);
-                if ($transporter) {
-                    WarehouseTaskAssignment::updateOrCreate(
-                        [
-                            'restaurant_id' => $user->restaurant_id,
-                            'supply_request_id' => $supplyRequest->id,
-                            'task_type' => 'handover',
-                        ],
-                        [
-                            'assigned_to' => $transporter->id,
-                            'assigned_by' => $user->id,
-                            'status' => 'completed',
-                            'completed_at' => now(),
-                        ]
-                    );
-                }
-            }
+            $transporter = ! empty($data['transporter_id'])
+                ? User::where('restaurant_id', $user->restaurant_id)->findOrFail((int) $data['transporter_id'])
+                : null;
 
-            if ($request->filled('manifest_id')) {
-                $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->find($request->manifest_id);
+            if (! empty($data['manifest_id'])) {
+                $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->find($data['manifest_id']);
                 if ($manifest) {
                     DeliveryManifestItem::firstOrCreate([
                         'delivery_manifest_id' => $manifest->id,
@@ -618,7 +582,11 @@ class SupplyRequestController extends Controller
                 }
             }
 
-            $updated = $this->warehouseService->dispatchSupplyRequest($supplyRequest, $dispatchedUser, $request->seal_code);
+            $updated = $this->warehouseService->dispatchSupplyRequest($supplyRequest, $dispatchedUser, $data['seal_code'] ?? null);
+
+            if ($transporter) {
+                $updated = $this->warehouseService->assignTransporter($updated, $transporter, $user);
+            }
 
             WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
                 ->where('supply_request_id', $supplyRequest->id)
@@ -640,6 +608,38 @@ class SupplyRequestController extends Controller
     }
 
     /**
+     * Gán bổ sung nhân viên giao cho đơn đã xuất kho (dùng để sửa các đơn cũ
+     * chưa lưu người giao hoặc đổi người giao trước khi chi nhánh xác nhận).
+     */
+    public function assignTransporter(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['transporter_id' => 'required|integer']);
+        $user = $request->user();
+        $this->assertWarehouseStaffCanOperate($user);
+
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSupplyRequestScope($user, $supplyRequest);
+
+        try {
+            $transporter = User::where('restaurant_id', $user->restaurant_id)
+                ->whereKey((int) $data['transporter_id'])
+                ->firstOrFail();
+            $updated = $this->warehouseService->assignTransporter($supplyRequest, $transporter, $user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã lưu nhân viên giao và tạo công việc giao hàng.',
+                'data' => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
      * Chi nhánh xác nhận nhận hàng (Chống gian lận: bắt buộc kiểm đếm thực tế, ảnh, chữ ký)
      */
     public function receive(Request $request, int $id): JsonResponse
@@ -647,6 +647,25 @@ class SupplyRequestController extends Controller
         $user = $request->user();
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         abort_unless($user->canAccessBranch((int) $supplyRequest->to_branch_id), 403, 'Bạn chỉ có thể xác nhận hàng cho chi nhánh thuộc phạm vi tài khoản.');
+
+        if ($supplyRequest->transporter_id) {
+            $supplyRequest->loadMissing('deliveryTask');
+            abort_unless(
+                $supplyRequest->deliveryTask
+                    && (int) $supplyRequest->deliveryTask->assigned_to === (int) $supplyRequest->transporter_id
+                    && $supplyRequest->deliveryTask->status === 'completed'
+                    && $supplyRequest->delivery_confirmed_at,
+                422,
+                'Chưa thể nhận hàng: nhân viên giao hàng phải bấm "Ấn giao hàng thành công" trước.'
+            );
+        }
+
+        $supplyRequest->loadMissing('items.ingredient.unit', 'receivingReport.items.ingredient.unit');
+        $pendingReceivingReport = $supplyRequest->receivingReport;
+        if ($supplyRequest->status === SupplyRequest::STATUS_RECEIVING_REVIEW
+            && (! $pendingReceivingReport || ! $pendingReceivingReport->isPendingBranchConfirmation())) {
+            abort(422, 'Đơn đã có biên bản nhận hàng được xử lý hoặc không còn ở bước nhập liệu.');
+        }
 
         $data = $request->validate([
             'items' => 'nullable|array',
@@ -656,6 +675,7 @@ class SupplyRequestController extends Controller
             'items.*.received_damaged_quantity' => 'nullable|numeric|min:0',
             'items.*.received_expired_quantity' => 'nullable|numeric|min:0',
             'items.*.received_wrong_item_quantity' => 'nullable|numeric|min:0',
+            'items.*.received_missing_quantity' => 'nullable|numeric|min:0',
             'items.*.received_condition' => 'nullable|string|in:good,damaged,shortage,mixed,expired,wrong_item',
             'items.*.received_note' => 'nullable|string|max:1000',
             'received_temperature_min_c' => 'nullable|numeric',
@@ -674,6 +694,7 @@ class SupplyRequestController extends Controller
             }
             $receivedItem['received_damaged_quantity'] = (float) ($receivedItem['received_damaged_quantity'] ?? 0);
             $receivedItem['received_expired_quantity'] = (float) ($receivedItem['received_expired_quantity'] ?? 0);
+            $receivedItem['received_missing_quantity'] = (float) ($receivedItem['received_missing_quantity'] ?? 0);
             $receivedItem['received_wrong_item_quantity'] = (float) ($receivedItem['received_wrong_item_quantity'] ?? 0);
             $breakdownTotal = round(
                 (float) $receivedItem['received_good_quantity']
@@ -682,6 +703,26 @@ class SupplyRequestController extends Controller
                 + (float) $receivedItem['received_wrong_item_quantity'],
                 3
             );
+            $origItem = $supplyRequest->items->firstWhere('id', $receivedItem['id']);
+            $maxAllowed = (float) ($origItem?->effective_dispatched_quantity ?? $origItem?->approved_quantity ?? $origItem?->requested_quantity ?? 0);
+            if (! array_key_exists('received_missing_quantity', $receivedItem)) {
+                $receivedItem['received_missing_quantity'] = max(0, round($maxAllowed - $breakdownTotal, 3));
+            }
+            $totalInspection = round(
+                (float) $receivedItem['received_good_quantity']
+                + (float) $receivedItem['received_damaged_quantity']
+                + (float) $receivedItem['received_expired_quantity']
+                + (float) ($receivedItem['received_missing_quantity'] ?? 0)
+                + (float) $receivedItem['received_wrong_item_quantity'],
+                3
+            );
+            if ($maxAllowed > 0 && abs($totalInspection - $maxAllowed) > 0.0005) {
+                $ingredientName = $origItem?->ingredient?->name ?? "mặt hàng #{$receivedItem['id']}";
+                throw ValidationException::withMessages([
+                    'items' => "Tổng số lượng kiểm đếm (Đạt + Hỏng + Hết hạn + Thiếu = {$totalInspection}) của {$ingredientName} phải bằng chính xác số lượng Kho duyệt ({$maxAllowed}).",
+                ]);
+            }
+
             if (array_key_exists('received_quantity', $receivedItem) && abs($breakdownTotal - (float) $receivedItem['received_quantity']) > 0.0005) {
                 throw ValidationException::withMessages([
                     'items' => 'Tổng số lượng tốt/hỏng/hết hạn/sai hàng phải bằng số lượng thực nhận.',
@@ -716,7 +757,7 @@ class SupplyRequestController extends Controller
                             || (float) ($recItem['received_damaged_quantity'] ?? 0) > 0
                             || (float) ($recItem['received_expired_quantity'] ?? 0) > 0
                             || (float) ($recItem['received_wrong_item_quantity'] ?? 0) > 0;
-                        if ($received < $dispatched) {
+                        if ($received < $dispatched || (float) ($recItem['received_missing_quantity'] ?? 0) > 0) {
                             $hasShortage = true;
                             break 2;
                         }
@@ -741,12 +782,55 @@ class SupplyRequestController extends Controller
             $signaturePath = $file->store("restaurants/{$user->restaurant_id}/supply_receipts", 'local');
         }
 
-        if (($hasShortage || $hasDamage) && (blank($receiptPhotoPath) && blank($supplyRequest->receipt_photo_path) || blank($signaturePath) && blank($supplyRequest->receiver_signature_path))) {
+        $existingReceiptPhotoPath = $receiptPhotoPath ?: $pendingReceivingReport?->receipt_photo_path ?: $supplyRequest->receipt_photo_path;
+        $existingSignaturePath = $signaturePath ?: $pendingReceivingReport?->receiver_signature_path ?: $supplyRequest->receiver_signature_path;
+        if (($hasShortage || $hasDamage) && (blank($existingReceiptPhotoPath) || blank($existingSignaturePath))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bắt buộc chụp ảnh thực tế và ký tên xác nhận khi số lượng thực nhận ít hơn số lượng Kho Tổng xuất.',
                 'error' => 'evidence_required',
             ], 422);
+        }
+
+        if ($hasShortage || $hasDamage) {
+            try {
+                $report = $this->warehouseService->saveReceivingReport(
+                    $supplyRequest,
+                    $user,
+                    $data['items'] ?? [],
+                    $receiptPhotoPath,
+                    $signaturePath,
+                    $data['notes'] ?? null,
+                    $receiptPhotoHash,
+                    $signatureHash,
+                    isset($data['received_temperature_min_c']) ? (float) $data['received_temperature_min_c'] : null,
+                    isset($data['received_temperature_max_c']) ? (float) $data['received_temperature_max_c'] : null,
+                );
+
+                return response()->json([
+                    'success' => true,
+                    'requires_receiving_report' => true,
+                    'message' => 'Đã lưu kết quả đối soát. Vui lòng lập biên bản và xác nhận lần cuối trước khi nhập kho.',
+                    'data' => $report,
+                ]);
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+        }
+
+        if ($pendingReceivingReport?->isPendingBranchConfirmation()) {
+            try {
+                $this->warehouseService->voidPendingReceivingReport($pendingReceivingReport, $user);
+                $supplyRequest->refresh();
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
         }
 
         try {
@@ -763,12 +847,100 @@ class SupplyRequestController extends Controller
             app(DeliveryManifestService::class)->syncFromSupplyRequest($updated);
 
             $msg = $updated->status === SupplyRequest::STATUS_DISPUTED
-                ? 'Đã ghi nhận nhận hàng có chênh lệch/hàng lỗi; hàng đạt đã nhập tồn, hàng lỗi đã cách ly và tạo hồ sơ xử lý.'
-                : 'Đã nghiệm thu và nhập hàng vào tồn kho Chi nhánh thành công.';
+                ? 'Đã xác nhận biên bản; hàng đạt đã nhập tồn, hàng lỗi đã được cách ly và gửi các bên xử lý.'
+                : 'Đã tự động nhập kho toàn bộ nguyên liệu đạt.';
 
             return response()->json([
                 'success' => true,
                 'message' => $msg,
+                'data' => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Xác nhận biên bản nhận hàng lần cuối tại chi nhánh.
+     */
+    public function confirmReceivingReport(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $report = SupplyRequestReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->where('supply_request_id', $id)
+            ->with(['items.ingredient.unit', 'supplyRequest.toBranch', 'supplyRequest.transporter'])
+            ->firstOrFail();
+
+        try {
+            $result = $this->warehouseService->confirmReceivingReport($report, $user);
+            app(DeliveryManifestService::class)->syncFromSupplyRequest($result['request']);
+
+            return response()->json([
+                'success' => true,
+                'message' => $result['idempotent']
+                    ? 'Biên bản đã được xác nhận trước đó; hệ thống không hạch toán trùng.'
+                    : 'Đã xác nhận biên bản. Nguyên liệu đạt đã nhập kho, nguyên liệu lỗi đã cách ly và biên bản đã gửi các bên xử lý.',
+                'data' => $result['report'],
+                'supply_request' => $result['request'],
+                'idempotent_replay' => $result['idempotent'],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Nhân viên giao xác nhận đã đọc và đồng ý với biên bản đối soát.
+     */
+    public function confirmReceivingReportByDriver(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['notes' => 'nullable|string|max:2000']);
+        $user = $request->user();
+        $report = SupplyRequestReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->whereKey($id)
+            ->with(['supplyRequest.transporter', 'supplyRequest.toBranch'])
+            ->firstOrFail();
+
+        try {
+            $updated = $this->warehouseService->confirmReceivingReportByDriver($report, $user, $data['notes'] ?? null);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã xác nhận biên bản nhận hàng với tư cách nhân viên giao.',
+                'data' => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Chủ doanh nghiệp/Trưởng Kho Tổng ghi nhận kết luận xử lý biên bản.
+     */
+    public function reviewReceivingReport(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['notes' => 'required|string|max:3000']);
+        $user = $request->user();
+        $report = SupplyRequestReceivingReport::where('restaurant_id', $user->restaurant_id)
+            ->whereKey($id)
+            ->with(['supplyRequest.transporter', 'supplyRequest.toBranch'])
+            ->firstOrFail();
+
+        try {
+            $updated = $this->warehouseService->reviewReceivingReport($report, $user, $data['notes']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã ghi nhận kết luận xử lý biên bản; phần hàng lỗi tiếp tục được theo dõi tại khu cách ly.',
                 'data' => $updated,
             ]);
         } catch (\Throwable $e) {

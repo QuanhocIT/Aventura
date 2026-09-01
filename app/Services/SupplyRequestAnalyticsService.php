@@ -58,7 +58,7 @@ class SupplyRequestAnalyticsService
 
         $requests = SupplyRequest::where('restaurant_id', $restaurantId)
             ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver', 'warehouseTasks.assignee'])
+            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver', 'transporter', 'deliveryTask.assignee', 'warehouseTasks.assignee'])
             ->orderByDesc('id')
             ->get();
 

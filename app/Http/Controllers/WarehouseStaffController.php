@@ -12,6 +12,8 @@ use App\Models\InventoryTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
+use App\Models\SupplyRequest;
+use App\Models\SupplyRequestReceivingReport;
 use App\Models\User;
 use App\Models\WarehouseLocation;
 use App\Models\WarehouseReceivingDocument;
@@ -109,6 +111,17 @@ class WarehouseStaffController extends Controller
             ->limit(20)
             ->get();
 
+        $myReceivingReports = SupplyRequestReceivingReport::where('restaurant_id', $restaurantId)
+            ->whereIn('status', [
+                SupplyRequestReceivingReport::STATUS_CONFIRMED_PENDING_ACK,
+                SupplyRequestReceivingReport::STATUS_DRIVER_CONFIRMED,
+            ])
+            ->whereHas('supplyRequest', fn ($query) => $query->where('transporter_id', $userId))
+            ->with(['items.ingredient.unit', 'transporter', 'supplyRequest.toBranch', 'supplyRequest.transporter'])
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
         // Vị trí kho
         $locations = $this->centralLocationQuery($restaurantId, $centralBranch?->id)
             ->where('status', 'active')
@@ -167,6 +180,7 @@ class WarehouseStaffController extends Controller
             'myVouchers' => $myVouchers,
             'myHandovers' => $myHandovers,
             'myDisputes' => $myDisputes,
+            'myReceivingReports' => $myReceivingReports,
             'locations' => $locations,
             'ingredients' => $ingredients,
             'suppliers' => $suppliers,
@@ -320,6 +334,30 @@ class WarehouseStaffController extends Controller
                 'idempotency_key' => $idempotencyKey ?: $task->idempotency_key,
             ]);
 
+            if ($task->task_type === 'delivery') {
+                $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+                    ->whereKey($task->supply_request_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                abort_unless(
+                    (int) $supplyRequest->transporter_id === (int) $user->id,
+                    403,
+                    'Chỉ nhân viên giao hàng được phân công mới có thể xác nhận giao đơn này.'
+                );
+                abort_unless(
+                    $supplyRequest->status === SupplyRequest::STATUS_DISPATCHED,
+                    422,
+                    'Đơn hàng không còn ở trạng thái đang giao để xác nhận.'
+                );
+
+                $supplyRequest->update([
+                    'delivery_confirmed_by' => $user->id,
+                    'delivery_confirmed_at' => now(),
+                    'delivery_confirmed_notes' => $request->result_notes,
+                ]);
+            }
+
             return $task;
         });
 
@@ -338,6 +376,15 @@ class WarehouseStaffController extends Controller
             'result_notes' => $request->result_notes,
             'evidence_count' => count($evidencePaths),
         ]);
+
+        if ($task->task_type === 'delivery' && $task->supply_request_id) {
+            $deliveryRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+                ->with(['toBranch', 'creator', 'transporter'])
+                ->find($task->supply_request_id);
+            if ($deliveryRequest) {
+                $this->warehouseService->notifyStakeholders($deliveryRequest, 'delivery_confirmed');
+            }
+        }
 
         return response()->json(['message' => 'Task hoàn thành!', 'task' => $this->formatTask($task->fresh())]);
     }
@@ -1998,6 +2045,8 @@ class WarehouseStaffController extends Controller
                 'request_code' => $task->supplyRequest->request_code,
                 'to_branch' => $task->supplyRequest->toBranch?->name,
                 'status' => $task->supplyRequest->status,
+                'transporter_id' => $task->supplyRequest->transporter_id,
+                'delivery_confirmed_at' => $task->supplyRequest->delivery_confirmed_at?->toISOString(),
                 'items' => $task->supplyRequest->items->map(fn ($item) => [
                     'id' => $item->id,
                     'ingredient_id' => $item->ingredient_id,
