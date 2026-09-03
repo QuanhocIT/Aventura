@@ -1562,9 +1562,37 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];
 
-    return nav.filter(
-        (item) => !item.feature || canFeature(item.feature as any),
-    );
+    const sectionByHref: Record<string, string> = {
+        '/inventory/central-warehouse': 'overview',
+        '/inventory/central-warehouse/ai-advisor': 'overview',
+        '/inventory/negative-stock': 'supply',
+        '/inventory/central-warehouse/requests': 'supply',
+        '/inventory/central-warehouse/receiving': 'supply',
+        '/inventory/central-warehouse/prices': 'supply',
+        '/warehouse/team': 'people',
+        '/inventory/staff-portal': 'supply',
+        '/employees': 'people',
+        '/bonuses': 'people',
+        '/overtime-requests': 'people',
+        '/inventory/central-kitchen': 'supply',
+        '/inventory/delivery-manifests': 'supply',
+        '/inventory/batch-recalls': 'supply',
+        '/inventory/reverse-logistics': 'supply',
+        '/inventory/warehouse-governance': 'supply',
+        '/inventory/central-warehouse/stock': 'supply',
+        '/inventory/count-sessions': 'supply',
+        '/inventory/central-warehouse/material-closing': 'supply',
+        '/inventory/transfers': 'supply',
+        '/violations': 'governance',
+        '/support': 'settings',
+    };
+
+    return nav
+        .filter((item) => !item.feature || canFeature(item.feature as any))
+        .map((item) => ({
+            ...item,
+            section: sectionByHref[String(item.href)] ?? (item as any).section,
+        }));
 });
 
 const warehouseStaffNav = computed<NavItem[]>(() => {

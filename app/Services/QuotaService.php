@@ -33,7 +33,7 @@ class QuotaService
                 'tables' => $snapshot['max_tables'] ?? null,
                 'employees' => $snapshot['max_users'] ?? null,
                 'dishes' => $snapshot['max_dishes'] ?? null,
-                'areas' => isset($snapshot['features']['max_areas']) ? ($snapshot['features']['max_areas'] === null ? null : (int) $snapshot['features']['max_areas']) : 2,
+                'areas' => array_key_exists('max_areas', $snapshot['features'] ?? []) ? ($snapshot['features']['max_areas'] === null ? null : (int) $snapshot['features']['max_areas']) : 2,
                 'storage_mb' => (int) ($snapshot['features']['max_storage_mb'] ?? 500),
                 default => null,
             };
@@ -50,7 +50,7 @@ class QuotaService
             'tables' => $plan->max_tables,
             'employees' => $plan->max_users,
             'dishes' => $plan->max_dishes,
-            'areas' => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
+            'areas' => array_key_exists('max_areas', $plan->features ?? []) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
             'storage_mb' => (int) ($plan->features['max_storage_mb'] ?? 500),
             default => null,
         };

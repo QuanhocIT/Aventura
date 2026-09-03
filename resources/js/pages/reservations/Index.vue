@@ -910,6 +910,21 @@ async function copyPhone(phone: string) {
                                             />Vào bàn</Button
                                         ><Button
                                             v-if="
+                                                ['pending', 'confirmed'].includes(
+                                                    reservation.status,
+                                                )
+                                            "
+                                            size="sm"
+                                            variant="outline"
+                                            class="border-rose-500/30 text-rose-600 hover:border-rose-500/60 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/20"
+                                            @click.stop="
+                                                openCancelModal(reservation)
+                                            "
+                                            ><Ban
+                                                class="mr-1.5 size-3.5"
+                                            />Hủy</Button
+                                        ><Button
+                                            v-if="
                                                 reservation.status === 'seated'
                                             "
                                             size="sm"
@@ -921,7 +936,7 @@ async function copyPhone(phone: string) {
                                         ><button
                                             type="button"
                                             class="rounded-lg border border-slate-700 p-2 text-slate-400 transition-colors hover:border-indigo-400/50 hover:text-indigo-200"
-                                            aria-label="Chọn lượt đặt để gán bàn"
+                                            aria-label="Chọn lượt đặt để xem chi tiết và gán bàn"
                                             @click.stop="
                                                 selectReservation(reservation)
                                             "
@@ -936,10 +951,9 @@ async function copyPhone(phone: string) {
                 </div>
 
                 <aside class="space-y-4 xl:sticky xl:top-4">
-                    <!-- Không hiển thị hồ sơ chi tiết người đặt trên màn hình này. -->
                     <section
                         v-if="selected"
-                        class="hidden overflow-hidden rounded-xl border border-border bg-background shadow-none"
+                        class="overflow-hidden rounded-xl border border-border bg-background shadow-none"
                     >
                         <div
                             class="flex items-start justify-between border-b border-border p-5"
