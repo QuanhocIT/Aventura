@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import axios from 'axios';
-import { Sparkles, Clock, Pencil, Ban, Plus, X } from 'lucide-vue-next';
+import { Sparkles, Clock, Pencil, Ban, Plus, Minus, X } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,12 +69,29 @@ function openEdit(order: any) {
         return {
             product_id: pId || 0,
             name,
-            quantity: Number(item.quantity || 1),
+            quantity: Math.max(1, Math.round(Number(item.quantity) || 1)),
             notes: item.notes || '',
         };
     });
     revisionMessage.value = '';
     selectedProductId.value = null;
+}
+
+function decreaseQty(index: number) {
+    if (editingItems.value[index].quantity > 1) {
+        editingItems.value[index].quantity =
+            Math.round(editingItems.value[index].quantity) - 1;
+    }
+}
+
+function increaseQty(index: number) {
+    editingItems.value[index].quantity =
+        Math.round(editingItems.value[index].quantity) + 1;
+}
+
+function handleQtyInput(index: number, val: any) {
+    const num = Math.round(Number(val) || 1);
+    editingItems.value[index].quantity = Math.max(1, num);
 }
 
 function addProduct() {
@@ -130,7 +147,7 @@ async function saveRevision() {
                 message: revisionMessage.value.trim(),
                 items: editingItems.value.map((item) => ({
                     product_id: item.product_id,
-                    quantity: item.quantity,
+                    quantity: Math.max(1, Math.round(Number(item.quantity) || 1)),
                     notes: item.notes || null,
                 })),
             },
@@ -531,16 +548,47 @@ async function submitRejection() {
                                     class="min-w-0 flex-1 truncate text-sm font-bold"
                                     >{{ item.name }}</span
                                 >
-                                <input
-                                    v-model.number="item.quantity"
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm dark:border-slate-700 dark:bg-slate-800"
-                                />
+                                <div
+                                    class="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50/80 p-0.5 dark:border-slate-700 dark:bg-slate-800/80"
+                                >
+                                    <button
+                                        type="button"
+                                        class="flex size-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                                        :disabled="item.quantity <= 1"
+                                        @click="decreaseQty(index)"
+                                        title="Giảm số lượng"
+                                    >
+                                        <Minus class="size-3.5 stroke-[2.5]" />
+                                    </button>
+                                    <input
+                                        :value="item.quantity"
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        class="w-12 border-0 bg-transparent p-0 text-center font-mono text-sm font-black text-slate-800 focus:ring-0 dark:text-slate-100"
+                                        @change="
+                                            handleQtyInput(
+                                                index,
+                                                (
+                                                    $event.target as HTMLInputElement
+                                                ).value,
+                                            )
+                                        "
+                                    />
+                                    <button
+                                        type="button"
+                                        class="flex size-7 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-900 active:scale-95 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                                        @click="increaseQty(index)"
+                                        title="Tăng số lượng"
+                                    >
+                                        <Plus class="size-3.5 stroke-[2.5]" />
+                                    </button>
+                                </div>
                                 <button
-                                    class="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                                    type="button"
+                                    class="rounded-lg p-1.5 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
                                     @click="removeItem(index)"
+                                    title="Xóa món"
                                 >
                                     <X class="size-4" />
                                 </button>

@@ -13,7 +13,8 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         }
 
         pollingActive.value = true;
-        fallbackPollInterval = setInterval(() => {
+
+        const reloadData = () => {
             router.reload({
                 only: [
                     'qrOrders',
@@ -21,8 +22,14 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
                     'externalOrders',
                     'kitchenReadyItems',
                 ],
+                preserveScroll: true,
+                preserveState: true,
             });
-        }, 6000);
+        };
+
+        // Kích hoạt ngay sau 500ms, sau đó định kỳ 2.5s/lần
+        setTimeout(reloadData, 500);
+        fallbackPollInterval = setInterval(reloadData, 2500);
     };
 
     const stopPollingFallback = () => {
@@ -38,29 +45,41 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         }
     };
 
-    const startHeartbeat = () => {
-        wsCheckInterval = setInterval(() => {
-            if (
-                window.Echo &&
-                window.Echo.connector &&
-                window.Echo.connector.pusher
-            ) {
-                const state = window.Echo.connector.pusher.connection.state;
-                wsConnected.value = state === 'connected';
+    const checkConnection = () => {
+        if (
+            window.Echo &&
+            window.Echo.connector &&
+            window.Echo.connector.pusher
+        ) {
+            const state = window.Echo.connector.pusher.connection.state;
+            wsConnected.value = state === 'connected';
 
-                if (state === 'disconnected' || state === 'failed') {
-                    triggerPollingFallback();
-                } else if (state === 'connected') {
-                    stopPollingFallback();
-                }
-            } else {
-                wsConnected.value = false;
+            if (state === 'disconnected' || state === 'failed') {
                 triggerPollingFallback();
+            } else if (state === 'connected') {
+                stopPollingFallback();
             }
-        }, 10000);
+        } else {
+            wsConnected.value = false;
+            triggerPollingFallback();
+        }
+    };
+
+    const startHeartbeat = () => {
+        checkConnection();
+        wsCheckInterval = setInterval(checkConnection, 5000);
+    };
+
+    const onQrOrdersUpdated = () => {
+        router.reload({
+            only: ['qrOrders', 'tablesData'],
+            preserveScroll: true,
+            preserveState: true,
+        });
     };
 
     onMounted(() => {
+        window.addEventListener('qr-orders-updated', onQrOrdersUpdated);
         startHeartbeat();
 
         const restId = restaurantId();
@@ -115,6 +134,8 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
     });
 
     onUnmounted(() => {
+        window.removeEventListener('qr-orders-updated', onQrOrdersUpdated);
+
         if (wsCheckInterval) {
             clearInterval(wsCheckInterval);
         }

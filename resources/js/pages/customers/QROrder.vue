@@ -15,6 +15,10 @@ import {
     Clock,
     HeartHandshake,
     Award,
+    ConciergeBell,
+    CheckCheck,
+    Trash2,
+    AlertTriangle,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -169,6 +173,11 @@ const callStaffWithMessage = async (message: string) => {
             },
         );
         toast.success(response.data.message);
+        addCustomerNotification({
+            type: 'call_staff',
+            title: 'Yêu cầu phục vụ đã gửi',
+            message: `Đã gửi yêu cầu: "${message}". Nhân viên sẽ đến bàn ngay.`,
+        });
         isCallStaffHubOpen.value = false;
         trackBehavior('call_staff');
     } catch {
@@ -628,6 +637,11 @@ async function requestPayment() {
             },
         );
         toast.success(response.data.message);
+        addCustomerNotification({
+            type: 'payment',
+            title: 'Yêu cầu thanh toán đã gửi',
+            message: 'Thu ngân đã tiếp nhận và đang in hóa đơn cho bàn của bạn.',
+        });
         trackBehavior('payment_request');
     } catch (err: any) {
         toast.error(
@@ -717,9 +731,306 @@ async function submitFeedback() {
     }
 }
 
+// Sound notification synthesizer for customer
+function playCustomerSound(type: 'confirmed' | 'revision' | 'cancelled') {
+    try {
+        const audioCtx = new (
+            window.AudioContext || (window as any).webkitAudioContext
+        )();
+
+        if (type === 'confirmed') {
+            // Ding-ding cheerful double chime
+            const playNote = (delay: number, freq: number) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(
+                    0.01,
+                    audioCtx.currentTime + delay + 0.3,
+                );
+                osc.start(audioCtx.currentTime + delay);
+                osc.stop(audioCtx.currentTime + delay + 0.3);
+            };
+
+            playNote(0, 880);
+            playNote(0.16, 1320);
+        } else if (type === 'revision') {
+            // Notice two-tone chime
+            const playNote = (delay: number, freq: number) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'triangle';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(
+                    0.01,
+                    audioCtx.currentTime + delay + 0.35,
+                );
+                osc.start(audioCtx.currentTime + delay);
+                osc.stop(audioCtx.currentTime + delay + 0.35);
+            };
+
+            playNote(0, 659.25);
+            playNote(0.2, 880);
+        } else if (type === 'cancelled') {
+            // Attention alert buzz
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(
+                260,
+                audioCtx.currentTime + 0.35,
+            );
+            gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(
+                0.01,
+                audioCtx.currentTime + 0.35,
+            );
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.35);
+        }
+    } catch {
+        // Silently catch audio restrictions
+    }
+}
+
+interface CustomerNotification {
+    id: string;
+    type:
+        | 'confirmed'
+        | 'revision'
+        | 'cancelled'
+        | 'kitchen_cancel'
+        | 'call_staff'
+        | 'payment'
+        | 'system';
+    title: string;
+    message: string;
+    time: string;
+    date: string;
+    read: boolean;
+    orderId?: number;
+    orderNumber?: string | null;
+}
+
+const isNotificationsOpen = ref(false);
+const notifications = ref<CustomerNotification[]>([]);
+
+const loadSavedNotifications = () => {
+    try {
+        const key = `qr_notifs_${props.table.qr_token}`;
+        const raw = localStorage.getItem(key);
+
+        if (raw) {
+            notifications.value = JSON.parse(raw);
+        }
+    } catch {
+        notifications.value = [];
+    }
+
+    // Nếu chưa có lịch sử nhưng bàn đang có đơn, nạp thông báo ban đầu
+    if (notifications.value.length === 0 && props.activeTempOrders?.length) {
+        props.activeTempOrders.forEach((order) => {
+            if (order.status === 'confirmed') {
+                addCustomerNotification({
+                    type: 'confirmed',
+                    title: 'Đơn hàng đã được xác nhận',
+                    message: `Đơn #${order.order_number || order.id} đã được nhân viên xác nhận và gửi xuống bếp chế biến.`,
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            } else if (order.awaiting_customer_confirmation) {
+                addCustomerNotification({
+                    type: 'revision',
+                    title: 'Nhân viên đề xuất chỉnh đơn',
+                    message: order.revision_note
+                        ? `Lý do: "${order.revision_note}". Vui lòng kiểm tra và xác nhận lại.`
+                        : 'Nhân viên đã cập nhật lại món ăn trong đơn. Vui lòng xác nhận.',
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            } else if (order.status === 'cancelled') {
+                addCustomerNotification({
+                    type: 'cancelled',
+                    title: 'Đơn hàng bị từ chối/hủy',
+                    message: order.cancellation_reason
+                        ? `Lý do: "${order.cancellation_reason}"`
+                        : 'Đơn hàng của bạn đã bị từ chối.',
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            }
+        });
+    }
+};
+
+const saveNotifications = () => {
+    try {
+        const key = `qr_notifs_${props.table.qr_token}`;
+        localStorage.setItem(
+            key,
+            JSON.stringify(notifications.value.slice(0, 30)),
+        );
+    } catch {
+        // Silently ignore storage issues
+    }
+};
+
+const unreadNotificationsCount = computed(
+    () => notifications.value.filter((n) => !n.read).length,
+);
+
+function addCustomerNotification(
+    notif: Omit<CustomerNotification, 'id' | 'time' | 'date' | 'read'>,
+) {
+    const d = new Date();
+    const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    const date = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+
+    const newNotif: CustomerNotification = {
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        time,
+        date,
+        read: false,
+        ...notif,
+    };
+
+    notifications.value.unshift(newNotif);
+    saveNotifications();
+}
+
+function markAllNotificationsAsRead() {
+    notifications.value.forEach((n) => (n.read = true));
+    saveNotifications();
+}
+
+function clearAllNotifications() {
+    notifications.value = [];
+    saveNotifications();
+}
+
+// Order state tracking to notify customer immediately on approval, revision, or rejection
+const previousOrdersState = new Map<
+    number,
+    {
+        status: string;
+        awaiting_confirmation: boolean;
+        revision_note: string | null;
+        cancellation_reason: string | null;
+    }
+>();
+
+function initOrdersState(orders: any[]) {
+    (orders || []).forEach((o) => {
+        previousOrdersState.set(o.id, {
+            status: o.status,
+            awaiting_confirmation: Boolean(o.awaiting_customer_confirmation),
+            revision_note: o.revision_note || null,
+            cancellation_reason: o.cancellation_reason || null,
+        });
+    });
+}
+
+function handleOrdersStateChange(newOrders: any[]) {
+    if (!newOrders || !Array.isArray(newOrders)) {
+        return;
+    }
+
+    newOrders.forEach((order) => {
+        const prev = previousOrdersState.get(order.id);
+        const currentAwaiting = Boolean(order.awaiting_customer_confirmation);
+        const currentStatus = order.status;
+
+        if (prev) {
+            // 1. Nhân viên ĐÃ DUYỆT ĐƠN
+            if (prev.status !== 'confirmed' && currentStatus === 'confirmed') {
+                playCustomerSound('confirmed');
+                toast.success(
+                    '🎉 Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp chế biến!',
+                    { duration: 6000 },
+                );
+                addCustomerNotification({
+                    type: 'confirmed',
+                    title: 'Đơn hàng đã được xác nhận',
+                    message: `Đơn #${order.order_number || order.id} đã được nhân viên xác nhận và chuyển xuống bếp chế biến.`,
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            } else if (!prev.awaiting_confirmation && currentAwaiting) {
+                // 2. Nhân viên ĐÃ CHỈNH SỬA ĐƠN
+                playCustomerSound('revision');
+                toast.warning(
+                    order.revision_note
+                        ? `📝 Nhân viên đã chỉnh đơn: "${order.revision_note}". Vui lòng kiểm tra và xác nhận lại!`
+                        : '📝 Nhân viên đã chỉnh sửa đơn. Vui lòng kiểm tra và bấm xác nhận lại!',
+                    { duration: 8000 },
+                );
+                addCustomerNotification({
+                    type: 'revision',
+                    title: 'Nhân viên đề xuất chỉnh đơn',
+                    message: order.revision_note
+                        ? `Lý do: "${order.revision_note}". Vui lòng kiểm tra và xác nhận lại.`
+                        : 'Nhân viên đã cập nhật lại món ăn trong đơn. Vui lòng xác nhận.',
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            } else if (
+                prev.status !== 'cancelled' &&
+                currentStatus === 'cancelled'
+            ) {
+                // 3. Nhân viên TỪ CHỐI / HỦY ĐƠN
+                playCustomerSound('cancelled');
+                toast.error(
+                    order.cancellation_reason
+                        ? `❌ Đơn hàng của bạn đã bị từ chối: "${order.cancellation_reason}"`
+                        : '❌ Đơn hàng của bạn đã bị nhân viên từ chối/hủy. Vui lòng liên hệ nhân viên để được hỗ trợ.',
+                    { duration: 8000 },
+                );
+                addCustomerNotification({
+                    type: 'cancelled',
+                    title: 'Đơn hàng bị từ chối/hủy',
+                    message: order.cancellation_reason
+                        ? `Lý do: "${order.cancellation_reason}"`
+                        : 'Đơn hàng của bạn đã bị từ chối. Vui lòng liên hệ nhân viên phục vụ.',
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                });
+            }
+        }
+
+        previousOrdersState.set(order.id, {
+            status: currentStatus,
+            awaiting_confirmation: currentAwaiting,
+            revision_note: order.revision_note || null,
+            cancellation_reason: order.cancellation_reason || null,
+        });
+    });
+}
+
+watch(
+    () => props.activeTempOrders,
+    (newOrders) => {
+        handleOrdersStateChange(newOrders);
+    },
+    { deep: true },
+);
+
 // Background refreshing
 function refetchActiveOrders() {
-    router.reload({ only: ['activeTempOrders'] });
+    router.reload({
+        only: ['activeTempOrders'],
+        preserveScroll: true,
+        preserveState: true,
+    });
 }
 
 const confirmingRevisionId = ref<number | null>(null);
@@ -821,6 +1132,8 @@ function formatProductCountdown(untilTimeStr: string | null) {
 }
 
 onMounted(() => {
+    loadSavedNotifications();
+    initOrdersState(props.activeTempOrders);
     localStorage.setItem('last_qr_order_url', window.location.href);
     getOrGenerateSessionToken();
     trackBehavior('view_menu');
@@ -874,10 +1187,10 @@ onMounted(() => {
         }
     }, 1000);
 
-    // Keep the customer's own order current when realtime is unavailable.
+    // Tự động kiểm tra cập nhật đơn hàng của khách mỗi 2 giây mà không cần nhấn F5
     orderPollingInterval = setInterval(() => {
         refetchActiveOrders();
-    }, 8000);
+    }, 2000);
 
     // Listen to live temporary order status updates
     if (window.Echo) {
@@ -1127,9 +1440,22 @@ onUnmounted(() => {
                 <button
                     @click="isCallStaffHubOpen = true"
                     class="cursor-pointer rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-slate-600 shadow-sm transition-all hover:text-slate-900 active:scale-95"
-                    title="Gọi phục vụ"
+                    title="Gọi nhân viên phục vụ"
+                >
+                    <ConciergeBell class="size-4" />
+                </button>
+                <button
+                    @click="isNotificationsOpen = true"
+                    class="relative cursor-pointer rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-slate-600 shadow-sm transition-all hover:text-slate-900 active:scale-95"
+                    title="Hộp thông báo"
                 >
                     <Bell class="size-4" />
+                    <span
+                        v-if="unreadNotificationsCount > 0"
+                        class="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-rose-500 font-mono text-[9px] font-black text-white shadow-sm ring-2 ring-white animate-pulse"
+                    >
+                        {{ unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount }}
+                    </span>
                 </button>
                 <button
                     @click="requestPayment"
@@ -1145,6 +1471,44 @@ onUnmounted(() => {
                 </button>
             </div>
         </header>
+
+        <!-- ── Notification Strip Banner (when unread) ───────────────────── -->
+        <div
+            v-if="unreadNotificationsCount > 0 && notifications[0]"
+            class="flex items-center justify-between border-b px-4 py-2.5 text-xs transition-all"
+            :class="
+                notifications[0].type === 'cancelled'
+                    ? 'border-rose-200 bg-rose-50 text-rose-800'
+                    : notifications[0].type === 'revision'
+                      ? 'border-amber-200 bg-amber-50 text-amber-800'
+                      : 'border-indigo-100 bg-indigo-50/90 text-indigo-900'
+            "
+        >
+            <div
+                class="flex flex-1 cursor-pointer items-center gap-2 overflow-hidden pr-2"
+                @click="isNotificationsOpen = true"
+            >
+                <span
+                    class="inline-block size-2 shrink-0 animate-ping rounded-full"
+                    :class="
+                        notifications[0].type === 'cancelled'
+                            ? 'bg-rose-500'
+                            : notifications[0].type === 'revision'
+                              ? 'bg-amber-500'
+                              : 'bg-indigo-500'
+                    "
+                ></span>
+                <p class="truncate text-[11px] font-bold">
+                    {{ notifications[0].title }}: {{ notifications[0].message }}
+                </p>
+            </div>
+            <button
+                @click="markAllNotificationsAsRead"
+                class="shrink-0 text-[10px] font-bold underline opacity-75 hover:opacity-100"
+            >
+                Đã xem
+            </button>
+        </div>
 
         <!-- ── Active Order Tracker ────────────────────────────────────────── -->
         <div
@@ -2721,6 +3085,188 @@ onUnmounted(() => {
                                 <span class="text-slate-350">➔</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- ── NOTIFICATION HUB MODAL ────────────────────────────────────── -->
+        <Teleport to="body">
+            <div
+                v-if="isNotificationsOpen"
+                class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm sm:items-center sm:p-4"
+                @click.self="isNotificationsOpen = false"
+            >
+                <div
+                    class="animate-slide-up flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:rounded-3xl"
+                >
+                    <!-- Header -->
+                    <div
+                        class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                    >
+                        <div class="flex items-center gap-2.5">
+                            <div
+                                class="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600"
+                            >
+                                <Bell class="size-5" />
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-black text-slate-800">
+                                    Thông báo của bạn
+                                </h3>
+                                <p class="text-[10px] font-bold text-slate-400">
+                                    Bàn {{ table.name }} • {{ table.area_name }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button
+                                v-if="unreadNotificationsCount > 0"
+                                @click="markAllNotificationsAsRead"
+                                class="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                                title="Đánh dấu tất cả đã đọc"
+                            >
+                                <CheckCheck class="size-3.5" />
+                                <span>Đã đọc</span>
+                            </button>
+                            <button
+                                @click="isNotificationsOpen = false"
+                                class="cursor-pointer rounded-xl bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Notification List -->
+                    <div
+                        class="scrollbar-hidden flex-1 space-y-3 overflow-y-auto p-4"
+                    >
+                        <div
+                            v-if="notifications.length === 0"
+                            class="flex flex-col items-center justify-center py-12 text-center"
+                        >
+                            <div
+                                class="flex size-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"
+                            >
+                                <Bell class="size-7 stroke-[1.5]" />
+                            </div>
+                            <h4 class="mt-3 text-xs font-black text-slate-700">
+                                Chưa có thông báo nào
+                            </h4>
+                            <p
+                                class="mt-1 max-w-[240px] text-[11px] leading-relaxed text-slate-400"
+                            >
+                                Mọi cập nhật về duyệt đơn, tình trạng chế biến
+                                hoặc thay đổi món sẽ hiển thị tại đây.
+                            </p>
+                        </div>
+
+                        <div
+                            v-for="notif in notifications"
+                            :key="notif.id"
+                            :class="[
+                                'relative flex items-start gap-3 rounded-2xl border p-3.5 transition-all',
+                                !notif.read
+                                    ? 'border-amber-200 bg-amber-50/40 shadow-xs'
+                                    : 'border-slate-100 bg-white',
+                            ]"
+                        >
+                            <!-- Icon -->
+                            <div
+                                :class="[
+                                    'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl',
+                                    notif.type === 'confirmed'
+                                        ? 'bg-emerald-100 text-emerald-600'
+                                        : notif.type === 'revision'
+                                          ? 'bg-amber-100 text-amber-600'
+                                          : notif.type === 'cancelled'
+                                            ? 'bg-rose-100 text-rose-600'
+                                            : notif.type === 'kitchen_cancel'
+                                              ? 'bg-orange-100 text-orange-600'
+                                              : 'bg-indigo-100 text-indigo-600',
+                                ]"
+                            >
+                                <Check
+                                    v-if="notif.type === 'confirmed'"
+                                    class="size-4 stroke-[2.5]"
+                                />
+                                <Clock
+                                    v-else-if="notif.type === 'revision'"
+                                    class="size-4 stroke-[2.5]"
+                                />
+                                <AlertTriangle
+                                    v-else-if="
+                                        notif.type === 'cancelled' ||
+                                        notif.type === 'kitchen_cancel'
+                                    "
+                                    class="size-4 stroke-[2.5]"
+                                />
+                                <CreditCard
+                                    v-else-if="notif.type === 'payment'"
+                                    class="size-4 stroke-[2.5]"
+                                />
+                                <Bell v-else class="size-4 stroke-[2.5]" />
+                            </div>
+
+                            <!-- Content -->
+                            <div class="min-w-0 flex-1">
+                                <div
+                                    class="flex items-center justify-between gap-2"
+                                >
+                                    <h4
+                                        class="line-clamp-1 text-xs font-black text-slate-800"
+                                    >
+                                        {{ notif.title }}
+                                    </h4>
+                                    <span
+                                        class="font-mono text-[9px] font-bold text-slate-400"
+                                    >
+                                        {{ notif.time }}
+                                    </span>
+                                </div>
+                                <p
+                                    class="mt-1 text-[11px] leading-relaxed text-slate-600"
+                                >
+                                    {{ notif.message }}
+                                </p>
+
+                                <div
+                                    v-if="notif.type === 'revision'"
+                                    class="mt-2.5 flex items-center gap-2"
+                                >
+                                    <button
+                                        @click="isNotificationsOpen = false"
+                                        class="rounded-lg bg-amber-500 px-3 py-1.5 text-[10px] font-black text-white shadow-xs hover:bg-amber-600"
+                                    >
+                                        Xem và xác nhận thay đổi
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Unread dot indicator -->
+                            <span
+                                v-if="!notif.read"
+                                class="absolute top-3 right-3 size-2 rounded-full bg-amber-500"
+                            ></span>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div
+                        v-if="notifications.length > 0"
+                        class="flex items-center justify-between border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-[11px]"
+                    >
+                        <span class="font-bold text-slate-400">
+                            {{ notifications.length }} thông báo
+                        </span>
+                        <button
+                            @click="clearAllNotifications"
+                            class="flex items-center gap-1 font-bold text-slate-400 transition-colors hover:text-rose-500"
+                        >
+                            <Trash2 class="size-3" />
+                            <span>Xóa lịch sử</span>
+                        </button>
                     </div>
                 </div>
             </div>

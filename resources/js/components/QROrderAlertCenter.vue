@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Bell,
@@ -140,7 +140,7 @@ async function confirmOrder(notification: any) {
             }
 
             // Reload parent Inertia pages to update lists
-            window.location.reload(); // Force reload to refresh lists reliably
+            router.reload({ preserveScroll: true, preserveState: true });
         }
     } catch (err: any) {
         toast.error(
@@ -178,7 +178,7 @@ async function submitCancel() {
             );
 
             // Reload parent Inertia pages
-            window.location.reload();
+            router.reload({ preserveScroll: true, preserveState: true });
         }
     } catch {
         toast.error('Có lỗi xảy ra khi hủy yêu cầu.');
@@ -239,10 +239,107 @@ function handleStaffCalled(e: any) {
     toast.warning(`Bàn ${e.table_name} đang gọi nhân viên!`);
 }
 
+const knownOrderIds = ref<Set<number>>(new Set());
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+let isInitialPoll = true;
+
+async function pollTemporaryOrders() {
+    if (!isStaff.value) {
+        return;
+    }
+
+    try {
+        const res = await axios.get('/api/temporary-orders');
+        const orders: any[] = res.data?.temporary_orders ?? [];
+        const currentIds = new Set(orders.map((o) => o.id));
+        let hasNewOrder = false;
+
+        orders.forEach((order) => {
+            if (!knownOrderIds.value.has(order.id)) {
+                knownOrderIds.value.add(order.id);
+                hasNewOrder = true;
+
+                const exists = activeNotifications.value.some(
+                    (n) =>
+                        n.id === order.id &&
+                        (n.type === 'qr_order' || n.type === 'escalation'),
+                );
+
+                if (!exists) {
+                    const isEscalated = order.status === 'escalated';
+
+                    if (isEscalated && isManager.value) {
+                        playAlarm('escalated');
+                        activeNotifications.value.unshift({
+                            uid: `escalated-${order.id}`,
+                            id: order.id,
+                            type: 'escalation',
+                            title: '🚨 CẢNH BÁO QUÁ HẠN QR',
+                            subtitle: `${order.table_name} (${order.area_name})`,
+                            details: `Đơn hàng ${order.total_amount.toLocaleString('vi-VN')}đ chưa được duyệt sau 2 phút!`,
+                            time: order.created_at,
+                            urgency: 'critical',
+                        });
+
+                        if (!isInitialPoll) {
+                            toast.error(
+                                `🚨 Cảnh báo khẩn cấp: Bàn ${order.table_name} quá hạn xác nhận!`,
+                                { duration: 10000 },
+                            );
+                        }
+                    } else {
+                        playAlarm('normal');
+                        activeNotifications.value.unshift({
+                            uid: `qr-${order.id}`,
+                            id: order.id,
+                            type: 'qr_order',
+                            title: 'Yêu cầu gọi món QR mới',
+                            subtitle: `${order.table_name} (${order.area_name})`,
+                            details: `Tổng cộng: ${order.total_amount.toLocaleString('vi-VN')}đ • ${(order.items || []).length} món`,
+                            items: order.items,
+                            time: order.created_at,
+                            urgency: 'normal',
+                        });
+
+                        if (!isInitialPoll) {
+                            toast.info(
+                                `🔔 Yêu cầu gọi món mới tại ${order.table_name} (${order.total_amount.toLocaleString('vi-VN')}đ)`,
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        // Xóa thông báo của các đơn đã được duyệt hoặc bị hủy
+        activeNotifications.value = activeNotifications.value.filter((n) => {
+            if (n.type === 'qr_order' || n.type === 'escalation') {
+                return currentIds.has(n.id);
+            }
+
+            return true;
+        });
+
+        knownOrderIds.value = currentIds;
+
+        if (hasNewOrder && !isInitialPoll) {
+            window.dispatchEvent(new CustomEvent('qr-orders-updated'));
+        }
+
+        isInitialPoll = false;
+    } catch {
+        // Im lặng bỏ qua lỗi kết nối tạm thời
+    }
+}
+
 onMounted(() => {
     if (!isStaff.value) {
         return;
     }
+
+    // Polling dự phòng cực nhanh (mỗi 2.5s) đảm bảo đơn QR hiển thị tức thì không cần F5
+    pollTemporaryOrders();
+    pollInterval = setInterval(pollTemporaryOrders, 2500);
 
     const restaurantId = user.value.restaurant_id;
 
@@ -392,6 +489,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+
     if (user.value && window.Echo) {
         window.Echo.leaveChannel(`App.Models.User.${user.value.id}`);
         window.Echo.leaveChannel(`restaurant.${user.value.restaurant_id}`);
