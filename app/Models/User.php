@@ -322,7 +322,9 @@ class User extends Authenticatable implements MustVerifyEmail
             return true;
         }
 
-        if ($this->hasAnyRole(['operations_inspector', 'warehouse_manager', 'warehouse_staff'])) {
+        // Trưởng kho (warehouse_manager) được miễn kiểm tra ca vì là quản lý/giám sát.
+        // Nhân viên kho (warehouse_staff) KHÔNG được miễn — bị khóa theo ca xếp lịch.
+        if ($this->hasAnyRole(['operations_inspector', 'warehouse_manager'])) {
             return true;
         }
 

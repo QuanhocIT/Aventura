@@ -94,6 +94,12 @@ class WarehouseStaffAccessService
         if (! $central || $this->assignedWarehouseBranchId($user) !== (int) $central->id) {
             throw new AuthorizationException('Tài khoản chỉ được truy cập dữ liệu Kho Tổng đã được phân công.');
         }
+
+        // Nhân viên kho phải trong ca làm việc mới được vào portal
+        $employee = $user->employee;
+        if (! $employee || ! $employee->isWithinScheduledShift()) {
+            throw new AuthorizationException('Bạn chưa đến ca làm việc. Vui lòng kiểm tra lịch ca và đăng nhập đúng giờ.');
+        }
     }
 
     public function scopeActiveCentralStaff($query, User $actor, ?int $centralBranchId = null)

@@ -103,12 +103,22 @@ class CheckShiftSchedule
 
     /**
      * Kiểm tra nhà hàng có bật tính năng kiểm tra ca không.
-     * Mặc định: TẮT (opt-in) để không phá vỡ các nhà hàng hiện tại.
+     *
+     * Quy tắc:
+     *  - warehouse_staff → LUÔN áp dụng kiểm tra ca (không cần opt-in theo nhà hàng).
+     *  - Các role khác → đọc flag `shift_access_control` trong settings nhà hàng (opt-in).
      */
     private function isShiftCheckEnabled(mixed $restaurant): bool
     {
-        // Có thể mở rộng để đọc từ settings JSON của restaurant
+        $user = request()->user();
+
+        // Nhân viên kho luôn bị kiểm tra ca — không cần bật thêm tính năng.
+        if ($user && $user->hasRole('warehouse_staff')) {
+            return true;
+        }
+
+        // Các role khác: đọc settings nhà hàng (opt-in)
         // Ví dụ: return (bool) ($restaurant->settings['shift_access_control'] ?? false);
-        return false; // Tắt mặc định, bật khi nhà hàng opt-in
+        return false;
     }
 }

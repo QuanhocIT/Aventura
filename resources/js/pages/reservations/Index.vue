@@ -1577,26 +1577,26 @@ async function copyPhone(phone: string) {
             @click.self="showConfirmModal = false"
         >
             <div
-                class="w-full max-w-lg rounded-xl border border-border bg-background p-6 shadow-xl"
+                class="w-full max-w-lg rounded-xl border border-border bg-white p-6 shadow-xl dark:bg-slate-900"
             >
                 <div class="mb-5 flex items-start justify-between">
                     <div>
                         <p
-                            class="text-xs font-semibold tracking-wider text-emerald-300 uppercase"
+                            class="text-xs font-semibold tracking-wider text-emerald-600 uppercase dark:text-emerald-300"
                         >
                             Sẵn sàng xác nhận
                         </p>
-                        <h3 class="mt-1 text-xl font-bold text-white">
+                        <h3 class="mt-1 text-xl font-bold text-slate-800 dark:text-white">
                             {{ selected.guest_name }}
                         </h3>
-                        <p class="mt-1 text-sm text-slate-400">
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             {{ formatTime(selected.reservation_time) }} ·
                             {{ selected.party_size }} khách
                         </p>
                     </div>
                     <button
                         type="button"
-                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-white"
+                        class="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-white"
                         @click="showConfirmModal = false"
                     >
                         <X class="size-4" />
@@ -1605,14 +1605,14 @@ async function copyPhone(phone: string) {
                 <div class="space-y-4">
                     <label
                         ><span
-                            class="mb-1.5 block text-sm font-medium text-slate-300"
+                            class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
                             >Gán bàn
-                            <span class="text-xs font-normal text-slate-500"
+                            <span class="text-xs font-normal text-slate-400 dark:text-slate-500"
                                 >(tuỳ chọn)</span
                             ></span
                         ><select
                             v-model="confirmForm.table_id"
-                            class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+                            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20"
                         >
                             <option :value="null">Chưa gán bàn</option>
                             <option
@@ -1624,25 +1624,25 @@ async function copyPhone(phone: string) {
                             </option></select
                         ><small
                             v-if="confirmForm.errors.table_id"
-                            class="mt-1 block text-xs text-rose-400"
+                            class="mt-1 block text-xs text-rose-500"
                             >{{ confirmForm.errors.table_id }}</small
                         ></label
                     ><Button
                         variant="outline"
-                        class="w-full border-indigo-400/30 text-indigo-200 hover:bg-indigo-500/10"
+                        class="w-full border-indigo-400/30 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-200 dark:hover:bg-indigo-500/10"
                         :disabled="isProcessing"
                         @click="autoAssign(selected)"
                         ><WandSparkles class="mr-2 size-4" />Xếp bàn tự động
                         theo sức chứa</Button
                     ><label
                         ><span
-                            class="mb-1.5 block text-sm font-medium text-slate-300"
+                            class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
                             >Ghi chú nội bộ</span
                         ><textarea
                             v-model="confirmForm.internal_notes"
                             rows="3"
                             placeholder="Ghi chú cho nhân viên phục vụ..."
-                            class="w-full resize-none rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+                            class="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-600 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20"
                         />
                     </label>
                 </div>
@@ -1651,7 +1651,7 @@ async function copyPhone(phone: string) {
                 >
                     <Button
                         variant="outline"
-                        class="border-slate-700 text-slate-300 hover:bg-slate-800"
+                        class="border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                         @click="showConfirmModal = false"
                         >Đóng</Button
                     ><Button
@@ -1667,6 +1667,7 @@ async function copyPhone(phone: string) {
                 </div>
             </div>
         </div>
+
 
         <div
             v-if="showCancelModal && selected"
