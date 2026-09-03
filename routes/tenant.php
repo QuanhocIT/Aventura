@@ -33,6 +33,7 @@ use App\Http\Controllers\EInvoiceController;
 use App\Http\Controllers\EmployeeManagementController;
 use App\Http\Controllers\EmployeePortalController;
 use App\Http\Controllers\EnterpriseCommandCenterController;
+use App\Http\Controllers\EnterpriseDocumentHubController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FeedbackController;
@@ -692,6 +693,12 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::delete('approvals/policies/{policy}', [ApprovalPolicyController::class, 'destroy'])->name('approvals.policies.destroy');
         Route::post('approvals/delegations', [ApprovalPolicyController::class, 'storeDelegation'])->name('approvals.delegations.store');
         Route::delete('approvals/delegations/{delegation}', [ApprovalPolicyController::class, 'destroyDelegation'])->name('approvals.delegations.destroy');
+    });
+
+    // Trung tâm Tiếp nhận & Quản lý Chứng từ / Phiếu Doanh Nghiệp (Chủ DN & Quản lý)
+    Route::middleware('role_or_permission:owner|super_admin|manager')->group(function () {
+        Route::get('enterprise/documents', [EnterpriseDocumentHubController::class, 'index'])->name('enterprise.documents.index');
+        Route::post('enterprise/documents/acknowledge', [EnterpriseDocumentHubController::class, 'acknowledge'])->name('enterprise.documents.acknowledge');
     });
 
     // Quản lý phản hồi khách hàng (Owner & Manager)

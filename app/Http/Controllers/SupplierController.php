@@ -61,17 +61,17 @@ class SupplierController extends Controller
             abort(403, 'Không tìm thấy nhà hàng.');
         }
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
-            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+            ->when($this->tenantContext->isBranchScoped(), fn($q) => $q->where(fn($scope) => $scope
                 ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->withCount(['ingredients', 'purchaseOrders'])
             ->get();
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
-            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+            ->when($this->tenantContext->isBranchScoped(), fn($q) => $q->where(fn($scope) => $scope
                 ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->with(['unit'])
             ->get()
-            ->map(fn ($ing) => [
+            ->map(fn($ing) => [
                 'id' => $ing->id,
                 'name' => $ing->name,
                 'sku' => $ing->sku,
@@ -81,11 +81,11 @@ class SupplierController extends Controller
             ]);
 
         $purchaseOrders = PurchaseOrder::where('restaurant_id', $user->restaurant_id)
-            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
+            ->when($this->tenantContext->isBranchScoped(), fn($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->with(['supplier', 'creator', 'reviewer', 'items.ingredient.unit'])
             ->latest()
             ->get()
-            ->map(fn ($po) => [
+            ->map(fn($po) => [
                 'id' => $po->id,
                 'po_number' => $po->po_number,
                 'supplier_name' => $po->supplier->name,
@@ -105,7 +105,7 @@ class SupplierController extends Controller
                 'resolution_action' => $po->resolution_action,
                 'escrow_transaction_id' => $po->escrow_transaction_id,
                 'created_at' => $po->created_at->format('d/m/Y H:i'),
-                'items' => $po->items->map(fn ($item) => [
+                'items' => $po->items->map(fn($item) => [
                     'id' => $item->id,
                     'ingredient_name' => $item->ingredient?->name ?? '—',
                     'unit_symbol' => $item->ingredient?->unit?->symbol ?? '—',
@@ -193,7 +193,6 @@ class SupplierController extends Controller
         $supplier->update($data);
 
         return back()->with('success', 'Đã cập nhật thông tin nhà cung cấp.');
-
     }
 
     /**
@@ -238,7 +237,7 @@ class SupplierController extends Controller
             foreach ($request->input('items') as $item) {
                 $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
                     ->whereKey($item['ingredient_id'])
-                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
+                    ->where(fn($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
                     ->firstOrFail();
                 $qty = (float) $item['quantity'];
                 $price = (float) $ingredient->average_cost;
@@ -273,7 +272,7 @@ class SupplierController extends Controller
                 'restaurant_id' => $user->restaurant_id,
                 'branch_id' => $branchId,
                 'supplier_id' => $supplier->id,
-                'po_number' => 'PO-'.now()->format('Ymd').'-'.Str::upper(Str::random(5)),
+                'po_number' => 'PO-' . now()->format('Ymd') . '-' . Str::upper(Str::random(5)),
                 'status' => $status,
                 'total_amount' => $finalTotalAmount,
                 'payment_method' => $request->input('payment_method', 'banking'),
@@ -341,8 +340,8 @@ class SupplierController extends Controller
     {
         abort_unless(
             $request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff'])
-            || $request->user()->can('warehouse.receive.submit')
-            || $request->user()->can('warehouse.receive'),
+                || $request->user()->can('warehouse.receive.submit')
+                || $request->user()->can('warehouse.receive'),
             403
         );
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
@@ -371,7 +370,7 @@ class SupplierController extends Controller
             'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity_received' => ['required', 'numeric', 'min:0'],
             'items.*.invoice_price' => ['required', 'numeric', 'min:0'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:'.$maxSize],
+            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
             'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'rating_notes' => ['nullable', 'string', 'max:500'],
             'mismatch_reason' => ['nullable', 'string', 'max:255'],
@@ -387,8 +386,10 @@ class SupplierController extends Controller
             if (! $inp) {
                 continue;
             }
-            if (abs((float) $poItem->quantity_ordered - (float) $inp['quantity_received']) > 0.001
-                || abs((float) $poItem->price_per_unit - (float) $inp['invoice_price']) > 0.01) {
+            if (
+                abs((float) $poItem->quantity_ordered - (float) $inp['quantity_received']) > 0.001
+                || abs((float) $poItem->price_per_unit - (float) $inp['invoice_price']) > 0.01
+            ) {
                 $willBeDiscrepant = true;
                 break;
             }
@@ -410,7 +411,7 @@ class SupplierController extends Controller
         $invoiceUrl = $purchaseOrder->invoice_file_url;
         if ($request->hasFile('invoice_file')) {
             $path = $request->file('invoice_file')->store('invoices', 'public');
-            $invoiceUrl = '/storage/'.$path;
+            $invoiceUrl = '/storage/' . $path;
         }
 
         $itemsInput = collect($request->input('items'))->keyBy('ingredient_id');
@@ -479,7 +480,7 @@ class SupplierController extends Controller
                 // Log JSON to audit_logs
                 $oldValues = [
                     'total_amount' => (float) $purchaseOrder->total_amount,
-                    'items' => $purchaseOrder->items->map(fn ($it) => [
+                    'items' => $purchaseOrder->items->map(fn($it) => [
                         'ingredient_id' => $it->ingredient_id,
                         'qty' => (float) $it->quantity_ordered,
                         'price' => (float) $it->price_per_unit,
@@ -503,11 +504,11 @@ class SupplierController extends Controller
                 );
 
                 // Clear fraud alerts cache to refresh immediately
-                Cache::forget("fraud_alerts:{$purchaseOrder->restaurant_id}:".today()->startOfMonth()->toDateString().':'.today()->toDateString());
+                Cache::forget("fraud_alerts:{$purchaseOrder->restaurant_id}:" . today()->startOfMonth()->toDateString() . ':' . today()->toDateString());
 
                 // Broadcast fraud alarm to owner
                 $alertData = [
-                    'id' => 'po-discrepancy-'.$log->id,
+                    'id' => 'po-discrepancy-' . $log->id,
                     'po_number' => $purchaseOrder->po_number,
                     'supplier_name' => $purchaseOrder->supplier->name,
                     'violation_type' => 'Đối soát mua hàng thất bại',
@@ -522,8 +523,7 @@ class SupplierController extends Controller
                     ->where('id', '!=', $user->id)
                     ->role(['owner', 'warehouse_manager'])
                     ->get()
-                    ->each(fn ($r) => $r->notify(new PurchaseDiscrepancyNotification($purchaseOrder, $discrepancies)));
-
+                    ->each(fn($r) => $r->notify(new PurchaseDiscrepancyNotification($purchaseOrder, $discrepancies)));
             } else {
                 // Success: update status and add to inventory
                 $isCod = $purchaseOrder->payment_terms === 'COD' || empty($purchaseOrder->payment_terms);
@@ -652,14 +652,14 @@ class SupplierController extends Controller
         // Fetch active ingredients of the restaurant
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
-            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+            ->when($branchId, fn($q) => $q->where(fn($scope) => $scope
                 ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->with(['unit', 'supplier'])
             ->get();
 
         // Get total stock levels grouped by ingredient across all branches
         $inventories = Inventory::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
             ->groupBy('ingredient_id')
             ->get()
@@ -789,7 +789,7 @@ class SupplierController extends Controller
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $branchId,
                     'supplier_id' => $supplierId,
-                    'po_number' => 'PO-'.now()->format('Ymd').'-DRAFT-'.Str::upper(Str::random(4)),
+                    'po_number' => 'PO-' . now()->format('Ymd') . '-DRAFT-' . Str::upper(Str::random(4)),
                     'status' => 'pending_approval',
                     'total_amount' => $totalAmount,
                     'created_by' => $user->id,
@@ -823,7 +823,7 @@ class SupplierController extends Controller
             return back()->with('info', 'Tồn kho hiện tại vẫn ở mức an toàn. Không có nguyên liệu nào chạm ngưỡng cần bổ sung.');
         }
 
-        return back()->with('success', 'AI đã phân tích và tự động tạo thành công '.count($pos).' đơn hàng PO nháp chờ bạn phê duyệt.');
+        return back()->with('success', 'AI đã phân tích và tự động tạo thành công ' . count($pos) . ' đơn hàng PO nháp chờ bạn phê duyệt.');
     }
 
     /**
@@ -857,15 +857,15 @@ class SupplierController extends Controller
                 return response()->json($response->json());
             }
 
-            Log::warning('ocrInvoice: Python OCR service returned code '.$response->status());
+            Log::warning('ocrInvoice: Python OCR service returned code ' . $response->status());
         } catch (\Throwable $e) {
-            Log::error('ocrInvoice: Failed to connect to Python OCR service: '.$e->getMessage());
+            Log::error('ocrInvoice: Failed to connect to Python OCR service: ' . $e->getMessage());
         }
 
         // Fallback: If FastAPI is offline, parse po_context directly
         if ($poContext) {
             $items = json_decode($poContext, true);
-            $parsed = array_map(fn ($it) => [
+            $parsed = array_map(fn($it) => [
                 'ingredient_id' => $it['ingredient_id'],
                 'ingredient_name' => $it['ingredient_name'] ?? 'Vật tư',
                 'quantity' => (float) $it['quantity_ordered'],
@@ -873,7 +873,7 @@ class SupplierController extends Controller
             ], $items);
 
             return response()->json([
-                'invoice_number' => 'INV-FALLBACK-'.rand(1000, 9999),
+                'invoice_number' => 'INV-FALLBACK-' . rand(1000, 9999),
                 'items' => $parsed,
                 'confidence' => 0.85,
                 'message' => 'Chế độ dự phòng PHP hoạt động.',
@@ -890,7 +890,7 @@ class SupplierController extends Controller
     {
         $po->update([
             'payment_status' => 'escrow_locked',
-            'escrow_transaction_id' => 'ESC-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
+            'escrow_transaction_id' => 'ESC-' . now()->format('Ymd') . '-' . Str::upper(Str::random(8)),
         ]);
 
         $amount = (float) ($po->total_amount ?? 0);

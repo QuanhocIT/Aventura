@@ -445,12 +445,24 @@ const onPurchaseIngredientChange = (item: any) => {
 
 const centralIngredientSearch = ref('');
 const centralIngredientCategory = ref('all');
-const centralRequestStep = ref<'select' | 'details'>('select');
+const centralRequestStep = ref<'select' | 'details' | 'preview'>('select');
+const centralRequestCode = ref('');
 const isSubmittingCentralRequest = ref(false);
 const centralRequestForm = ref({
     requested_delivery_date: new Date().toISOString().slice(0, 10),
     notes: '',
     items: [] as Array<{ ingredient_id: number; quantity: number }>,
+});
+
+const centralRequestToday = computed(() => {
+    const d = new Date();
+
+    return {
+        day: String(d.getDate()).padStart(2, '0'),
+        month: String(d.getMonth() + 1).padStart(2, '0'),
+        year: d.getFullYear(),
+        time: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'),
+    };
 });
 
 const filteredCentralIngredients = computed(() => {
@@ -570,6 +582,40 @@ const confirmCentralSelection = () => {
     }
 
     centralRequestStep.value = 'details';
+};
+
+const goToCentralPreview = () => {
+    if (!props.activeBranchId) {
+        toast.error('Vui lòng chọn chi nhánh nhận hàng trước khi gửi yêu cầu.');
+
+        return;
+    }
+
+    if (!centralRequestForm.value.items.length) {
+        toast.error('Vui lòng chọn ít nhất một nguyên liệu từ Tổng kho.');
+
+        return;
+    }
+
+    const invalidItem = selectedCentralItems.value.find(
+        (item) =>
+            item.quantity <= 0 || item.quantity > (item.ingredient?.stock ?? 0),
+    );
+
+    if (invalidItem) {
+        toast.error(
+            `Số lượng ${invalidItem.ingredient?.name} không hợp lệ hoặc vượt quá tồn kho Tổng.`,
+        );
+
+        return;
+    }
+
+    centralRequestCode.value =
+        'PN-NLKT/' +
+        new Date().getFullYear() +
+        '/' +
+        Math.random().toString(36).substring(2, 7).toUpperCase();
+    centralRequestStep.value = 'preview';
 };
 
 const returnToCentralSelection = () => {
@@ -828,25 +874,90 @@ watch(activeTab, (tab) => {
     }
 });
 
-const isGeneratingAutoPo = ref(false);
 const handleAutoPo = () => {
-    isGeneratingAutoPo.value = true;
-    router.post(
-        '/inventory/auto-po/generate',
-        {},
-        {
-            onSuccess: () => {
-                toast.success(
-                    'Đã tự động tạo Đơn mua hàng nháp (Auto PO) thành công!',
-                );
-            },
-            onError: () => {
-                toast.error('Lỗi khi tạo đơn mua hàng tự động.');
-            },
-            onFinish: () => {
-                isGeneratingAutoPo.value = false;
-            },
-        },
+    if (!props.activeBranchId) {
+        toast.error(
+            'Vui lòng chọn một chi nhánh cụ thể để tạo yêu cầu gửi Kho Tổng.',
+        );
+
+        return;
+    }
+
+    if (!props.centralIngredients || props.centralIngredients.length === 0) {
+        toast.warning('Hiện chưa có dữ liệu tồn kho tại Kho Tổng.');
+
+        return;
+    }
+
+    // Reset items and pre-fill from lowStockIngredients
+    const newItems: Array<{ ingredient_id: number; quantity: number }> = [];
+
+    lowStockIngredients.value.forEach((ing) => {
+        const centralIng = props.centralIngredients?.find(
+            (ci) =>
+                ci.id === ing.id ||
+                ci.name.toLowerCase() === ing.name.toLowerCase(),
+        );
+
+        if (centralIng && centralIng.stock > 0) {
+            const minStock = ing.min_stock_level || 5;
+            const currentStock = ing.stock ?? 0;
+            const neededQty = Math.max(1, minStock * 2 - currentStock);
+            const qty = Math.min(
+                centralIng.stock,
+                Math.round(neededQty * 100) / 100,
+            );
+
+            if (
+                !newItems.some((item) => item.ingredient_id === centralIng.id)
+            ) {
+                newItems.push({
+                    ingredient_id: centralIng.id,
+                    quantity: qty,
+                });
+            }
+        }
+    });
+
+    // Also include branch replenishment suggestions if available
+    (props.branchReplenishmentSuggestions ?? []).forEach((sug) => {
+        const centralIng = props.centralIngredients?.find(
+            (ci) => ci.id === sug.ingredient_id,
+        );
+
+        if (
+            centralIng &&
+            centralIng.stock > 0 &&
+            !newItems.some((item) => item.ingredient_id === centralIng.id)
+        ) {
+            newItems.push({
+                ingredient_id: centralIng.id,
+                quantity: Math.min(
+                    centralIng.stock,
+                    sug.suggested_quantity || 1,
+                ),
+            });
+        }
+    });
+
+    if (newItems.length === 0) {
+        toast.warning(
+            'Các nguyên liệu cần nhập hiện chưa có sẵn tồn kho tại Kho Tổng hoặc đã hết hàng.',
+        );
+        activeTab.value = 'central';
+        centralRequestStep.value = 'select';
+
+        return;
+    }
+
+    centralRequestForm.value.items = newItems;
+    centralRequestForm.value.notes =
+        'Hệ thống tự động đề xuất cấp hàng do tồn kho chi nhánh chạm ngưỡng an toàn.';
+    activeTab.value = 'central';
+    centralRequestStep.value = 'details';
+
+    toast.success(
+        `Đã tự động gom ${newItems.length} nguyên liệu thiếu vào đơn gửi Kho Tổng!`,
     );
 };
 
@@ -1404,41 +1515,28 @@ const recallBatch = (batchId: number) => {
             </div>
         </div>
 
-        <!-- Low-stock alert banner -->
+        <!-- Low-stock warning -->
         <div
             v-if="!isRecipesPage && lowStockIngredients.length > 0"
             class="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 md:flex-row md:items-center md:justify-between dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
         >
-            <div class="flex items-start gap-3">
-                <AlertTriangle class="mt-0.5 size-4 shrink-0 text-rose-500" />
+            <div class="flex items-center gap-3">
+                <AlertTriangle class="size-4 shrink-0 text-rose-500" />
                 <div>
-                    <span class="font-semibold"
-                        >{{ lowStockIngredients.length }} nguyên liệu đang dưới
-                        ngưỡng an toàn.</span
+                    <span class="font-bold"
+                        >{{ lowStockIngredients.length }} nguyên liệu đang dưới ngưỡng an toàn.</span
                     >
-                    {{
-                        lowStockIngredients
-                            .map(
-                                (i) =>
-                                    `${i.name} (còn ${i.stock} ${i.unit?.symbol ?? ''})`,
-                            )
-                            .join(' · ')
-                    }}. Nên kiểm tra và bổ sung trong kỳ nhập gần nhất.
+                    <span class="ml-1 text-xs opacity-90">Nên kiểm tra và bổ sung trong kỳ nhập gần nhất.</span>
                 </div>
             </div>
             <Button
                 size="sm"
                 variant="outline"
                 class="shrink-0 rounded-xl border-rose-300 bg-white text-xs font-bold text-rose-700 hover:bg-rose-100 dark:bg-slate-900 dark:text-rose-400"
-                :disabled="isGeneratingAutoPo"
                 @click="handleAutoPo"
             >
-                <ShoppingCart class="mr-1.5 size-3.5" />
-                {{
-                    isGeneratingAutoPo
-                        ? 'Đang tạo đơn...'
-                        : 'Tạo đơn nhập đề xuất'
-                }}
+                <Send class="mr-1.5 size-3.5 text-rose-600" />
+                Tạo yêu cầu gửi Kho Tổng
             </Button>
         </div>
 
@@ -1492,80 +1590,76 @@ const recallBatch = (batchId: number) => {
         <!-- Zero-cost warning -->
         <div
             v-if="!isRecipesPage && zeroCostIngredients.length > 0"
-            class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
+            class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
         >
-            <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+            <AlertTriangle class="size-4 shrink-0 text-amber-600" />
             <div>
-                <span class="font-semibold"
-                    >{{ zeroCostIngredients.length }} nguyên liệu chưa được cập
-                    nhật giá vốn:</span
+                <span class="font-bold"
+                    >{{ zeroCostIngredients.length }} nguyên liệu chưa được cập nhật giá vốn.</span
                 >
-                {{ zeroCostIngredients.map((i) => i.name).join(', ') }}. Giá vốn
-                món có thể chưa chính xác cho đến khi bổ sung đơn giá.
+                <span class="ml-1 text-xs opacity-90">Giá vốn món có thể chưa chính xác cho đến khi bổ sung đơn giá.</span>
             </div>
         </div>
 
         <!-- Tabs -->
         <div
             v-if="!isRecipesPage"
-            class="flex flex-wrap items-center gap-1 self-start rounded-xl border border-border/80 bg-card/80 p-1 shadow-sm"
+            class="flex flex-wrap items-center gap-1.5 self-start rounded-2xl border border-border bg-card p-1.5 shadow-sm"
         >
             <button
                 @click="activeTab = 'stock'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                class="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold tracking-tight transition-all"
                 :class="
                     activeTab === 'stock'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 "
             >
-                <Package class="size-3.5" />Tồn kho
+                <Package class="size-4.5 text-amber-500" />Tồn kho
             </button>
             <button
                 @click="activeTab = 'purchase'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                class="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold tracking-tight transition-all"
                 :class="
                     activeTab === 'purchase'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 "
             >
-                <ShoppingCart class="size-3.5" />Nhập kho
+                <ShoppingCart class="size-4.5 text-sky-500" />Nhập kho
             </button>
             <button
                 @click="activeTab = 'central'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                class="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold tracking-tight transition-all"
                 :class="
                     activeTab === 'central'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 "
             >
-                <Warehouse class="size-3.5 text-emerald-500" />Nhận từ Kho Tổng
+                <Warehouse class="size-4.5 text-emerald-500" />Nhận từ Kho Tổng
             </button>
             <button
                 @click="activeTab = 'reconcile'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                class="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold tracking-tight transition-all"
                 :class="
                     activeTab === 'reconcile'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 "
             >
-                <ClipboardCheck class="size-3.5 text-emerald-500" />Kiểm kê &
-                Đối soát kho
+                <ClipboardCheck class="size-4.5 text-emerald-500" />Kiểm kê & Đối soát kho
             </button>
             <button
                 @click="activeTab = 'planning'"
-                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                class="flex cursor-pointer items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold tracking-tight transition-all"
                 :class="
                     activeTab === 'planning'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border/60'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                 "
             >
-                <CalendarCheck class="size-3.5 text-indigo-500" />Kế hoạch & Dự
-                báo nhập
+                <CalendarCheck class="size-4.5 text-indigo-500" />Kế hoạch & Dự báo nhập
             </button>
         </div>
 
@@ -2808,7 +2902,7 @@ const recallBatch = (batchId: number) => {
         <template v-else-if="activeTab === 'central'">
             <template v-if="centralRequestStep === 'select'">
                 <div
-                    class="grid animate-in gap-6 duration-200 fade-in lg:grid-cols-5"
+                    class="grid animate-in gap-6 duration-200 fade-in lg:grid-cols-5 items-start"
                 >
                     <Card class="lg:col-span-3">
                         <CardHeader class="border-b border-border pb-4">
@@ -3159,7 +3253,7 @@ const recallBatch = (batchId: number) => {
                         </CardContent>
                     </Card>
 
-                    <Card class="h-fit lg:col-span-2">
+                    <Card class="h-fit lg:col-span-2 sticky top-20 self-start shadow-md">
                         <CardHeader class="border-b border-border pb-4">
                             <CardTitle
                                 class="flex items-center gap-2 text-base font-bold"
@@ -3293,7 +3387,7 @@ const recallBatch = (batchId: number) => {
                 </div>
             </template>
 
-            <template v-else>
+            <template v-else-if="centralRequestStep === 'details'">
                 <Card class="animate-in duration-200 fade-in">
                     <CardHeader class="border-b border-border pb-4">
                         <div class="flex items-center justify-between gap-3">
@@ -3320,7 +3414,7 @@ const recallBatch = (batchId: number) => {
                             </span>
                         </div>
                     </CardHeader>
-                    <CardContent class="grid gap-6 pt-5 lg:grid-cols-3">
+                    <CardContent class="grid gap-6 pt-5 lg:grid-cols-3 items-start">
                         <div class="space-y-3 lg:col-span-2">
                             <div class="flex items-center justify-between">
                                 <div>
@@ -3421,7 +3515,7 @@ const recallBatch = (batchId: number) => {
                             </div>
                         </div>
                         <div
-                            class="space-y-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4"
+                            class="space-y-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 sticky top-20 self-start"
                         >
                             <div>
                                 <p class="text-sm font-bold text-foreground">
@@ -3474,22 +3568,309 @@ const recallBatch = (batchId: number) => {
                                 <Button
                                     type="button"
                                     size="sm"
-                                    class="bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                    class="bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
                                     :disabled="
-                                        isSubmittingCentralRequest ||
                                         !centralRequestForm.items.length ||
                                         !canCreateSupplyRequests
                                     "
-                                    @click="submitCentralRequest"
+                                    @click="goToCentralPreview"
                                 >
                                     <Send class="mr-1.5 size-3.5" />
-                                    {{
-                                        isSubmittingCentralRequest
-                                            ? 'Đang gửi...'
-                                            : 'Gửi Kho Tổng'
-                                    }}
+                                    Gửi Kho Tổng (Xem phiếu) →
                                 </Button>
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </template>
+
+            <!-- ─ Step 3: Phiếu Nhập Nguyên Liệu Từ Kho Tổng (A4 Paper Document) ─ -->
+            <template v-else-if="centralRequestStep === 'preview'">
+                <Card class="animate-in duration-200 fade-in border-border">
+                    <CardHeader class="border-b border-border pb-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <CardTitle class="flex items-center gap-2 text-base font-bold text-emerald-600 dark:text-emerald-400">
+                                    <ClipboardCheck class="size-5" />
+                                    Xác nhận cuối — Phiếu nhập nguyên liệu từ Kho Tổng (Khổ A4)
+                                </CardTitle>
+                                <CardDescription class="mt-1 text-xs">
+                                    Văn bản trắng chuẩn mẫu in A4. Kiểm tra lại thông tin chi tiết trước khi xác nhận gửi yêu cầu cấp hàng.
+                                </CardDescription>
+                            </div>
+                            <span class="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                Bước 3/3
+                            </span>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent class="p-4 sm:p-6">
+                        <!-- A4-style Pure White Paper Slip -->
+                        <div
+                            id="central-request-slip"
+                            class="mx-auto rounded-lg border border-neutral-300 bg-white p-6 sm:p-8 text-black shadow-2xl font-sans text-[11px] leading-normal print:m-0 print:border-none print:p-0 print:shadow-none"
+                            style="background-color: #ffffff !important; color: #000000 !important;"
+                        >
+                            <!-- Header -->
+                            <div class="grid grid-cols-2 items-start gap-4 border-b-2 border-black pb-3">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex size-7 items-center justify-center rounded border border-black font-black text-black">
+                                            ⚡
+                                        </div>
+                                        <h4 class="text-xs font-black uppercase tracking-wide">CÔNG TY TNHH AVENTURA</h4>
+                                    </div>
+                                    <p class="mt-1 text-[10px] text-neutral-700">Chuỗi cung cấp thực phẩm &amp; dịch vụ nhà hàng</p>
+                                    <p class="text-[10px] text-neutral-700">📍 Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
+                                    <p class="text-[10px] text-neutral-700">☎ Hotline: 024 1234 5678</p>
+                                </div>
+                                <div class="text-center">
+                                    <p class="text-[11px] font-bold uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                                    <p class="text-[10px] font-semibold">Độc lập – Tự do – Hạnh phúc</p>
+                                    <p class="text-[9px] tracking-widest">★ ★ ★</p>
+                                    <p class="mt-1 text-right text-[10px] italic text-neutral-700">
+                                        Hà Nội, ngày {{ centralRequestToday.day }} tháng {{ centralRequestToday.month }} năm {{ centralRequestToday.year }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Title & Number -->
+                            <div class="mt-3 text-center">
+                                <h3 class="text-base font-black uppercase tracking-wide">PHIẾU NHẬP NGUYÊN LIỆU TỪ KHO TỔNG</h3>
+                                <div class="mt-1 inline-block border border-black px-3 py-0.5 text-[11px] font-mono font-bold">
+                                    Số: {{ centralRequestCode }}
+                                </div>
+                            </div>
+
+                            <!-- 1. THÔNG TIN CHUNG -->
+                            <div class="mt-3 border border-black p-2.5">
+                                <h5 class="font-bold uppercase tracking-wider text-[10px]">1. THÔNG TIN CHUNG</h5>
+                                <div class="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1">
+                                    <p><span class="font-semibold">Ngày nhập:</span> {{ centralRequestForm.requested_delivery_date ? centralRequestForm.requested_delivery_date.split('-').reverse().join('/') : (centralRequestToday.day + '/' + centralRequestToday.month + '/' + centralRequestToday.year) }}</p>
+                                    <p><span class="font-semibold">Giờ nhập:</span> {{ centralRequestToday.time }}</p>
+                                    <p><span class="font-semibold">Kho nhận (chi nhánh):</span> <span class="font-bold">{{ activeBranchName || 'Chi nhánh chính' }}</span></p>
+                                    <p><span class="font-semibold">Người lập phiếu:</span> {{ (usePage().props.auth?.user as any)?.name || 'Quản lý kho' }}</p>
+                                    <p><span class="font-semibold">Địa chỉ kho nhận:</span> Khu vực nhận hàng {{ activeBranchName || 'chi nhánh' }}</p>
+                                    <p><span class="font-semibold">Chức vụ:</span> Quản lý chi nhánh / Thủ kho</p>
+                                    <p class="col-span-2">
+                                        <span class="font-semibold">Lý do nhập:</span>
+                                        <span class="ml-2">[ ] Nhập định kỳ &nbsp;&nbsp; [x] Bổ sung hàng hóa &nbsp;&nbsp; [ ] Khác: {{ centralRequestForm.notes || '—' }}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- 2 & 3: Bên xuất & Phương tiện -->
+                            <div class="mt-2 grid grid-cols-2 gap-2">
+                                <!-- 2. THÔNG TIN KHO XUẤT (KHO TỔNG) -->
+                                <div class="border border-black p-2.5">
+                                    <h5 class="font-bold uppercase tracking-wider text-[10px]">2. THÔNG TIN KHO XUẤT (KHO TỔNG)</h5>
+                                    <div class="mt-1.5 space-y-1">
+                                        <p><span class="font-semibold">Kho xuất:</span> <span class="font-bold">Kho Tổng Aventura</span></p>
+                                        <p><span class="font-semibold">Địa chỉ:</span> Kho Trung tâm Aventura – Cụm CN Long Biên, Hà Nội</p>
+                                        <p><span class="font-semibold">Người giao hàng:</span> Bộ phận Điều phối Kho Tổng</p>
+                                        <p><span class="font-semibold">SĐT:</span> 024 1234 5678</p>
+                                    </div>
+                                </div>
+
+                                <!-- 3. THÔNG TIN PHƯƠNG TIỆN VẬN CHUYỂN -->
+                                <div class="border border-black p-2.5">
+                                    <h5 class="font-bold uppercase tracking-wider text-[10px]">3. THÔNG TIN PHƯƠNG TIỆN VẬN CHUYỂN</h5>
+                                    <div class="mt-1.5 space-y-1">
+                                        <p><span class="font-semibold">Phương tiện vận chuyển:</span> Xe tải lạnh chuyên dụng Kho Tổng</p>
+                                        <p><span class="font-semibold">Biển số xe:</span> 29C-888.68 (Dự kiến)</p>
+                                        <div class="flex justify-between">
+                                            <p><span class="font-semibold">Lái xe:</span> Đội xe Kho Tổng</p>
+                                            <p><span class="font-semibold">SĐT:</span> 098 765 4321</p>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <p><span class="font-semibold">Thời gian xuất phát:</span> {{ centralRequestForm.requested_delivery_date ? centralRequestForm.requested_delivery_date.split('-').reverse().join('/') : '—' }} &nbsp; 07:30</p>
+                                            <p><span class="font-semibold">Giờ:</span> 07:30</p>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <p><span class="font-semibold">Thời gian dự kiến đến:</span> {{ centralRequestForm.requested_delivery_date ? centralRequestForm.requested_delivery_date.split('-').reverse().join('/') : '—' }} &nbsp; 09:30</p>
+                                            <p><span class="font-semibold">Giờ:</span> 09:30</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. DANH SÁCH NGUYÊN LIỆU NHẬP -->
+                            <div class="mt-2">
+                                <h5 class="mb-1 font-bold uppercase tracking-wider text-[10px]">4. DANH SÁCH NGUYÊN LIỆU NHẬP</h5>
+                                <table class="w-full border-collapse border border-black text-center text-[10px]">
+                                    <thead>
+                                        <tr class="bg-neutral-100 font-bold">
+                                            <th class="border border-black px-1.5 py-1" rowspan="2">STT</th>
+                                            <th class="border border-black px-1.5 py-1" rowspan="2">Mã nguyên liệu</th>
+                                            <th class="border border-black px-2 py-1 text-left" rowspan="2">Tên nguyên liệu</th>
+                                            <th class="border border-black px-1.5 py-1" rowspan="2">Đơn vị tính</th>
+                                            <th class="border border-black px-1.5 py-0.5" colspan="3">Số lượng</th>
+                                            <th class="border border-black px-2 py-1 text-right" rowspan="2">Đơn giá (VNĐ)</th>
+                                            <th class="border border-black px-2 py-1 text-right" rowspan="2">Thành tiền (VNĐ)</th>
+                                            <th class="border border-black px-1.5 py-1 text-left" rowspan="2">Ghi chú</th>
+                                        </tr>
+                                        <tr class="bg-neutral-100 font-bold text-[9px]">
+                                            <th class="border border-black px-1.5 py-0.5">Theo phiếu xuất<br/>(Kho Tổng)</th>
+                                            <th class="border border-black px-1.5 py-0.5">Thực nhận</th>
+                                            <th class="border border-black px-1.5 py-0.5">Chênh lệch<br/>(+/-)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(item, idx) in selectedCentralItems" :key="item.ingredient_id">
+                                            <td class="border border-black px-1 py-1 font-mono">{{ idx + 1 }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono">{{ item.ingredient?.sku || ('NL-' + String(item.ingredient_id).padStart(5, '0')) }}</td>
+                                            <td class="border border-black px-2 py-1 text-left font-semibold">{{ item.ingredient?.name }}</td>
+                                            <td class="border border-black px-1.5 py-1">{{ item.ingredient?.unit_symbol || '—' }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ item.quantity }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ item.quantity }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono text-neutral-600">0</td>
+                                            <td class="border border-black px-2 py-1 text-right font-mono">{{ vnd(item.ingredient?.unit_cost ?? 0) }}</td>
+                                            <td class="border border-black px-2 py-1 text-right font-mono font-bold">{{ vnd(item.quantity * (item.ingredient?.unit_cost ?? 0)) }}</td>
+                                            <td class="border border-black px-1.5 py-1 text-left text-[9px] text-neutral-600">Yêu cầu cấp</td>
+                                        </tr>
+                                        <tr class="bg-neutral-50 font-bold">
+                                            <td class="border border-black px-2 py-1 uppercase" colspan="4">TỔNG CỘNG</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono">{{ selectedCentralItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0) }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono">{{ selectedCentralItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0) }}</td>
+                                            <td class="border border-black px-1.5 py-1 font-mono">0</td>
+                                            <td class="border border-black px-2 py-1 text-right font-mono">—</td>
+                                            <td class="border border-black px-2 py-1 text-right font-mono font-black">{{ vnd(centralRequestTotal) }}</td>
+                                            <td class="border border-black px-1.5 py-1"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- 5. KIỂM TRA CHẤT LƯỢNG -->
+                            <div class="mt-2 border border-black p-2.5">
+                                <h5 class="font-bold uppercase tracking-wider text-[10px]">5. KIỂM TRA CHẤT LƯỢNG</h5>
+                                <div class="mt-1 grid grid-cols-2 gap-x-4">
+                                    <div>
+                                        <p><span class="font-semibold">Tình trạng nguyên liệu:</span> &nbsp; [x] Đạt yêu cầu &nbsp;&nbsp; [ ] Không đạt yêu cầu</p>
+                                        <p class="mt-1"><span class="font-semibold">Ghi chú chi tiết:</span> {{ centralRequestForm.notes || 'Hàng nguyên bao bì, tem mác tiêu chuẩn, đạt chuẩn an toàn thực phẩm.' }}</p>
+                                    </div>
+                                    <div>
+                                        <p><span class="font-semibold">Chứng từ kèm theo:</span></p>
+                                        <p class="mt-0.5 text-[10px] text-neutral-800">
+                                            [x] Phiếu xuất kho (Kho Tổng) &nbsp;&nbsp; [ ] Hóa đơn &nbsp;&nbsp; [x] Biên bản giao nhận &nbsp;&nbsp; [ ] Khác
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 6. KẾT LUẬN -->
+                            <div class="mt-2 border border-black p-2.5">
+                                <h5 class="font-bold uppercase tracking-wider text-[10px]">6. KẾT LUẬN</h5>
+                                <p class="mt-1 text-[10px]">
+                                    Chúng tôi xác nhận đã nhận đủ số lượng và chất lượng nguyên liệu theo Phiếu xuất của Kho Tổng nêu trên.
+                                </p>
+                                <div class="mt-1 flex items-center gap-4">
+                                    <span class="font-semibold">Kết luận:</span>
+                                    <span>[x] Đúng theo phiếu xuất</span>
+                                    <span>[ ] Thiếu, thừa (xem mục chênh lệch)</span>
+                                </div>
+                                <p class="mt-1"><span class="font-semibold">Ý kiến / Ghi chú:</span> Đã gửi yêu cầu cấp hàng thành công về Kho Tổng</p>
+                            </div>
+
+                            <!-- 7. XỬ LÝ SAU NHẬP KHO -->
+                            <div class="mt-2 border border-black p-2.5">
+                                <h5 class="font-bold uppercase tracking-wider text-[10px]">7. XỬ LÝ SAU NHẬP KHO</h5>
+                                <div class="mt-1 grid grid-cols-2 gap-x-6 gap-y-1">
+                                    <p><span class="font-semibold">Nhập kho lúc:</span> {{ centralRequestForm.requested_delivery_date ? centralRequestForm.requested_delivery_date.split('-').reverse().join('/') : (centralRequestToday.day + '/' + centralRequestToday.month + '/' + centralRequestToday.year) }} &nbsp;&nbsp; <span class="font-semibold">Giờ:</span> 09:45</p>
+                                    <p><span class="font-semibold">Vị trí lưu kho:</span> Khu lưu trữ / Kho mát {{ activeBranchName || 'chi nhánh' }}</p>
+                                    <p><span class="font-semibold">Thủ kho nhập liệu (hệ thống):</span> {{ (usePage().props.auth?.user as any)?.name || 'Quản lý kho' }}</p>
+                                    <p><span class="font-semibold">Ngày nhập hệ thống:</span> {{ centralRequestToday.day }}/{{ centralRequestToday.month }}/{{ centralRequestToday.year }} &nbsp;&nbsp; <span class="font-semibold">Giờ:</span> {{ centralRequestToday.time }}</p>
+                                </div>
+                            </div>
+
+                            <!-- 8. CHỮ KÝ XÁC NHẬN (6 CỘT) -->
+                            <div class="mt-2 border border-black p-2.5">
+                                <h5 class="mb-2 font-bold uppercase tracking-wider text-[10px]">8. CHỮ KÝ XÁC NHẬN</h5>
+                                <div class="grid grid-cols-6 gap-2 text-center text-[10px]">
+                                    <div class="flex flex-col justify-between border-r border-neutral-300 pr-1">
+                                        <div>
+                                            <p class="font-bold uppercase">NGƯỜI GIAO HÀNG</p>
+                                            <p class="text-[9px] text-neutral-600">(Kho Tổng)</p>
+                                            <p class="text-[8px] italic text-neutral-500">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col justify-between border-r border-neutral-300 pr-1">
+                                        <div>
+                                            <p class="font-bold uppercase">LÁI XE</p>
+                                            <p class="text-[8px] italic text-neutral-500 mt-2.5">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col justify-between border-r border-neutral-300 pr-1">
+                                        <div>
+                                            <p class="font-bold uppercase">THỦ KHO NHẬN</p>
+                                            <p class="text-[8px] italic text-neutral-500 mt-2.5">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col justify-between border-r border-neutral-300 pr-1">
+                                        <div>
+                                            <p class="font-bold uppercase">QC / KIỂM SOÁT CL</p>
+                                            <p class="text-[8px] italic text-neutral-500 mt-2.5">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col justify-between border-r border-neutral-300 pr-1">
+                                        <div>
+                                            <p class="font-bold uppercase">KẾ TOÁN</p>
+                                            <p class="text-[8px] italic text-neutral-500 mt-2.5">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col justify-between">
+                                        <div>
+                                            <p class="font-bold uppercase">GIÁM ĐỐC / PHỤ TRÁCH</p>
+                                            <p class="text-[8px] italic text-neutral-500 mt-2.5">(Ký, ghi rõ họ tên)</p>
+                                        </div>
+                                        <div class="mt-8 border-t border-dotted border-neutral-400 pt-1 text-[9px] text-neutral-700">
+                                            Ngày .../.../20...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer note -->
+                            <div class="mt-2 text-[9px] italic text-neutral-700">
+                                <p>Ghi chú: - Phiếu nhập được lập 02 bản: 01 bản lưu tại Kho nhận, 01 bản gửi về Kho Tổng.</p>
+                                <p>- Liên: 1. Lưu tại Kho nhận; 2. Gửi về Kho Tổng; 3. Kế toán (nếu cần).</p>
+                            </div>
+                        </div>
+
+                        <!-- Actions below slip -->
+                        <div class="mt-6 flex items-center justify-between border-t border-border pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="text-xs font-semibold"
+                                @click="centralRequestStep = 'details'"
+                            >
+                                ← Quay lại chỉnh sửa
+                            </Button>
+                            <Button
+                                type="button"
+                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700 gap-2"
+                                :disabled="isSubmittingCentralRequest"
+                                @click="submitCentralRequest"
+                            >
+                                <Send class="size-4" />
+                                {{ isSubmittingCentralRequest ? 'Đang gửi yêu cầu...' : '✓ Xác nhận gửi yêu cầu nhập kho' }}
+                            </Button>
                         </div>
                     </CardContent>
                 </Card>

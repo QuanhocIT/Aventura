@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Activity,
     AlertCircle,
     AlertTriangle,
+    ArrowLeft,
     ArrowUpRight,
     BarChart3,
     Boxes,
     Building2,
     CalendarDays,
     Check,
+    CheckCircle,
     CheckCircle2,
     ClipboardList,
     Clock,
@@ -20,16 +22,18 @@ import {
     Lightbulb,
     MapPin,
     PackageCheck,
+    Printer,
     Save,
     Search,
     Truck,
     TrendingUp,
     UserCheck,
+    UtensilsCrossed,
     Warehouse,
     X,
     XCircle,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { Button } from '@/components/ui/button';
@@ -106,6 +110,53 @@ const taskForm = ref({
     priority: 'normal',
     due_at: '',
     notes: '',
+});
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+const refreshRequestsSilently = () => {
+    if (
+        document.hidden ||
+        isProcessing.value ||
+        isTaskProcessing.value ||
+        isSavingPrices.value ||
+        isDetailModalOpen.value ||
+        isPickingModalOpen.value ||
+        isTaskModalOpen.value
+    ) {
+        return;
+    }
+
+    router.reload({
+        only: [
+            'supplyRequests',
+            'warehouseTasks',
+            'warehouseTaskSummary',
+            'supplyAnalytics',
+            'centralWarehouseAnalytics',
+        ],
+        preserveScroll: true,
+        preserveState: true,
+    });
+};
+
+onMounted(() => {
+    pollTimer = setInterval(refreshRequestsSilently, 3000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            refreshRequestsSilently();
+        }
+    });
+    window.addEventListener('focus', refreshRequestsSilently);
+});
+
+onUnmounted(() => {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+
+    window.removeEventListener('focus', refreshRequestsSilently);
 });
 
 // Filtered Requests
@@ -596,6 +647,16 @@ const getStatusBadge = (status: string) => {
                 label: 'Đang tranh chấp',
                 color: 'border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
             };
+        case 'receiving_review':
+            return {
+                label: 'Chờ duyệt nhận hàng',
+                color: 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
+            };
+        case 'received':
+            return {
+                label: 'Đã nhận hàng',
+                color: 'border-teal-300 bg-teal-100 text-teal-800 dark:border-teal-900/50 dark:bg-teal-950/30 dark:text-teal-300',
+            };
         case 'cancelled':
             return {
                 label: 'Đã hủy',
@@ -608,7 +669,7 @@ const getStatusBadge = (status: string) => {
             };
         default:
             return {
-                label: status,
+                label: status || 'Không xác định',
                 color: 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300',
             };
     }
@@ -761,6 +822,230 @@ const submitDispatchModal = async () => {
             }
 
             router.reload({ preserveState: true, only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'] });
+        }
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi xuất kho.');
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const page = usePage();
+const currentUserName = computed(
+    () => (page.props.auth?.user as any)?.name || 'Chủ doanh nghiệp / Quản lý',
+);
+const currentUserRole = computed(() => {
+    const roles = (page.props as any).roles ?? [];
+
+    if (Array.isArray(roles) && roles.includes('owner')) {
+        return 'Chủ doanh nghiệp';
+    }
+
+    if (Array.isArray(roles) && roles.includes('warehouse_manager')) {
+        return 'Trưởng Kho Tổng';
+    }
+
+    return 'Ban Quản trị Chuỗi Cung ứng';
+});
+
+const isDispatchSlipModalOpen = ref(false);
+
+const dispatchSlipToday = computed(() => {
+    const d = new Date();
+
+    return {
+        day: String(d.getDate()).padStart(2, '0'),
+        month: String(d.getMonth() + 1).padStart(2, '0'),
+        year: d.getFullYear(),
+        time:
+            String(d.getHours()).padStart(2, '0') +
+            ':' +
+            String(d.getMinutes()).padStart(2, '0'),
+    };
+});
+
+const formatDateOnly = (dt?: string) => {
+    if (!dt) {
+        return '.../.../20...';
+    }
+
+    const d = new Date(dt);
+
+    if (isNaN(d.getTime())) {
+        return '.../.../20...';
+    }
+
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
+
+const selectedTransporter = computed(() => {
+    const tId =
+        dispatchForm.value.transporter_id ||
+        selectedRequest.value?.transporter_id;
+
+    return (
+        props.warehouseStaff.find((s) => s.id === Number(tId)) ||
+        selectedRequest.value?.transporter ||
+        null
+    );
+});
+
+const selectedManifest = computed(() => {
+    const mId =
+        dispatchForm.value.manifest_id ||
+        selectedRequest.value?.delivery_manifest_id;
+
+    return (
+        (props as any).deliveryManifests?.find(
+            (m: any) => m.id === Number(mId),
+        ) ||
+        selectedRequest.value?.delivery_manifest ||
+        null
+    );
+});
+
+const dispatchSlipCode = computed(() => {
+    if (!selectedRequest.value) {
+        return 'PXNK-TK/2026/00001';
+    }
+
+    const code = selectedRequest.value.request_code || '';
+    const num =
+        code.replace(/[^0-9]/g, '') ||
+        String(selectedRequest.value.id || 1).padStart(5, '0');
+
+    return `PXNK-TK/2026/${num.slice(-5)}`;
+});
+
+const dispatchSlipTotal = computed(() => {
+    if (!selectedRequest.value?.items) {
+        return 0;
+    }
+
+    return selectedRequest.value.items.reduce((sum: number, item: any) => {
+        const qty = Number(
+            item.actual_dispatched_quantity ??
+                item.approved_quantity ??
+                item.requested_quantity ??
+                0,
+        );
+        const cost = Number(
+            item.unit_cost ?? item.ingredient?.average_cost ?? 0,
+        );
+
+        return sum + qty * cost;
+    }, 0);
+});
+
+const dispatchSlipTotalApprovedQty = computed(() => {
+    if (!selectedRequest.value?.items) {
+        return 0;
+    }
+
+    return selectedRequest.value.items.reduce((sum: number, item: any) => {
+        return (
+            sum +
+            Number(item.approved_quantity ?? item.requested_quantity ?? 0)
+        );
+    }, 0);
+});
+
+const dispatchSlipTotalDispatchedQty = computed(() => {
+    if (!selectedRequest.value?.items) {
+        return 0;
+    }
+
+    return selectedRequest.value.items.reduce((sum: number, item: any) => {
+        return (
+            sum +
+            Number(
+                item.actual_dispatched_quantity ??
+                    item.approved_quantity ??
+                    item.requested_quantity ??
+                    0,
+            )
+        );
+    }, 0);
+});
+
+const handleProceedToDispatchSlip = () => {
+    if (isTransporterAssignmentOnly.value) {
+        void submitDispatchModal();
+
+        return;
+    }
+
+    if (
+        !dispatchForm.value.transporter_id &&
+        !selectedRequest.value?.transporter_id
+    ) {
+        toast.error('Vui lòng chọn nhân viên giao hàng / tài xế.');
+
+        return;
+    }
+
+    isDispatchModalOpen.value = false;
+    isDispatchSlipModalOpen.value = true;
+};
+
+const printDispatchSlip = () => {
+    window.print();
+};
+
+const executeDispatch = async () => {
+    if (!selectedRequest.value) {
+        return;
+    }
+
+    isProcessing.value = true;
+
+    try {
+        const payload = {
+            seal_code: dispatchForm.value.seal_code || null,
+            transporter_id: dispatchForm.value.transporter_id
+                ? Number(dispatchForm.value.transporter_id)
+                : null,
+            manifest_id: dispatchForm.value.manifest_id
+                ? Number(dispatchForm.value.manifest_id)
+                : null,
+            notes: dispatchForm.value.notes || null,
+        };
+
+        const res = await axios.post(
+            `/api/supply-requests/${selectedRequest.value.id}/dispatch`,
+            payload,
+        );
+
+        if (res.data.success) {
+            toast.success(
+                res.data.message ||
+                    'Đã xuất kho Tổng và bàn giao vận chuyển thành công!',
+            );
+            isDispatchSlipModalOpen.value = false;
+            const newStatus = res.data.data?.status || 'dispatched';
+
+            if (res.data.data) {
+                selectedRequest.value = {
+                    ...selectedRequest.value,
+                    ...res.data.data,
+                    status: newStatus,
+                };
+            } else {
+                selectedRequest.value.status = newStatus;
+            }
+
+            const found = props.supplyRequests.find(
+                (r) => r.id === selectedRequest.value.id,
+            );
+
+            if (found) {
+                Object.assign(found, selectedRequest.value);
+            }
+
+            router.reload({
+                preserveState: true,
+                only: ['supplyRequests', 'supplyAnalytics', 'warehouseTasks'],
+            });
         }
     } catch (e: any) {
         toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi xuất kho.');
@@ -3387,6 +3672,25 @@ const submitRecall = async () => {
                                 <Truck class="h-4 w-4" /> Xuất Kho Bàn Giao
                             </Button>
 
+                            <!-- Nút Xem & In Phiếu Xác Nhận Xuất Kho Tổng A4 -->
+                            <Button
+                                v-if="
+                                    [
+                                        'dispatch_pending_approval',
+                                        'dispatched',
+                                        'receiving_review',
+                                        'partial_received',
+                                        'completed',
+                                    ].includes(selectedRequest.status)
+                                "
+                                @click="isDispatchSlipModalOpen = true"
+                                size="sm"
+                                variant="outline"
+                                class="gap-1.5 rounded-xl h-9 px-3 text-xs border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10 font-medium"
+                            >
+                                <Printer class="h-4 w-4" /> Phiếu Xuất Kho A4
+                            </Button>
+
                             <Button
                                 v-if="
                                     canManageWarehouse &&
@@ -3592,7 +3896,7 @@ const submitRecall = async () => {
                             >Hủy</Button
                         >
                         <Button
-                            @click="submitDispatchModal"
+                            @click="handleProceedToDispatchSlip"
                             :disabled="isProcessing"
                             size="sm"
                             class="bg-purple-600 font-bold text-white hover:bg-purple-700"
@@ -3601,6 +3905,293 @@ const submitRecall = async () => {
                             {{ isTransporterAssignmentOnly ? 'Lưu nhân viên giao' : 'Xác Nhận Xuất Kho Bàn Giao' }}
                         </Button>
                     </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- A4 Confirmation Slip Modal (PHIẾU XÁC NHẬN XUẤT KHO TỔNG) -->
+        <Teleport to="body">
+            <div
+                v-if="isDispatchSlipModalOpen"
+                class="fixed inset-0 z-[100] flex flex-col bg-black/85 backdrop-blur-md overflow-y-auto"
+            >
+                <!-- Sticky Top Action Bar -->
+                <div class="no-print sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-6 py-3 shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            @click="isDispatchSlipModalOpen = false; isDispatchModalOpen = true"
+                            class="gap-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+                        >
+                            <ArrowLeft class="size-4" /> Quay lại chỉnh sửa
+                        </Button>
+                        <span class="text-xs font-semibold text-slate-400">|</span>
+                        <div class="flex items-center gap-2 text-xs font-medium text-slate-200">
+                            <span class="rounded-md bg-purple-500/20 px-2 py-0.5 font-mono font-bold text-purple-300">
+                                {{ dispatchSlipCode }}
+                            </span>
+                            <span>Đơn: {{ selectedRequest?.request_code }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            @click="printDispatchSlip"
+                            class="gap-1.5 border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white"
+                        >
+                            <Printer class="size-4 text-slate-300" /> In phiếu (A4)
+                        </Button>
+                        <Button
+                            size="sm"
+                            @click="executeDispatch"
+                            :disabled="isProcessing"
+                            class="gap-1.5 bg-emerald-600 px-4 text-xs font-bold text-white shadow-md hover:bg-emerald-700"
+                        >
+                            <CheckCircle class="size-4" />
+                            {{ isProcessing ? 'Đang xuất kho...' : 'Xác Nhận & Bàn Giao Xuất Kho' }}
+                        </Button>
+                        <button
+                            @click="isDispatchSlipModalOpen = false"
+                            class="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+                        >
+                            <X class="size-5" />
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Printable Pure White A4 Page Container -->
+                <div class="flex flex-1 items-start justify-center p-4 sm:p-8">
+                    <div
+                        id="central-dispatch-slip"
+                        class="w-full max-w-[210mm] min-h-[297mm] rounded-sm bg-white p-8 sm:p-10 font-sans text-black shadow-2xl transition-all"
+                        style="color: #000 !important; background: #fff !important; font-family: 'Times New Roman', Times, serif;"
+                    >
+                        <!-- Header -->
+                        <div class="flex items-start justify-between border-b-2 border-black pb-3">
+                            <div class="space-y-0.5">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex h-7 w-7 items-center justify-center rounded-full bg-black text-white">
+                                        <UtensilsCrossed class="size-4" />
+                                    </div>
+                                    <h4 class="text-sm font-black tracking-wider uppercase">CÔNG TY TNHH AVENTURA</h4>
+                                </div>
+                                <p class="text-[10px] font-medium text-neutral-800">Chuỗi cung cấp thực phẩm & dịch vụ nhà hàng</p>
+                                <p class="text-[10px] text-neutral-700">📍 Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
+                                <p class="text-[10px] text-neutral-700">📞 Hotline: 024 1234 5678</p>
+                            </div>
+                            <div class="text-right">
+                                <h4 class="text-xs font-black uppercase tracking-wider">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+                                <p class="text-[10px] font-bold underline underline-offset-2">Độc lập – Tự do – Hạnh phúc</p>
+                                <p class="mt-0.5 text-[10px] text-neutral-600">★★★</p>
+                                <p class="mt-1 text-[10px] italic text-neutral-700">
+                                    Hà Nội, ngày {{ dispatchSlipToday.day }} tháng {{ dispatchSlipToday.month }} năm {{ dispatchSlipToday.year }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Document Title -->
+                        <div class="mt-4 text-center">
+                            <h3 class="text-lg font-black tracking-widest uppercase">PHIẾU XÁC NHẬN XUẤT KHO TỔNG</h3>
+                            <div class="mt-1 inline-block border border-black px-4 py-0.5 text-xs font-mono font-bold">
+                                Số: {{ dispatchSlipCode }}
+                            </div>
+                        </div>
+
+                        <!-- 1. THÔNG TIN CHUNG -->
+                        <div class="mt-4 border border-black p-2.5 text-[11px]">
+                            <h5 class="font-bold uppercase tracking-wider text-[11px]">1. THÔNG TIN CHUNG</h5>
+                            <div class="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1">
+                                <p><span class="font-semibold">Ngày xác nhận:</span> {{ dispatchSlipToday.day }}/{{ dispatchSlipToday.month }}/{{ dispatchSlipToday.year }}</p>
+                                <p><span class="font-semibold">Người lập phiếu:</span> <span class="font-bold">{{ currentUserName }}</span></p>
+                                <p><span class="font-semibold">Phiếu xuất kho số:</span> <span class="font-mono font-bold">{{ selectedRequest?.request_code || '---' }}</span> &nbsp;&nbsp; <span class="font-semibold">Ngày:</span> {{ formatDateOnly(selectedRequest?.created_at) }}</p>
+                                <p><span class="font-semibold">Chức vụ:</span> {{ currentUserRole }}</p>
+                                <p class="col-span-2">
+                                    <span class="font-semibold">Lý do xuất:</span>
+                                    <span class="ml-2">[x] Điều chuyển &nbsp;&nbsp; [ ] Bán hàng &nbsp;&nbsp; [ ] Sản xuất/Chế biến &nbsp;&nbsp; [ ] Khác: {{ dispatchForm.notes || '—' }}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- 2. THÔNG TIN BÊN NHẬN (NƠI NHẬN HÀNG) -->
+                        <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                            <h5 class="font-bold uppercase tracking-wider text-[11px]">2. THÔNG TIN BÊN NHẬN (NƠI NHẬN HÀNG)</h5>
+                            <div class="mt-1.5 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <p><span class="font-semibold">Tên đơn vị nhận:</span> <span class="font-bold uppercase">{{ selectedRequest?.to_branch?.name || 'Chi nhánh nhận' }}</span></p>
+                                    <p class="text-[10px]"><span class="font-semibold">Loại đơn vị:</span> [x] Chi nhánh &nbsp; [ ] Nhà hàng &nbsp; [ ] Khác</p>
+                                </div>
+                                <p><span class="font-semibold">Địa chỉ nhận hàng:</span> {{ selectedRequest?.to_branch?.address || 'Khu vực nhận hàng Chi nhánh' }}</p>
+                                <div class="grid grid-cols-2 gap-x-4">
+                                    <p><span class="font-semibold">Người nhận hàng:</span> {{ selectedRequest?.creator?.name || 'Quản lý Chi nhánh' }} &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedRequest?.to_branch?.phone || '098 765 4321' }}</p>
+                                    <p><span class="font-semibold">Người phụ trách:</span> {{ selectedRequest?.creator?.name || 'Quản lý Chi nhánh' }} &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedRequest?.to_branch?.phone || '098 765 4321' }}</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-x-4 border-t border-neutral-300 pt-1">
+                                    <p><span class="font-semibold">Phương tiện vận chuyển:</span> {{ selectedManifest?.vehicle_name || 'Xe tải Logistics Kho Tổng' }} &nbsp;&nbsp; <span class="font-semibold">Biển số:</span> <span class="font-mono font-bold">{{ selectedManifest?.license_plate || '29C-889.92' }}</span></p>
+                                    <p><span class="font-semibold">Tài xế:</span> <span class="font-bold">{{ selectedTransporter?.name || 'Lê Văn Tài (Tài Xế Logistics)' }}</span> &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedTransporter?.phone || '091 234 5678' }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. THÔNG TIN KHO XUẤT -->
+                        <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                            <h5 class="font-bold uppercase tracking-wider text-[11px]">3. THÔNG TIN KHO XUẤT</h5>
+                            <div class="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1">
+                                <p><span class="font-semibold">Kho xuất:</span> <span class="font-bold uppercase">KHO TỔNG ({{ props.centralBranch?.name || 'KHO TỔNG AVENTURA' }})</span></p>
+                                <p><span class="font-semibold">Thủ kho xuất:</span> <span class="font-bold">{{ props.centralBranch?.manager_name || currentUserName }}</span></p>
+                                <p><span class="font-semibold">Địa chỉ kho:</span> {{ props.centralBranch?.address || 'Cụm CN Long Biên, Số 123 Nguyễn Văn Cừ, Long Biên, Hà Nội' }}</p>
+                                <p><span class="font-semibold">SĐT liên hệ:</span> {{ props.centralBranch?.phone || '024 1234 5678' }}</p>
+                            </div>
+                        </div>
+
+                        <!-- 4. DANH SÁCH NGUYÊN LIỆU XUẤT -->
+                        <div class="mt-2.5">
+                            <h5 class="mb-1 font-bold uppercase tracking-wider text-[11px]">4. DANH SÁCH NGUYÊN LIỆU XUẤT</h5>
+                            <table class="w-full border-collapse border border-black text-center text-[10px]">
+                                <thead>
+                                    <tr class="bg-neutral-100 font-bold">
+                                        <th class="border border-black px-1.5 py-1" rowspan="2">STT</th>
+                                        <th class="border border-black px-1.5 py-1" rowspan="2">Mã nguyên liệu</th>
+                                        <th class="border border-black px-2 py-1 text-left" rowspan="2">Tên nguyên liệu</th>
+                                        <th class="border border-black px-1.5 py-1" rowspan="2">ĐVT</th>
+                                        <th class="border border-black px-1.5 py-0.5" colspan="3">Số lượng xuất</th>
+                                        <th class="border border-black px-2 py-1 text-right" rowspan="2">Đơn giá (VNĐ)</th>
+                                        <th class="border border-black px-2 py-1 text-right" rowspan="2">Thành tiền (VNĐ)</th>
+                                        <th class="border border-black px-1.5 py-1 text-left" rowspan="2">Ghi chú</th>
+                                    </tr>
+                                    <tr class="bg-neutral-100 font-bold text-[9px]">
+                                        <th class="border border-black px-1.5 py-0.5">Theo phiếu XK</th>
+                                        <th class="border border-black px-1.5 py-0.5">Thực xuất</th>
+                                        <th class="border border-black px-1.5 py-0.5">Chênh lệch (+/-)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(item, idx) in (selectedRequest?.items || [])" :key="item.id">
+                                        <td class="border border-black px-1 py-1 font-mono">{{ idx + 1 }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono">{{ item.ingredient?.sku || ('NL-' + String(item.ingredient_id ? item.ingredient_id : (idx + 1)).padStart(4, '0')) }}</td>
+                                        <td class="border border-black px-2 py-1 text-left font-semibold">{{ item.ingredient?.name || item.ingredient_name }}</td>
+                                        <td class="border border-black px-1.5 py-1">{{ item.unit_symbol || item.ingredient?.unit?.symbol || 'đv' }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ item.approved_quantity ?? item.requested_quantity ?? 0 }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0 }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono text-neutral-600">
+                                            {{ (Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? 0) - Number(item.approved_quantity ?? item.requested_quantity ?? 0)) || 0 }}
+                                        </td>
+                                        <td class="border border-black px-2 py-1 text-right font-mono">{{ formatCurrency(Number(item.unit_cost ?? item.ingredient?.average_cost ?? 0)) }}</td>
+                                        <td class="border border-black px-2 py-1 text-right font-mono font-bold">
+                                            {{ formatCurrency(Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0) * Number(item.unit_cost ?? item.ingredient?.average_cost ?? 0)) }}
+                                        </td>
+                                        <td class="border border-black px-1.5 py-1 text-left text-[9px] text-neutral-600">{{ item.notes || 'Đạt chuẩn FEFO' }}</td>
+                                    </tr>
+                                    <tr class="bg-neutral-50 font-bold">
+                                        <td class="border border-black px-2 py-1 uppercase text-center" colspan="4">TỔNG CỘNG</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono">{{ dispatchSlipTotalApprovedQty }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono">{{ dispatchSlipTotalDispatchedQty }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono">0</td>
+                                        <td class="border border-black px-2 py-1 text-right font-mono">—</td>
+                                        <td class="border border-black px-2 py-1 text-right font-mono font-black">{{ formatCurrency(dispatchSlipTotal) }}</td>
+                                        <td class="border border-black px-1.5 py-1"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 5. XÁC NHẬN -->
+                        <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                            <h5 class="font-bold uppercase tracking-wider text-[11px]">5. XÁC NHẬN</h5>
+                            <p class="mt-1 text-[10.5px]">Chúng tôi xác nhận đã kiểm tra, đối chiếu và giao đủ nguyên liệu theo Phiếu xuất kho nêu trên.</p>
+                            <div class="mt-1 flex flex-wrap items-center gap-4 text-[10px]">
+                                <span class="font-semibold">Tình trạng hàng hóa:</span>
+                                <span>[x] Đầy đủ, đúng chủng loại, số lượng, chất lượng tốt</span>
+                                <span>[ ] Thiếu, thừa (xem mục ghi chú)</span>
+                                <span>[ ] Hàng hóa có vấn đề (ghi chú chi tiết)</span>
+                            </div>
+                            <p class="mt-1.5 text-[10.5px] border-t border-neutral-300 pt-1">
+                                <span class="font-semibold">Ghi chú / Mã niêm phong:</span>
+                                Mã Seal niêm phong: <span class="font-mono font-bold text-neutral-900">{{ dispatchForm.seal_code || selectedRequest?.seal_code || 'Chưa gán mã seal' }}</span> ·
+                                Ghi chú vận chuyển: <span class="italic text-neutral-800">{{ dispatchForm.notes || selectedRequest?.notes || 'Bàn giao nguyên đai nguyên kiện cho tài xế vận chuyển' }}</span>
+                            </p>
+                        </div>
+
+                        <!-- 6. CHỮ KÝ XÁC NHẬN (5 Bên) -->
+                        <div class="mt-3">
+                            <h5 class="mb-1.5 font-bold uppercase tracking-wider text-[11px]">6. CHỮ KÝ XÁC NHẬN</h5>
+                            <div class="grid grid-cols-5 border border-black text-center text-[10px]">
+                                <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                    <div>
+                                        <p class="font-bold uppercase">THỦ KHO XUẤT</p>
+                                        <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                    </div>
+                                    <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                </div>
+                                <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                    <div>
+                                        <p class="font-bold uppercase">NGƯỜI GIAO HÀNG</p>
+                                        <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                    </div>
+                                    <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                </div>
+                                <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                    <div>
+                                        <p class="font-bold uppercase">NGƯỜI NHẬN HÀNG</p>
+                                        <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                    </div>
+                                    <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                </div>
+                                <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                    <div>
+                                        <p class="font-bold uppercase">THỦ KHO NHẬN</p>
+                                        <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                    </div>
+                                    <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                </div>
+                                <div class="p-2 flex flex-col justify-between min-h-[90px]">
+                                    <div>
+                                        <p class="font-bold uppercase">QC / KIỂM SOÁT CL</p>
+                                        <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                    </div>
+                                    <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer Note -->
+                        <div class="mt-3 text-[9px] italic text-neutral-600">
+                            <p>Ghi chú:</p>
+                            <p>- Phiếu xác nhận xuất kho Tổng được lập 02 bản: 01 bản lưu tại Kho Tổng, 01 bản gửi cho bên nhận.</p>
+                            <p>- Liên: 1. Lưu tại Kho Tổng; 2. Gửi cho bên nhận.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Action Bar -->
+                <div class="no-print sticky bottom-0 z-30 flex items-center justify-end gap-3 border-t border-white/10 bg-slate-900/95 px-6 py-3 shadow-lg">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="isDispatchSlipModalOpen = false; isDispatchModalOpen = true"
+                        class="border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white"
+                    >
+                        <ArrowLeft class="size-4 mr-1.5" /> Quay lại chỉnh sửa
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="printDispatchSlip"
+                        class="border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white"
+                    >
+                        <Printer class="size-4 mr-1.5 text-slate-300" /> In phiếu (A4)
+                    </Button>
+                    <Button
+                        size="sm"
+                        @click="executeDispatch"
+                        :disabled="isProcessing"
+                        class="bg-emerald-600 px-5 text-xs font-bold text-white shadow-md hover:bg-emerald-700"
+                    >
+                        <CheckCircle class="size-4 mr-1.5" />
+                        {{ isProcessing ? 'Đang xuất kho...' : 'Xác Nhận & Bàn Giao Xuất Kho' }}
+                    </Button>
                 </div>
             </div>
         </Teleport>

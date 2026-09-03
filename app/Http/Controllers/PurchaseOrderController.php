@@ -7,6 +7,7 @@ use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -30,6 +31,22 @@ class PurchaseOrderController extends Controller
         $restaurantId = $user->restaurant_id;
         $branchId = $this->resolveOperationalBranch($user);
 
+        // Fetch default supplier if ingredients don't have one assigned
+        $defaultSupplier = Supplier::where('restaurant_id', $restaurantId)->first();
+        if (! $defaultSupplier) {
+            $defaultSupplier = Supplier::create([
+                'restaurant_id' => $restaurantId,
+                'name' => 'Nhà cung cấp Tổng hợp',
+                'contact_name' => 'Bộ phận Cung ứng',
+                'phone' => '02412345678',
+                'address' => 'Hà Nội',
+                'status' => 'active',
+            ]);
+        }
+
+        $validSupplierIds = Supplier::where('restaurant_id', $restaurantId)->pluck('id')->toArray();
+        $fallbackSupplierId = $defaultSupplier->id;
+
         // Fetch all ingredients for restaurant with inventory and unit
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
@@ -48,10 +65,13 @@ class PurchaseOrderController extends Controller
             if ($currentStock < $minStock && $minStock > 0) {
                 $suggestedQty = max(1.0, round(($minStock * 2) - $currentStock, 2));
                 $unitCost = (float) ($ing->average_cost ?? 0.0);
+                $supplierId = ($ing->supplier_id && in_array($ing->supplier_id, $validSupplierIds))
+                    ? $ing->supplier_id
+                    : $fallbackSupplierId;
 
                 $lowStockIngredients->push([
                     'ingredient' => $ing,
-                    'supplier_id' => $ing->supplier_id,
+                    'supplier_id' => $supplierId,
                     'current_stock' => $currentStock,
                     'min_stock' => $minStock,
                     'suggested_qty' => $suggestedQty,
@@ -83,9 +103,9 @@ class PurchaseOrderController extends Controller
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $restaurantId,
                     'branch_id' => $branchId,
-                    'supplier_id' => $supplierId ?: null,
+                    'supplier_id' => $supplierId,
                     'po_number' => 'PO-AUTO-'.strtoupper(Str::random(6)),
-                    'status' => 'draft',
+                    'status' => 'pending_approval',
                     'total_amount' => $totalAmount,
                     'created_by' => $user->id,
                     'notes' => 'Hệ thống tự động gom đơn mua hàng do tồn kho xuống dưới ngưỡng tối thiểu.',

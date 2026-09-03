@@ -558,16 +558,17 @@ const submitEmployee = () => {
 const roleLabels: Record<string, string> = {
     owner: 'Chủ quán',
     manager: 'Quản lý',
-    cashier: 'Thu ngân (Cashier)',
-    kitchen: 'Đầu bếp/Bếp (Kitchen)',
-    shipper: 'Nhân viên giao hàng (Shipper)',
-    waiter: 'Nhân viên order',
-    staff: 'Nhân viên phục vụ',
+    branch_manager: 'Quản lý',
+    cashier: 'Thu ngân',
+    kitchen: 'Đầu bếp',
+    shipper: 'Giao hàng',
+    waiter: 'Order/Phục vụ',
+    staff: 'Nhân viên',
     warehouse_manager: 'Trưởng Kho Tổng',
-    warehouse_staff: 'Nhân viên Kho Tổng',
-    inventory_staff: 'Nhân viên Kho Chi Nhánh',
-    operations_inspector: 'Giám sát / Thanh tra',
-    compliance_auditor: 'Thanh tra độc lập',
+    warehouse_staff: 'Kho Tổng',
+    inventory_staff: 'Kho Chi Nhánh',
+    operations_inspector: 'Giám sát',
+    compliance_auditor: 'Thanh tra',
 };
 
 type RoleOption = { value: string; label: string; disabled?: boolean };
@@ -712,6 +713,8 @@ watch(showAddEmployee, (val) => {
 const roleColors: Record<string, string> = {
     owner: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400 border border-indigo-200/50',
     manager:
+        'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400 border border-sky-200/50',
+    branch_manager:
         'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400 border border-sky-200/50',
     cashier:
         'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/50',
@@ -2832,14 +2835,15 @@ const submitSwapReject = () => {
                                     <div class="min-w-0 flex-1">
                                         <div class="flex items-center gap-2">
                                             <span
+                                                v-if="emp.role"
                                                 class="order-last ml-auto shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase"
                                                 :class="
                                                     roleColors[emp.role] ||
-                                                    'bg-slate-100'
+                                                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/50'
                                                 "
                                             >
                                                 {{
-                                                    roleLabels[emp.role] ??
+                                                    roleLabels[emp.role] ||
                                                     emp.role
                                                 }}
                                             </span>

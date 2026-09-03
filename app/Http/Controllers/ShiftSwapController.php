@@ -398,6 +398,11 @@ class ShiftSwapController extends Controller
                         $branchId = $user->assignedBranchId() ?? ($data['branch_id'] ?? null);
                         $url = '/inventory/branch-requisition'.($branchId ? '?branch_id='.$branchId : '');
                     }
+                } elseif ($canAccessCentralWarehouse) {
+                    if (($data['type'] ?? '') === 'supply_request_created' || ($data['title'] ?? '') === 'Yêu cầu cấp hàng mới' || $url === '/inventory/central-warehouse') {
+                        $requestId = $data['supply_request_id'] ?? null;
+                        $url = '/inventory/central-warehouse/requests'.($requestId ? '?request_id='.$requestId : '');
+                    }
                 }
 
                 return [

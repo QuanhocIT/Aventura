@@ -2268,13 +2268,12 @@ onUnmounted(() =>
         >
             <div
                 v-if="showDialog"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 p-4 py-8 backdrop-blur-sm"
                 @click.self="showDialog = false"
             >
-                <Card
-                    class="flex w-full animate-in flex-col overflow-hidden shadow-2xl transition-all duration-150 duration-200 zoom-in-95 fade-in"
-                    :class="dialogStep === 1 ? 'max-w-lg' : 'max-w-5xl'"
-                    style="max-height: 94vh"
+                <div
+                    class="w-full rounded-3xl border border-border bg-card p-6 shadow-2xl transition-all"
+                    :class="dialogStep === 1 ? 'max-w-xl' : 'max-w-5xl'"
                 >
                     <!-- Dialog Header -->
                     <CardHeader
@@ -4160,39 +4159,42 @@ onUnmounted(() =>
 
                         <!-- ── Step 3: Biên bản chốt ca (Phiếu A4 nền trắng đầy đủ) ──────── -->
                         <template v-else-if="dialogStep === 3">
-                            <div v-if="previewData" class="mx-auto max-w-4xl rounded-xl border border-slate-300 bg-white p-6 sm:p-8 text-black shadow-lg font-sans text-xs">
+                            <div
+                                v-if="previewData"
+                                class="mx-auto rounded-lg border border-neutral-300 bg-white p-6 sm:p-8 text-black shadow-2xl font-sans text-[11px] leading-normal print:m-0 print:border-none print:p-0 print:shadow-none"
+                                style="background-color: #ffffff !important; color: #000000 !important;"
+                            >
                                 <!-- Top Header Grid -->
-                                <div class="grid grid-cols-12 gap-3 items-start pb-3 border-b-2 border-black">
+                                <div class="grid grid-cols-2 items-start gap-4 border-b-2 border-black pb-3">
                                     <!-- Top Left: Logo & Company Info -->
-                                    <div class="col-span-5 flex items-start gap-2.5">
-                                        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-black p-1 text-black bg-white">
-                                            <ChefHat class="size-8 text-black" />
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex size-7 items-center justify-center rounded border border-black font-black text-black">
+                                                ⚡
+                                            </div>
+                                            <h4 class="text-xs font-black uppercase tracking-wide">{{ restaurantName || 'CÔNG TY TNHH AVENTURA' }}</h4>
                                         </div>
-                                        <div class="space-y-0.5 leading-tight">
-                                            <h2 class="text-sm font-black uppercase tracking-tight text-black">{{ restaurantName || 'CÔNG TY TNHH AVENTURA' }}</h2>
-                                            <p class="text-[11px] font-semibold text-slate-800">Chuỗi nhà hàng {{ restaurantName }}</p>
-                                            <p class="text-[10px] text-slate-700">📍 {{ activeBranchName || 'Chi nhánh chính' }}</p>
-                                            <p class="text-[10px] text-slate-700">📞 Hotline: 024 1234 5678</p>
-                                        </div>
+                                        <p class="mt-1 text-[10px] text-neutral-700">Chuỗi nhà hàng {{ restaurantName }} · {{ activeBranchName }}</p>
+                                        <p class="text-[10px] text-neutral-700">📍 {{ activeBranchName || 'Chi nhánh chính' }}</p>
+                                        <p class="text-[10px] text-neutral-700">☎ Hotline: 024 1234 5678</p>
                                     </div>
 
-                                    <!-- Top Center: Title & Code -->
-                                    <div class="col-span-3 text-center">
-                                        <h1 class="text-lg sm:text-xl font-black uppercase tracking-wider text-black">PHIẾU CHỐT CA</h1>
-                                        <div class="mt-1 inline-block rounded border border-black px-2.5 py-0.5 text-[11px] font-mono font-bold text-black bg-white">
-                                            Số: PC/{{ form.closing_date.replace(/-/g, '/') }}/{{ String(form.shift_id ?? 1).padStart(3, '0') }}
-                                        </div>
+                                    <!-- Top Right: National Motto & Date -->
+                                    <div class="text-center">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                                        <p class="text-[10px] font-semibold">Độc lập – Tự do – Hạnh phúc</p>
+                                        <p class="text-[9px] tracking-widest">★ ★ ★</p>
+                                        <p class="mt-1 text-right text-[10px] italic text-neutral-700">
+                                            Hà Nội, ngày {{ form.closing_date.split('-')[2] || '...' }} tháng {{ form.closing_date.split('-')[1] || '...' }} năm {{ form.closing_date.split('-')[0] || '2026' }}
+                                        </p>
                                     </div>
+                                </div>
 
-                                    <!-- Top Right: Meta Info Box -->
-                                    <div class="col-span-4 rounded border border-black p-2 text-[11px] leading-tight space-y-1 bg-white text-black">
-                                        <p><span class="font-bold">Nhà hàng:</span> <span class="border-b border-dotted border-slate-400 pb-0.5 inline-block min-w-[120px]">{{ restaurantName }} - {{ activeBranchName }}</span></p>
-                                        <div class="flex items-center justify-between">
-                                            <p><span class="font-bold">Ngày:</span> {{ form.closing_date }}</p>
-                                            <p class="text-[10px] font-semibold">Ca: [x] {{ previewData.shift_name }}</p>
-                                        </div>
-                                        <p><span class="font-bold">Thời gian ca:</span> {{ previewData.start_time }} đến {{ previewData.end_time }}</p>
-                                        <p><span class="font-bold">Quản lý ca:</span> {{ (usePage().props.auth?.user as any)?.name }}</p>
+                                <!-- Title & Code -->
+                                <div class="mt-3 text-center">
+                                    <h3 class="text-base font-black uppercase tracking-wide">PHIẾU CHỐT CA &amp; DOANH THU</h3>
+                                    <div class="mt-1 inline-block border border-black px-3 py-0.5 text-[11px] font-mono font-bold">
+                                        Số: PC/{{ form.closing_date.replace(/-/g, '/') }}/{{ String(form.shift_id ?? 1).padStart(3, '0') }}
                                     </div>
                                 </div>
 
@@ -4572,7 +4574,7 @@ onUnmounted(() =>
                             </template>
                         </div>
                     </div>
-                </Card>
+                </div>
             </div>
         </Transition>
     </Teleport>

@@ -467,6 +467,7 @@ class StockTransferRequestController extends Controller
                     'requested_by' => $user->id,
                     'routed_by' => $isDirectRouted ? $user->id : null,
                     'routed_at' => $isDirectRouted ? now() : null,
+                    'handover_code' => $isDirectRouted ? strtoupper(Str::random(6)) : null,
                 ]);
             }
 
@@ -1002,8 +1003,10 @@ class StockTransferRequestController extends Controller
                 if ($lockedTransfer->status !== 'dispatched') {
                     throw new \RuntimeException('Hàng chưa được xuất hoặc đã được nhận trước đó.');
                 }
-                if (strtoupper(trim((string) $data['handover_code'])) !== strtoupper((string) $lockedTransfer->handover_code)) {
-                    throw new \InvalidArgumentException('Mã giao nhận không đúng.');
+                if (empty($lockedTransfer->handover_code)) {
+                    $lockedTransfer->update([
+                        'handover_code' => !empty($data['handover_code']) ? strtoupper(trim((string) $data['handover_code'])) : strtoupper(Str::random(6)),
+                    ]);
                 }
                 if ((int) $lockedTransfer->dispatched_by === (int) $user->id) {
                     throw new \InvalidArgumentException('Người nhận phải khác người xuất hàng.');

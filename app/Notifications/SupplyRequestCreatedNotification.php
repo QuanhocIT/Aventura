@@ -24,7 +24,7 @@ class SupplyRequestCreatedNotification extends Notification
 
         $url = method_exists($notifiable, 'isBranchManager') && $notifiable->isBranchManager()
             ? '/inventory/branch-requisition?branch_id='.$this->supplyRequest->to_branch_id
-            : '/inventory/central-warehouse';
+            : '/inventory/central-warehouse/requests?request_id='.$this->supplyRequest->id;
 
         return [
             'type' => 'supply_request_created',

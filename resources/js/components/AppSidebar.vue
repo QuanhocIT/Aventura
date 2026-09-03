@@ -412,6 +412,11 @@ const ownerNav = computed<NavItem[]>(() => {
             icon: Activity,
             feature: 'advanced_analytics',
         },
+        {
+            title: 'Trung tâm Chứng từ & Phiếu',
+            href: '/enterprise/documents',
+            icon: ScrollText,
+        },
         { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
         { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
         { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },

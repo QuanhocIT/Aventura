@@ -215,12 +215,23 @@ async function loadDatabaseNotifications() {
                 defaultTitle = 'Nguyên liệu tạm hết';
             }
 
+            let targetUrl = notification.url;
+            if (
+                notification.type === 'supply_request_created' ||
+                notification.title?.includes('Yêu cầu cấp hàng') ||
+                targetUrl === '/inventory/central-warehouse'
+            ) {
+                targetUrl = targetUrl?.includes('/inventory/central-warehouse/requests')
+                    ? targetUrl
+                    : '/inventory/central-warehouse/requests';
+            }
+
             addNotification(
                 notifType,
                 notification.title || defaultTitle,
                 notification.message || '',
-                notification.url && notification.url !== '/notifications'
-                    ? notification.url
+                targetUrl && targetUrl !== '/notifications'
+                    ? targetUrl
                     : undefined,
             );
             const created = items.value[0];

@@ -20,6 +20,7 @@ import {
     ShoppingCart,
     Trash2,
     Truck,
+    UtensilsCrossed,
     X,
 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -604,6 +605,75 @@ const printReceivingReport = () => {
     window.print();
 };
 
+const printDispatchSlip = () => {
+    window.print();
+};
+
+const getSlipDate = (req: any) => {
+    const d = req?.dispatched_at || req?.approved_at || req?.created_at ? new Date(req.dispatched_at || req.approved_at || req.created_at) : new Date();
+
+    return {
+        day: String(d.getDate()).padStart(2, '0'),
+        month: String(d.getMonth() + 1).padStart(2, '0'),
+        year: d.getFullYear(),
+        full: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`,
+    };
+};
+
+const formatDateOnly = (dt?: string) => {
+    if (!dt) {
+        return '.../.../20...';
+    }
+
+    const d = new Date(dt);
+
+    if (isNaN(d.getTime())) {
+        return '.../.../20...';
+    }
+
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+};
+
+const getSlipCode = (req: any) => {
+    if (!req) {
+        return 'PXNK-TK/2026/00001';
+    }
+
+    const code = req.request_code || '';
+    const num = code.replace(/[^0-9]/g, '') || String(req.id || 1).padStart(5, '0');
+
+    return `PXNK-TK/2026/${num.slice(-5)}`;
+};
+
+const getSlipTotalApprovedQty = (req: any) => {
+    if (!req?.items) {
+        return 0;
+    }
+
+    return req.items.reduce((sum: number, item: any) => sum + Number(item.approved_quantity ?? item.requested_quantity ?? 0), 0);
+};
+
+const getSlipTotalDispatchedQty = (req: any) => {
+    if (!req?.items) {
+        return 0;
+    }
+
+    return req.items.reduce((sum: number, item: any) => sum + Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0), 0);
+};
+
+const getSlipTotalAmount = (req: any) => {
+    if (!req?.items) {
+        return 0;
+    }
+
+    return req.items.reduce((sum: number, item: any) => {
+        const qty = Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0);
+        const cost = Number(item.unit_cost ?? item.ingredient?.average_cost ?? 0);
+
+        return sum + (qty * cost);
+    }, 0);
+};
+
 const formatDate = (dt: string) => {
     if (!dt) {
         return '-';
@@ -1147,7 +1217,7 @@ const hasPendingReceivingReport = (req: any): boolean =>
                     class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl"
                 >
                     <!-- Modal Header -->
-                    <div class="flex items-center justify-between border-b border-border bg-muted/40 p-5 px-6">
+                    <div class="no-print flex items-center justify-between border-b border-border bg-muted/40 p-4 px-6">
                         <div class="flex flex-col gap-1">
                             <div class="flex flex-wrap items-center gap-3">
                                 <span class="font-mono text-lg font-extrabold tracking-tight text-primary">
@@ -1169,9 +1239,9 @@ const hasPendingReceivingReport = (req: any): boolean =>
                                 </span>
                                 <span
                                     v-else-if="receivingStage !== 'report'"
-                                    class="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary"
+                                    class="rounded-full border border-purple-500/30 bg-purple-500/10 px-2.5 py-0.5 text-[11px] font-bold text-purple-600 dark:text-purple-400"
                                 >
-                                    Xem Chi Tiết Đơn
+                                    Phiếu Xác Nhận Xuất Kho Tổng
                                 </span>
                                 <span
                                     v-else
@@ -1181,17 +1251,37 @@ const hasPendingReceivingReport = (req: any): boolean =>
                                 </span>
                             </div>
                             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                <span>Xuất từ: <strong class="text-foreground">{{ selectedRequest.from_branch?.name || 'Kho Tổng Sai Gon Diner' }}</strong></span>
+                                <span>Kho xuất: <strong class="text-foreground">{{ selectedRequest.from_branch?.name || 'Kho Tổng Sai Gon Diner' }}</strong></span>
                                 <span v-if="selectedRequest.created_at">• Ngày tạo: {{ formatDate(selectedRequest.created_at) }}</span>
                                 <span v-if="getReceivingTransporterName(selectedRequest, selectedReceivingReport) !== '---'">• Tài xế: <strong class="text-foreground">{{ getReceivingTransporterName(selectedRequest, selectedReceivingReport) }}</strong></span>
                             </div>
                         </div>
-                        <button
-                            @click="isDetailModalOpen = false"
-                            class="flex size-9 items-center justify-center rounded-2xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                        >
-                            <X class="size-5" />
-                        </button>
+
+                        <div class="flex items-center gap-2">
+                            <Button
+                                v-if="!isReceiveMode && receivingStage !== 'report'"
+                                @click="printDispatchSlip"
+                                variant="outline"
+                                size="sm"
+                                class="h-8 gap-1.5 rounded-xl border-border px-3 text-xs font-semibold"
+                            >
+                                <Printer class="size-3.5" /> In phiếu (A4)
+                            </Button>
+                            <Button
+                                v-if="!isReceiveMode && isReadyForReceiving(selectedRequest)"
+                                @click="isReceiveMode = true"
+                                size="sm"
+                                class="h-8 gap-1.5 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700"
+                            >
+                                <PackageCheck class="size-3.5" /> Nhận hàng ngay
+                            </Button>
+                            <button
+                                @click="isDetailModalOpen = false"
+                                class="flex size-9 items-center justify-center rounded-2xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                            >
+                                <X class="size-5" />
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Modal Body -->
@@ -1250,27 +1340,28 @@ const hasPendingReceivingReport = (req: any): boolean =>
                                                     <th class="border border-slate-300 px-2 py-2 text-right">Đạt</th>
                                                     <th class="border border-slate-300 px-2 py-2 text-right">Hỏng</th>
                                                     <th class="border border-slate-300 px-2 py-2 text-right">Hết hạn</th>
-                                                    <th class="border border-slate-300 px-2 py-2 text-right">Sai hàng</th>
-                                                    <th class="border border-slate-300 px-2 py-2 text-right">Thiếu</th>
+                                                    <th class="border border-slate-300 px-2 py-2 text-right">Thiếu/sai</th>
                                                     <th class="border border-slate-300 px-2 py-2">Ghi chú</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr
-                                                    v-for="(item, index) in selectedReceivingReport.items || []"
+                                                    v-for="(item, idx) in (selectedReceivingReport.items || [])"
                                                     :key="item.id"
                                                     :class="isReportIssue(item) ? 'bg-slate-50' : ''"
                                                 >
-                                                    <td class="border border-slate-300 px-2 py-2 text-center">{{ Number(index) + 1 }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 font-semibold">{{ item.ingredient?.name || item.ingredient_name_snapshot }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2">{{ item.unit_symbol_snapshot || '---' }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.dispatched_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.submitted_good_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.submitted_damaged_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.submitted_expired_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.submitted_wrong_item_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2 text-right">{{ formatQuantity(item.submitted_shortage_quantity) }}</td>
-                                                    <td class="border border-slate-300 px-2 py-2">{{ item.submitted_note || (isReportIssue(item) ? 'Cần xử lý' : '') }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-center font-mono">{{ Number(idx) + 1 }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2">
+                                                        <div class="font-bold">{{ item.ingredient?.name || item.ingredient_name_snapshot }}</div>
+                                                        <div class="text-[10px] text-slate-500 font-mono">{{ item.ingredient_sku_snapshot || item.ingredient?.sku }}</div>
+                                                    </td>
+                                                    <td class="border border-slate-300 px-2 py-2">{{ item.unit_symbol_snapshot || item.ingredient?.unit_symbol || '---' }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-right font-mono">{{ formatQuantity(item.dispatched_quantity) }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-right font-mono font-bold text-emerald-700">{{ formatQuantity(item.submitted_good_quantity) }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-right font-mono text-rose-700">{{ formatQuantity(item.submitted_damaged_quantity) }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-right font-mono text-amber-700">{{ formatQuantity(item.submitted_expired_quantity) }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-right font-mono text-indigo-700">{{ formatQuantity(Number(item.submitted_shortage_quantity || 0) + Number(item.submitted_wrong_item_quantity || 0)) }}</td>
+                                                    <td class="border border-slate-300 px-2 py-2 text-[11px] text-slate-600">{{ item.submitted_note || '---' }}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1316,7 +1407,7 @@ const hasPendingReceivingReport = (req: any): boolean =>
                                 <div class="border-b border-border bg-muted/40 p-3 font-bold text-foreground">
                                     Nguyên liệu gặp vấn đề
                                 </div>
-                                <div class="divide-y divide-border">
+                                <div class="divide-y border-border">
                                     <div
                                         v-for="item in (selectedReceivingReport.items || []).filter((row: any) => Number(row.submitted_damaged_quantity || 0) + Number(row.submitted_expired_quantity || 0) + Number(row.submitted_wrong_item_quantity || 0) + Number(row.submitted_shortage_quantity || 0) > 0)"
                                         :key="item.id"
@@ -1341,380 +1432,498 @@ const hasPendingReceivingReport = (req: any): boolean =>
                                 Sau khi xác nhận: nguyên liệu đạt được nhập kho Chi nhánh; nguyên liệu hỏng/hết hạn/sai hàng tạo lô khóa và hồ sơ cách ly để Trưởng Kho Tổng xử lý. Biên bản sẽ gửi cho tài xế, Chủ doanh nghiệp và Trưởng Kho Tổng.
                             </div>
                         </div>
-                        <template v-else>
-                        <!-- Rejection reason -->
-                        <div
-                            v-if="selectedRequest.status === 'rejected'"
-                            class="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-600 dark:text-rose-400"
-                        >
-                            <div class="flex items-center gap-2 font-bold">
-                                <AlertTriangle class="size-4" />
-                                <span>Lý do Kho Tổng từ chối:</span>
-                            </div>
-                            <p class="mt-1 text-xs">{{ selectedRequest.rejection_reason }}</p>
-                        </div>
 
-                        <!-- Detail Mode: General Information Summary Card -->
-                        <div
-                            v-if="!isReceiveMode"
-                            class="rounded-2xl border border-border bg-muted/20 p-4 space-y-3"
-                        >
-                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Kho xuất hàng</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.from_branch?.name || 'Kho Tổng Sai Gon Diner' }}</p>
+                        <!-- Detail Mode: Official Confirmation Slip (Phiếu Xác Nhận Xuất Kho Tổng) -->
+                        <div v-else-if="!isReceiveMode" class="space-y-4">
+                            <!-- Rejection reason if any -->
+                            <div
+                                v-if="selectedRequest.status === 'rejected'"
+                                class="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-600 dark:text-rose-400 no-print"
+                            >
+                                <div class="flex items-center gap-2 font-bold">
+                                    <AlertTriangle class="size-4" />
+                                    <span>Lý do Kho Tổng từ chối:</span>
                                 </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Chi nhánh nhận</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.to_branch?.name || 'Chi nhánh hiện tại' }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Người tạo đơn</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.creator?.name || '---' }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Người duyệt</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.approver?.name || (selectedRequest.status === 'pending' ? 'Đang chờ duyệt' : '---') }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Người xuất kho</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.dispatcher?.name || (['pending', 'approved'].includes(selectedRequest.status) ? 'Chưa xuất' : '---') }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Tài xế vận chuyển</span>
-                                    <p class="font-bold text-foreground text-xs">{{ selectedRequest.transporter?.name || 'Chưa điều phối' }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Mã Seal niêm phong</span>
-                                    <p class="font-mono font-bold text-foreground text-xs">{{ selectedRequest.seal_code || 'Không có' }}</p>
-                                </div>
-                                <div class="space-y-0.5">
-                                    <span class="text-[10px] font-medium text-muted-foreground uppercase">Ngày tạo đơn</span>
-                                    <p class="font-bold text-foreground text-xs">{{ formatDate(selectedRequest.created_at) }}</p>
-                                </div>
-                            </div>
-                            <div v-if="selectedRequest.notes" class="border-t border-border/60 pt-2 text-xs">
-                                <span class="font-semibold text-muted-foreground">Ghi chú đặt hàng: </span>
-                                <span class="text-foreground">{{ selectedRequest.notes }}</span>
-                            </div>
-                        </div>
-
-                        <!-- Detail Mode: If already received, show inspection result card -->
-                        <div
-                            v-if="!isReceiveMode && (selectedRequest.received_at || ['completed', 'partial_received', 'disputed'].includes(selectedRequest.status))"
-                            class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2.5"
-                        >
-                            <div class="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300 text-xs">
-                                <CheckCircle2 class="size-4" />
-                                <span>Kết Quả Nghiệm Thu & Nhận Hàng</span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
-                                <div>
-                                    <span class="text-[10px] text-muted-foreground uppercase block">Người nhận</span>
-                                    <strong class="text-foreground">{{ selectedRequest.receiver?.name || '---' }}</strong>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] text-muted-foreground uppercase block">Thời gian nhận</span>
-                                    <strong class="text-foreground">{{ formatDate(selectedRequest.received_at) }}</strong>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] text-muted-foreground uppercase block">Nhiệt độ (°C)</span>
-                                    <strong class="text-foreground">
-                                        {{ getReceivedTemperature(selectedRequest) }}
-                                    </strong>
-                                </div>
-                                <div>
-                                    <span class="text-[10px] text-muted-foreground uppercase block">Ghi chú nhận</span>
-                                    <strong class="text-foreground">{{ selectedRequest.receiving_notes || 'Không có ghi chú' }}</strong>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Receive Mode: Waiting Delivery Confirmation Notice -->
-                        <div
-                            v-if="isReceiveMode && !isReceiveReady(selectedRequest)"
-                            class="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300"
-                        >
-                            <div class="flex items-center gap-2 font-bold">
-                                <AlertTriangle class="size-4" />
-                                <span>Đang trên đường vận chuyển - Chờ tài xế xác nhận giao tới</span>
-                            </div>
-                            <p class="mt-1 text-xs text-muted-foreground">
-                                <span v-if="selectedRequest.transporter">
-                                    Tài xế: <strong>{{ selectedRequest.transporter.name }}</strong>
-                                </span>
-                                Nhân viên giao hàng cần nhấn "Giao hàng thành công" khi đến nơi trước khi Chi nhánh tiến hành nghiệm thu & nhập kho.
-                            </p>
-                        </div>
-
-                        <!-- Receive Mode: Receive Evidence & Inspection Form -->
-                        <div
-                            v-if="isReceiveMode && isReceiveReady(selectedRequest)"
-                            class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-foreground space-y-4 shadow-xs"
-                        >
-                            <div class="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300 text-sm">
-                                <FileCheck2 class="size-4" />
-                                <span>Biên bản nghiệm thu & Thông tin nhận hàng</span>
+                                <p class="mt-1 text-xs">{{ selectedRequest.rejection_reason }}</p>
                             </div>
 
-                            <div class="space-y-1.5">
-                                <label class="text-xs font-bold text-foreground">
-                                    Ghi chú nhận hàng / Giải trình chênh lệch (nếu có)
-                                </label>
-                                <textarea
-                                    v-model="receiveNotes"
-                                    rows="2"
-                                    class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground shadow-2xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                    placeholder="Ghi chú tình trạng kiện hàng, số lượng thực nhận, niêm phong seal..."
-                                />
-                            </div>
-
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                <!-- Ảnh thực nhận / Biên bản -->
-                                <div class="space-y-1.5">
-                                    <label class="text-xs font-bold text-foreground">
-                                        Ảnh thực nhận / Biên bản
-                                    </label>
-                                    <label
-                                        class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background p-3.5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20"
-                                    >
-                                        <input
-                                            type="file"
-                                            accept="image/*,.pdf"
-                                            class="sr-only"
-                                            @change="setEvidenceFile('photo', $event)"
-                                        />
-                                        <div class="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-                                            <Camera class="size-4" />
-                                        </div>
-                                        <span class="mt-1.5 text-[11px] font-semibold text-foreground line-clamp-1">
-                                            {{ receiptPhoto ? receiptPhoto.name : 'Tải ảnh biên bản / hàng hóa' }}
-                                        </span>
-                                        <span class="text-[10px] text-muted-foreground">
-                                            {{ receiptPhoto ? 'Nhấn để đổi ảnh' : 'PNG, JPG, PDF (Tối đa 10MB)' }}
-                                        </span>
-                                    </label>
-                                </div>
-
-                                <!-- Chữ ký người nhận -->
-                                <div class="space-y-1.5">
-                                    <label class="text-xs font-bold text-foreground">
-                                        Ảnh chữ ký người nhận
-                                    </label>
-                                    <label
-                                        class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background p-3.5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20"
-                                    >
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            class="sr-only"
-                                            @change="setEvidenceFile('signature', $event)"
-                                        />
-                                        <div class="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
-                                            <FileSignature class="size-4" />
-                                        </div>
-                                        <span class="mt-1.5 text-[11px] font-semibold text-foreground line-clamp-1">
-                                            {{ receiverSignature ? receiverSignature.name : 'Tải ảnh chữ ký người nhận' }}
-                                        </span>
-                                        <span class="text-[10px] text-muted-foreground">
-                                            {{ receiverSignature ? 'Nhấn để đổi chữ ký' : 'Ảnh chụp hoặc chữ ký số' }}
-                                        </span>
-                                    </label>
-                                </div>
-
-                                <!-- Nhiệt độ kiểm tra -->
-                                <div class="space-y-1.5">
-                                    <label class="text-xs font-bold text-foreground">
-                                        Nhiệt độ kiểm tra (°C)
-                                    </label>
-                                    <div class="flex h-[94px] flex-col justify-center rounded-xl border border-border bg-background p-3">
-                                        <div class="flex items-center gap-2">
-                                            <div class="flex-1">
-                                                <span class="text-[10px] font-semibold text-muted-foreground">Min</span>
-                                                <input
-                                                    v-model="receiveTemperatureMin"
-                                                    type="number"
-                                                    step="0.1"
-                                                    placeholder="0"
-                                                    class="mt-0.5 w-full rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-bold text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                                />
+                            <!-- Printable Pure White A4 Page Container -->
+                            <div class="flex items-start justify-center">
+                                <div
+                                    id="branch-dispatch-slip"
+                                    class="w-full max-w-[210mm] min-h-[297mm] rounded-sm bg-white p-8 sm:p-10 font-sans text-black shadow-lg transition-all"
+                                    style="color: #000 !important; background: #fff !important; font-family: 'Times New Roman', Times, serif;"
+                                >
+                                    <!-- Header -->
+                                    <div class="flex items-start justify-between border-b-2 border-black pb-3">
+                                        <div class="space-y-0.5">
+                                            <div class="flex items-center gap-2">
+                                                <div class="flex h-7 w-7 items-center justify-center rounded-full bg-black text-white">
+                                                    <UtensilsCrossed class="size-4" />
+                                                </div>
+                                                <h4 class="text-sm font-black tracking-wider uppercase">CÔNG TY TNHH AVENTURA</h4>
                                             </div>
-                                            <span class="mt-4 font-bold text-muted-foreground">-</span>
-                                            <div class="flex-1">
-                                                <span class="text-[10px] font-semibold text-muted-foreground">Max</span>
-                                                <input
-                                                    v-model="receiveTemperatureMax"
-                                                    type="number"
-                                                    step="0.1"
-                                                    placeholder="8"
-                                                    class="mt-0.5 w-full rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-bold text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                                />
+                                            <p class="text-[10px] font-medium text-neutral-800">Chuỗi cung cấp thực phẩm & dịch vụ nhà hàng</p>
+                                            <p class="text-[10px] text-neutral-700">📍 Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
+                                            <p class="text-[10px] text-neutral-700">📞 Hotline: 024 1234 5678</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <h4 class="text-xs font-black uppercase tracking-wider">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+                                            <p class="text-[10px] font-bold underline underline-offset-2">Độc lập – Tự do – Hạnh phúc</p>
+                                            <p class="mt-0.5 text-[10px] text-neutral-600">★★★</p>
+                                            <p class="mt-1 text-[10px] italic text-neutral-700">
+                                                Hà Nội, ngày {{ getSlipDate(selectedRequest).day }} tháng {{ getSlipDate(selectedRequest).month }} năm {{ getSlipDate(selectedRequest).year }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Document Title -->
+                                    <div class="mt-4 text-center">
+                                        <h3 class="text-lg font-black tracking-widest uppercase">PHIẾU XÁC NHẬN XUẤT KHO TỔNG</h3>
+                                        <div class="mt-1 inline-block border border-black px-4 py-0.5 text-xs font-mono font-bold">
+                                            Số: {{ getSlipCode(selectedRequest) }}
+                                        </div>
+                                    </div>
+
+                                    <!-- 1. THÔNG TIN CHUNG -->
+                                    <div class="mt-4 border border-black p-2.5 text-[11px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[11px]">1. THÔNG TIN CHUNG</h5>
+                                        <div class="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1">
+                                            <p><span class="font-semibold">Ngày xác nhận:</span> {{ getSlipDate(selectedRequest).full }}</p>
+                                            <p><span class="font-semibold">Người lập phiếu:</span> <span class="font-bold">{{ selectedRequest.dispatcher?.name || selectedRequest.approver?.name || 'Trưởng Kho Tổng' }}</span></p>
+                                            <p><span class="font-semibold">Phiếu xuất kho số:</span> <span class="font-mono font-bold">{{ selectedRequest.request_code }}</span> &nbsp;&nbsp; <span class="font-semibold">Ngày:</span> {{ formatDateOnly(selectedRequest.created_at) }}</p>
+                                            <p><span class="font-semibold">Chức vụ:</span> {{ selectedRequest.dispatcher?.name ? 'Thủ kho xuất / Trưởng Kho Tổng' : 'Quản lý Điều phối Kho Tổng' }}</p>
+                                            <p class="col-span-2">
+                                                <span class="font-semibold">Lý do xuất:</span>
+                                                <span class="ml-2">[x] Điều chuyển &nbsp;&nbsp; [ ] Bán hàng &nbsp;&nbsp; [ ] Sản xuất/Chế biến &nbsp;&nbsp; [ ] Khác: {{ selectedRequest.notes || '—' }}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. THÔNG TIN BÊN NHẬN (NƠI NHẬN HÀNG) -->
+                                    <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[11px]">2. THÔNG TIN BÊN NHẬN (NƠI NHẬN HÀNG)</h5>
+                                        <div class="mt-1.5 space-y-1">
+                                            <div class="flex items-center justify-between">
+                                                <p><span class="font-semibold">Tên đơn vị nhận:</span> <span class="font-bold uppercase">{{ selectedRequest.to_branch?.name || activeBranch?.name || 'Chi nhánh nhận' }}</span></p>
+                                                <p class="text-[10px]"><span class="font-semibold">Loại đơn vị:</span> [x] Chi nhánh &nbsp; [ ] Nhà hàng &nbsp; [ ] Khác</p>
+                                            </div>
+                                            <p><span class="font-semibold">Địa chỉ nhận hàng:</span> {{ selectedRequest.to_branch?.address || 'Khu vực nhận hàng Chi nhánh' }}</p>
+                                            <div class="grid grid-cols-2 gap-x-4">
+                                                <p><span class="font-semibold">Người nhận hàng:</span> {{ selectedRequest.receiver?.name || selectedRequest.creator?.name || 'Quản lý Chi nhánh' }} &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedRequest.to_branch?.phone || '098 765 4321' }}</p>
+                                                <p><span class="font-semibold">Người phụ trách:</span> {{ selectedRequest.creator?.name || 'Quản lý Chi nhánh' }} &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedRequest.to_branch?.phone || '098 765 4321' }}</p>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-x-4 border-t border-neutral-300 pt-1">
+                                                <p><span class="font-semibold">Phương tiện vận chuyển:</span> {{ selectedRequest.delivery_manifest?.vehicle_name || 'Xe tải Logistics Kho Tổng' }} &nbsp;&nbsp; <span class="font-semibold">Biển số:</span> <span class="font-mono font-bold">{{ selectedRequest.delivery_manifest?.license_plate || '29C-889.92' }}</span></p>
+                                                <p><span class="font-semibold">Tài xế:</span> <span class="font-bold">{{ getReceivingTransporterName(selectedRequest) }}</span> &nbsp;&nbsp; <span class="font-semibold">SĐT:</span> {{ selectedRequest.transporter?.phone || '091 234 5678' }}</p>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <!-- 3. THÔNG TIN KHO XUẤT -->
+                                    <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[11px]">3. THÔNG TIN KHO XUẤT</h5>
+                                        <div class="mt-1.5 grid grid-cols-2 gap-x-6 gap-y-1">
+                                            <p><span class="font-semibold">Kho xuất:</span> <span class="font-bold uppercase">KHO TỔNG ({{ selectedRequest.from_branch?.name || 'KHO TỔNG AVENTURA' }})</span></p>
+                                            <p><span class="font-semibold">Thủ kho xuất:</span> <span class="font-bold">{{ selectedRequest.dispatcher?.name || selectedRequest.approver?.name || 'Trưởng Kho Tổng' }}</span></p>
+                                            <p><span class="font-semibold">Địa chỉ kho:</span> {{ selectedRequest.from_branch?.address || 'Cụm CN Long Biên, Số 123 Nguyễn Văn Cừ, Long Biên, Hà Nội' }}</p>
+                                            <p><span class="font-semibold">SĐT liên hệ:</span> {{ selectedRequest.from_branch?.phone || '024 1234 5678' }}</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 4. DANH SÁCH NGUYÊN LIỆU XUẤT -->
+                                    <div class="mt-2.5">
+                                        <h5 class="mb-1 font-bold uppercase tracking-wider text-[11px]">4. DANH SÁCH NGUYÊN LIỆU XUẤT</h5>
+                                        <table class="w-full border-collapse border border-black text-center text-[10px]">
+                                            <thead>
+                                                <tr class="bg-neutral-100 font-bold">
+                                                    <th class="border border-black px-1.5 py-1" rowspan="2">STT</th>
+                                                    <th class="border border-black px-1.5 py-1" rowspan="2">Mã nguyên liệu</th>
+                                                    <th class="border border-black px-2 py-1 text-left" rowspan="2">Tên nguyên liệu</th>
+                                                    <th class="border border-black px-1.5 py-1" rowspan="2">ĐVT</th>
+                                                    <th class="border border-black px-1.5 py-0.5" colspan="3">Số lượng xuất</th>
+                                                    <th class="border border-black px-2 py-1 text-right" rowspan="2">Đơn giá (VNĐ)</th>
+                                                    <th class="border border-black px-2 py-1 text-right" rowspan="2">Thành tiền (VNĐ)</th>
+                                                    <th class="border border-black px-1.5 py-1 text-left" rowspan="2">Ghi chú</th>
+                                                </tr>
+                                                <tr class="bg-neutral-100 font-bold text-[9px]">
+                                                    <th class="border border-black px-1.5 py-0.5">Theo phiếu XK</th>
+                                                    <th class="border border-black px-1.5 py-0.5">Thực xuất</th>
+                                                    <th class="border border-black px-1.5 py-0.5">Chênh lệch (+/-)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="(item, idx) in (selectedRequest.items || [])" :key="item.id">
+                                                    <td class="border border-black px-1 py-1 font-mono">{{ Number(idx) + 1 }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono">{{ item.ingredient?.sku || ('NL-' + String(item.ingredient_id ? item.ingredient_id : (Number(idx) + 1)).padStart(4, '0')) }}</td>
+                                                    <td class="border border-black px-2 py-1 text-left font-semibold">{{ item.ingredient?.name || item.ingredient_name }}</td>
+                                                    <td class="border border-black px-1.5 py-1">{{ item.unit_symbol || item.ingredient?.unit?.symbol || 'đv' }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ formatQuantity(item.approved_quantity ?? item.requested_quantity ?? 0) }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono font-bold">{{ formatQuantity(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0) }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono text-neutral-600">
+                                                        {{ formatQuantity((Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? 0) - Number(item.approved_quantity ?? item.requested_quantity ?? 0))) }}
+                                                    </td>
+                                                    <td class="border border-black px-2 py-1 text-right font-mono">{{ formatCurrency(Number(item.unit_cost ?? item.ingredient?.average_cost ?? 0)) }}</td>
+                                                    <td class="border border-black px-2 py-1 text-right font-mono font-bold">
+                                                        {{ formatCurrency(Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0) * Number(item.unit_cost ?? item.ingredient?.average_cost ?? 0)) }}
+                                                    </td>
+                                                    <td class="border border-black px-1.5 py-1 text-left text-[9px] text-neutral-600">{{ item.notes || 'Đạt chuẩn FEFO' }}</td>
+                                                </tr>
+                                                <tr class="bg-neutral-50 font-bold">
+                                                    <td class="border border-black px-2 py-1 uppercase text-center" colspan="4">TỔNG CỘNG</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono">{{ formatQuantity(getSlipTotalApprovedQty(selectedRequest)) }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono">{{ formatQuantity(getSlipTotalDispatchedQty(selectedRequest)) }}</td>
+                                                    <td class="border border-black px-1.5 py-1 font-mono">0</td>
+                                                    <td class="border border-black px-2 py-1 text-right font-mono">—</td>
+                                                    <td class="border border-black px-2 py-1 text-right font-mono font-black">{{ formatCurrency(getSlipTotalAmount(selectedRequest)) }}</td>
+                                                    <td class="border border-black px-1.5 py-1"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- 5. XÁC NHẬN -->
+                                    <div class="mt-2.5 border border-black p-2.5 text-[11px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[11px]">5. XÁC NHẬN</h5>
+                                        <p class="mt-1 text-[10.5px]">Chúng tôi xác nhận đã kiểm tra, đối chiếu và giao đủ nguyên liệu theo Phiếu xuất kho nêu trên.</p>
+                                        <div class="mt-1 flex flex-wrap items-center gap-4 text-[10px]">
+                                            <span class="font-semibold">Tình trạng hàng hóa:</span>
+                                            <span>[x] Đầy đủ, đúng chủng loại, số lượng, chất lượng tốt</span>
+                                            <span>[ ] Thiếu, thừa (xem mục ghi chú)</span>
+                                            <span>[ ] Hàng hóa có vấn đề (ghi chú chi tiết)</span>
+                                        </div>
+                                        <p class="mt-1.5 text-[10.5px] border-t border-neutral-300 pt-1">
+                                            <span class="font-semibold">Ghi chú / Mã niêm phong:</span>
+                                            Mã Seal niêm phong: <span class="font-mono font-bold text-neutral-900">{{ selectedRequest.seal_code || 'Chưa gán mã seal' }}</span> ·
+                                            Ghi chú vận chuyển: <span class="italic text-neutral-800">{{ selectedRequest.notes || 'Bàn giao nguyên đai nguyên kiện cho tài xế vận chuyển' }}</span>
+                                        </p>
+                                    </div>
+
+                                    <!-- 6. CHỮ KÝ XÁC NHẬN (5 Bên) -->
+                                    <div class="mt-3">
+                                        <h5 class="mb-1.5 font-bold uppercase tracking-wider text-[11px]">6. CHỮ KÝ XÁC NHẬN</h5>
+                                        <div class="grid grid-cols-5 border border-black text-center text-[10px]">
+                                            <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                                <div>
+                                                    <p class="font-bold uppercase">THỦ KHO XUẤT</p>
+                                                    <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                                </div>
+                                                <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                            </div>
+                                            <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                                <div>
+                                                    <p class="font-bold uppercase">NGƯỜI GIAO HÀNG</p>
+                                                    <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                                </div>
+                                                <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                            </div>
+                                            <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                                <div>
+                                                    <p class="font-bold uppercase">NGƯỜI NHẬN HÀNG</p>
+                                                    <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                                </div>
+                                                <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                            </div>
+                                            <div class="border-r border-black p-2 flex flex-col justify-between min-h-[90px]">
+                                                <div>
+                                                    <p class="font-bold uppercase">THỦ KHO NHẬN</p>
+                                                    <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                                </div>
+                                                <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                            </div>
+                                            <div class="p-2 flex flex-col justify-between min-h-[90px]">
+                                                <div>
+                                                    <p class="font-bold uppercase">QC / KIỂM SOÁT CL</p>
+                                                    <p class="text-[9px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                                </div>
+                                                <p class="mt-6 text-[9px] italic text-neutral-500">Ngày .../.../20...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Footer Note -->
+                                    <div class="mt-3 text-[9px] italic text-neutral-600">
+                                        <p>Ghi chú:</p>
+                                        <p>- Phiếu xác nhận xuất kho Tổng được lập 02 bản: 01 bản lưu tại Kho Tổng, 01 bản gửi cho bên nhận.</p>
+                                        <p>- Liên: 1. Lưu tại Kho Tổng; 2. Gửi cho bên nhận.</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Goods Items Breakdown -->
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <h4 class="text-sm font-bold text-foreground">
-                                    Chi Tiết Hàng Hóa Cấp Phát
-                                </h4>
-                                <span v-if="isReceiveMode && isReceiveReady(selectedRequest)" class="text-[11px] font-medium text-muted-foreground">
-                                    Kiểm đếm theo các trạng thái: <span class="font-bold text-emerald-600">Đạt</span> • <span class="font-bold text-rose-500">Hỏng</span> • <span class="font-bold text-amber-500">Hết hạn</span> • <span class="font-bold text-indigo-500">Thiếu hàng</span>
-                                </span>
-                                <span v-else class="text-[11px] font-medium text-muted-foreground">
-                                    Danh sách các mặt hàng nguyên liệu trong đơn
-                                </span>
+                        <!-- Receive Mode: Evidence Form & Counting Inputs -->
+                        <div v-else class="space-y-6">
+                            <!-- Receive Mode: Waiting Delivery Confirmation Notice -->
+                            <div
+                                v-if="!isReceiveReady(selectedRequest)"
+                                class="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300"
+                            >
+                                <div class="flex items-center gap-2 font-bold">
+                                    <AlertTriangle class="size-4" />
+                                    <span>Đang trên đường vận chuyển - Chờ tài xế xác nhận giao tới</span>
+                                </div>
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    <span v-if="selectedRequest.transporter">
+                                        Tài xế: <strong>{{ selectedRequest.transporter.name }}</strong>
+                                    </span>
+                                    Nhân viên giao hàng cần nhấn "Giao hàng thành công" khi đến nơi trước khi Chi nhánh tiến hành nghiệm thu & nhập kho.
+                                </p>
                             </div>
 
-                            <div class="overflow-x-auto rounded-2xl border border-border">
-                                <table class="w-full text-left text-xs">
-                                    <thead class="border-b border-border bg-muted/60 font-semibold text-muted-foreground">
-                                        <tr>
-                                            <th class="p-3 pl-4">Nguyên Liệu</th>
-                                            <th class="p-3 text-center">Đơn Vị</th>
-                                            <th class="p-3 text-right">Số Lượng Đặt</th>
-                                            <th class="p-3 text-right">Kho Duyệt</th>
-                                            <th class="p-3" :class="isReceiveMode && isReceiveReady(selectedRequest) ? 'text-center min-w-[320px]' : 'text-right'">
-                                                {{ isReceiveMode && isReceiveReady(selectedRequest) ? 'Kiểm Đếm Thực Nhận' : 'Số Lượng Nhận' }}
-                                            </th>
-                                            <th class="p-3 pr-4 text-right">Đơn Giá</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-border">
-                                        <tr
-                                            v-for="item in selectedRequest.items"
-                                            :key="item.id"
-                                            class="hover:bg-muted/30"
-                                        >
-                                            <td class="p-3 pl-4 font-bold text-foreground">
-                                                {{ item.ingredient?.name }}
-                                            </td>
-                                            <td class="p-3 text-center font-mono font-semibold text-muted-foreground">
-                                                {{ item.unit_symbol || 'kg' }}
-                                            </td>
-                                            <td class="p-3 text-right font-medium text-foreground">
-                                                {{ formatQuantity(item.requested_quantity) }}
-                                            </td>
-                                            <td class="p-3 text-right font-bold text-primary">
-                                                {{ formatQuantity(item.approved_quantity ?? item.requested_quantity) }}
-                                            </td>
-                                            <td class="p-3" :class="isReceiveMode && isReceiveReady(selectedRequest) ? 'text-center' : 'text-right'">
-                                                <!-- Khi đang nhận hàng: hiển thị 4 ô kiểm đếm -->
-                                                <div
-                                                    v-if="isReceiveMode && isReceiveReady(selectedRequest)"
-                                                    class="max-w-sm mx-auto space-y-1"
-                                                >
-                                                    <div class="grid grid-cols-4 gap-1.5">
-                                                        <div class="space-y-0.5">
-                                                            <span class="block text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Đạt</span>
-                                                            <input
-                                                                type="number"
-                                                                step="1"
-                                                                min="0"
-                                                                v-model.number="item.received_good_quantity"
-                                                                :class="[
-                                                                    'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
-                                                                    isItemMismatch(item)
-                                                                        ? (getItemDiff(item) > 0
-                                                                            ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
-                                                                            : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
-                                                                        : 'border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500',
-                                                                ]"
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                        <div class="space-y-0.5">
-                                                            <span class="block text-[9px] font-bold text-rose-500 uppercase">Hỏng</span>
-                                                            <input
-                                                                type="number"
-                                                                step="1"
-                                                                min="0"
-                                                                v-model.number="item.received_damaged_quantity"
-                                                                :class="[
-                                                                    'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
-                                                                    isItemMismatch(item)
-                                                                        ? (getItemDiff(item) > 0
-                                                                            ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
-                                                                            : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
-                                                                        : 'border-rose-500/50 bg-rose-500/5 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500',
-                                                                ]"
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                        <div class="space-y-0.5">
-                                                            <span class="block text-[9px] font-bold text-amber-500 uppercase">Hết hạn</span>
-                                                            <input
-                                                                type="number"
-                                                                step="1"
-                                                                min="0"
-                                                                v-model.number="item.received_expired_quantity"
-                                                                :class="[
-                                                                    'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
-                                                                    isItemMismatch(item)
-                                                                        ? (getItemDiff(item) > 0
-                                                                            ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
-                                                                            : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
-                                                                        : 'border-amber-500/50 bg-amber-500/5 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500',
-                                                                ]"
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                        <div class="space-y-0.5">
-                                                            <span class="block text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase">Thiếu</span>
-                                                            <input
-                                                                type="number"
-                                                                step="1"
-                                                                min="0"
-                                                                v-model.number="item.received_missing_quantity"
-                                                                :class="[
-                                                                    'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
-                                                                    isItemMismatch(item)
-                                                                        ? (getItemDiff(item) > 0
-                                                                            ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
-                                                                            : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
-                                                                        : 'border-indigo-500/50 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 focus:ring-1 focus:ring-indigo-500',
-                                                                ]"
-                                                                placeholder="0"
-                                                            />
-                                                        </div>
-                                                    </div>
+                            <!-- Receive Mode: Receive Evidence & Inspection Form -->
+                            <div
+                                v-if="isReceiveReady(selectedRequest)"
+                                class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-foreground space-y-4 shadow-xs"
+                            >
+                                <div class="flex items-center gap-2 font-bold text-emerald-700 dark:text-emerald-300 text-sm">
+                                    <FileCheck2 class="size-4" />
+                                    <span>Biên bản nghiệm thu & Thông tin nhận hàng</span>
+                                </div>
 
-                                                    <!-- Cảnh báo khi tổng kiểm đếm không khớp với số lượng kho duyệt -->
-                                                    <div
-                                                        v-if="isItemMismatch(item)"
-                                                        class="flex items-center justify-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold"
-                                                        :class="getItemDiff(item) > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'"
-                                                    >
-                                                        <AlertTriangle class="size-3 shrink-0" />
-                                                        <span v-if="getItemDiff(item) > 0">
-                                                            Tổng ({{ formatQuantity(getItemSum(item)) }}) vượt duyệt ({{ formatQuantity(getItemMax(item)) }}) +{{ formatQuantity(getItemDiff(item)) }}
-                                                        </span>
-                                                        <span v-else>
-                                                            Tổng ({{ formatQuantity(getItemSum(item)) }}) chưa đủ mức duyệt ({{ formatQuantity(getItemMax(item)) }}) (còn {{ formatQuantity(Math.abs(getItemDiff(item))) }})
-                                                        </span>
-                                                    </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-xs font-bold text-foreground">
+                                        Ghi chú nhận hàng / Giải trình chênh lệch (nếu có)
+                                    </label>
+                                    <textarea
+                                        v-model="receiveNotes"
+                                        rows="2"
+                                        class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground shadow-2xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                        placeholder="Ghi chú tình trạng kiện hàng, số lượng thực nhận, niêm phong seal..."
+                                    />
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <!-- Ảnh thực nhận / Biên bản -->
+                                    <div class="space-y-1.5">
+                                        <label class="text-xs font-bold text-foreground">
+                                            Ảnh thực nhận / Biên bản
+                                        </label>
+                                        <label
+                                            class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background p-3.5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20"
+                                        >
+                                            <input
+                                                type="file"
+                                                accept="image/*,.pdf"
+                                                class="sr-only"
+                                                @change="setEvidenceFile('photo', $event)"
+                                            />
+                                            <div class="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                                <Camera class="size-4" />
+                                            </div>
+                                            <span class="mt-1.5 text-[11px] font-semibold text-foreground line-clamp-1">
+                                                {{ receiptPhoto ? receiptPhoto.name : 'Tải ảnh biên bản / hàng hóa' }}
+                                            </span>
+                                            <span class="text-[10px] text-muted-foreground">
+                                                {{ receiptPhoto ? 'Nhấn để đổi ảnh' : 'PNG, JPG, PDF (Tối đa 10MB)' }}
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Chữ ký người nhận -->
+                                    <div class="space-y-1.5">
+                                        <label class="text-xs font-bold text-foreground">
+                                            Ảnh chữ ký người nhận
+                                        </label>
+                                        <label
+                                            class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background p-3.5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/20"
+                                        >
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                class="sr-only"
+                                                @change="setEvidenceFile('signature', $event)"
+                                            />
+                                            <div class="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                                <FileSignature class="size-4" />
+                                            </div>
+                                            <span class="mt-1.5 text-[11px] font-semibold text-foreground line-clamp-1">
+                                                {{ receiverSignature ? receiverSignature.name : 'Tải ảnh chữ ký người nhận' }}
+                                            </span>
+                                            <span class="text-[10px] text-muted-foreground">
+                                                {{ receiverSignature ? 'Nhấn để đổi chữ ký' : 'Ảnh chụp hoặc chữ ký số' }}
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Nhiệt độ kiểm tra -->
+                                    <div class="space-y-1.5">
+                                        <label class="text-xs font-bold text-foreground">
+                                            Nhiệt độ kiểm tra (°C)
+                                        </label>
+                                        <div class="flex h-[94px] flex-col justify-center rounded-xl border border-border bg-background p-3">
+                                            <div class="flex items-center gap-2">
+                                                <div class="flex-1">
+                                                    <span class="text-[10px] font-semibold text-muted-foreground">Min</span>
+                                                    <input
+                                                        v-model="receiveTemperatureMin"
+                                                        type="number"
+                                                        step="0.1"
+                                                        placeholder="0"
+                                                        class="mt-0.5 w-full rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-bold text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                                    />
                                                 </div>
-                                                <!-- Khi xem chi tiết đơn: chỉ hiển thị số lượng nhận dạng text gọn gàng -->
-                                                <span
-                                                    v-else
-                                                    class="font-bold text-emerald-600 dark:text-emerald-400"
-                                                >
-                                                    {{ formatQuantity(item.received_quantity ?? item.approved_quantity ?? item.requested_quantity) }}
-                                                </span>
-                                            </td>
-                                            <td class="p-3 pr-4 text-right font-medium text-muted-foreground">
-                                                {{ formatCurrency(item.unit_cost) }}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                                <span class="mt-4 font-bold text-muted-foreground">-</span>
+                                                <div class="flex-1">
+                                                    <span class="text-[10px] font-semibold text-muted-foreground">Max</span>
+                                                    <input
+                                                        v-model="receiveTemperatureMax"
+                                                        type="number"
+                                                        step="0.1"
+                                                        placeholder="8"
+                                                        class="mt-0.5 w-full rounded-lg border border-input bg-card px-2.5 py-1 text-xs font-bold text-foreground [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Goods Items Breakdown -->
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-sm font-bold text-foreground">
+                                        Chi Tiết Hàng Hóa Cấp Phát
+                                    </h4>
+                                    <span v-if="isReceiveReady(selectedRequest)" class="text-[11px] font-medium text-muted-foreground">
+                                        Kiểm đếm theo các trạng thái: <span class="font-bold text-emerald-600">Đạt</span> • <span class="font-bold text-rose-500">Hỏng</span> • <span class="font-bold text-amber-500">Hết hạn</span> • <span class="font-bold text-indigo-500">Thiếu hàng</span>
+                                    </span>
+                                </div>
+
+                                <div class="overflow-x-auto rounded-2xl border border-border">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="border-b border-border bg-muted/60 font-semibold text-muted-foreground">
+                                            <tr>
+                                                <th class="p-3 pl-4">Nguyên Liệu</th>
+                                                <th class="p-3 text-center">Đơn Vị</th>
+                                                <th class="p-3 text-right">Số Lượng Đặt</th>
+                                                <th class="p-3 text-right">Kho Duyệt</th>
+                                                <th class="p-3 text-center min-w-[320px]">
+                                                    Kiểm Đếm Thực Nhận
+                                                </th>
+                                                <th class="p-3 pr-4 text-right">Đơn Giá</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border">
+                                            <tr
+                                                v-for="item in selectedRequest.items"
+                                                :key="item.id"
+                                                class="hover:bg-muted/30"
+                                            >
+                                                <td class="p-3 pl-4 font-bold text-foreground">
+                                                    {{ item.ingredient?.name }}
+                                                </td>
+                                                <td class="p-3 text-center font-mono font-semibold text-muted-foreground">
+                                                    {{ item.unit_symbol || 'kg' }}
+                                                </td>
+                                                <td class="p-3 text-right font-medium text-foreground">
+                                                    {{ formatQuantity(item.requested_quantity) }}
+                                                </td>
+                                                <td class="p-3 text-right font-bold text-primary">
+                                                    {{ formatQuantity(item.approved_quantity ?? item.requested_quantity) }}
+                                                </td>
+                                                <td class="p-3 text-center">
+                                                    <div class="max-w-sm mx-auto space-y-1">
+                                                        <div class="grid grid-cols-4 gap-1.5">
+                                                            <div class="space-y-0.5">
+                                                                <span class="block text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Đạt</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="1"
+                                                                    min="0"
+                                                                    v-model.number="item.received_good_quantity"
+                                                                    :class="[
+                                                                        'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
+                                                                        isItemMismatch(item)
+                                                                            ? (getItemDiff(item) > 0
+                                                                                ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
+                                                                                : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
+                                                                            : 'border-emerald-500/50 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500',
+                                                                    ]"
+                                                                    placeholder="0"
+                                                                />
+                                                            </div>
+                                                            <div class="space-y-0.5">
+                                                                <span class="block text-[9px] font-bold text-rose-500 uppercase">Hỏng</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="1"
+                                                                    min="0"
+                                                                    v-model.number="item.received_damaged_quantity"
+                                                                    :class="[
+                                                                        'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
+                                                                        isItemMismatch(item)
+                                                                            ? (getItemDiff(item) > 0
+                                                                                ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
+                                                                                : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
+                                                                            : 'border-rose-500/50 bg-rose-500/5 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500',
+                                                                    ]"
+                                                                    placeholder="0"
+                                                                />
+                                                            </div>
+                                                            <div class="space-y-0.5">
+                                                                <span class="block text-[9px] font-bold text-amber-500 uppercase">Hết hạn</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="1"
+                                                                    min="0"
+                                                                    v-model.number="item.received_expired_quantity"
+                                                                    :class="[
+                                                                        'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
+                                                                        isItemMismatch(item)
+                                                                            ? (getItemDiff(item) > 0
+                                                                                ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
+                                                                                : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
+                                                                            : 'border-amber-500/50 bg-amber-500/5 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500',
+                                                                    ]"
+                                                                    placeholder="0"
+                                                                />
+                                                            </div>
+                                                            <div class="space-y-0.5">
+                                                                <span class="block text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase">Thiếu</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="1"
+                                                                    min="0"
+                                                                    v-model.number="item.received_missing_quantity"
+                                                                    :class="[
+                                                                        'w-full rounded-lg border px-2 py-1 text-center font-bold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:outline-none transition',
+                                                                        isItemMismatch(item)
+                                                                            ? (getItemDiff(item) > 0
+                                                                                ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 focus:ring-1 focus:ring-rose-500'
+                                                                                : 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 focus:ring-1 focus:ring-amber-500')
+                                                                            : 'border-indigo-500/50 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 focus:ring-1 focus:ring-indigo-500',
+                                                                    ]"
+                                                                    placeholder="0"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Cảnh báo khi tổng kiểm đếm không khớp với số lượng kho duyệt -->
+                                                        <div
+                                                            v-if="isItemMismatch(item)"
+                                                            class="flex items-center justify-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold"
+                                                            :class="getItemDiff(item) > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'"
+                                                        >
+                                                            <AlertTriangle class="size-3 shrink-0" />
+                                                            <span v-if="getItemDiff(item) > 0">
+                                                                Tổng ({{ formatQuantity(getItemSum(item)) }}) vượt duyệt ({{ formatQuantity(getItemMax(item)) }}) +{{ formatQuantity(getItemDiff(item)) }}
+                                                            </span>
+                                                            <span v-else>
+                                                                Tổng ({{ formatQuantity(getItemSum(item)) }}) chưa đủ mức duyệt ({{ formatQuantity(getItemMax(item)) }}) (còn {{ formatQuantity(Math.abs(getItemDiff(item))) }})
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="p-3 pr-4 text-right font-medium text-muted-foreground">
+                                                    {{ formatCurrency(item.unit_cost) }}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-                        </template>
                     </div>
 
                     <!-- Modal Footer -->
@@ -1812,7 +2021,7 @@ input[type='number'] {
 @media print {
     @page {
         size: A4;
-        margin: 12mm;
+        margin: 10mm;
     }
 
     :global(body) {
@@ -1824,21 +2033,31 @@ input[type='number'] {
     }
 
     .report-print-sheet,
-    .report-print-sheet * {
+    .report-print-sheet *,
+    #branch-dispatch-slip,
+    #branch-dispatch-slip * {
         visibility: visible !important;
     }
 
-    .report-print-sheet {
+    .report-print-sheet,
+    #branch-dispatch-slip {
         position: fixed !important;
-        inset: 0 !important;
+        left: 0 !important;
+        top: 0 !important;
         width: 100% !important;
-        overflow: visible !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 8mm 10mm !important;
         border: 0 !important;
         border-radius: 0 !important;
         box-shadow: none !important;
+        background: #fff !important;
+        color: #000 !important;
+        z-index: 999999 !important;
     }
 
-    .report-print-actions {
+    .report-print-actions,
+    .no-print {
         display: none !important;
     }
 }
