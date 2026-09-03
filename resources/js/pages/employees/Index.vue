@@ -23,6 +23,7 @@ import {
     Search,
     ChevronLeft,
     ChevronRight,
+    Lock,
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -806,8 +807,27 @@ function cleanShiftName(name: string): string {
     return name.split(' (')[0].trim();
 }
 
+function isPastDay(dateStr?: string): boolean {
+    if (!dateStr) {
+        return false;
+    }
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    return dateStr < todayStr;
+}
+
 function isShiftEnded(dateStr?: string, endTimeStr?: string): boolean {
-    if (!dateStr || !endTimeStr) {
+    if (!dateStr) {
+        return false;
+    }
+
+    if (isPastDay(dateStr)) {
+        return true;
+    }
+
+    if (!endTimeStr) {
         return false;
     }
 
@@ -1279,6 +1299,16 @@ const submitQuickSchedule = async () => {
 
 // Assignment Operations
 const openAssignModal = (dayKey: string) => {
+    const dayObj = weekDaysWithDates.value.find((d) => d.key === dayKey);
+
+    if (dayObj && isPastDay(dayObj.dateStr)) {
+        import('vue-sonner').then((m) =>
+            m.toast.error('Ngày này đã trôi qua, không thể xếp thêm ca làm việc.'),
+        );
+
+        return;
+    }
+
     if (availableEmployeesList.value.length === 0) {
         import('vue-sonner').then((m) =>
             m.toast.error(
@@ -1311,6 +1341,17 @@ const submitAssignment = async () => {
     const targetDayDate =
         weekDaysWithDates.value.find((d) => d.key === currentAssignDay.value)
             ?.dateStr || '';
+
+    if (isPastDay(targetDayDate)) {
+        import('vue-sonner').then((m) =>
+            m.toast.error(
+                'Không thể xếp lịch cho những ngày đã trôi qua trong quá khứ.',
+            ),
+        );
+
+        return;
+    }
+
     const employeeObj = props.employees.find(
         (e) => e.full_name === assignForm.value.employee_name,
     );
@@ -1532,6 +1573,16 @@ const handleDropShift = (e: DragEvent, dayKey: string) => {
     const shiftName = e.dataTransfer?.getData('text/plain');
 
     if (!shiftName) {
+        return;
+    }
+
+    const dayObj = weekDaysWithDates.value.find((d) => d.key === dayKey);
+
+    if (dayObj && isPastDay(dayObj.dateStr)) {
+        import('vue-sonner').then((m) =>
+            m.toast.error('Ngày này đã trôi qua, không thể xếp thêm ca làm việc.'),
+        );
+
         return;
     }
 
@@ -3497,7 +3548,7 @@ const submitSwapReject = () => {
 
                                             <!-- Add dynamic assign button -->
                                             <button
-                                                v-if="!isAutoSchedule"
+                                                v-if="!isAutoSchedule && !isPastDay(day.dateStr)"
                                                 @click="
                                                     openAssignModal(day.key)
                                                 "
@@ -3506,6 +3557,13 @@ const submitSwapReject = () => {
                                             >
                                                 <Plus class="size-3.5" />
                                             </button>
+                                            <span
+                                                v-else-if="!isAutoSchedule && isPastDay(day.dateStr)"
+                                                class="flex h-6 items-center gap-1 rounded-md bg-slate-100 px-2 text-[10px] font-medium text-slate-400 select-none dark:bg-slate-800/60 dark:text-slate-500"
+                                                title="Ngày này đã trôi qua, không thể xếp thêm ca"
+                                            >
+                                                <Lock class="size-2.5 opacity-70" /> Đã qua
+                                            </span>
 
                                             <div
                                                 v-if="

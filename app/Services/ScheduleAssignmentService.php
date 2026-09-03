@@ -145,6 +145,11 @@ class ScheduleAssignmentService
             $currentDate = $startOfWeek->copy()->addDays($i);
             $dateStr = $currentDate->toDateString();
 
+            // Không tự động xếp ca cho các ngày đã qua trong quá khứ
+            if ($currentDate->lt($today)) {
+                continue;
+            }
+
             // Track employee IDs assigned today to prevent double booking in-memory
             $assignedTodayEmployeeIds = $immutableAssignments
                 ->filter(function (ScheduleAssignment $assignment) use ($dateStr) {
@@ -333,6 +338,14 @@ class ScheduleAssignmentService
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
         $offset = self::DAY_OFFSETS[$data['day']] ?? 0;
         $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
+
+        if ($scheduledDate < Carbon::today()->toDateString()) {
+            return [
+                'success' => false,
+                'field' => 'day',
+                'message' => 'Không thể xếp lịch cho những ngày đã trôi qua trong quá khứ.',
+            ];
+        }
 
         $startProposed = Carbon::parse($scheduledDate.' '.$shift->start_time);
         $endProposed = $shift->is_overnight
@@ -576,6 +589,11 @@ class ScheduleAssignmentService
             $lastWeekDate = Carbon::parse($assignment->scheduled_date);
             $dayOffset = $lastWeekDate->diffInDays($startOfLastWeek); // days since Monday of last week
             $currentWeekDateStr = $startOfCurrentWeek->copy()->addDays($dayOffset)->toDateString();
+
+            // Không xếp lịch cho các ngày đã qua trong quá khứ
+            if ($currentWeekDateStr < Carbon::today()->toDateString()) {
+                continue;
+            }
 
             // Không tạo bản ghi trùng với ca hiện tại đã được bảo vệ.
             $assignmentKey = $assignment->employee_id.'|'.$assignment->shift_id.'|'.$currentWeekDateStr;

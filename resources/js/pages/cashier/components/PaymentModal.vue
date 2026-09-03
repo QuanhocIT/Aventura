@@ -675,11 +675,12 @@ const numberFormat = (val: number) =>
                                 :key="m.id"
                                 variant="outline"
                                 class="h-10 rounded-xl text-xs"
-                                :class="
+                                :class="[
                                     paymentMethod === m.id
                                         ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                                        : ''
-                                "
+                                        : '',
+                                    m.id === 'multi' ? 'col-span-2' : '',
+                                ]"
                                 @click="emit('update:paymentMethod', m.id)"
                             >
                                 {{ m.label }}
@@ -805,74 +806,7 @@ const numberFormat = (val: number) =>
                         </Button>
                     </div>
 
-                    <!-- Thông tin ghi nợ VIP/B2B -->
-                    <div
-                        v-if="paymentMethod === 'debt'"
-                        class="flex flex-col gap-2 rounded-xl p-1 text-left text-xs"
-                    >
-                        <div
-                            v-if="!foundCustomer"
-                            class="rounded-lg border border-rose-100 bg-rose-50 p-2.5 font-bold text-rose-500"
-                        >
-                            ⚠️ Giao dịch ghi nợ yêu cầu chọn khách hàng trước.
-                        </div>
-                        <div
-                            v-else-if="
-                                !foundCustomer.is_vip && !foundCustomer.is_b2b
-                            "
-                            class="rounded-lg border border-rose-100 bg-rose-50 p-2.5 font-bold text-rose-500"
-                        >
-                            ⚠️ Khách hàng này không được cấp quyền mua nợ (Không
-                            phải VIP/B2B).
-                        </div>
-                        <div
-                            v-else
-                            class="flex flex-col gap-1.5 rounded-xl border bg-slate-50 p-3 dark:bg-slate-900/20"
-                        >
-                            <div class="flex justify-between">
-                                <span class="text-slate-500"
-                                    >Hạn mức nợ tối đa:</span
-                                >
-                                <span class="font-mono font-bold"
-                                    >{{
-                                        numberFormat(
-                                            foundCustomer.credit_limit ?? 0,
-                                        )
-                                    }}đ</span
-                                >
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-500"
-                                    >Dư nợ hiện tại:</span
-                                >
-                                <span class="font-mono font-bold text-rose-500"
-                                    >{{
-                                        numberFormat(
-                                            foundCustomer.current_debt ?? 0,
-                                        )
-                                    }}đ</span
-                                >
-                            </div>
-                            <div
-                                class="flex justify-between border-t pt-1.5 dark:border-slate-800"
-                            >
-                                <span class="font-bold text-slate-500"
-                                    >Khả năng nợ còn lại:</span
-                                >
-                                <span
-                                    class="font-mono font-bold text-slate-800 dark:text-slate-200"
-                                >
-                                    {{
-                                        numberFormat(
-                                            (foundCustomer.credit_limit ?? 0) -
-                                                (foundCustomer.current_debt ??
-                                                    0),
-                                        )
-                                    }}đ
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+
                 </div>
 
                 <div
@@ -887,13 +821,7 @@ const numberFormat = (val: number) =>
                     </Button>
                     <Button
                         class="flex-1 rounded-xl bg-emerald-600 text-xs hover:bg-emerald-700"
-                        :disabled="
-                            isPaying ||
-                            (paymentMethod === 'debt' &&
-                                (!foundCustomer ||
-                                    (!foundCustomer.is_vip &&
-                                        !foundCustomer.is_b2b)))
-                        "
+                        :disabled="isPaying"
                         @click="emit('processPayment')"
                     >
                         {{

@@ -22,7 +22,7 @@ export function useCashierPayment(
 ) {
     const showPaymentModal = ref(false);
     const paymentMethod = ref<
-        'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt' | 'multi'
+        'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'multi'
     >('cash');
     const cashReceived = ref<number>(0);
     const multiPayments = ref<
@@ -79,8 +79,7 @@ export function useCashierPayment(
         { id: 'bank_transfer' as const, label: '🏦 Chuyển khoản QR' },
         { id: 'card' as const, label: '💳 Thẻ ATM/POS' },
         { id: 'ewallet' as const, label: '📱 Ví điện tử' },
-        { id: 'debt' as const, label: '📝 Ghi nợ VIP/B2B' },
-        { id: 'multi' as const, label: '🔀 Thanh toán kết hợp (Multi-Tender)' },
+        { id: 'multi' as const, label: '🔀 Thanh toán kết hợp' },
     ];
 
     const cashDenominations = [50000, 100000, 200000, 500000];

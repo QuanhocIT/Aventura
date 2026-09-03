@@ -28,7 +28,7 @@ import {
     X,
     XCircle,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1011,10 +1011,46 @@ const timelineFor = (transfer: Transfer) => [
     },
 ];
 
+const actionFilter = ref<'all' | 'dispatch' | 'receive'>('all');
+
+const filterAndScrollTo = (action: 'dispatch' | 'receive') => {
+    if (actionFilter.value === action) {
+        actionFilter.value = 'all';
+
+        return;
+    }
+
+    actionFilter.value = action;
+    statusFilter.value = 'all';
+    workQueueOnly.value = false;
+
+    nextTick(() => {
+        const target =
+            document.getElementById('transfers-filter-banner') ||
+            document.getElementById('transfers-list-section');
+
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+};
+
+const clearActionFilter = () => {
+    actionFilter.value = 'all';
+};
+
 const filteredTransfers = computed(() => {
     const query = search.value.trim().toLowerCase();
 
     return props.transfers.filter((transfer) => {
+        if (actionFilter.value === 'dispatch' && !transfer.can_dispatch) {
+            return false;
+        }
+
+        if (actionFilter.value === 'receive' && !transfer.can_receive) {
+            return false;
+        }
+
         const matchesStatus =
             statusFilter.value === 'all' ||
             transfer.status === statusFilter.value;
@@ -1392,11 +1428,13 @@ const openDetails = (transfer: Transfer) => {
 const setStatusFilter = (status: 'all' | TransferStatus) => {
     statusFilter.value = status;
     workQueueOnly.value = false;
+    actionFilter.value = 'all';
 };
 
 const setWorkQueue = () => {
     workQueueOnly.value = true;
     statusFilter.value = 'all';
+    actionFilter.value = 'all';
 };
 
 const refreshPage = () => {
@@ -1587,9 +1625,15 @@ const formatDuration = (hours: number) => {
                 <!-- Bulk dispatch button: only for warehouse/owner who can_execute and has items to dispatch -->
                 <Button
                     v-if="props.permissions.can_execute && dispatchableTransfers.length > 0"
-                    @click="openBulkDispatch"
-                    class="gap-2 rounded-xl bg-amber-500 font-semibold text-white shadow-sm shadow-amber-500/25 hover:bg-amber-600"
+                    @click="filterAndScrollTo('dispatch')"
+                    class="gap-2 rounded-xl bg-amber-500 font-semibold text-white shadow-sm shadow-amber-500/25 transition-all duration-200 hover:bg-amber-600 active:scale-95"
+                    :class="
+                        actionFilter === 'dispatch'
+                            ? 'ring-2 ring-white shadow-lg shadow-amber-500/50 scale-[1.03]'
+                            : ''
+                    "
                     id="bulk-dispatch-btn"
+                    title="Nhấn để lọc các phiếu cần xuất nguyên liệu và kéo xuống danh sách"
                 >
                     <PackageOpen class="size-4" /> Xuất nguyên liệu
                     <span class="inline-flex size-5 items-center justify-center rounded-full bg-white/25 text-[11px] font-black">{{ dispatchableTransfers.length }}</span>
@@ -1597,9 +1641,15 @@ const formatDuration = (hours: number) => {
                 <!-- Bulk receive button: only for warehouse/owner who can_execute and has items to receive -->
                 <Button
                     v-if="props.permissions.can_execute && receivableTransfers.length > 0"
-                    @click="openBulkReceive"
-                    class="gap-2 rounded-xl bg-emerald-600 font-semibold text-white shadow-sm shadow-emerald-600/25 hover:bg-emerald-700"
+                    @click="filterAndScrollTo('receive')"
+                    class="gap-2 rounded-xl bg-emerald-600 font-semibold text-white shadow-sm shadow-emerald-600/25 transition-all duration-200 hover:bg-emerald-700 active:scale-95"
+                    :class="
+                        actionFilter === 'receive'
+                            ? 'ring-2 ring-white shadow-lg shadow-emerald-600/50 scale-[1.03]'
+                            : ''
+                    "
                     id="bulk-receive-btn"
+                    title="Nhấn để lọc các phiếu cần nhận nguyên liệu và kéo xuống danh sách"
                 >
                     <PackageCheck class="size-4" /> Nhận nguyên liệu
                     <span class="inline-flex size-5 items-center justify-center rounded-full bg-white/25 text-[11px] font-black">{{ receivableTransfers.length }}</span>
@@ -2014,8 +2064,77 @@ const formatDuration = (hours: number) => {
 
 
 
+        <!-- Active Action Filter Banner (Xuất / Nhận nguyên liệu) -->
+        <div
+            v-if="actionFilter !== 'all'"
+            id="transfers-filter-banner"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm transition-all scroll-mt-24"
+            :class="
+                actionFilter === 'dispatch'
+                    ? 'border-amber-500/40 bg-amber-950/20 text-amber-200'
+                    : 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
+            "
+        >
+            <div class="flex items-center gap-3">
+                <div
+                    class="flex size-10 items-center justify-center rounded-xl shadow-sm"
+                    :class="
+                        actionFilter === 'dispatch'
+                            ? 'border border-amber-500/30 bg-amber-500/20 text-amber-400'
+                            : 'border border-emerald-500/30 bg-emerald-500/20 text-emerald-400'
+                    "
+                >
+                    <PackageOpen v-if="actionFilter === 'dispatch'" class="size-5" />
+                    <PackageCheck v-else class="size-5" />
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-foreground">
+                        {{
+                            actionFilter === 'dispatch'
+                                ? `Đang lọc: ${filteredTransfers.length} nguyên liệu chờ xuất kho`
+                                : `Đang lọc: ${filteredTransfers.length} nguyên liệu chờ nhận kho`
+                        }}
+                    </h3>
+                    <p class="text-xs text-muted-foreground">
+                        {{
+                            actionFilter === 'dispatch'
+                                ? 'Danh sách các phiếu cần xác nhận xuất kho và chuyển giao vận chuyển.'
+                                : 'Danh sách các phiếu đang chuyển giao đến, chờ kiểm đếm và nhận hàng.'
+                        }}
+                    </p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    v-if="actionFilter === 'dispatch' && dispatchableTransfers.length > 0"
+                    size="sm"
+                    class="gap-1.5 rounded-xl bg-amber-500 font-bold text-white shadow-sm hover:bg-amber-600"
+                    @click="openBulkDispatch()"
+                >
+                    <PackageOpen class="size-4" /> Xuất hàng loạt ({{ dispatchableTransfers.length }})
+                </Button>
+                <Button
+                    v-if="actionFilter === 'receive' && receivableTransfers.length > 0"
+                    size="sm"
+                    class="gap-1.5 rounded-xl bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-700"
+                    @click="openBulkReceive()"
+                >
+                    <PackageCheck class="size-4" /> Nhận hàng loạt ({{ receivableTransfers.length }})
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    class="gap-1.5 rounded-xl border-border bg-background/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    @click="clearActionFilter"
+                >
+                    <X class="size-3.5" /> Bỏ lọc
+                </Button>
+            </div>
+        </div>
+
         <section
-            class="flex flex-col gap-3 rounded-2xl border border-border bg-card/50 p-3 sm:flex-row sm:items-center"
+            id="transfers-list-section"
+            class="flex flex-col gap-3 rounded-2xl border border-border bg-card/50 p-3 sm:flex-row sm:items-center scroll-mt-24"
         >
             <div class="relative flex-1">
                 <Search
@@ -2029,6 +2148,7 @@ const formatDuration = (hours: number) => {
             </div>
             <select
                 v-model="statusFilter"
+                @change="actionFilter = 'all'"
                 class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:w-56"
             >
                 <option value="all">Tất cả trạng thái</option>

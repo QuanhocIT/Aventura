@@ -45,13 +45,13 @@ class PreventSelfApproval
         $userId = $user?->id;
 
         $violation = match ($action) {
-            // Không được tự duyệt đơn do mình tạo
-            'approve' => $supplyRequest->created_by === $userId
+            // Không được tự duyệt đơn do mình tạo (ngoại trừ đơn giao bù tự động từ đơn gốc)
+            'approve' => ($supplyRequest->created_by === $userId && empty($supplyRequest->parent_request_id))
                 ? 'Bạn không thể duyệt đơn cấp phát do chính mình tạo. Yêu cầu phân tách người tạo – người duyệt.'
                 : null,
 
-            // Người tạo đơn cấp phát không được tự xuất kho
-            'dispatch' => $supplyRequest->created_by === $userId
+            // Người tạo đơn cấp phát không được tự xuất kho (ngoại trừ đơn giao bù tự động từ đơn gốc)
+            'dispatch' => ($supplyRequest->created_by === $userId && empty($supplyRequest->parent_request_id))
                 ? 'Người tạo đơn cấp phát không được phép tự xuất kho. Yêu cầu Kho Tổng thực hiện xuất kho bàn giao.'
                 : null,
 

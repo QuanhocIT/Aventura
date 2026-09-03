@@ -543,15 +543,19 @@ class CentralWarehouseService
                     }
 
                     // Kiểm tra FEFO
-                    $earlierBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                    $earlierBatchQuery = InventoryBatch::where('restaurant_id', $request->restaurant_id)
                         ->where('branch_id', $request->from_branch_id)
                         ->where('ingredient_id', $item->ingredient_id)
                         ->where('status', 'active')
                         ->where('quantity_remaining', '>', 0)
                         ->where('id', '!=', $batch->id)
-                        ->whereNotNull('expiry_date')
-                        ->where('expiry_date', '<', $batch->expiry_date)
-                        ->exists();
+                        ->whereNotNull('expiry_date');
+
+                    if ($batch->expiry_date) {
+                        $earlierBatchQuery->where('expiry_date', '<', $batch->expiry_date);
+                    }
+
+                    $earlierBatch = $earlierBatchQuery->exists();
 
                     $nonFefoReason = $picked['non_fefo_reason'] ?? null;
                     if ($earlierBatch && blank($nonFefoReason)) {
@@ -2062,7 +2066,7 @@ class CentralWarehouseService
                 'from_branch_id' => $parentRequest->from_branch_id,
                 'to_branch_id' => $parentRequest->to_branch_id,
                 'parent_request_id' => $parentRequest->id,
-                'created_by' => $user->id,
+                'created_by' => $parentRequest->created_by ?? $user->id,
                 'status' => SupplyRequest::STATUS_PENDING,
                 'notes' => "Đơn giao bù tự động từ đơn gốc #{$parentRequest->request_code}",
                 'total_amount' => 0,

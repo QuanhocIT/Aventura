@@ -28,6 +28,7 @@ use App\Models\TableReservation;
 use App\Models\User;
 use App\Models\WorkShift;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -38,9 +39,9 @@ use Spatie\Permission\Models\Role;
 class AllBranchesDemoSeeder extends Seeder
 {
     private Restaurant $restaurant;
-    private $products;
-    private $ingredients;
-    private $suppliers;
+    private Collection $products;
+    private Collection $ingredients;
+    private Collection $suppliers;
 
     public function run(): void
     {
