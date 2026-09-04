@@ -549,7 +549,7 @@ const getTypeBadgeColor = (type: string) => {
                                         <div>
                                             <h4 class="font-black text-sm uppercase tracking-wider text-black">SAI GON DINER / AVENTURA</h4>
                                             <p class="text-[10px] text-neutral-800">Chuỗi nhà hàng Saigon Diner - Chi nhánh chính</p>
-                                            <p class="text-[9px] text-neutral-600">Hotline: 024 1234 5678</p>
+                                            <p class="text-[9px] text-neutral-600">Hotline: Chưa cập nhật</p>
                                         </div>
                                     </div>
 
@@ -704,8 +704,8 @@ const getTypeBadgeColor = (type: string) => {
                                             <h4 class="font-black text-xs uppercase tracking-wider text-black">CÔNG TY TNHH AVENTURA</h4>
                                         </div>
                                         <p class="text-[9.5px] text-neutral-700">Chuỗi cung cấp thực phẩm & dịch vụ nhà hàng</p>
-                                        <p class="text-[9px] text-neutral-600">Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
-                                        <p class="text-[9px] text-neutral-600">Hotline: 024 1234 5678</p>
+                                        <p class="text-[9px] text-neutral-600">Địa chỉ doanh nghiệp: Chưa cập nhật</p>
+                                        <p class="text-[9px] text-neutral-600">Hotline: Chưa cập nhật</p>
                                     </div>
 
                                     <div class="text-center">
@@ -731,7 +731,7 @@ const getTypeBadgeColor = (type: string) => {
                                         <p><span class="font-semibold">Người lập phiếu:</span> <span class="font-bold">{{ activeDocument.created_by_name }}</span></p>
                                         <p class="col-span-2">
                                             <span class="font-semibold">Lý do điều chuyển:</span>
-                                            <span class="ml-1">[ ] Cân đối tồn kho &nbsp; [ ] Phục vụ sản xuất/kinh doanh &nbsp; [x] Hỗ trợ chi nhánh &nbsp; [ ] Khác: {{ activeDocument.payload?.notes || 'ok' }}</span>
+                                            <span class="ml-1">{{ activeDocument.payload?.notes || 'Chưa cập nhật' }}</span>
                                         </p>
                                         <p><span class="font-semibold">Chức vụ:</span> Quản lý chi nhánh / Điều phối viên</p>
                                     </div>
@@ -742,20 +742,20 @@ const getTypeBadgeColor = (type: string) => {
                                     <div class="border border-black p-2">
                                         <h5 class="font-bold uppercase tracking-wider text-[10.5px]">2. THÔNG TIN BÊN ĐIỀU CHUYỂN (NƠI XUẤT)</h5>
                                         <div class="mt-1 space-y-0.5">
-                                            <p><span class="font-semibold">Kho xuất:</span> {{ activeDocument.payload?.from_branch?.name || 'Chi nhánh chính' }}</p>
-                                            <p><span class="font-semibold">Địa chỉ kho:</span> Khu vực kho chi nhánh xuất hàng</p>
-                                            <p><span class="font-semibold">Người phụ trách kho:</span> {{ activeDocument.created_by_name }}</p>
-                                            <p><span class="font-semibold">SĐT:</span> 024 1234 5678</p>
+                                            <p><span class="font-semibold">Kho xuất:</span> {{ activeDocument.payload?.from_branch?.name || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">Địa chỉ kho:</span> {{ activeDocument.payload?.from_branch?.address || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">Người phụ trách kho:</span> {{ activeDocument.payload?.dispatched_by?.name || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">SĐT:</span> {{ activeDocument.payload?.from_branch?.phone || 'Chưa cập nhật' }}</p>
                                         </div>
                                     </div>
 
                                     <div class="border border-black p-2">
                                         <h5 class="font-bold uppercase tracking-wider text-[10.5px]">3. THÔNG TIN BÊN NHẬN ĐIỀU CHUYỂN (NƠI NHẬN)</h5>
                                         <div class="mt-1 space-y-0.5">
-                                            <p><span class="font-semibold">Kho nhận:</span> {{ activeDocument.payload?.to_branch?.name || 'Chi nhánh nhận' }}</p>
-                                            <p><span class="font-semibold">Địa chỉ kho:</span> Khu vực nhận hàng chi nhánh</p>
-                                            <p><span class="font-semibold">Người phụ trách kho:</span> {{ activeDocument.payload?.received_by?.name || activeDocument.created_by_name }}</p>
-                                            <p><span class="font-semibold">SĐT:</span> 024 1234 5678</p>
+                                            <p><span class="font-semibold">Kho nhận:</span> {{ activeDocument.payload?.to_branch?.name || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">Địa chỉ kho:</span> {{ activeDocument.payload?.to_branch?.address || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">Người phụ trách kho:</span> {{ activeDocument.payload?.received_by?.name || 'Chưa cập nhật' }}</p>
+                                            <p><span class="font-semibold">SĐT:</span> {{ activeDocument.payload?.to_branch?.phone || 'Chưa cập nhật' }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -764,12 +764,12 @@ const getTypeBadgeColor = (type: string) => {
                                 <div class="mt-2 border border-black p-2 text-[10.5px]">
                                     <h5 class="font-bold uppercase tracking-wider text-[10.5px]">4. HÌNH THỨC VẬN CHUYỂN</h5>
                                     <div class="mt-1 flex items-center justify-between">
-                                        <p>[x] Tự vận chuyển &nbsp;&nbsp; [ ] Đơn vị vận chuyển &nbsp;&nbsp; [ ] Khác: ....................</p>
-                                        <p><span class="font-semibold">Dự kiến giao đến:</span> Trong ngày</p>
+                                        <p>Phương thức: {{ activeDocument.payload?.transport_method || 'Chưa cập nhật' }}</p>
+                                        <p><span class="font-semibold">Dự kiến giao đến:</span> Chưa xác định</p>
                                     </div>
                                     <div class="mt-0.5 flex items-center gap-6">
-                                        <p><span class="font-semibold">Phương tiện vận chuyển:</span> {{ activeDocument.payload?.transport_method || 'Xe máy / Xe tải nội bộ' }}</p>
-                                        <p><span class="font-semibold">Biển số xe:</span> <span class="font-mono font-bold">{{ activeDocument.payload?.vehicle_number || '29C-889.92' }}</span></p>
+                                        <p><span class="font-semibold">Phương tiện vận chuyển:</span> {{ activeDocument.payload?.transport_method || 'Chưa cập nhật' }}</p>
+                                        <p><span class="font-semibold">Biển số xe:</span> <span class="font-mono font-bold">{{ activeDocument.payload?.vehicle_number || 'Chưa cập nhật' }}</span></p>
                                     </div>
                                 </div>
 
@@ -797,11 +797,11 @@ const getTypeBadgeColor = (type: string) => {
                                         <tbody>
                                             <tr v-for="item in (activeDocument.payload?.items || [])" :key="item.stt">
                                                 <td class="border border-black p-1 font-mono">{{ item.stt }}</td>
-                                                <td class="border border-black p-1 font-mono font-bold">{{ item.sku }}</td>
-                                                <td class="border border-black p-1 text-left font-semibold">{{ item.name }}</td>
-                                                <td class="border border-black p-1">{{ item.unit }}</td>
+                                                <td class="border border-black p-1 font-mono font-bold">{{ item.sku || 'Chưa cập nhật' }}</td>
+                                                <td class="border border-black p-1 text-left font-semibold">{{ item.name || 'Chưa cập nhật' }}</td>
+                                                <td class="border border-black p-1">{{ item.unit || 'Chưa cập nhật' }}</td>
                                                 <td class="border border-black p-1 font-mono font-bold">{{ formatQuantity(item.dispatched_quantity) }}</td>
-                                                <td class="border border-black p-1 font-mono text-neutral-600">{{ item.received_quantity ? formatQuantity(item.received_quantity) : '...........' }}</td>
+                                                <td class="border border-black p-1 font-mono text-neutral-600">{{ item.received_quantity !== null && item.received_quantity !== undefined ? formatQuantity(item.received_quantity) : '...........' }}</td>
                                                 <td class="border border-black p-1 font-mono">{{ formatQuantity(item.current_stock) }}</td>
                                                 <td class="border border-black p-1 text-right font-mono">{{ formatCurrency(item.unit_cost) }}</td>
                                                 <td class="border border-black p-1 text-right font-mono font-bold">{{ formatCurrency(item.total_amount) }}</td>
@@ -832,19 +832,19 @@ const getTypeBadgeColor = (type: string) => {
                                         <p class="font-bold uppercase">Thủ kho xuất</p>
                                         <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
                                         <div class="h-14"></div>
-                                        <p class="font-bold">{{ activeDocument.created_by_name }}</p>
+                                        <p class="font-bold">{{ activeDocument.payload?.dispatched_by?.name || 'Chưa ký' }}</p>
                                     </div>
                                     <div>
                                         <p class="font-bold uppercase">Người vận chuyển</p>
                                         <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
                                         <div class="h-14"></div>
-                                        <p class="font-bold">Lái xe nội bộ</p>
+                                        <p class="font-bold">Chưa ký</p>
                                     </div>
                                     <div>
                                         <p class="font-bold uppercase">Thủ kho nhận</p>
                                         <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
                                         <div class="h-14"></div>
-                                        <p class="font-bold">Đại diện kho nhận</p>
+                                        <p class="font-bold">{{ activeDocument.payload?.received_by?.name || 'Chưa ký' }}</p>
                                     </div>
                                 </div>
                             </template>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryCountSession;
+use App\Models\Inventory;
 use App\Models\PurchaseOrder;
 use App\Models\RestaurantBranch;
 use App\Models\ShiftClosing;
@@ -114,17 +115,22 @@ class EnterpriseDocumentHubController extends Controller
                 ->when($fromTime, fn ($q) => $q->where('created_at', '>=', $fromTime))
                 ->when($toTime, fn ($q) => $q->where('created_at', '<=', $toTime))
                 ->orderByDesc('created_at')
-                ->limit(100)
                 ->get();
+
+            $inventorySnapshots = Inventory::query()
+                ->where('restaurant_id', $restaurantId)
+                ->get(['branch_id', 'ingredient_id', 'quantity_on_hand'])
+                ->keyBy(fn (Inventory $inventory): string => $inventory->branch_id.':'.$inventory->ingredient_id);
 
             // Group by request_group_id or date-from-to
             $grouped = $transfers->groupBy(fn ($t) => $t->request_group_id ?: ('TG-' . $t->created_at->format('Ymd') . '-' . $t->from_branch_id . '-' . $t->to_branch_id));
 
             foreach ($grouped as $groupId => $items) {
                 $first = $items->first();
-                $year = $first->created_at ? $first->created_at->format('Y') : date('Y');
-                $code = 'DC-NL/' . $year . '/' . strtoupper(substr(md5($groupId), 0, 8)) . '-1';
-                $totalVal = $items->sum(fn ($i) => (float) ($i->quantity_dispatched ?: $i->quantity_requested ?: 0) * (float) ($i->dispatch_unit_cost ?: $i->ingredient?->average_cost ?: 240000));
+                $code = $first->document_code ?: 'TR-'.$first->id;
+                $totalVal = $items->sum(fn ($i) => $i->quantity_dispatched !== null && $i->dispatch_unit_cost !== null
+                    ? (float) $i->quantity_dispatched * (float) $i->dispatch_unit_cost
+                    : 0.0);
                 $hasDiff = $items->contains(fn ($i) => (float) ($i->discrepancy_quantity ?? 0) > 0);
 
                 $stockTransfers[] = [
@@ -135,7 +141,7 @@ class EnterpriseDocumentHubController extends Controller
                     'code' => $code,
                     'title' => 'Phiếu Điều Chuyển Nguyên Liệu Khổ A4',
                     'branch_id' => $first->to_branch_id,
-                    'branch_name' => ($first->fromBranch?->name ?? 'Kho xuất') . ' ➔ ' . ($first->toBranch?->name ?? 'Kho nhận'),
+                    'branch_name' => ($first->fromBranch?->name ?? 'Chưa cập nhật') . ' ➜ ' . ($first->toBranch?->name ?? 'Chưa cập nhật'),
                     'created_by_name' => $first->requestedBy?->name ?? 'Quản lý điều chuyển',
                     'created_at' => $first->created_at?->toIso8601String() ?? now()->toIso8601String(),
                     'date_formatted' => $first->created_at?->format('d/m/Y H:i') ?? '',
@@ -155,22 +161,24 @@ class EnterpriseDocumentHubController extends Controller
                         'received_by' => $first->receivedBy,
                         'routed_by' => $first->routedBy,
                         'status' => $first->status,
-                        'transport_method' => 'Tự vận chuyển (Xe máy / Xe tải nội bộ)',
-                        'vehicle_number' => $first->vehicle_number ?: '29C-889.92',
-                        'notes' => $first->reason ?: 'Hỗ trợ nguyên liệu theo định mức chi nhánh',
+                        'transport_method' => null,
+                        'vehicle_number' => $first->vehicle_number,
+                        'notes' => $first->reason ?: null,
                         'items' => $items->map(fn ($row, $idx) => [
                             'stt' => $idx + 1,
                             'ingredient_id' => $row->ingredient_id,
-                            'sku' => $row->ingredient?->sku ?? ('TR-' . str_pad((string) ($row->ingredient_id ?? ($idx + 1)), 4, '0', STR_PAD_LEFT)),
-                            'name' => $row->ingredient?->name ?? 'Nguyên liệu',
-                            'unit' => $row->ingredient?->unit?->symbol ?? $row->ingredient?->unit?->name ?? 'đv',
+                            'sku' => $row->ingredient?->sku,
+                            'name' => $row->ingredient?->name,
+                            'unit' => $row->ingredient?->unit?->symbol ?? $row->ingredient?->unit?->name,
                             'requested_quantity' => (float) $row->quantity_requested,
-                            'dispatched_quantity' => (float) ($row->quantity_dispatched ?: $row->quantity_requested),
-                            'received_quantity' => (float) ($row->quantity_received ?: $row->quantity_dispatched ?: $row->quantity_requested),
-                            'current_stock' => 27.0,
-                            'unit_cost' => (float) ($row->dispatch_unit_cost ?: $row->ingredient?->average_cost ?: 240000),
-                            'total_amount' => (float) ($row->quantity_dispatched ?: $row->quantity_requested) * (float) ($row->dispatch_unit_cost ?: $row->ingredient?->average_cost ?: 240000),
-                            'notes' => $row->discrepancy_reason ?? 'Đạt chuẩn',
+                            'dispatched_quantity' => $row->quantity_dispatched !== null ? (float) $row->quantity_dispatched : null,
+                            'received_quantity' => $row->quantity_received !== null ? (float) $row->quantity_received : null,
+                            'current_stock' => (float) ($inventorySnapshots->get($row->to_branch_id.':'.$row->ingredient_id)?->quantity_on_hand ?? 0),
+                            'unit_cost' => $row->dispatch_unit_cost !== null ? (float) $row->dispatch_unit_cost : null,
+                            'total_amount' => $row->quantity_dispatched !== null && $row->dispatch_unit_cost !== null
+                                ? (float) $row->quantity_dispatched * (float) $row->dispatch_unit_cost
+                                : 0.0,
+                            'notes' => $row->discrepancy_reason,
                         ])->values(),
                     ],
                 ];

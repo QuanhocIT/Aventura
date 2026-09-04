@@ -5,9 +5,12 @@ import {
     Activity,
     ArrowLeftRight,
     Ban,
+    Bot,
     CalendarClock,
     Check,
     CheckCircle2,
+    ChevronDown,
+    ChevronUp,
     ClipboardCheck,
     Clock3,
     Eye,
@@ -23,12 +26,15 @@ import {
     RefreshCw,
     Route as RouteIcon,
     Search,
+    Sparkles,
     Timer,
     Truck,
     X,
     XCircle,
+    Zap,
 } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,6 +55,15 @@ type TransferStatus =
     | 'rejected'
     | 'cancelled';
 
+interface TransferBatch {
+    id: number;
+    batch_number: string;
+    expiry_date?: string | null;
+    purchased_at?: string | null;
+    quantity_remaining?: number;
+    unit_cost?: number;
+}
+
 interface Transfer {
     id: number;
     request_group_id: string | null;
@@ -63,6 +78,7 @@ interface Transfer {
     from_branch_id: number | null;
     from_branch: string | null;
     quantity_requested: number;
+    backorder_quantity?: number;
     quantity_dispatched: number | null;
     quantity_received: number | null;
     quantity_received_good: number | null;
@@ -70,15 +86,22 @@ interface Transfer {
     quantity_received_expired: number;
     quantity_remaining: number;
     discrepancy_quantity: number;
+    shortage_quantity?: number;
+    shortage_action?: string | null;
+    shortage_resolution?: string | null;
     source_available_quantity: number;
     source_unit_cost: number;
     reason: string;
     owner_note: string | null;
     dispatch_note: string | null;
+    dispatch_evidence_path?: string | null;
+    document_code?: string | null;
     received_condition: string | null;
     received_note: string | null;
     receiving_evidence_path: string | null;
     source_batch_id: number | null;
+    source_batch?: TransferBatch | null;
+    available_batches?: TransferBatch[];
     destination_batch_id: number | null;
     quarantine_id: number | null;
     transport_temperature_min_c: number | null;
@@ -129,21 +152,39 @@ interface TransferGroup {
 interface Branch {
     id: number;
     name: string;
+    code?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    is_central_warehouse?: boolean;
+    warehouse_type?: string | null;
 }
 
 type BranchStock = Record<string, Record<string, number>>;
+
+interface BranchBatchItem {
+    id: number;
+    batch_number: string;
+    expiry_date?: string | null;
+    purchased_at?: string | null;
+    quantity_remaining: number;
+}
+
+type BranchBatches = Record<string, BranchBatchItem[]>;
 
 interface IngredientOption {
     id: number;
     name: string;
     branch_id: number | null;
     unit: string;
+    min_stock_level?: number;
+    safety_stock_quantity?: number;
 }
 
 const props = defineProps<{
     transfers: Transfer[];
     branches: Branch[];
     branch_stock: BranchStock;
+    branch_batches?: BranchBatches;
     ingredients: IngredientOption[];
     permissions: {
         can_route: boolean;
@@ -165,6 +206,22 @@ const requestOnly = computed(() => props.permissions.request_only === true);
 const isBranchScoped = computed(
     () => Boolean(props.assigned_branch_id && !props.permissions.can_route),
 );
+
+const isCentralBranch = (b: Branch) => {
+    const name = b.name?.toLowerCase() || '';
+
+    return Boolean(
+        b.is_central_warehouse ||
+        b.warehouse_type === 'central' ||
+        name.includes('kho tổng') ||
+        name.includes('tổng kho') ||
+        name.includes('tổng'),
+    );
+};
+
+const businessBranches = computed(() => {
+    return props.branches.filter((b) => !isCentralBranch(b));
+});
 
 const showRequest = ref(false);
 const routing = ref<Transfer | null>(null);
@@ -239,6 +296,225 @@ const removeRequestLine = (lineIndex: number | string) => {
     }
 };
 
+interface AiBranchRecommendation {
+    branch: Branch;
+    score: number;
+    status: 'optimal' | 'good' | 'warning';
+    fulfillmentRatio: number;
+    fulfilledItemsCount: number;
+    totalItemsCount: number;
+    hasNearExpiry: boolean;
+    nearExpiryDays?: number;
+    hasRegionalMismatch: boolean;
+    tags: Array<{ text: string; type: 'success' | 'warning' | 'info' | 'rescue' }>;
+    reason: string;
+    details: Array<{
+        name: string;
+        unit: string;
+        requested: number;
+        available: number;
+        sufficient: boolean;
+        hasNearExpiry: boolean;
+    }>;
+}
+
+const showAiDetails = ref(false);
+const aiAppliedNotice = ref<string | null>(null);
+
+const activeRequestItems = computed(() => {
+    return requestForm.items.filter(
+        (line: RequestLine) => line.ingredient_id !== '' && Number(line.quantity_requested) > 0,
+    );
+});
+
+const isAiAnalyzing = computed(() => activeRequestItems.value.length > 0);
+
+const aiBranchRecommendations = computed<AiBranchRecommendation[]>(() => {
+    const activeItems = activeRequestItems.value;
+
+    if (activeItems.length === 0) {
+        return [];
+    }
+
+    const toBranchId = Number(requestForm.to_branch_id);
+    const destinationBranch = props.branches.find((b) => b.id === toBranchId);
+    const destName = destinationBranch?.name?.toLowerCase() || '';
+    const destAddress = destinationBranch?.address?.toLowerCase() || '';
+    const isDestHanoi = destName.includes('hà nội') || destAddress.includes('hà nội');
+
+    const candidateBranches = businessBranches.value.filter((b) => b.id !== toBranchId);
+
+    const recommendations: AiBranchRecommendation[] = candidateBranches.map((branch) => {
+        let score = 0;
+        let fulfilledCount = 0;
+        let anyNearExpiry = false;
+        let minNearExpiryDays = 999;
+        let allCoverSafety = true;
+
+        const branchName = branch.name?.toLowerCase() || '';
+        const branchAddress = branch.address?.toLowerCase() || '';
+        const isBranchHanoi = branchName.includes('hà nội') || branchAddress.includes('hà nội');
+        const regionalMismatch = Boolean(
+            (isDestHanoi && !isBranchHanoi) || (!isDestHanoi && isBranchHanoi),
+        );
+
+        const details = activeItems.map((line: RequestLine) => {
+            const ingredient = props.ingredients.find(
+                (ing) => Number(ing.id) === Number(line.ingredient_id),
+            );
+            const reqQty = Number(line.quantity_requested);
+            const availQty = props.branch_stock?.[String(branch.id)]?.[String(line.ingredient_id)] ?? 0;
+            const safetyQty = Number(ingredient?.safety_stock_quantity || ingredient?.min_stock_level || 0);
+
+            const sufficient = availQty >= reqQty;
+
+            if (sufficient) {
+                fulfilledCount++;
+            }
+
+            if (availQty - reqQty < safetyQty) {
+                allCoverSafety = false;
+            }
+
+            const batchKey = `${branch.id}:${line.ingredient_id}`;
+            const batches = props.branch_batches?.[batchKey] || [];
+            let itemNearExpiry = false;
+
+            const now = new Date().getTime();
+
+            for (const b of batches) {
+                if (b.expiry_date && b.quantity_remaining > 0) {
+                    const expTime = new Date(b.expiry_date).getTime();
+                    const days = Math.ceil((expTime - now) / (1000 * 3600 * 24));
+
+                    if (days > 0 && days <= 14) {
+                        itemNearExpiry = true;
+                        anyNearExpiry = true;
+
+                        if (days < minNearExpiryDays) {
+                            minNearExpiryDays = days;
+                        }
+                    }
+                }
+            }
+
+            return {
+                name: ingredient?.name || 'Nguyên liệu',
+                unit: ingredient?.unit || 'ĐV',
+                requested: reqQty,
+                available: availQty,
+                sufficient,
+                hasNearExpiry: itemNearExpiry,
+            };
+        });
+
+        const fulfillmentRatio = fulfilledCount / activeItems.length;
+
+        // 1. Fulfillment Score (Max 50)
+        score += fulfillmentRatio * 45;
+
+        if (fulfillmentRatio === 1) {
+            score += 5; // Bonus for full fulfillment
+        }
+
+        // 2. Surplus / Safety Stock (Max 25)
+        if (fulfillmentRatio === 1) {
+            if (allCoverSafety) {
+                score += 25;
+            } else {
+                score += 12;
+            }
+        }
+
+        // 3. FEFO Rescue (Max 25)
+        if (anyNearExpiry && fulfillmentRatio > 0) {
+            score += 25;
+        }
+
+        // 4. Regional Mismatch Penalty
+        if (regionalMismatch) {
+            score = Math.max(5, score - 45);
+        }
+
+        score = Math.min(100, Math.round(score));
+
+        // Generate tags & reasons
+        const tags: Array<{ text: string; type: 'success' | 'warning' | 'info' | 'rescue' }> = [];
+
+        if (fulfillmentRatio === 1) {
+            tags.push({ text: `Đủ ${activeItems.length}/${activeItems.length} món`, type: 'success' });
+
+            if (allCoverSafety) {
+                tags.push({ text: 'Dư tồn an toàn', type: 'info' });
+            }
+        } else if (fulfilledCount > 0) {
+            tags.push({ text: `Được ${fulfilledCount}/${activeItems.length} món`, type: 'warning' });
+        } else {
+            tags.push({ text: 'Không đủ hàng', type: 'warning' });
+        }
+
+        if (anyNearExpiry && minNearExpiryDays < 999) {
+            tags.push({ text: `Lô cận HSD ${minNearExpiryDays} ngày (FEFO)`, type: 'rescue' });
+        }
+
+        if (regionalMismatch) {
+            tags.push({ text: 'Khoảng cách xa (Bắc - Nam)', type: 'warning' });
+        }
+
+        let reason = '';
+
+        if (regionalMismatch) {
+            reason = 'Khác vùng miền (khoảng cách địa lý xa), thời gian giao nhận kéo dài, chi phí logistics cao.';
+        } else if (anyNearExpiry && fulfillmentRatio === 1) {
+            reason = `Chi nhánh này có lô hàng sắp hết hạn trong ${minNearExpiryDays} ngày tới. Ưu tiên điều chuyển để tiêu thụ ngay, tránh hư hao (FEFO Rescue).`;
+        } else if (fulfillmentRatio === 1 && allCoverSafety) {
+            reason = 'Chi nhánh có lượng tồn kho dồi dào, xuất hàng an toàn không ảnh hưởng đến định mức bán hàng ca tối.';
+        } else if (fulfillmentRatio === 1) {
+            reason = 'Có đủ số lượng yêu cầu nhưng có thể làm tồn kho tại chỗ của chi nhánh này chạm ngưỡng tối thiểu.';
+        } else {
+            reason = `Chỉ cung cấp được ${fulfilledCount}/${activeItems.length} nguyên liệu yêu cầu.`;
+        }
+
+        let status: 'optimal' | 'good' | 'warning' = 'good';
+
+        if (regionalMismatch || fulfillmentRatio === 0 || score < 50) {
+            status = 'warning';
+        } else if (score >= 80 && fulfillmentRatio === 1) {
+            status = 'optimal';
+        }
+
+        return {
+            branch,
+            score,
+            status,
+            fulfillmentRatio,
+            fulfilledItemsCount: fulfilledCount,
+            totalItemsCount: activeItems.length,
+            hasNearExpiry: anyNearExpiry,
+            nearExpiryDays: minNearExpiryDays < 999 ? minNearExpiryDays : undefined,
+            hasRegionalMismatch: regionalMismatch,
+            tags,
+            reason,
+            details,
+        };
+    });
+
+    return recommendations.sort((a, b) => b.score - a.score || b.fulfillmentRatio - a.fulfillmentRatio);
+});
+
+const topRecommendedBranch = computed(() => {
+    return aiBranchRecommendations.value.length > 0 ? aiBranchRecommendations.value[0] : null;
+});
+
+const applyRecommendedBranch = (branchId: number) => {
+    requestForm.from_branch_id = branchId;
+    const branch = props.branches.find((b) => b.id === branchId);
+    aiAppliedNotice.value = `Đã chọn: ${branch?.name || 'Kho cấp tối ưu'}`;
+    setTimeout(() => {
+        aiAppliedNotice.value = null;
+    }, 4000);
+};
+
 const routeForm = useForm({
     from_branch_id: '' as number | '',
     owner_note: '',
@@ -283,7 +559,7 @@ const receiveForm = useForm({
     receiving_evidence: null as File | null,
 });
 
-const resolutionForm = useForm({ discrepancy_resolution: '' });
+const resolutionForm = useForm({ discrepancy_resolution: '', shortage_action: 'accepted_loss' });
 const cancelForm = useForm({ cancel_reason: '' });
 const rejectForm = useForm({ reject_reason: '' });
 
@@ -301,8 +577,21 @@ interface BulkLine {
     qty: number; // quantity to dispatch
     maxQty: number;
     availableQty: number; // tồn kho tại thời điểm bấm
+    selectedBatchId?: number | null;
 }
 const bulkLines = ref<BulkLine[]>([]);
+
+const getSelectedBatch = (line: BulkLine): TransferBatch | null => {
+    if (!line.transfer.available_batches || line.transfer.available_batches.length === 0) {
+        return null;
+    }
+
+    if (line.selectedBatchId) {
+        return line.transfer.available_batches.find((b) => b.id === line.selectedBatchId) ?? line.transfer.available_batches[0];
+    }
+
+    return line.transfer.available_batches[0];
+};
 
 const dispatchableTransfers = computed(() =>
     props.transfers.filter((t) => t.can_dispatch),
@@ -326,11 +615,16 @@ const openBulkDispatch = (group?: TransferGroup | null) => {
                 ? branchStock
                 : Number(t.source_available_quantity || 0);
 
+        const defaultBatchId = t.available_batches && t.available_batches.length > 0
+            ? t.available_batches[0].id
+            : null;
+
         return {
             transfer: t,
             qty: getDispatchMaxAllowed(t),
             maxQty: getDispatchMaxAllowed(t),
             availableQty: available,
+            selectedBatchId: defaultBatchId,
         };
     });
     bulkDispatchEvidenceFile.value = null;
@@ -367,6 +661,7 @@ const submitBulkDispatch = async () => {
     bulkDispatchDone.value = 0;
 
     const lines = bulkLines.value.filter((l) => l.qty > 0);
+    const failedLines: string[] = [];
 
     for (const line of lines) {
         await new Promise<void>((resolve) => {
@@ -375,6 +670,10 @@ const submitBulkDispatch = async () => {
             fd.append('quantity_dispatched', String(line.qty));
 
             fd.append('dispatch_note', bulkDispatchNote.value);
+
+            if (line.selectedBatchId) {
+                fd.append('batch_id', String(line.selectedBatchId));
+            }
 
             if (bulkDispatchEvidenceFile.value) {
                 fd.append('dispatch_evidence', bulkDispatchEvidenceFile.value);
@@ -385,6 +684,10 @@ const submitBulkDispatch = async () => {
                 fd,
                 {
                     preserveScroll: true,
+                    onError: (errors: Record<string, string | string[]>) => {
+                        const firstError = Object.values(errors)[0];
+                        failedLines.push(`${line.transfer.ingredient || `#${line.transfer.id}`}: ${String(firstError || 'Không xác định')}`);
+                    },
                     onFinish: () => {
                         bulkDispatchDone.value += 1;
                         resolve();
@@ -395,6 +698,14 @@ const submitBulkDispatch = async () => {
     }
 
     bulkDispatchSubmitting.value = false;
+
+    if (failedLines.length > 0) {
+        toast.error(`Có ${failedLines.length}/${lines.length} dòng xuất thất bại: ${failedLines.slice(0, 3).join(' • ')}`);
+        refreshPage();
+
+        return;
+    }
+
     closeBulkDispatch();
     refreshPage();
 };
@@ -434,7 +745,8 @@ interface BulkReceiveLine {
     transfer: Transfer;
     dispatchedQty: number;
     goodQty: number; // SL đạt chuẩn
-    damagedQty: number; // SL hỏng / lỗi / hết hạn (cách ly)
+    damagedQty: number; // SL hỏng / lỗi (cách ly)
+    expiredQty: number; // SL hết hạn (cách ly)
     shortageQty: number; // SL thiếu
     condition: 'good' | 'damaged' | 'shortage' | 'mixed';
 }
@@ -452,9 +764,13 @@ const openBulkReceive = (group?: TransferGroup | null) => {
         ? group.items.filter((t) => t.can_receive)
         : receivableTransfers.value;
 
+    const handoverCodes = targetItems
+        .map((item) => item.handover_code)
+        .filter((code): code is string => Boolean(code));
     bulkReceiveHandoverCode.value =
-        targetItems[0]?.handover_code ||
-        'GN-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        handoverCodes.length > 0 && handoverCodes.every((code) => code === handoverCodes[0])
+            ? handoverCodes[0]
+            : '';
 
     bulkReceiveLines.value = targetItems.map((t) => {
         const dispatched = Number(
@@ -466,6 +782,7 @@ const openBulkReceive = (group?: TransferGroup | null) => {
             dispatchedQty: dispatched,
             goodQty: dispatched,
             damagedQty: 0,
+            expiredQty: 0,
             shortageQty: 0,
             condition: 'good' as const,
         };
@@ -488,91 +805,56 @@ const onBulkReceiveEvidenceChange = (e: Event) => {
     bulkReceiveEvidenceFile.value = input.files?.[0] ?? null;
 };
 
+const resolveReceiveCondition = (
+    good: number,
+    damaged: number,
+    expired: number,
+    shortage: number,
+): 'good' | 'damaged' | 'shortage' | 'mixed' => {
+    const hasGood = good > 0;
+    const hasBad = damaged + expired > 0;
+    const hasShortage = shortage > 0;
+
+    const typesCount = [hasGood, hasBad, hasShortage].filter(Boolean).length;
+
+    if (typesCount >= 2) {
+        return 'mixed';
+    }
+    if (hasBad) {
+        return 'damaged';
+    }
+    if (hasShortage) {
+        return 'shortage';
+    }
+    return 'good';
+};
+
 const updateReceiveLineCondition = (line: BulkReceiveLine) => {
+    line.condition = resolveReceiveCondition(
+        Number(line.goodQty) || 0,
+        Number(line.damagedQty) || 0,
+        Number(line.expiredQty) || 0,
+        Number(line.shortageQty) || 0,
+    );
+};
+
+const onReceiveLineChange = (line: BulkReceiveLine) => {
+    updateReceiveLineCondition(line);
+};
+
+const autoBalanceLine = (line: BulkReceiveLine, targetField: 'good' | 'shortage' = 'good') => {
+    const good = Number(line.goodQty) || 0;
     const damaged = Number(line.damagedQty) || 0;
+    const expired = Number(line.expiredQty) || 0;
     const shortage = Number(line.shortageQty) || 0;
 
-    if (damaged > 0 && shortage > 0) {
-        line.condition = 'mixed';
-    } else if (damaged > 0) {
-        line.condition = 'damaged';
-    } else if (shortage > 0) {
-        line.condition = 'shortage';
+    if (targetField === 'good') {
+        const remaining = Math.max(0, Number((line.dispatchedQty - damaged - expired - shortage).toFixed(3)));
+        line.goodQty = remaining;
     } else {
-        line.condition = 'good';
+        const remaining = Math.max(0, Number((line.dispatchedQty - good - damaged - expired).toFixed(3)));
+        line.shortageQty = remaining;
     }
-};
-
-const updateReceiveLineFromGood = (line: BulkReceiveLine) => {
-    let good = Number(line.goodQty);
-
-    if (isNaN(good) || good < 0) {
-        good = 0;
-    }
-
-    if (good > line.dispatchedQty) {
-        good = line.dispatchedQty;
-    }
-
-    line.goodQty = good;
-
-    const remaining = Number((line.dispatchedQty - good).toFixed(3));
-    let damaged = Number(line.damagedQty) || 0;
-
-    if (damaged > remaining) {
-        damaged = remaining;
-        line.damagedQty = damaged;
-    }
-
-    line.shortageQty = Math.max(0, Number((remaining - damaged).toFixed(3)));
-    updateReceiveLineCondition(line);
-};
-
-const updateReceiveLineFromDamaged = (line: BulkReceiveLine) => {
-    let damaged = Number(line.damagedQty);
-
-    if (isNaN(damaged) || damaged < 0) {
-        damaged = 0;
-    }
-
-    if (damaged > line.dispatchedQty) {
-        damaged = line.dispatchedQty;
-    }
-
-    line.damagedQty = damaged;
-
-    let good = Number(line.goodQty) || 0;
-
-    if (good + damaged > line.dispatchedQty) {
-        good = Math.max(0, Number((line.dispatchedQty - damaged).toFixed(3)));
-        line.goodQty = good;
-    }
-
-    line.shortageQty = Math.max(0, Number((line.dispatchedQty - good - damaged).toFixed(3)));
-    updateReceiveLineCondition(line);
-};
-
-const updateReceiveLineFromShortage = (line: BulkReceiveLine) => {
-    let shortage = Number(line.shortageQty);
-
-    if (isNaN(shortage) || shortage < 0) {
-        shortage = 0;
-    }
-
-    if (shortage > line.dispatchedQty) {
-        shortage = line.dispatchedQty;
-    }
-
-    line.shortageQty = shortage;
-
-    let damaged = Number(line.damagedQty) || 0;
-
-    if (damaged + shortage > line.dispatchedQty) {
-        damaged = Math.max(0, Number((line.dispatchedQty - shortage).toFixed(3)));
-        line.damagedQty = damaged;
-    }
-
-    line.goodQty = Math.max(0, Number((line.dispatchedQty - damaged - shortage).toFixed(3)));
     updateReceiveLineCondition(line);
 };
 
@@ -581,6 +863,7 @@ const getLineSum = (line: BulkReceiveLine) => {
         (
             (Number(line.goodQty) || 0) +
             (Number(line.damagedQty) || 0) +
+            (Number(line.expiredQty) || 0) +
             (Number(line.shortageQty) || 0)
         ).toFixed(3),
     );
@@ -619,22 +902,24 @@ const submitBulkReceive = async () => {
 
     bulkReceiveSubmitting.value = true;
     bulkReceiveDone.value = 0;
+    const failedLines: string[] = [];
 
     for (const line of bulkReceiveLines.value) {
         await new Promise<void>((resolve) => {
             const fd = new FormData();
             const good = Number(line.goodQty) || 0;
             const damaged = Number(line.damagedQty) || 0;
-            const totalRec = good + damaged;
+            const expired = Number(line.expiredQty) || 0;
+            const totalRec = good + damaged + expired;
 
             fd.append(
                 'handover_code',
-                bulkReceiveHandoverCode.value || line.transfer.handover_code || '',
+                line.transfer.handover_code || bulkReceiveHandoverCode.value || '',
             );
             fd.append('quantity_received', String(totalRec));
             fd.append('quantity_received_good', String(good));
             fd.append('quantity_received_damaged', String(damaged));
-            fd.append('quantity_received_expired', '0');
+            fd.append('quantity_received_expired', String(expired));
             fd.append('received_condition', line.condition);
             fd.append(
                 'received_note',
@@ -650,6 +935,10 @@ const submitBulkReceive = async () => {
                 fd,
                 {
                     preserveScroll: true,
+                    onError: (errors: Record<string, string | string[]>) => {
+                        const firstError = Object.values(errors)[0];
+                        failedLines.push(`${line.transfer.ingredient || `#${line.transfer.id}`}: ${String(firstError || 'Không xác định')}`);
+                    },
                     onFinish: () => {
                         bulkReceiveDone.value += 1;
                         resolve();
@@ -660,6 +949,11 @@ const submitBulkReceive = async () => {
     }
 
     bulkReceiveSubmitting.value = false;
+    if (failedLines.length > 0) {
+        toast.error(`Có ${failedLines.length}/${bulkReceiveLines.value.length} dòng nhận thất bại: ${failedLines.slice(0, 3).join(' • ')}`);
+        refreshPage();
+        return;
+    }
     closeBulkReceive();
     refreshPage();
 };
@@ -676,7 +970,7 @@ const bulkReceiveTotalCost = computed(() =>
 
 const bulkReceiveHasDiscrepancy = computed(() =>
     bulkReceiveLines.value.some(
-        (l) => l.damagedQty > 0 || l.shortageQty > 0,
+        (l) => l.damagedQty > 0 || l.expiredQty > 0 || l.shortageQty > 0,
     ),
 );
 
@@ -688,7 +982,7 @@ const routeBranchOptions = computed(() => {
     }
 
     return props.branches
-        .filter((branch) => branch.id !== transfer.to_branch_id)
+        .filter((branch) => !isCentralBranch(branch) && branch.id !== transfer.to_branch_id)
         .map((branch) => ({
             ...branch,
             available_quantity:
@@ -736,6 +1030,10 @@ const statusStartedAt = (transfer: Transfer): string | null => {
         return transfer.received_at;
     }
 
+    if (transfer.status === 'quarantined' || transfer.status === 'return_requested') {
+        return transfer.received_at || transfer.dispatched_at;
+    }
+
     return null;
 };
 
@@ -744,6 +1042,8 @@ const slaHours: Partial<Record<TransferStatus, number>> = {
     routed: 8,
     dispatched: 24,
     discrepancy: 24,
+    quarantined: 24,
+    return_requested: 48,
 };
 
 const ageInHours = (transfer: Transfer) => {
@@ -777,7 +1077,7 @@ const needsAction = (transfer: Transfer) =>
 const shouldShowInQueue = (transfer: Transfer) =>
     needsAction(transfer) ||
     (requestOnly.value &&
-        ['requested', 'routed', 'dispatched', 'discrepancy'].includes(
+        ['requested', 'routed', 'dispatched', 'discrepancy', 'quarantined', 'return_requested'].includes(
             transfer.status,
         ));
 
@@ -1152,7 +1452,9 @@ const batchRouteBranchOptions = computed(() => {
         return [];
     }
 
-    return props.branches.filter((branch) => branch.id !== group.to_branch_id);
+    return props.branches.filter(
+        (branch) => !isCentralBranch(branch) && branch.id !== group.to_branch_id,
+    );
 });
 
 const getBranchStockForIngredient = (
@@ -1179,7 +1481,7 @@ const hasShortageInBatchRoute = computed(() => {
             item.ingredient_id,
         );
 
-        return available + 0.0005 < item.quantity_requested;
+        return available <= 0.0005;
     });
 });
 
@@ -1378,6 +1680,7 @@ const openResolve = (transfer: Transfer) => {
     detailTransfer.value = null;
     resolving.value = transfer;
     resolutionForm.reset();
+    resolutionForm.shortage_action = 'accepted_loss';
 };
 
 const openCancel = (transfer: Transfer) => {
@@ -1465,6 +1768,10 @@ const submitRequest = () => {
         return;
     }
 
+    if (!props.permissions.can_route) {
+        requestForm.from_branch_id = null;
+    }
+
     requestForm.post('/inventory/transfers', {
         preserveScroll: true,
         onSuccess: () => {
@@ -1505,15 +1812,13 @@ const submitReceive = () => {
         Number(receiveForm.quantity_received_good || 0) +
         Number(receiveForm.quantity_received_damaged || 0) +
         Number(receiveForm.quantity_received_expired || 0);
-    receiveForm.received_condition =
-        Number(receiveForm.quantity_received_damaged || 0) +
-            Number(receiveForm.quantity_received_expired || 0) >
-        0
-            ? 'damaged'
-            : receiveForm.quantity_received <
-                Number(receiving.value.quantity_dispatched ?? 0)
-              ? 'shortage'
-              : 'good';
+    const dispatched = Number(receiving.value.quantity_dispatched ?? 0);
+    const good = Number(receiveForm.quantity_received_good || 0);
+    const damaged = Number(receiveForm.quantity_received_damaged || 0);
+    const expired = Number(receiveForm.quantity_received_expired || 0);
+    const shortage = Math.max(0, Number((dispatched - good - damaged - expired).toFixed(3)));
+
+    receiveForm.received_condition = resolveReceiveCondition(good, damaged, expired, shortage);
     receiveForm.post(`/inventory/transfers/${receiving.value.id}/receive`, {
         preserveScroll: true,
         forceFormData: true,
@@ -2654,6 +2959,15 @@ const formatDuration = (hours: number) => {
                             <b>Biên bản nhận:</b> {{ transfer.received_note }}
                         </p>
                         <a
+                            v-if="transfer.dispatch_evidence_path"
+                            :href="`/secure-files/download?path=${encodeURIComponent(transfer.dispatch_evidence_path)}`"
+                            target="_blank"
+                            rel="noreferrer"
+                            class="inline-flex items-center gap-1 font-semibold text-indigo-400 hover:text-indigo-300"
+                        >
+                            <FileText class="size-3" /> Xem bằng chứng xuất kho
+                        </a>
+                        <a
                             v-if="transfer.receiving_evidence_path"
                             :href="`/secure-files/download?path=${encodeURIComponent(transfer.receiving_evidence_path)}`"
                             target="_blank"
@@ -2663,11 +2977,19 @@ const formatDuration = (hours: number) => {
                             <FileText class="size-3" /> Xem bằng chứng nhận hàng
                         </a>
                         <p
-                            v-if="transfer.discrepancy_quantity > 0"
+                            v-if="Number(transfer.shortage_quantity || 0) + Number(transfer.backorder_quantity || 0) > 0"
                             class="font-semibold text-rose-400"
                         >
-                            <b>Chênh lệch:</b> thiếu
-                            {{ formatNumber(transfer.discrepancy_quantity) }}
+                            <b>Thiếu / chưa đáp ứng:</b>
+                            {{ formatNumber(Number(transfer.shortage_quantity || 0) + Number(transfer.backorder_quantity || 0)) }}
+                            {{ transfer.unit }}
+                        </p>
+                        <p
+                            v-if="Number(transfer.quantity_received_damaged || 0) + Number(transfer.quantity_received_expired || 0) > 0"
+                            class="font-semibold text-amber-400"
+                        >
+                            <b>Hàng không đạt:</b>
+                            {{ formatNumber(Number(transfer.quantity_received_damaged || 0) + Number(transfer.quantity_received_expired || 0)) }}
                             {{ transfer.unit }}
                         </p>
                         <p
@@ -2746,6 +3068,7 @@ const formatDuration = (hours: number) => {
                                     <th class="px-4 py-3">Kho xuất</th>
                                     <th class="px-4 py-3">Nhận về</th>
                                     <th class="px-4 py-3 text-center">Tồn kho lúc xuất</th>
+                                    <th class="px-4 py-3 min-w-[210px]">Lô xuất & Hạn dùng (FEFO)</th>
                                     <th class="px-4 py-3 text-center">SL yêu cầu</th>
                                     <th class="px-4 py-3 text-center">SL thực xuất</th>
                                 </tr>
@@ -2774,6 +3097,64 @@ const formatDuration = (hours: number) => {
                                         >
                                             {{ formatNumber(line.availableQty) }} {{ line.transfer.unit }}
                                         </span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div v-if="line.transfer.available_batches && line.transfer.available_batches.length > 1" class="space-y-1.5">
+                                            <select
+                                                v-model="line.selectedBatchId"
+                                                class="w-full rounded-lg border border-border bg-background/90 px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                            >
+                                                <option
+                                                    v-for="b in line.transfer.available_batches"
+                                                    :key="b.id"
+                                                    :value="b.id"
+                                                >
+                                                    Lô {{ b.batch_number }} | HSD: {{ b.expiry_date || 'Không có date' }} (Tồn: {{ formatNumber(b.quantity_remaining ?? 0) }})
+                                                </option>
+                                            </select>
+                                            <div v-if="getSelectedBatch(line)" class="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                                <span v-if="getSelectedBatch(line)?.expiry_date" class="rounded bg-sky-500/10 px-1.5 py-0.5 font-semibold text-sky-400 border border-sky-500/20">
+                                                    HSD: {{ getSelectedBatch(line)?.expiry_date }}
+                                                </span>
+                                                <span v-if="getSelectedBatch(line)?.purchased_at" class="text-muted-foreground">
+                                                    NSX/Nhập: {{ getSelectedBatch(line)?.purchased_at }}
+                                                </span>
+                                                <span
+                                                    v-if="line.selectedBatchId === line.transfer.available_batches[0]?.id"
+                                                    class="rounded bg-emerald-500/10 px-1.5 py-0.5 font-bold text-emerald-400 border border-emerald-500/20"
+                                                >
+                                                    ⚡ Khuyên dùng FEFO
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div v-else-if="line.transfer.available_batches && line.transfer.available_batches.length === 1">
+                                            <div class="rounded-lg border border-border/80 bg-muted/30 p-2 text-xs">
+                                                <div class="flex items-center gap-1.5 font-bold">
+                                                    <span class="font-mono text-amber-300">Lô: {{ line.transfer.available_batches[0].batch_number }}</span>
+                                                    <span class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 border border-emerald-500/20">
+                                                        ⚡ FEFO
+                                                    </span>
+                                                </div>
+                                                <div class="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                                                    <span v-if="line.transfer.available_batches[0].expiry_date" class="text-sky-300 font-medium">
+                                                        HSD: {{ line.transfer.available_batches[0].expiry_date }}
+                                                    </span>
+                                                    <span v-if="line.transfer.available_batches[0].purchased_at">
+                                                        NSX: {{ line.transfer.available_batches[0].purchased_at }}
+                                                    </span>
+                                                    <span>
+                                                        Tồn: {{ formatNumber(line.transfer.available_batches[0].quantity_remaining ?? 0) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-else class="rounded-lg border border-dashed border-border/70 bg-muted/20 p-2 text-[11px] text-muted-foreground">
+                                            <div class="flex items-center gap-1 font-medium text-amber-200">
+                                                <span>Lô mặc định</span>
+                                                <span class="text-[9px] text-muted-foreground">(Kế thừa)</span>
+                                            </div>
+                                            <p class="text-[10px] text-muted-foreground mt-0.5">Tự động gắn mã lô truy vết khi xuất</p>
+                                        </div>
                                     </td>
                                     <td class="px-4 py-3 text-center font-semibold">
                                         {{ formatNumber(line.transfer.quantity_requested) }} {{ line.transfer.unit }}
@@ -2888,8 +3269,8 @@ const formatDuration = (hours: number) => {
                                     <h4 class="text-xs font-black uppercase tracking-wide">CÔNG TY TNHH AVENTURA</h4>
                                 </div>
                                 <p class="mt-1 text-[10px] text-neutral-700">Chuỗi cung cấp thực phẩm &amp; dịch vụ nhà hàng</p>
-                                <p class="text-[10px] text-neutral-700">📍 Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
-                                <p class="text-[10px] text-neutral-700">☎ Hotline: 024 1234 5678</p>
+                                <p class="text-[10px] text-neutral-700">📍 Địa chỉ doanh nghiệp: Chưa cập nhật</p>
+                                <p class="text-[10px] text-neutral-700">☎ Hotline: Chưa cập nhật</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-[11px] font-bold uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
@@ -2905,11 +3286,7 @@ const formatDuration = (hours: number) => {
                         <div class="mt-3 text-center">
                             <h3 class="text-base font-black uppercase tracking-wide">PHIẾU ĐIỀU CHUYỂN NGUYÊN LIỆU</h3>
                             <div class="mt-1 inline-block border border-black px-3 py-0.5 text-[11px] font-mono font-bold">
-                                Số: DC-NL/{{ bulkToday.year }}/{{
-                                    bulkTargetGroup?.request_group_id
-                                        ? bulkTargetGroup.request_group_id.slice(0, 8).toUpperCase()
-                                        : (bulkLines[0]?.transfer.from_branch?.slice(0, 3).toUpperCase() ?? 'KHO')
-                                }}-{{ bulkLines.length }}
+                                Số: {{ bulkLines[0]?.transfer.document_code || 'Chưa cấp mã' }}
                             </div>
                         </div>
 
@@ -2921,13 +3298,10 @@ const formatDuration = (hours: number) => {
                                 <p><b>Giờ:</b> {{ bulkToday.time }}</p>
                                 <div class="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                                     <b>Lý do điều chuyển:</b>
-                                    <span>[ ] Cân đối tồn kho</span>
-                                    <span>[ ] Phục vụ sản xuất/kinh doanh</span>
-                                    <span class="font-bold">[x] Hỗ trợ chi nhánh</span>
-                                    <span v-if="bulkDispatchNote || bulkTargetGroup?.reason">[ ] Khác: {{ bulkDispatchNote || bulkTargetGroup?.reason }}</span>
+                                    <span>{{ bulkDispatchNote || bulkTargetGroup?.reason || 'Chưa cập nhật' }}</span>
                                 </div>
-                                <p><b>Người lập phiếu:</b> {{ bulkTargetGroup?.requested_by || 'Nguyễn Văn Quản Lý' }}</p>
-                                <p><b>Chức vụ:</b> Quản lý chi nhánh / Điều phối viên</p>
+                                <p><b>Người lập phiếu:</b> {{ bulkTargetGroup?.requested_by || 'Chưa cập nhật' }}</p>
+                                <p><b>Chức vụ:</b> Chưa cập nhật</p>
                             </div>
                         </div>
 
@@ -2936,19 +3310,19 @@ const formatDuration = (hours: number) => {
                             <div class="border border-black p-2">
                                 <p class="font-bold uppercase text-[10px] text-neutral-800">2. THÔNG TIN BÊN ĐIỀU CHUYỂN (NƠI XUẤT)</p>
                                 <div class="mt-1 space-y-0.5">
-                                    <p><b>Kho xuất:</b> {{ bulkLines[0]?.transfer.from_branch ?? 'Kho Tổng' }} (Kho chi nhánh)</p>
-                                    <p><b>Địa chỉ kho:</b> Khu vực kho chi nhánh xuất hàng</p>
-                                    <p><b>Người phụ trách kho:</b> Nguyễn Văn Quản Lý</p>
-                                    <p><b>SĐT:</b> 024 1234 5678</p>
+                                    <p><b>Kho xuất:</b> {{ bulkLines[0]?.transfer.from_branch || 'Chưa cập nhật' }}</p>
+                                    <p><b>Địa chỉ kho:</b> Chưa cập nhật</p>
+                                    <p><b>Người phụ trách kho:</b> Chưa cập nhật</p>
+                                    <p><b>SĐT:</b> Chưa cập nhật</p>
                                 </div>
                             </div>
                             <div class="border border-black p-2">
                                 <p class="font-bold uppercase text-[10px] text-neutral-800">3. THÔNG TIN BÊN NHẬN ĐIỀU CHUYỂN (NƠI NHẬN)</p>
                                 <div class="mt-1 space-y-0.5">
                                     <p><b>Kho nhận:</b> {{ bulkLines[0]?.transfer.to_branch ?? '—' }}</p>
-                                    <p><b>Địa chỉ kho:</b> Khu vực nhận hàng chi nhánh</p>
-                                    <p><b>Người phụ trách kho:</b> {{ bulkTargetGroup?.requested_by || 'Thủ kho nhận' }}</p>
-                                    <p><b>SĐT:</b> 024 1234 5678</p>
+                                    <p><b>Địa chỉ kho:</b> Chưa cập nhật</p>
+                                    <p><b>Người phụ trách kho:</b> Chưa cập nhật</p>
+                                    <p><b>SĐT:</b> Chưa cập nhật</p>
                                 </div>
                             </div>
                         </div>
@@ -2958,13 +3332,11 @@ const formatDuration = (hours: number) => {
                             <p class="font-bold uppercase text-[10px] text-neutral-800">4. HÌNH THỨC VẬN CHUYỂN</p>
                             <div class="mt-1 grid grid-cols-3 gap-2">
                                 <div class="col-span-3 flex items-center gap-4">
-                                    <span class="font-bold">[x] Tự vận chuyển</span>
-                                    <span>[ ] Đơn vị vận chuyển</span>
-                                    <span>[ ] Khác: .......................................</span>
+                                    <span>Phương thức: Chưa cập nhật</span>
                                 </div>
-                                <p><b>Phương tiện vận chuyển:</b> Xe máy / Xe tải nội bộ</p>
-                                <p><b>Biển số xe:</b> —</p>
-                                <p><b>Dự kiến giao đến:</b> {{ bulkToday.day }}/{{ bulkToday.month }}/{{ bulkToday.year }} (trong ngày)</p>
+                                <p><b>Phương tiện vận chuyển:</b> Chưa cập nhật</p>
+                                <p><b>Biển số xe:</b> Chưa cập nhật</p>
+                                <p><b>Dự kiến giao đến:</b> Chưa xác định</p>
                             </div>
                         </div>
 
@@ -2977,6 +3349,8 @@ const formatDuration = (hours: number) => {
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-center">STT</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-left">Mã nguyên liệu</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-left">Tên nguyên liệu</th>
+                                        <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Mã Lô</th>
+                                        <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Hạn sử dụng</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Đơn vị tính</th>
                                         <th colspan="2" class="border border-black px-1.5 py-1 text-center">Số lượng điều chuyển</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Tồn kho lúc xuất</th>
@@ -2997,6 +3371,12 @@ const formatDuration = (hours: number) => {
                                         <td class="border border-black px-1.5 py-1 text-center">{{ i + 1 }}</td>
                                         <td class="border border-black px-1.5 py-1 font-mono">TR-{{ String(line.transfer.id).padStart(5, '0') }}</td>
                                         <td class="border border-black px-1.5 py-1 font-bold">{{ line.transfer.ingredient }}</td>
+                                        <td class="border border-black px-1.5 py-1 text-center font-mono font-bold">
+                                            {{ getSelectedBatch(line)?.batch_number || 'Chưa cập nhật' }}
+                                        </td>
+                                        <td class="border border-black px-1.5 py-1 text-center">
+                                            {{ getSelectedBatch(line)?.expiry_date || 'Chưa cập nhật' }}
+                                        </td>
                                         <td class="border border-black px-1.5 py-1 text-center">{{ line.transfer.unit }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center font-black">{{ formatNumber(line.qty) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center text-neutral-400">..........</td>
@@ -3008,7 +3388,7 @@ const formatDuration = (hours: number) => {
                                         </td>
                                     </tr>
                                     <tr class="bg-neutral-100 font-bold">
-                                        <td colspan="4" class="border border-black px-1.5 py-1 text-right uppercase">TỔNG CỘNG</td>
+                                        <td colspan="6" class="border border-black px-1.5 py-1 text-right uppercase">TỔNG CỘNG</td>
                                         <td class="border border-black px-1.5 py-1 text-center font-black">{{ bulkLines.reduce((s, l) => s + l.qty, 0).toFixed(3) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center">—</td>
                                         <td class="border border-black px-1.5 py-1 text-center">—</td>
@@ -3023,8 +3403,8 @@ const formatDuration = (hours: number) => {
                         <!-- 6. GHI CHÚ / YÊU CẦU -->
                         <div class="mt-2 border border-black p-2">
                             <p class="font-bold uppercase text-[10px] text-neutral-800">6. GHI CHÚ / YÊU CẦU</p>
-                            <p class="mt-0.5"><b>Ghi chú:</b> {{ bulkDispatchNote || bulkTargetGroup?.reason || 'Nguyên liệu bảo quản và đóng gói đúng tiêu chuẩn vệ sinh an toàn thực phẩm.' }}</p>
-                            <p class="mt-0.5"><b>Minh chứng đính kèm:</b> {{ bulkDispatchEvidenceFile?.name ?? 'Đã nộp ảnh / tài liệu đính kèm hệ thống.' }}</p>
+                            <p class="mt-0.5"><b>Ghi chú:</b> {{ bulkDispatchNote || bulkTargetGroup?.reason || 'Chưa cập nhật' }}</p>
+                            <p class="mt-0.5"><b>Minh chứng đính kèm:</b> {{ bulkDispatchEvidenceFile?.name ?? 'Chưa nộp' }}</p>
                         </div>
 
                         <!-- 7. XÁC NHẬN -->
@@ -3181,7 +3561,8 @@ const formatDuration = (hours: number) => {
                                     <th class="px-3 py-2.5 text-center">ĐVT</th>
                                     <th class="px-3 py-2.5 text-center">SL đã xuất</th>
                                     <th class="px-3 py-2.5 text-center text-emerald-400">SL đạt chuẩn</th>
-                                    <th class="px-3 py-2.5 text-center text-rose-400">SL hỏng / hết hạn (Cách ly)</th>
+                                    <th class="px-3 py-2.5 text-center text-rose-400">SL hỏng (Cách ly)</th>
+                                    <th class="px-3 py-2.5 text-center text-amber-300">SL hết hạn (Cách ly)</th>
                                     <th class="px-3 py-2.5 text-center text-violet-400">SL thiếu</th>
                                     <th class="px-3 py-2.5">Tình trạng</th>
                                 </tr>
@@ -3192,6 +3573,17 @@ const formatDuration = (hours: number) => {
                                     <td class="px-3 py-2">
                                         <div class="font-bold text-foreground">{{ line.transfer.ingredient }}</div>
                                         <div class="font-mono text-[10px] text-muted-foreground">TR-{{ String(line.transfer.id).padStart(5, '0') }}</div>
+                                        <div v-if="line.transfer.source_batch" class="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                                            <span class="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono font-bold text-amber-300 border border-amber-500/20">
+                                                Lô: {{ line.transfer.source_batch.batch_number }}
+                                            </span>
+                                            <span v-if="line.transfer.source_batch.expiry_date" class="rounded bg-sky-500/10 px-1.5 py-0.5 font-semibold text-sky-400 border border-sky-500/20">
+                                                HSD: {{ line.transfer.source_batch.expiry_date }}
+                                            </span>
+                                            <span v-if="line.transfer.source_batch.purchased_at" class="text-muted-foreground text-[9px]">
+                                                NSX: {{ line.transfer.source_batch.purchased_at }}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-2 text-center text-muted-foreground">{{ line.transfer.unit }}</td>
                                     <td class="px-3 py-2 text-center font-semibold text-foreground">{{ formatNumber(line.dispatchedQty) }}</td>
@@ -3202,7 +3594,7 @@ const formatDuration = (hours: number) => {
                                             min="0"
                                             :max="line.dispatchedQty"
                                             v-model.number="line.goodQty"
-                                            @input="updateReceiveLineFromGood(line)"
+                                            @input="onReceiveLineChange(line)"
                                             class="h-8 w-24 text-center font-bold text-emerald-400 border-emerald-500/30"
                                         />
                                     </td>
@@ -3213,7 +3605,7 @@ const formatDuration = (hours: number) => {
                                             min="0"
                                             :max="line.dispatchedQty"
                                             v-model.number="line.damagedQty"
-                                            @input="updateReceiveLineFromDamaged(line)"
+                                            @input="onReceiveLineChange(line)"
                                             class="h-8 w-24 text-center font-bold text-rose-400 border-rose-500/30"
                                         />
                                     </td>
@@ -3223,12 +3615,31 @@ const formatDuration = (hours: number) => {
                                             step="0.001"
                                             min="0"
                                             :max="line.dispatchedQty"
+                                            v-model.number="line.expiredQty"
+                                            @input="onReceiveLineChange(line)"
+                                            class="h-8 w-24 text-center font-bold text-amber-300 border-amber-500/30"
+                                        />
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <Input
+                                            type="number"
+                                            step="0.001"
+                                            min="0"
+                                            :max="line.dispatchedQty"
                                             v-model.number="line.shortageQty"
-                                            @input="updateReceiveLineFromShortage(line)"
+                                            @input="onReceiveLineChange(line)"
                                             class="h-8 w-24 text-center font-bold text-violet-300 border-violet-500/30"
                                         />
-                                        <div v-if="!isLineBalanced(line)" class="mt-1 text-[9px] font-bold text-rose-400">
-                                            Tổng {{ getLineSum(line) }} ≠ {{ line.dispatchedQty }}
+                                        <div v-if="!isLineBalanced(line)" class="mt-1 flex flex-col items-center gap-0.5 text-[9px] font-bold text-rose-400">
+                                            <span>Tổng: {{ formatNumber(getLineSum(line)) }} ≠ {{ formatNumber(line.dispatchedQty) }}</span>
+                                            <button
+                                                type="button"
+                                                @click="autoBalanceLine(line, 'good')"
+                                                class="text-[9px] text-emerald-400 underline hover:text-emerald-300 transition-colors"
+                                                title="Tự bù số lượng đạt chuẩn cho khớp số lượng đã xuất"
+                                            >
+                                                Khớp vào SL đạt
+                                            </button>
                                         </div>
                                     </td>
                                     <td class="px-3 py-2">
@@ -3357,8 +3768,8 @@ const formatDuration = (hours: number) => {
                                     <h4 class="text-xs font-black uppercase tracking-wide">CÔNG TY TNHH AVENTURA</h4>
                                 </div>
                                 <p class="mt-1 text-[10px] text-neutral-700">Chuỗi cung cấp thực phẩm &amp; dịch vụ nhà hàng</p>
-                                <p class="text-[10px] text-neutral-700">📍 Số 123 Nguyễn Văn Cừ, P. Bồ Đề, Q. Long Biên, Hà Nội</p>
-                                <p class="text-[10px] text-neutral-700">☎ Hotline: 024 1234 5678</p>
+                                <p class="text-[10px] text-neutral-700">📍 Địa chỉ doanh nghiệp: Chưa cập nhật</p>
+                                <p class="text-[10px] text-neutral-700">☎ Hotline: Chưa cập nhật</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-[11px] font-bold uppercase tracking-wide">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
@@ -3374,11 +3785,7 @@ const formatDuration = (hours: number) => {
                         <div class="mt-3 text-center">
                             <h3 class="text-base font-black uppercase tracking-wide">PHIẾU NHẬN NGUYÊN LIỆU ĐIỀU CHUYỂN</h3>
                             <div class="mt-1 inline-block border border-black px-3 py-0.5 text-[11px] font-mono font-bold">
-                                Số: PN-DC/{{ bulkToday.year }}/{{
-                                    bulkReceiveTargetGroup?.request_group_id
-                                        ? bulkReceiveTargetGroup.request_group_id.slice(0, 8).toUpperCase()
-                                        : (bulkReceiveLines[0]?.transfer.to_branch?.slice(0, 3).toUpperCase() ?? 'KHO')
-                                }}-{{ bulkReceiveLines.length }}
+                                Số: {{ bulkReceiveLines[0]?.transfer.document_code || 'Chưa cấp mã' }}
                             </div>
                         </div>
 
@@ -3390,11 +3797,11 @@ const formatDuration = (hours: number) => {
                                 <p><b>Giờ nhận:</b> {{ bulkToday.time }}</p>
                                 <div class="col-span-2">
                                     <b>Căn cứ:</b>
-                                    <span class="font-bold ml-1">[x] Phiếu điều chuyển số: DC-NL/{{ bulkToday.year }}/...</span>
-                                    <span class="ml-2 font-mono">(Mã GN: {{ bulkReceiveHandoverCode }})</span>
+                                    <span class="font-bold ml-1">[x] Phiếu điều chuyển số: {{ bulkReceiveLines[0]?.transfer.document_code || 'Chưa cấp mã' }}</span>
+                                    <span class="ml-2 font-mono">(Mã GN: {{ bulkReceiveLines[0]?.transfer.handover_code || bulkReceiveHandoverCode || 'Chưa cập nhật' }})</span>
                                 </div>
-                                <p><b>Người lập phiếu:</b> {{ bulkReceiveTargetGroup?.requested_by || 'Thủ kho nhận' }}</p>
-                                <p><b>Chức vụ:</b> Quản lý chi nhánh / Thủ kho</p>
+                                <p><b>Người lập phiếu:</b> {{ bulkReceiveTargetGroup?.requested_by || 'Chưa cập nhật' }}</p>
+                                <p><b>Chức vụ:</b> Chưa cập nhật</p>
                             </div>
                         </div>
 
@@ -3403,19 +3810,19 @@ const formatDuration = (hours: number) => {
                             <div class="border border-black p-2">
                                 <p class="font-bold uppercase text-[10px] text-neutral-800">2. THÔNG TIN BÊN GIAO (NƠI XUẤT)</p>
                                 <div class="mt-1 space-y-0.5">
-                                    <p><b>Kho xuất:</b> {{ bulkReceiveLines[0]?.transfer.from_branch ?? 'Kho Tổng' }}</p>
-                                    <p><b>Địa chỉ kho:</b> Khu vực kho chi nhánh xuất hàng</p>
-                                    <p><b>Người giao hàng:</b> {{ bulkReceiveLines[0]?.transfer.dispatched_by || 'Nhân viên giao nhận' }}</p>
-                                    <p><b>SĐT:</b> 024 1234 5678</p>
+                                    <p><b>Kho xuất:</b> {{ bulkReceiveLines[0]?.transfer.from_branch || 'Chưa cập nhật' }}</p>
+                                    <p><b>Địa chỉ kho:</b> Chưa cập nhật</p>
+                                    <p><b>Người giao hàng:</b> {{ bulkReceiveLines[0]?.transfer.dispatched_by || 'Chưa cập nhật' }}</p>
+                                    <p><b>SĐT:</b> Chưa cập nhật</p>
                                 </div>
                             </div>
                             <div class="border border-black p-2">
                                 <p class="font-bold uppercase text-[10px] text-neutral-800">3. THÔNG TIN BÊN NHẬN (NƠI NHẬN)</p>
                                 <div class="mt-1 space-y-0.5">
-                                    <p><b>Kho nhận:</b> {{ bulkReceiveLines[0]?.transfer.to_branch ?? '—' }}</p>
-                                    <p><b>Địa chỉ kho:</b> Khu vực nhận hàng chi nhánh</p>
-                                    <p><b>Người nhận hàng:</b> {{ bulkReceiveTargetGroup?.requested_by || 'Thủ kho nhận' }}</p>
-                                    <p><b>SĐT:</b> 024 1234 5678</p>
+                                    <p><b>Kho nhận:</b> {{ bulkReceiveLines[0]?.transfer.to_branch || 'Chưa cập nhật' }}</p>
+                                    <p><b>Địa chỉ kho:</b> Chưa cập nhật</p>
+                                    <p><b>Người nhận hàng:</b> Chưa cập nhật</p>
+                                    <p><b>SĐT:</b> Chưa cập nhật</p>
                                 </div>
                             </div>
                         </div>
@@ -3424,14 +3831,13 @@ const formatDuration = (hours: number) => {
                         <div class="mt-2 border border-black p-2">
                             <p class="font-bold uppercase text-[10px] text-neutral-800">4. THÔNG TIN VẬN CHUYỂN</p>
                             <div class="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
-                                <p><b>Phương tiện vận chuyển:</b> Xe máy / Xe tải nội bộ</p>
+                                <p><b>Phương tiện vận chuyển:</b> {{ bulkReceiveLines[0]?.transfer.carrier_name || 'Chưa cập nhật' }}</p>
                                 <p><b>Thời gian xuất phát:</b> {{ bulkToday.day }}/{{ bulkToday.month }}/{{ bulkToday.year }}</p>
-                                <p><b>Biển số xe:</b> —</p>
+                                <p><b>Biển số xe:</b> {{ bulkReceiveLines[0]?.transfer.vehicle_number || 'Chưa cập nhật' }}</p>
                                 <p><b>Thời gian thực tế đến:</b> {{ bulkToday.day }}/{{ bulkToday.month }}/{{ bulkToday.year }} {{ bulkToday.time }}</p>
                                 <div class="col-span-2">
                                     <b>Đơn vị vận chuyển:</b>
-                                    <span class="font-bold ml-1">[x] Tự vận chuyển</span>
-                                    <span class="ml-3">[ ] Đơn vị vận chuyển ngoài</span>
+                                    <span class="font-bold ml-1">{{ bulkReceiveLines[0]?.transfer.carrier_name || 'Chưa cập nhật' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -3445,6 +3851,8 @@ const formatDuration = (hours: number) => {
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-center">STT</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-left">Mã nguyên liệu</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-left">Tên nguyên liệu</th>
+                                        <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Mã Lô</th>
+                                        <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Hạn sử dụng</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-center">Đơn vị tính</th>
                                         <th colspan="3" class="border border-black px-1.5 py-1 text-center">Số lượng</th>
                                         <th rowspan="2" class="border border-black px-1.5 py-1 text-right">Đơn giá (VND)</th>
@@ -3463,24 +3871,26 @@ const formatDuration = (hours: number) => {
                                         :key="line.transfer.id"
                                     >
                                         <td class="border border-black px-1.5 py-1 text-center">{{ i + 1 }}</td>
-                                        <td class="border border-black px-1.5 py-1 font-mono">TR-{{ String(line.transfer.id).padStart(5, '0') }}</td>
+                                        <td class="border border-black px-1.5 py-1 font-mono">{{ line.transfer.document_code || 'Chưa cấp mã' }}</td>
                                         <td class="border border-black px-1.5 py-1 font-bold">{{ line.transfer.ingredient }}</td>
+                                        <td class="border border-black px-1.5 py-1 text-center font-mono font-bold">{{ line.transfer.source_batch?.batch_number || 'Chưa cập nhật' }}</td>
+                                        <td class="border border-black px-1.5 py-1 text-center">{{ line.transfer.source_batch?.expiry_date || 'Chưa cập nhật' }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center">{{ line.transfer.unit }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center">{{ formatNumber(line.dispatchedQty) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center font-black text-emerald-800">{{ formatNumber(line.goodQty) }}</td>
-                                        <td class="border border-black px-1.5 py-1 text-center font-semibold" :class="line.shortageQty > 0 || line.damagedQty > 0 ? 'text-rose-700' : ''">
-                                            {{ line.shortageQty > 0 ? `-${formatNumber(line.shortageQty)}` : (line.damagedQty > 0 ? `Hỏng ${formatNumber(line.damagedQty)}` : '0') }}
+                                        <td class="border border-black px-1.5 py-1 text-center font-semibold" :class="line.shortageQty > 0 || line.damagedQty > 0 || line.expiredQty > 0 ? 'text-rose-700' : ''">
+                                            {{ line.shortageQty > 0 ? `-${formatNumber(line.shortageQty)}` : (line.damagedQty > 0 || line.expiredQty > 0 ? `Cách ly ${formatNumber(line.damagedQty + line.expiredQty)}` : '0') }}
                                         </td>
                                         <td class="border border-black px-1.5 py-1 text-right">{{ formatCurrency(line.transfer.source_unit_cost || 0) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-right font-semibold">{{ formatCurrency((line.goodQty || 0) * (line.transfer.source_unit_cost || 0)) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-neutral-600">
-                                            <span v-if="line.damagedQty > 0">Cách ly {{ formatNumber(line.damagedQty) }} {{ line.transfer.unit }}</span>
+                                            <span v-if="line.damagedQty > 0 || line.expiredQty > 0">Cách ly {{ formatNumber(line.damagedQty + line.expiredQty) }} {{ line.transfer.unit }}</span>
                                             <span v-else-if="line.shortageQty > 0">Thiếu {{ formatNumber(line.shortageQty) }} {{ line.transfer.unit }}</span>
                                             <span v-else>Đủ</span>
                                         </td>
                                     </tr>
                                     <tr class="bg-neutral-100 font-bold">
-                                        <td colspan="4" class="border border-black px-1.5 py-1 text-right uppercase">TỔNG CỘNG</td>
+                                        <td colspan="6" class="border border-black px-1.5 py-1 text-right uppercase">TỔNG CỘNG</td>
                                         <td class="border border-black px-1.5 py-1 text-center">{{ bulkReceiveLines.reduce((s, l) => s + l.dispatchedQty, 0).toFixed(3) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center font-black">{{ bulkReceiveLines.reduce((s, l) => s + (l.goodQty || 0), 0).toFixed(3) }}</td>
                                         <td class="border border-black px-1.5 py-1 text-center font-bold">
@@ -3507,16 +3917,16 @@ const formatDuration = (hours: number) => {
                                     <b>Chứng từ kèm theo:</b>
                                     <span>[x] Phiếu điều chuyển</span>
                                     <span>[x] Biên bản bàn giao</span>
-                                    <span>[x] Ảnh/Minh chứng kiểm đếm ({{ bulkReceiveEvidenceFile?.name || 'Đã nộp' }})</span>
+                                    <span>[x] Ảnh/Minh chứng kiểm đếm ({{ bulkReceiveEvidenceFile?.name || 'Chưa nộp' }})</span>
                                 </div>
-                                <p><b>Ghi chú chi tiết:</b> {{ bulkReceiveNote || 'Nguyên liệu đạt tiêu chuẩn vệ sinh an toàn thực phẩm, bao bì nguyên vẹn.' }}</p>
+                                <p><b>Ghi chú chi tiết:</b> {{ bulkReceiveNote || 'Chưa cập nhật' }}</p>
                             </div>
                         </div>
 
                         <!-- 7. KẾT LUẬN -->
                         <div class="mt-2 border border-black p-2">
                             <p class="font-bold uppercase text-[10px] text-neutral-800">7. KẾT LUẬN</p>
-                            <p class="mt-0.5 text-[10px] italic">Chúng tôi xác nhận đã nhận đủ số lượng và chất lượng nguyên liệu theo Phiếu điều chuyển nêu trên.</p>
+                            <p class="mt-0.5 text-[10px] italic">Kết quả kiểm đếm và phân loại được ghi nhận theo bảng chi tiết và tình trạng thực tế bên trên.</p>
                             <div class="mt-1 flex items-center gap-4">
                                 <b>Kết luận:</b>
                                 <span :class="!bulkReceiveHasDiscrepancy ? 'font-bold' : ''">[{{ !bulkReceiveHasDiscrepancy ? 'x' : ' ' }}] Đúng theo phiếu điều chuyển</span>
@@ -3649,7 +4059,7 @@ const formatDuration = (hours: number) => {
                                     class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground disabled:opacity-85 disabled:cursor-not-allowed disabled:bg-muted/40 font-medium"
                                 >
                                     <option
-                                        v-for="branch in props.branches"
+                                        v-for="branch in businessBranches"
                                         :key="branch.id"
                                         :value="branch.id"
                                     >
@@ -3666,18 +4076,19 @@ const formatDuration = (hours: number) => {
 
                             <div class="flex flex-col gap-1.5">
                                 <div class="flex items-center justify-between">
-                                    <Label>Kho cấp hàng (Trực tiếp)</Label>
+                                    <Label>Chi nhánh cấp hàng (Trực tiếp)</Label>
                                     <span class="text-[10px] text-teal-400 font-bold uppercase tracking-wider">Tùy chọn</span>
                                 </div>
                                 <select
                                     v-model="requestForm.from_branch_id"
+                                    :disabled="!permissions.can_route"
                                     class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                                 >
                                     <option :value="null">
                                         — Để Chủ / Trưởng kho định tuyến —
                                     </option>
                                     <option
-                                        v-for="branch in props.branches.filter(b => b.id !== requestForm.to_branch_id)"
+                                        v-for="branch in businessBranches.filter(b => b.id !== requestForm.to_branch_id)"
                                         :key="branch.id"
                                         :value="branch.id"
                                     >
@@ -3695,11 +4106,199 @@ const formatDuration = (hours: number) => {
 
                         <div class="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs text-muted-foreground">
                             <span v-if="requestForm.from_branch_id" class="text-emerald-400 font-medium flex items-center gap-1.5">
-                                ⚡ <span><strong>Gửi trực tiếp:</strong> Đơn sẽ chuyển thẳng đến kho cấp để họ chuẩn bị xuất hàng ngay mà không cần qua duyệt định tuyến.</span>
+                                ⚡ <span><strong>Gửi trực tiếp:</strong> Đơn sẽ chuyển thẳng đến chi nhánh cấp để họ chuẩn bị xuất hàng ngay mà không cần qua duyệt định tuyến.</span>
                             </span>
                             <span v-else class="flex items-center gap-1.5">
-                                💡 <span><strong>Hàng chờ điều phối:</strong> Nếu không chọn trước kho cấp, đơn sẽ chuyển đến Chủ nhà hàng / Trưởng kho Tổng để chọn nguồn cấp phù hợp.</span>
+                                💡 <span><strong>Hàng chờ điều phối:</strong> Nếu không chọn trước chi nhánh cấp, đơn sẽ chuyển đến Chủ nhà hàng / Quản lý để chọn nguồn cấp phù hợp.</span>
                             </span>
+                        </div>
+
+                        <!-- AI SMART DISPATCH / WAREHOUSE RECOMMENDATION WIDGET -->
+                        <div
+                            class="rounded-xl border transition-all duration-300 overflow-hidden"
+                            :class="
+                                isAiAnalyzing
+                                    ? 'border-teal-500/40 bg-gradient-to-b from-teal-950/20 via-background to-background shadow-lg shadow-teal-950/20'
+                                    : 'border-border/60 bg-muted/20'
+                            "
+                        >
+                            <!-- Widget Header -->
+                            <div class="flex items-center justify-between px-3.5 py-2.5 bg-muted/30 border-b border-border/50">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex size-6 items-center justify-center rounded-lg bg-teal-500/20 text-teal-300 ring-1 ring-teal-500/30">
+                                        <Sparkles class="size-3.5 animate-pulse" />
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-black uppercase tracking-wider text-foreground">
+                                            AI Đề xuất Chi nhánh cấp tối ưu
+                                        </span>
+                                        <span
+                                            v-if="isAiAnalyzing"
+                                            class="rounded-full bg-teal-500/20 px-1.5 py-0.5 text-[10px] font-bold text-teal-300"
+                                        >
+                                            Thời gian thực
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div v-if="aiAppliedNotice" class="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                                    <CheckCircle2 class="size-3.5" />
+                                    <span>{{ aiAppliedNotice }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Widget Body -->
+                            <div class="p-3">
+                                <!-- State 1: No items selected yet -->
+                                <div
+                                    v-if="!isAiAnalyzing"
+                                    class="flex items-center gap-2.5 text-xs text-muted-foreground py-1"
+                                >
+                                    <Bot class="size-4 text-teal-400 shrink-0" />
+                                    <p>
+                                        Chọn nguyên liệu & số lượng cần bên dưới, AI sẽ tự động phân tích tồn kho thực tế của các chi nhánh kinh doanh bạn, định mức an toàn, lô cận hạn (FEFO) và khoảng cách địa lý để đề xuất chi nhánh cấp tốt nhất.
+                                    </p>
+                                </div>
+
+                                <!-- State 2: Active analysis with recommendations -->
+                                <div v-else class="space-y-3">
+                                    <!-- Top 1 Recommended Candidate -->
+                                    <div
+                                        v-if="topRecommendedBranch"
+                                        class="rounded-xl border p-3 transition-all"
+                                        :class="
+                                            requestForm.from_branch_id === topRecommendedBranch.branch.id
+                                                ? 'border-emerald-500/50 bg-emerald-500/10'
+                                                : 'border-teal-500/30 bg-teal-500/5 hover:border-teal-500/50'
+                                        "
+                                    >
+                                        <div class="flex flex-wrap items-start justify-between gap-2">
+                                            <div class="space-y-1">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="inline-flex items-center gap-1 rounded-md bg-amber-500/20 px-2 py-0.5 text-[11px] font-black text-amber-300 ring-1 ring-amber-500/30">
+                                                        <Zap class="size-3" /> ĐỀ XUẤT TỐI ƯU #1
+                                                    </span>
+                                                    <h4 class="font-bold text-sm text-foreground">
+                                                        {{ topRecommendedBranch.branch.name }}
+                                                    </h4>
+                                                    <span class="rounded bg-teal-500/20 px-1.5 py-0.5 text-[10px] font-bold text-teal-300">
+                                                        Điểm: {{ topRecommendedBranch.score }}/100
+                                                    </span>
+                                                </div>
+
+                                                <p class="text-xs text-muted-foreground">
+                                                    {{ topRecommendedBranch.reason }}
+                                                </p>
+                                            </div>
+
+                                            <div class="flex items-center gap-2 shrink-0">
+                                                <Button
+                                                    v-if="requestForm.from_branch_id === topRecommendedBranch.branch.id"
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled
+                                                    class="h-8 gap-1.5 bg-emerald-600 font-bold text-white opacity-90 cursor-default"
+                                                >
+                                                    <Check class="size-3.5" /> Đang chọn
+                                                </Button>
+                                                <Button
+                                                    v-else
+                                                    type="button"
+                                                    size="sm"
+                                                    class="h-8 gap-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 font-bold text-white shadow-md hover:from-teal-600 hover:to-emerald-700 active:scale-95 transition-all"
+                                                    @click="applyRecommendedBranch(topRecommendedBranch.branch.id)"
+                                                >
+                                                    <Sparkles class="size-3.5" /> Áp dụng chi nhánh này
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Tags & Summary Metrics -->
+                                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/40 text-[11px]">
+                                            <span
+                                                v-for="tag in topRecommendedBranch.tags"
+                                                :key="tag.text"
+                                                class="rounded-md px-2 py-0.5 font-medium"
+                                                :class="{
+                                                    'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30': tag.type === 'success',
+                                                    'bg-amber-500/20 text-amber-300 border border-amber-500/30': tag.type === 'rescue',
+                                                    'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30': tag.type === 'info',
+                                                    'bg-rose-500/20 text-rose-300 border border-rose-500/30': tag.type === 'warning',
+                                                }"
+                                            >
+                                                {{ tag.text }}
+                                            </span>
+
+                                            <button
+                                                v-if="aiBranchRecommendations.length > 1"
+                                                type="button"
+                                                class="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-teal-400 hover:underline"
+                                                @click="showAiDetails = !showAiDetails"
+                                            >
+                                                <span>{{ showAiDetails ? 'Thu gọn' : 'Xem các chi nhánh khác' }} ({{ aiBranchRecommendations.length - 1 }})</span>
+                                                <component :is="showAiDetails ? ChevronUp : ChevronDown" class="size-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Other Candidates List (Collapsible) -->
+                                    <div v-if="showAiDetails" class="space-y-2 pt-1">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Các chi nhánh kinh doanh khác trong hệ thống:
+                                        </p>
+                                        <div
+                                            v-for="rec in aiBranchRecommendations.slice(1)"
+                                            :key="rec.branch.id"
+                                            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs transition-colors hover:bg-muted/50"
+                                        >
+                                            <div class="space-y-0.5">
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <span class="font-bold text-foreground">{{ rec.branch.name }}</span>
+                                                    <span
+                                                        class="rounded px-1.5 py-0.5 text-[10px] font-bold"
+                                                        :class="
+                                                            rec.status === 'good'
+                                                                ? 'bg-cyan-500/20 text-cyan-300'
+                                                                : 'bg-rose-500/20 text-rose-300'
+                                                        "
+                                                    >
+                                                        Điểm: {{ rec.score }}/100
+                                                    </span>
+                                                    <span
+                                                        v-for="tag in rec.tags"
+                                                        :key="tag.text"
+                                                        class="rounded px-1.5 py-0.5 text-[10px]"
+                                                        :class="{
+                                                            'bg-emerald-500/10 text-emerald-400': tag.type === 'success',
+                                                            'bg-amber-500/10 text-amber-400': tag.type === 'rescue',
+                                                            'bg-rose-500/10 text-rose-400': tag.type === 'warning',
+                                                            'bg-muted text-muted-foreground': tag.type === 'info',
+                                                        }"
+                                                    >
+                                                        {{ tag.text }}
+                                                    </span>
+                                                </div>
+                                                <p class="text-[11px] text-muted-foreground">{{ rec.reason }}</p>
+                                            </div>
+
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="h-7 text-xs"
+                                                :class="
+                                                    requestForm.from_branch_id === rec.branch.id
+                                                        ? 'border-emerald-500 text-emerald-400 font-bold bg-emerald-500/10'
+                                                        : ''
+                                                "
+                                                @click="applyRecommendedBranch(rec.branch.id)"
+                                            >
+                                                {{ requestForm.from_branch_id === rec.branch.id ? 'Đang chọn' : 'Chọn chi nhánh này' }}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Multi-item ingredients list -->
@@ -4031,6 +4630,40 @@ const formatDuration = (hours: number) => {
                         </div>
                     </div>
 
+                    <div
+                        v-if="detailTransfer.source_batch"
+                        class="mt-4 rounded-xl border border-teal-500/30 bg-teal-500/5 p-4"
+                    >
+                        <div class="flex items-center gap-2">
+                            <ClipboardCheck class="size-4 text-teal-400" />
+                            <h3
+                                class="text-xs font-black tracking-wider text-teal-300 uppercase"
+                            >
+                                Thông tin lô & Hạn sử dụng (FEFO)
+                            </h3>
+                        </div>
+                        <div class="mt-3 grid gap-3 sm:grid-cols-3 text-xs">
+                            <div>
+                                <span class="text-muted-foreground">Mã lô xuất:</span>
+                                <p class="mt-0.5 font-mono font-bold text-foreground">
+                                    {{ detailTransfer.source_batch.batch_number }}
+                                </p>
+                            </div>
+                            <div>
+                                <span class="text-muted-foreground">Hạn sử dụng (HSD):</span>
+                                <p class="mt-0.5 font-bold text-amber-300">
+                                    {{ detailTransfer.source_batch.expiry_date || 'Theo bao bì' }}
+                                </p>
+                            </div>
+                            <div>
+                                <span class="text-muted-foreground">Ngày nhập kho (NSX):</span>
+                                <p class="mt-0.5 font-bold text-foreground">
+                                    {{ detailTransfer.source_batch.purchased_at || '—' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div class="rounded-xl border border-border/80 p-4">
                             <h3
@@ -4083,17 +4716,29 @@ const formatDuration = (hours: number) => {
                                 Biên bản: {{ detailTransfer.received_note }}
                             </p>
                             <p
-                                v-if="detailTransfer.discrepancy_quantity > 0"
+                                v-if="Number(detailTransfer.shortage_quantity || 0) + Number(detailTransfer.backorder_quantity || 0) > 0"
                                 class="mt-2 text-xs font-semibold text-rose-300"
                             >
-                                Thiếu
-                                {{
-                                    formatNumber(
-                                        detailTransfer.discrepancy_quantity,
-                                    )
-                                }}
+                                Thiếu / chưa đáp ứng
+                                {{ formatNumber(Number(detailTransfer.shortage_quantity || 0) + Number(detailTransfer.backorder_quantity || 0)) }}
                                 {{ detailTransfer.unit }}
                             </p>
+                            <p
+                                v-if="Number(detailTransfer.quantity_received_damaged || 0) + Number(detailTransfer.quantity_received_expired || 0) > 0"
+                                class="mt-2 text-xs font-semibold text-amber-300"
+                            >
+                                Hàng không đạt
+                                {{ formatNumber(Number(detailTransfer.quantity_received_damaged || 0) + Number(detailTransfer.quantity_received_expired || 0)) }}
+                                {{ detailTransfer.unit }}
+                            </p>
+                            <a
+                                v-if="detailTransfer.dispatch_evidence_path"
+                                :href="`/secure-files/download?path=${encodeURIComponent(detailTransfer.dispatch_evidence_path)}`"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-indigo-400"
+                                ><FileText class="size-3.5" /> Mở bằng chứng xuất kho</a
+                            >
                             <a
                                 v-if="detailTransfer.receiving_evidence_path"
                                 :href="`/secure-files/download?path=${encodeURIComponent(detailTransfer.receiving_evidence_path)}`"
@@ -4562,9 +5207,9 @@ const formatDuration = (hours: number) => {
                                 Chốt chênh lệch
                             </h2>
                             <p class="mt-1 text-xs text-muted-foreground">
-                                Thiếu {{ resolving.discrepancy_quantity }}
-                                {{ resolving.unit }} ·
-                                {{ resolving.ingredient }}
+                                Thiếu / chưa đáp ứng
+                                {{ formatNumber(Number(resolving.shortage_quantity || 0) + Number(resolving.backorder_quantity || 0)) }}
+                                {{ resolving.unit }} · {{ resolving.ingredient }}
                             </p>
                         </div>
                         <Button variant="ghost" size="icon" @click="closeModals"
@@ -4572,6 +5217,19 @@ const formatDuration = (hours: number) => {
                         /></Button>
                     </div>
                     <form @submit.prevent="submitResolution" class="space-y-4">
+                        <div v-if="Number(resolving.shortage_quantity || 0) > 0 || Number(resolving.backorder_quantity || 0) > 0" class="flex flex-col gap-1.5">
+                            <Label>Phương án xử lý phần thiếu / chưa đáp ứng</Label>
+                            <select
+                                v-model="resolutionForm.shortage_action"
+                                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                            >
+                                <option value="reship">Xuất bổ sung</option>
+                                <option value="accepted_loss">Xác nhận hao hụt / mất mát</option>
+                                <option value="claim_supplier">Khiếu nại nhà cung cấp</option>
+                                <option value="claim_carrier">Khiếu nại đơn vị vận chuyển</option>
+                                <option value="adjustment">Điều chỉnh theo phê duyệt</option>
+                            </select>
+                        </div>
                         <div
                             class="rounded-xl border border-rose-400/20 bg-rose-950/20 p-3 text-xs text-rose-100"
                         >
