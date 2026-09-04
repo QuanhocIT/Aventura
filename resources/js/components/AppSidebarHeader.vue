@@ -242,7 +242,7 @@ const showPolicyModal = ref(false);
     </header>
 
     <div
-        v-if="isAllBranches"
+        v-if="isAllBranches && !page.url.includes('tab=reconcile')"
         class="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
         role="status"
     >

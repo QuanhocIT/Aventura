@@ -12,6 +12,7 @@ use App\Models\Ingredient;
 use App\Models\IngredientPriceHistory;
 use App\Models\IngredientSupplier;
 use App\Models\Inventory;
+use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -276,6 +277,18 @@ class ApprovalService
      */
     private function revertSideEffectsOnReject(ApprovalRequest $approval): void
     {
+        if ($approval->operation_type === 'inventory_stocktake' && ! empty($approval->operation_data['count_session_id'])) {
+            InventoryCountSession::where('restaurant_id', $approval->restaurant_id)
+                ->whereKey($approval->operation_data['count_session_id'])
+                ->whereIn('status', ['in_progress', 'pending_approval'])
+                ->update([
+                    'status' => 'rejected',
+                    'rejection_reason' => $approval->rejection_reason,
+                    'rejected_by' => $approval->reviewer_id,
+                    'rejected_at' => now(),
+                ]);
+        }
+
         $assignmentId = $approval->operation_data['assignment_id'] ?? null;
 
         if (! $assignmentId) {
@@ -438,7 +451,7 @@ class ApprovalService
             'inventory_purchase' => $this->executePurchase($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_purchase_batch' => $this->executePurchaseBatch($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
-            'inventory_stocktake' => $this->executeStocktake($data, $approval->restaurant_id, $approval->requester_id),
+            'inventory_stocktake' => $this->executeStocktake($data, $approval->restaurant_id, $approval->requester_id, $reviewerId),
             'inventory_recipe_save' => $this->executeRecipeSave($data, $approval->restaurant_id),
             'inventory_recipe_delete' => $this->executeRecipeDelete($data, $approval->restaurant_id),
             'warehouse_set_central' => $this->warehouseService->setCentralWarehouse($approval->restaurant_id, (int) $data['branch_id']),
@@ -776,9 +789,9 @@ class ApprovalService
             ->update(['is_available' => ProductRecipe::where('restaurant_id', $restaurantId)->where('product_id', $productId)->exists()]);
     }
 
-    private function executeStocktake(array $data, int $restaurantId, int $performedBy): void
+    private function executeStocktake(array $data, int $restaurantId, int $performedBy, ?int $approvedBy = null): void
     {
-        DB::transaction(function () use ($data, $restaurantId, $performedBy): void {
+        DB::transaction(function () use ($data, $restaurantId, $performedBy, $approvedBy): void {
             foreach ($data['reconcile_items'] as $item) {
                 $ingredient = Ingredient::withoutGlobalScopes()->where('restaurant_id', $restaurantId)
                     ->where(function ($query) use ($data): void {
@@ -823,6 +836,50 @@ class ApprovalService
                     app(InventoryService::class)->reconcileBatchesForStocktake($inventory, $current, $physical, $transaction, $performedBy);
                 }
                 $inventory->update(['quantity_on_hand' => $physical, 'theoretical_quantity' => $physical, 'last_counted_at' => now(), 'updated_by' => $performedBy]);
+            }
+
+            if (! empty($data['count_session_id'])) {
+                $session = InventoryCountSession::where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $data['branch_id'])
+                    ->whereKey($data['count_session_id'])
+                    ->with('items.ingredient')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $totalVarianceValue = 0.0;
+
+                foreach ($data['reconcile_items'] as $item) {
+                    $countItem = $session->items->firstWhere('ingredient_id', $item['ingredient_id']);
+                    if (! $countItem) {
+                        continue;
+                    }
+
+                    $expected = (float) $countItem->expected_quantity;
+                    $physical = (float) $item['physical_qty'];
+                    $variance = $physical - $expected;
+                    $unitCost = (float) ($countItem->ingredient?->average_cost ?? 0);
+                    $varianceValue = round($variance * $unitCost, 2);
+                    $variancePercent = $expected > 0
+                        ? round(($variance / $expected) * 100, 2)
+                        : ($variance != 0 ? 100 : 0);
+
+                    $countItem->update([
+                        'counted_quantity_1' => $physical,
+                        'final_quantity' => $physical,
+                        'variance_quantity' => $variance,
+                        'variance_percent' => $variancePercent,
+                        'variance_value' => $varianceValue,
+                        'reconciliation_status' => 'not_required',
+                    ]);
+                    $totalVarianceValue += abs($varianceValue);
+                }
+
+                $session->update([
+                    'status' => 'approved',
+                    'total_variance_value' => round($totalVarianceValue, 2),
+                    'approved_by' => $approvedBy,
+                    'approved_at' => now(),
+                    'completed_at' => now(),
+                ]);
             }
         });
     }

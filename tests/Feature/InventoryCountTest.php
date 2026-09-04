@@ -145,4 +145,81 @@ class InventoryCountTest extends TestCase
         $submitted = $service->finalizeAndSubmitForApproval($reconciled, '/photos/recount.jpg');
         $this->assertSame('pending_approval', $submitted->status);
     }
+
+    public function test_inventory_workspace_reconcile_records_and_closes_count_session(): void
+    {
+        [$owner, $restaurant, $branch] = $this->tenant();
+        $unit = Unit::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Kilogram',
+            'symbol' => 'kg',
+            'type' => 'mass',
+        ]);
+        $ingredient = Ingredient::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'unit_id' => $unit->id,
+            'name' => 'Nguyên liệu workspace',
+            'sku' => 'WORKSPACE-001',
+            'average_cost' => 100000,
+        ]);
+        $inventory = Inventory::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity_on_hand' => 12,
+            'theoretical_quantity' => 12,
+        ]);
+
+        $session = app(InventoryCountService::class)->startCountSession(
+            $restaurant->id,
+            $branch->id,
+            $owner,
+        );
+
+        $response = $this->withSession([
+            'active_branch_id' => $branch->id,
+            'active_branch_scope' => 'branch',
+        ])->actingAs($owner)->post(route('inventory.reconcile'), [
+            'count_session_id' => $session->id,
+            'reconcile_items' => [[
+                'ingredient_id' => $ingredient->id,
+                'physical_qty' => 10,
+            ]],
+            'notes' => 'Kiểm kê từ workspace kho',
+        ]);
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('inventory_count_sessions', [
+            'id' => $session->id,
+            'status' => 'approved',
+        ]);
+        $this->assertDatabaseHas('inventory_count_items', [
+            'count_session_id' => $session->id,
+            'ingredient_id' => $ingredient->id,
+            'final_quantity' => 10,
+            'variance_quantity' => -2,
+        ]);
+
+        $inventory->refresh();
+        $this->assertEquals(10, $inventory->quantity_on_hand);
+    }
+
+    /** @return array{0: User, 1: Restaurant, 2: RestaurantBranch} */
+    private function tenant(): array
+    {
+        $owner = User::factory()->create();
+        $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'manager_user_id' => $owner->id,
+        ]);
+        $owner->forceFill([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+        ])->save();
+        $owner->assignRole('owner');
+
+        return [$owner, $restaurant, $branch];
+    }
 }

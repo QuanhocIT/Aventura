@@ -10,6 +10,7 @@ use App\Models\IngredientSupplier;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\InventoryBatchAllocation;
+use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ProductRecipe;
@@ -368,6 +369,52 @@ class InventoryManagementController extends Controller
 
         $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
 
+        // Lịch sử phiên kiểm kê được dùng ngay trong workspace kho. Lấy toàn bộ
+        // phiên của chi nhánh để giao diện chỉ hiển thị 3 phiên gần nhất nhưng
+        // vẫn có thể mở modal xem đầy đủ lịch sử.
+        $inventoryCountSessions = InventoryCountSession::where('restaurant_id', $user->restaurant_id)
+            ->whereNotIn('type', ['material_closing', 'branch_closing'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['branch:id,name', 'countedBy:id,name'])
+            ->withCount('items')
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->get()
+            ->values();
+
+        $activeInventoryCountSession = $branchId
+            ? $inventoryCountSessions->first(fn (InventoryCountSession $session) => $session->status === 'in_progress')
+            : null;
+        $activeInventoryCountSession?->load('items');
+
+        $inventoryCountSessions = $inventoryCountSessions
+            ->map(fn (InventoryCountSession $session) => [
+                'id' => (int) $session->id,
+                'branch_id' => (int) $session->branch_id,
+                'branch_name' => $session->branch?->name,
+                'type' => $session->type,
+                'status' => $session->status,
+                'started_at' => $session->started_at?->toIso8601String(),
+                'completed_at' => $session->completed_at?->toIso8601String(),
+                'total_variance_value' => (float) $session->total_variance_value,
+                'items_count' => (int) $session->items_count,
+                'counted_by_name' => $session->countedBy?->name,
+            ])
+            ->values();
+
+        $activeInventoryCountSession = $activeInventoryCountSession
+            ? [
+                'id' => (int) $activeInventoryCountSession->id,
+                'status' => $activeInventoryCountSession->status,
+                'items' => $activeInventoryCountSession->items->map(fn ($item) => [
+                    'ingredient_id' => (int) $item->ingredient_id,
+                    'counted_quantity_1' => $item->counted_quantity_1 !== null ? (float) $item->counted_quantity_1 : null,
+                    'final_quantity' => $item->final_quantity !== null ? (float) $item->final_quantity : null,
+                    'notes' => $item->notes,
+                ])->values(),
+            ]
+            : null;
+
         $isRecipePage = $request->routeIs('inventory.recipes.index');
 
         return Inertia::render(
@@ -381,6 +428,8 @@ class InventoryManagementController extends Controller
                 'recentPurchases' => $recentPurchases,
                 'employees' => $employees,
                 'recentWastes' => $recentWastes,
+                'inventoryCountSessions' => $inventoryCountSessions,
+                'activeInventoryCountSession' => $activeInventoryCountSession,
                 'safety' => $safety,
                 'activeBranchId' => $branchId,
                 'activeBranchName' => $activeBranchName,
@@ -1490,9 +1539,33 @@ class InventoryManagementController extends Controller
             'employee_id' => ['nullable', TenantRule::exists('employees')],
             'notes' => ['nullable', 'string', 'max:500'],
             'is_opening_balance' => ['nullable', 'boolean'],
+            'count_session_id' => ['nullable', 'integer', TenantRule::exists('inventory_count_sessions')],
         ]);
 
         $user = $request->user();
+        $countSession = null;
+
+        if (! empty($data['count_session_id'])) {
+            $countSession = InventoryCountSession::where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $branchId)
+                ->with('items.ingredient')
+                ->findOrFail($data['count_session_id']);
+
+            abort_if(
+                $countSession->status !== 'in_progress',
+                422,
+                'Phiên kiểm kê đã được xử lý hoặc không còn ở trạng thái đang thực hiện.',
+            );
+
+            $sessionIngredientIds = $countSession->items->pluck('ingredient_id')->map(fn ($id) => (int) $id)->all();
+            foreach ($data['reconcile_items'] as $item) {
+                abort_unless(
+                    in_array((int) $item['ingredient_id'], $sessionIngredientIds, true),
+                    422,
+                    'Nguyên liệu không thuộc phiên kiểm kê đang thực hiện.',
+                );
+            }
+        }
 
         if (! $user->isOwner() && ! $user->isSuperAdmin()) {
             // [SECURITY P1] Tính tổng giá trị chênh lệch để ApprovalService kiểm tra hạn mức.
@@ -1520,12 +1593,25 @@ class InventoryManagementController extends Controller
                 $user
             );
 
+            if ($countSession) {
+                $this->recordCountSessionResults($countSession, $data['reconcile_items'], $data['notes'] ?? null, 'pending_approval');
+            }
+
             return back()->with('success', 'Yêu cầu kiểm kê kho đã được gửi Chủ nhà hàng phê duyệt.');
         }
 
         try {
-            DB::transaction(function () use ($user, $data, $branchId) {
+            DB::transaction(function () use ($user, $data, $branchId, $countSession) {
                 $totalNetDeficitCost = 0.0;
+
+                if ($countSession) {
+                    $countSession = InventoryCountSession::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $branchId)
+                        ->whereKey($countSession->id)
+                        ->with('items.ingredient')
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                }
 
                 foreach ($data['reconcile_items'] as $item) {
                     $ingredientId = $item['ingredient_id'];
@@ -1650,6 +1736,10 @@ class InventoryManagementController extends Controller
                     );
                 }
 
+                if ($countSession) {
+                    $this->recordCountSessionResults($countSession, $data['reconcile_items'], $data['notes'] ?? null, 'approved', $user->id);
+                }
+
                 // Nếu chọn quy trách nhiệm cho nhân viên và có tổng thất thoát âm
                 if (
                     app(WarehouseGovernanceService::class)
@@ -1679,6 +1769,66 @@ class InventoryManagementController extends Controller
         }
 
         return back()->with('success', 'Đã hoàn thành kiểm kho và đối chiếu lệch.');
+    }
+
+    /**
+     * Ghi kết quả của luồng kiểm kê nhanh vào phiên kiểm kê chính thức.
+     * Luồng cân bằng cũ vẫn hoạt động khi request không có count_session_id.
+     */
+    private function recordCountSessionResults(
+        InventoryCountSession $session,
+        array $reconcileItems,
+        ?string $notes,
+        string $status,
+        ?int $approvedBy = null,
+    ): void {
+        $items = $session->relationLoaded('items')
+            ? $session->items
+            : $session->items()->with('ingredient')->get();
+        $itemsByIngredient = $items->keyBy('ingredient_id');
+        $totalVarianceValue = 0.0;
+
+        foreach ($reconcileItems as $reconcileItem) {
+            $item = $itemsByIngredient->get($reconcileItem['ingredient_id']);
+            abort_unless($item, 422, 'Không tìm thấy dòng nguyên liệu trong phiên kiểm kê.');
+
+            $expected = (float) $item->expected_quantity;
+            $physical = (float) $reconcileItem['physical_qty'];
+            $variance = $physical - $expected;
+            $unitCost = (float) ($item->ingredient?->average_cost ?? 0);
+            $varianceValue = round($variance * $unitCost, 2);
+            $variancePercent = $expected > 0
+                ? round(($variance / $expected) * 100, 2)
+                : ($variance != 0 ? 100 : 0);
+
+            $item->update([
+                'counted_quantity_1' => $physical,
+                'final_quantity' => $physical,
+                'variance_quantity' => $variance,
+                'variance_percent' => $variancePercent,
+                'variance_value' => $varianceValue,
+                'reconciliation_status' => 'not_required',
+                'notes' => $notes ?: $item->notes,
+            ]);
+
+            $totalVarianceValue += abs($varianceValue);
+        }
+
+        $sessionUpdates = [
+            'status' => $status,
+            'total_variance_value' => round($totalVarianceValue, 2),
+            'notes' => $notes ?: $session->notes,
+        ];
+
+        if ($status === 'approved') {
+            $sessionUpdates += [
+                'approved_by' => $approvedBy,
+                'approved_at' => now(),
+                'completed_at' => now(),
+            ];
+        }
+
+        $session->update($sessionUpdates);
     }
 
     private function resolveBatchNumber(array $data): string
