@@ -820,12 +820,15 @@ const resolveReceiveCondition = (
     if (typesCount >= 2) {
         return 'mixed';
     }
+
     if (hasBad) {
         return 'damaged';
     }
+
     if (hasShortage) {
         return 'shortage';
     }
+
     return 'good';
 };
 
@@ -855,6 +858,7 @@ const autoBalanceLine = (line: BulkReceiveLine, targetField: 'good' | 'shortage'
         const remaining = Math.max(0, Number((line.dispatchedQty - good - damaged - expired).toFixed(3)));
         line.shortageQty = remaining;
     }
+
     updateReceiveLineCondition(line);
 };
 
@@ -949,11 +953,14 @@ const submitBulkReceive = async () => {
     }
 
     bulkReceiveSubmitting.value = false;
+
     if (failedLines.length > 0) {
         toast.error(`Có ${failedLines.length}/${bulkReceiveLines.value.length} dòng nhận thất bại: ${failedLines.slice(0, 3).join(' • ')}`);
         refreshPage();
+
         return;
     }
+
     closeBulkReceive();
     refreshPage();
 };
