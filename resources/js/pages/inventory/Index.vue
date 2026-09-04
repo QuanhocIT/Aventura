@@ -9,7 +9,6 @@ import {
     Info,
     Beaker,
     X,
-    TrendingDown,
     ShoppingCart,
     AlertTriangle,
     Trash2,
@@ -29,6 +28,12 @@ import {
     Warehouse,
     Send,
     Minus,
+    Eye,
+    BadgeDollarSign,
+    Clock,
+    ArrowDown,
+    ArrowUp,
+    ArrowLeftRight,
 } from 'lucide-vue-next';
 import {
     computed,
@@ -249,24 +254,56 @@ const openEditIngredientModal = (ing: any) => {
 const getStorageBadgeClass = (type?: string) => {
     switch (type) {
         case 'fresh':
-            return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300';
+            return 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400';
         case 'daily':
-            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300';
+            return 'bg-sky-500/15 text-sky-700 border-sky-500/30 dark:bg-sky-500/20 dark:text-sky-400';
         case 'short_shelf':
-            return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300';
         case 'canned_packaged':
-            return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300';
+            return 'bg-purple-500/15 text-purple-700 border-purple-500/30 dark:bg-purple-500/20 dark:text-purple-400';
+        case 'dry':
         default:
-            return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300';
+            return 'bg-amber-500/15 text-amber-700 border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400';
     }
 };
 
 const getStorageLabel = (ingredient: Ingredient) => {
-    const label = ingredient.storage_type_label?.trim();
+    const type = ingredient.storage_type;
 
-    return label
-        ? label.replace(/^[^\p{L}\p{N}]+/u, '').trim()
-        : 'Đồ khô & Gia vị';
+    if (type === 'fresh') {
+        return 'Tươi sống';
+    }
+
+    if (type === 'daily') {
+        return 'Trong ngày';
+    }
+
+    if (type === 'canned_packaged' || type === 'short_shelf') {
+        return 'Đóng gói';
+    }
+
+    if (type === 'dry') {
+        return 'Đồ khô';
+    }
+
+    const raw = ingredient.storage_type_label?.trim() || '';
+
+    if (raw.includes('tươi') || raw.includes('Tươi')) {
+        return 'Tươi sống';
+    }
+
+    if (raw.includes('ngày') || raw.includes('Ngày')) {
+        return 'Trong ngày';
+    }
+
+    if (raw.includes('gói') || raw.includes('hộp') || raw.includes('Gói')) {
+        return 'Đóng gói';
+    }
+
+    if (raw.includes('khô') || raw.includes('Khô') || raw.includes('Gia vị')) {
+        return 'Đồ khô';
+    }
+
+    return raw ? raw.replace(/^[^\p{L}\p{N}]+/u, '').trim() : 'Đồ khô';
 };
 
 // ── Pagination & Search (công thức định lượng) ─────────────────────────
@@ -1069,48 +1106,120 @@ const submitReconcile = () => {
     );
 };
 
-// ── Search & low-stock ────────────────────────────────────────────────────────
+// ── Search, filters & dashboard state ──────────────────────────────────────────
 const ingredientSearch = ref('');
+const ingredientCategoryFilter = ref<string>('all');
+const ingredientStatusFilter = ref<string>('all');
+const ingredientSortOption = ref<string>('newest');
+const ingredientPerPage = ref<number>(10);
+const expandedIngredientId = ref<number | null>(null);
+
+const toggleIngredientExpand = (id: number) => {
+    expandedIngredientId.value = expandedIngredientId.value === id ? null : id;
+};
+
+const availableCategories = computed(() => {
+    const cats = new Set<string>();
+    props.ingredients.forEach((i) => {
+        if (i.category_name?.trim()) {
+            cats.add(i.category_name.trim());
+        }
+    });
+    return Array.from(cats);
+});
 
 const filteredIngredients = computed(() => {
     const q = ingredientSearch.value.trim().toLowerCase();
+    const cat = ingredientCategoryFilter.value;
+    const status = ingredientStatusFilter.value;
 
-    if (!q) {
-        return props.ingredients;
+    let list = props.ingredients;
+
+    if (q) {
+        list = list.filter(
+            (i) =>
+                i.name.toLowerCase().includes(q) ||
+                (i.sku ?? '').toLowerCase().includes(q) ||
+                (i.category_name ?? '').toLowerCase().includes(q),
+        );
     }
 
-    return props.ingredients.filter(
-        (i) =>
-            i.name.toLowerCase().includes(q) ||
-            (i.category_name ?? '').toLowerCase().includes(q),
-    );
+    if (cat !== 'all') {
+        list = list.filter((i) => (i.category_name ?? '').trim() === cat);
+    }
+
+    if (status !== 'all') {
+        list = list.filter((i) => {
+            const stock = i.stock;
+            if (status === 'good') {
+                return stock !== null && stock >= (i.reorder_level || 20);
+            }
+            if (status === 'low') {
+                return (
+                    stock !== null &&
+                    stock < (i.reorder_level || 20) &&
+                    stock > 0
+                );
+            }
+            if (status === 'out') {
+                return stock === null || stock <= 0;
+            }
+            if (status === 'expired') {
+                return i.batches?.some(
+                    (b) =>
+                        b.is_expired ||
+                        (b.days_remaining !== null && b.days_remaining <= 0),
+                );
+            }
+            return true;
+        });
+    }
+
+    return list;
 });
 
 const filteredIngredientsByStorage = computed(() => {
     const storageType = selectedStorageTypeFilter.value;
 
-    if (storageType === 'all') {
-        return filteredIngredients.value;
+    let list = filteredIngredients.value;
+    if (storageType !== 'all') {
+        list = list.filter(
+            (ingredient) => (ingredient.storage_type ?? 'dry') === storageType,
+        );
     }
 
-    return filteredIngredients.value.filter(
-        (ingredient) => (ingredient.storage_type ?? 'dry') === storageType,
-    );
+    const sort = ingredientSortOption.value;
+    return [...list].sort((a, b) => {
+        if (sort === 'stock_desc') {
+            return (b.stock ?? 0) - (a.stock ?? 0);
+        }
+        if (sort === 'stock_asc') {
+            return (a.stock ?? 0) - (b.stock ?? 0);
+        }
+        if (sort === 'name_asc') {
+            return a.name.localeCompare(b.name, 'vi');
+        }
+        if (sort === 'value_desc') {
+            const valA = (a.stock ?? 0) * (a.average_cost ?? 0);
+            const valB = (b.stock ?? 0) * (b.average_cost ?? 0);
+            return valB - valA;
+        }
+        return 0;
+    });
 });
 
 const ingredientCurrentPage = ref(1);
-const ingredientPerPage = 5;
 
 const totalIngredientPages = computed(() =>
-    Math.ceil(filteredIngredientsByStorage.value.length / ingredientPerPage),
+    Math.ceil(filteredIngredientsByStorage.value.length / ingredientPerPage.value) || 1,
 );
 
 const paginatedIngredients = computed(() => {
-    const start = (ingredientCurrentPage.value - 1) * ingredientPerPage;
+    const start = (ingredientCurrentPage.value - 1) * ingredientPerPage.value;
 
     return filteredIngredientsByStorage.value.slice(
         start,
-        start + ingredientPerPage,
+        start + ingredientPerPage.value,
     );
 });
 
@@ -1123,7 +1232,6 @@ const visibleIngredientPages = computed(() => {
         for (let page = 1; page <= total; page++) {
             pages.push(page);
         }
-
         return pages;
     }
 
@@ -1150,9 +1258,19 @@ const visibleIngredientPages = computed(() => {
     return pages;
 });
 
-watch([ingredientSearch, selectedStorageTypeFilter], () => {
-    ingredientCurrentPage.value = 1;
-});
+watch(
+    [
+        ingredientSearch,
+        selectedStorageTypeFilter,
+        ingredientCategoryFilter,
+        ingredientStatusFilter,
+        ingredientSortOption,
+        ingredientPerPage,
+    ],
+    () => {
+        ingredientCurrentPage.value = 1;
+    },
+);
 
 watch(totalIngredientPages, (total) => {
     if (total === 0) {
@@ -1164,41 +1282,246 @@ watch(totalIngredientPages, (total) => {
 
 const lowStockIngredients = computed(() =>
     props.ingredients.filter(
-        (i) =>
-            i.stock !== null && i.stock < (i.min_stock_level || 5),
+        (i) => i.stock !== null && i.stock < (i.min_stock_level || 5),
     ),
 );
 
+// ── Top 5 KPI stats ───────────────────────────────────────────────────────────
+const totalStockQuantity = computed(() => {
+    return props.ingredients.reduce(
+        (acc, i) => acc + (Number(i.stock) || 0),
+        0,
+    );
+});
+
+const totalStockQuantityDisplay = computed(() => {
+    if (totalStockQuantity.value >= 1000) {
+        return totalStockQuantity.value.toLocaleString('vi-VN', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+        });
+    }
+    return totalStockQuantity.value.toFixed(1);
+});
+
+const totalInventoryValue = computed(() => {
+    return props.ingredients.reduce(
+        (acc, i) =>
+            acc +
+            Math.max(0, (Number(i.stock) || 0) * (Number(i.average_cost) || 0)),
+        0,
+    );
+});
+
+const totalInventoryValueFormatted = computed(() => {
+    return totalInventoryValue.value.toLocaleString('vi-VN');
+});
+
+const expiredIngredientsCount = computed(() => {
+    return props.ingredients.reduce(
+        (acc, i) =>
+            acc +
+            (i.batches?.some(
+                (b) =>
+                    b.is_expired ||
+                    (b.days_remaining !== null && b.days_remaining <= 0),
+            )
+                ? 1
+                : 0),
+        0,
+    );
+});
+
 const getStockStatus = (ingredient: Ingredient) => {
-    if (ingredient.stock === null) {
+    if (ingredient.stock === null || ingredient.stock <= 0) {
         return {
-            label: 'Chưa cập nhật',
+            label: 'Hết hàng',
+            dotClass: 'bg-rose-500',
             classes:
-                'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400',
         };
     }
 
     if (ingredient.stock < (ingredient.min_stock_level || 5)) {
         return {
             label: 'Sắp hết',
+            dotClass: 'bg-amber-500',
             classes:
-                'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300',
+                'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
         };
     }
 
     if (ingredient.stock < (ingredient.reorder_level || 20)) {
         return {
             label: 'Cần nhập',
+            dotClass: 'bg-amber-500',
             classes:
-                'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300',
+                'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400',
         };
     }
 
     return {
-        label: 'Ổn định',
+        label: 'Tốt',
+        dotClass: 'bg-emerald-500',
         classes:
-            'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300',
+            'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
     };
+};
+
+const getEarliestExpiry = (ingredient: Ingredient) => {
+    if (!ingredient.batches || ingredient.batches.length === 0) {
+        return '—';
+    }
+    const validBatches = ingredient.batches.filter((b) => b.expiry_date);
+    if (validBatches.length === 0) {
+        return '—';
+    }
+    return validBatches[0].expiry_date ?? '—';
+};
+
+const isEarliestExpiringSoon = (ingredient: Ingredient) => {
+    if (!ingredient.batches || ingredient.batches.length === 0) {
+        return false;
+    }
+    return ingredient.batches.some(
+        (b) =>
+            b.is_expiring_soon ||
+            (b.days_remaining !== null && b.days_remaining <= 7),
+    );
+};
+
+// ── Donut Chart Distribution ──────────────────────────────────────────────────
+const categoryDistribution = computed(() => {
+    const categories = [
+        {
+            key: 'fresh',
+            label: 'Tươi sống',
+            color: '#10b981',
+            strokeColor: '#10b981',
+            dotClass: 'bg-emerald-500',
+            count: 0,
+            stock: 0,
+        },
+        {
+            key: 'daily',
+            label: 'Trong ngày',
+            color: '#3b82f6',
+            strokeColor: '#3b82f6',
+            dotClass: 'bg-blue-500',
+            count: 0,
+            stock: 0,
+        },
+        {
+            key: 'canned_packaged',
+            label: 'Đóng gói',
+            color: '#8b5cf6',
+            strokeColor: '#8b5cf6',
+            dotClass: 'bg-purple-500',
+            count: 0,
+            stock: 0,
+        },
+        {
+            key: 'dry',
+            label: 'Đồ khô',
+            color: '#f59e0b',
+            strokeColor: '#f59e0b',
+            dotClass: 'bg-amber-500',
+            count: 0,
+            stock: 0,
+        },
+    ];
+
+    props.ingredients.forEach((i) => {
+        const type = i.storage_type ?? 'dry';
+        const match = categories.find((c) => c.key === type) || categories[3];
+        match.count += 1;
+        match.stock += Number(i.stock) || 0;
+    });
+
+    const totalStock = categories.reduce((sum, c) => sum + c.stock, 0);
+    const totalCount = props.ingredients.length || 1;
+    const useStock = totalStock > 0;
+    const baseTotal = useStock ? totalStock : totalCount;
+
+    let accumulatedPercent = 0;
+    const radius = 58;
+    const circumference = 2 * Math.PI * radius; // ~364.42
+
+    return categories.map((c) => {
+        const value = useStock ? c.stock : c.count;
+        const percent = Math.max(0, Math.round((value / baseTotal) * 100)) || 0;
+        const dash = (percent / 100) * circumference;
+        const strokeDasharray = `${dash} ${circumference}`;
+        const strokeDashoffset = -((accumulatedPercent / 100) * circumference);
+        accumulatedPercent += percent;
+
+        return {
+            ...c,
+            percent,
+            radius,
+            strokeDasharray,
+            strokeDashoffset,
+            displayValue: useStock
+                ? `${c.stock.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}`
+                : `${c.count} món`,
+        };
+    });
+});
+
+// ── Urgent Alerts ─────────────────────────────────────────────────────────────
+const urgentAlerts = computed(() => {
+    const alerts: Array<{
+        id: number;
+        title: string;
+        sub: string;
+        type: 'low_stock' | 'expiring' | 'expired';
+        ingredient: Ingredient;
+    }> = [];
+
+    props.ingredients.forEach((ing) => {
+        ing.batches?.forEach((b) => {
+            if (
+                b.is_expired ||
+                (b.days_remaining !== null && b.days_remaining <= 0)
+            ) {
+                alerts.push({
+                    id: ing.id,
+                    title: `${ing.name} đã hết hạn`,
+                    sub: `HSD: ${b.expiry_date ?? 'Quá hạn'}`,
+                    type: 'expired',
+                    ingredient: ing,
+                });
+            } else if (
+                b.is_expiring_soon ||
+                (b.days_remaining !== null && b.days_remaining <= 7)
+            ) {
+                alerts.push({
+                    id: ing.id,
+                    title: `${ing.name} sắp hết hạn`,
+                    sub: `HSD: ${b.expiry_date ?? 'Sắp hết hạn'}`,
+                    type: 'expiring',
+                    ingredient: ing,
+                });
+            }
+        });
+
+        if (ing.stock !== null && ing.stock < (ing.min_stock_level || 5)) {
+            alerts.push({
+                id: ing.id,
+                title: `${ing.name} sắp hết hàng`,
+                sub: `Còn ${ing.stock.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} ${ing.unit?.symbol ?? ''}`,
+                type: 'low_stock',
+                ingredient: ing,
+            });
+        }
+    });
+
+    return alerts.slice(0, 4);
+});
+
+const handleQuickPurchase = (ing: Ingredient) => {
+    purchaseForm.ingredient_id = String(ing.id);
+    activeTab.value = 'purchase';
 };
 
 // ── Computed ──────────────────────────────────────────────────────────────────
@@ -1414,14 +1737,14 @@ const recallBatch = (batchId: number) => {
 <template>
     <Head :title="isRecipesPage ? 'Công thức định lượng' : 'Kho nguyên liệu'" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6">
+    <div class="mx-auto flex w-full max-w-[1680px] flex-col gap-6 p-4 sm:p-6">
         <!-- Header -->
         <div
-            class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-4 border-b border-border/80 pb-5 sm:flex-row sm:items-center sm:justify-between"
         >
-            <div class="flex items-center gap-3">
+            <div class="flex items-start gap-3.5">
                 <div
-                    class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500 ring-1 ring-indigo-500/15"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 ring-1 ring-indigo-500/20 dark:text-indigo-400"
                 >
                     <component
                         :is="isRecipesPage ? Scale : Package"
@@ -1429,34 +1752,32 @@ const recallBatch = (batchId: number) => {
                     />
                 </div>
                 <div>
-                    <p
-                        class="mb-1 text-[10px] font-bold tracking-[0.16em] text-indigo-500 uppercase"
-                    >
-                        {{
-                            isRecipesPage
-                                ? 'Danh mục công thức'
-                                : 'Vận hành kho'
-                        }}
-                    </p>
-                    <h1 class="text-xl font-bold tracking-tight">
+                    <!-- Breadcrumbs -->
+                    <div class="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                        <Link href="/inventory" class="hover:text-foreground transition-colors">Kho nguyên liệu</Link>
+                        <ChevronRight class="size-3 text-muted-foreground/60" />
+                        <span class="font-bold text-foreground">{{ isRecipesPage ? 'Công thức định lượng' : 'Tồn kho nguyên liệu' }}</span>
+                    </div>
+
+                    <h1 class="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
                         {{
                             isRecipesPage
                                 ? 'Công thức định lượng'
-                                : 'Kho nguyên liệu'
+                                : 'Tồn kho nguyên liệu'
                         }}
                     </h1>
-                    <p class="text-sm text-muted-foreground">
+                    <p class="mt-1 text-xs text-muted-foreground sm:text-sm">
                         {{
                             isRecipesPage
                                 ? 'Chuẩn hóa định lượng để tính giá vốn và trừ kho chính xác'
-                                : 'Theo dõi nguyên liệu, lô hàng và mức tồn theo chi nhánh'
+                                : 'Quản lý toàn bộ nguyên liệu, theo dõi số lượng tồn kho theo thời gian thực.'
                         }}
                     </p>
                     <div
                         class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground"
                     >
                         <span
-                            class="inline-flex items-center gap-1 rounded-full border border-indigo-500/15 bg-indigo-500/5 px-2 py-1 font-medium text-indigo-600 dark:text-indigo-300"
+                            class="inline-flex items-center gap-1 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 font-bold text-indigo-600 dark:text-indigo-300"
                         >
                             <MapPin class="size-3" />
                             {{
@@ -1467,48 +1788,48 @@ const recallBatch = (batchId: number) => {
                         </span>
                         <span
                             v-if="!isRecipesPage"
-                            class="text-muted-foreground/70"
+                            class="text-muted-foreground/80 font-medium"
                         >
-                            Số liệu theo chi nhánh đang chọn
+                            Dữ liệu đồng bộ tức thời
                         </span>
                     </div>
                 </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2.5">
                 <div
                     aria-label="Chuyển khu vực quản lý"
                     role="navigation"
-                    class="flex items-center gap-1 rounded-xl border border-border bg-muted p-1"
+                    class="flex items-center gap-1 rounded-xl border border-border bg-muted/60 p-1"
                 >
                     <Link
                         href="/inventory"
                         :aria-current="!isRecipesPage ? 'page' : undefined"
-                        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
                         :class="
                             !isRecipesPage
                                 ? 'bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
-                        <Package class="size-3.5" />Tồn kho
+                        <Package class="size-3.5 text-amber-500" />Tồn kho
                     </Link>
                     <Link
                         href="/inventory/recipes"
                         :aria-current="isRecipesPage ? 'page' : undefined"
-                        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all"
+                        class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all"
                         :class="
                             isRecipesPage
                                 ? 'bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
-                        <Scale class="size-3.5" />Công thức
+                        <Scale class="size-3.5 text-indigo-500" />Công thức
                     </Link>
                 </div>
                 <Button
                     v-if="!isRecipesPage && activeTab === 'stock'"
                     @click="openAddIngredientModal()"
-                    class="h-9 rounded-lg bg-indigo-600 px-3.5 text-xs font-bold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-700"
+                    class="h-10 rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm shadow-indigo-600/25 hover:bg-indigo-700"
                 >
                     <Plus class="mr-1.5 size-4" />Thêm nguyên liệu
                 </Button>
@@ -1665,485 +1986,641 @@ const recallBatch = (batchId: number) => {
 
         <!-- ══ TỒN KHO / CÔNG THỨC (tách theo route) ══════════════════════════ -->
         <template v-if="activeTab === 'stock'">
-            <div class="grid grid-cols-1 gap-6">
-                <!-- Left: Ingredient list -->
-                <div v-if="!isRecipesPage" class="lg:col-span-1">
-                    <Card
-                        class="h-full overflow-hidden border-slate-200/80 shadow-sm dark:border-slate-800"
-                    >
-                        <CardHeader
-                            class="border-b border-border px-6 py-6 sm:px-8"
-                        >
-                            <div
-                                class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-                            >
-                                <div>
-                                    <div class="flex items-center gap-3">
-                                        <CardTitle
-                                            class="text-lg font-extrabold tracking-tight text-foreground sm:text-xl"
-                                            >Tồn kho nguyên liệu ({{
-                                                filteredIngredientsByStorage.length
-                                            }}/{{ ingredients.length }})</CardTitle
-                                        >
-                                    </div>
-                                    <div
-                                        class="mt-2 flex flex-wrap items-center gap-2 text-xs"
-                                    >
-                                        <span
-                                            class="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 font-bold text-rose-600 dark:text-rose-400"
-                                        >
-                                            <span class="size-1.5 animate-pulse rounded-full bg-rose-500"></span>
-                                            {{ lowStockIngredients.length }} sắp hết
-                                        </span>
-                                        <span
-                                            class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-bold text-amber-600 dark:text-amber-400"
-                                        >
-                                            <span class="size-1.5 rounded-full bg-amber-500"></span>
-                                            {{
-                                                ingredients.filter(
-                                                    (i) =>
-                                                        i.stock !== null &&
-                                                        i.stock >=
-                                                            (i.min_stock_level ||
-                                                                5) &&
-                                                        i.stock <
-                                                            (i.reorder_level ||
-                                                                20),
-                                                ).length
-                                            }} cần nhập bổ sung
-                                        </span>
-                                    </div>
+                <!-- Left: Ingredient list (Upgraded Dashboard Matching Sample Design) -->
+                <div v-if="!isRecipesPage" class="flex flex-col gap-6">
+                    <!-- 1. Top 5 KPI Summary Cards -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+                        <!-- KPI 1: TỔNG NGUYÊN LIỆU -->
+                        <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm transition-all hover:border-indigo-500/30">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-black tracking-wider text-muted-foreground uppercase">TỔNG NGUYÊN LIỆU</span>
+                                <div class="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                    <Layers class="size-4.5 sm:size-5" />
                                 </div>
-                                <Button
-                                    size="sm"
-                                    class="h-10 rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white shadow-sm shadow-indigo-600/25 hover:bg-indigo-700"
-                                    @click="openAddIngredientModal()"
-                                >
-                                    <Plus class="mr-1.5 size-4" /> Thêm nguyên liệu
-                                </Button>
                             </div>
+                            <div class="mt-2 flex items-baseline gap-1.5">
+                                <span class="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{{ ingredients.length }}</span>
+                            </div>
+                            <p class="mt-1 text-xs text-muted-foreground font-medium">Loại nguyên liệu</p>
+                        </div>
+
+                        <!-- KPI 2: TỒN KHO HIỆN TẠI -->
+                        <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm transition-all hover:border-emerald-500/30">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-black tracking-wider text-muted-foreground uppercase">TỒN KHO HIỆN TẠI</span>
+                                <div class="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    <Package class="size-4.5 sm:size-5" />
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-baseline gap-1.5">
+                                <span class="text-2xl sm:text-3xl font-black tracking-tight text-foreground font-mono">{{ totalStockQuantityDisplay }}</span>
+                                <span class="text-xs font-bold text-muted-foreground">đv</span>
+                            </div>
+                            <p class="mt-1 text-xs text-muted-foreground font-medium">Tổng số lượng</p>
+                        </div>
+
+                        <!-- KPI 3: GIÁ TRỊ TỒN KHO -->
+                        <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm transition-all hover:border-amber-500/30">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-black tracking-wider text-muted-foreground uppercase">GIÁ TRỊ TỒN KHO</span>
+                                <div class="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                    <BadgeDollarSign class="size-4.5 sm:size-5" />
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-baseline gap-1">
+                                <span class="text-sm font-black text-amber-600 dark:text-amber-400">₫</span>
+                                <span class="text-2xl sm:text-3xl font-black tracking-tight text-foreground font-mono">{{ totalInventoryValueFormatted }}</span>
+                            </div>
+                            <p class="mt-1 text-xs text-muted-foreground font-medium">Giá vốn ước tính</p>
+                        </div>
+
+                        <!-- KPI 4: SẮP HẾT HÀNG -->
+                        <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm transition-all hover:border-rose-500/30">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-black tracking-wider text-muted-foreground uppercase">SẮP HẾT HÀNG</span>
+                                <div class="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                                    <AlertTriangle class="size-4.5 sm:size-5" />
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-baseline gap-1.5">
+                                <span class="text-2xl sm:text-3xl font-black tracking-tight" :class="lowStockIngredients.length > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'">{{ lowStockIngredients.length }}</span>
+                            </div>
+                            <p class="mt-1 text-xs text-muted-foreground font-medium">Nguyên liệu</p>
+                        </div>
+
+                        <!-- KPI 5: QUÁ HẠN -->
+                        <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm transition-all hover:border-sky-500/30 col-span-2 sm:col-span-1">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] font-black tracking-wider text-muted-foreground uppercase">QUÁ HẠN</span>
+                                <div class="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                                    <CalendarCheck class="size-4.5 sm:size-5" />
+                                </div>
+                            </div>
+                            <div class="mt-2 flex items-baseline gap-1.5">
+                                <span class="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{{ expiredIngredientsCount }}</span>
+                            </div>
+                            <p class="mt-1 text-xs text-muted-foreground font-medium">Nguyên liệu</p>
+                        </div>
+                    </div>
+
+                    <!-- 2. Search & Multi-criteria Filter Bar -->
+                    <div class="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm space-y-3.5">
+                        <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3">
                             <!-- Search -->
-                            <div class="relative mt-5">
-                                <Search
-                                    class="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
-                                />
+                            <div class="relative flex-1">
+                                <Search class="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <input
                                     v-model="ingredientSearch"
                                     type="text"
-                                    aria-label="Tìm kiếm nguyên liệu"
                                     placeholder="Tìm theo tên nguyên liệu, mã SKU hoặc danh mục..."
-                                    class="h-11 w-full rounded-xl border border-input bg-background pr-4 pl-10 text-sm font-medium placeholder:text-muted-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                    class="h-10 w-full rounded-xl border border-input bg-background pr-8 pl-10 text-xs sm:text-sm font-medium placeholder:text-muted-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition-all"
                                 />
-                            </div>
-                            <!-- Storage Filter Pills -->
-                            <div
-                                class="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4"
-                            >
                                 <button
-                                    v-for="st in [
-                                        { key: 'all', label: 'Tất cả' },
-                                        { key: 'fresh', label: 'Tươi sống' },
-                                        {
-                                            key: 'daily',
-                                            label: 'Trong ngày',
-                                        },
-                                        {
-                                            key: 'canned_packaged',
-                                            label: 'Đóng gói',
-                                        },
-                                        { key: 'dry', label: 'Đồ khô' },
-                                    ]"
-                                    :key="st.key"
+                                    v-if="ingredientSearch"
                                     type="button"
-                                    :aria-pressed="
-                                        selectedStorageTypeFilter === st.key
-                                    "
-                                    @click="selectedStorageTypeFilter = st.key"
-                                    :class="[
-                                        'cursor-pointer rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all',
-                                        selectedStorageTypeFilter === st.key
-                                            ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-600 shadow-xs dark:border-indigo-500/30 dark:bg-indigo-500/20 dark:text-indigo-300'
-                                            : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground',
-                                    ]"
+                                    @click="ingredientSearch = ''"
+                                    class="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-0.5 text-muted-foreground hover:text-foreground"
                                 >
-                                    {{ st.label }}
+                                    <X class="size-3.5" />
                                 </button>
                             </div>
-                        </CardHeader>
-                        <CardContent class="divide-y divide-border p-0">
-                            <div v-if="filteredIngredientsByStorage.length">
-                                <div
-                                    v-for="ing in paginatedIngredients"
-                                    :key="ing.id"
-                                    class="p-5 text-sm transition-colors hover:bg-muted/20 sm:p-6"
+                            <!-- Dropdowns row -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Dropdown Danh mục -->
+                                <select
+                                    v-model="ingredientCategoryFilter"
+                                    class="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:border-indigo-500 focus:outline-none cursor-pointer"
                                 >
-                                    <div
-                                        class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
-                                    >
-                                        <div class="min-w-0 flex-1">
-                                            <div
-                                                class="flex flex-wrap items-center gap-2"
-                                            >
-                                                <p
-                                                    class="text-base font-bold tracking-tight text-foreground sm:text-lg"
-                                                >
-                                                    {{ ing.name }}
-                                                </p>
-                                                <button
-                                                    type="button"
-                                                    @click="
-                                                        openEditIngredientModal(
-                                                            ing,
-                                                        )
-                                                    "
-                                                    class="cursor-pointer rounded-lg p-1 text-muted-foreground transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40"
-                                                    title="Chỉnh sửa thông tin nguyên liệu"
-                                                    aria-label="Chỉnh sửa thông tin nguyên liệu"
-                                                >
-                                                    <Edit class="size-3.5" />
-                                                </button>
-                                                <span
-                                                    v-if="
-                                                        (ing.average_cost ??
-                                                            0) === 0
-                                                    "
-                                                    class="shrink-0 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400"
-                                                    title="Chưa cập nhật giá vốn"
-                                                >
-                                                    Chưa có giá vốn
-                                                </span>
-                                            </div>
+                                    <option value="all">Danh mục: Tất cả</option>
+                                    <option v-for="cat in availableCategories" :key="cat" :value="cat">
+                                        {{ cat }}
+                                    </option>
+                                </select>
 
-                                            <div
-                                                class="mt-2.5 flex flex-wrap items-center gap-2"
-                                            >
-                                                <span
-                                                    :class="[
-                                                        'rounded-lg border px-2.5 py-0.5 text-xs font-bold',
-                                                        getStorageBadgeClass(
-                                                            ing.storage_type,
-                                                        ),
-                                                    ]"
-                                                >
-                                                    {{ getStorageLabel(ing) }}
-                                                </span>
+                                <!-- Dropdown Trạng thái -->
+                                <select
+                                    v-model="ingredientStatusFilter"
+                                    class="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:border-indigo-500 focus:outline-none cursor-pointer"
+                                >
+                                    <option value="all">Trạng thái: Tất cả</option>
+                                    <option value="good">Trạng thái: Tốt</option>
+                                    <option value="low">Trạng thái: Sắp hết</option>
+                                    <option value="out">Trạng thái: Hết hàng</option>
+                                    <option value="expired">Trạng thái: Quá hạn</option>
+                                </select>
 
-                                                <span
-                                                    v-if="ing.storage_location"
-                                                    class="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
-                                                >
-                                                    <MapPin class="size-3 text-indigo-500" />
-                                                    {{ ing.storage_location }}
-                                                </span>
-                                            </div>
+                                <!-- Dropdown Sắp xếp -->
+                                <select
+                                    v-model="ingredientSortOption"
+                                    class="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:border-indigo-500 focus:outline-none cursor-pointer"
+                                >
+                                    <option value="newest">Sắp xếp: Mới nhất</option>
+                                    <option value="stock_desc">Tồn kho: Cao xuống thấp</option>
+                                    <option value="stock_asc">Tồn kho: Thấp lên cao</option>
+                                    <option value="name_asc">Tên nguyên liệu A-Z</option>
+                                    <option value="value_desc">Giá trị tồn kho cao nhất</option>
+                                </select>
+                            </div>
+                        </div>
 
-                                            <div
-                                                class="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
-                                            >
-                                                <span class="rounded-md border border-border bg-muted/80 px-2 py-0.5 font-mono text-xs font-bold text-foreground">
-                                                    {{ ing.sku ?? 'Chưa có SKU' }}
-                                                </span>
-                                                <span>·</span>
-                                                <span class="font-medium text-foreground/80">
-                                                    {{
-                                                        ing.category_name ??
-                                                        'Nguyên liệu'
-                                                    }}
-                                                </span>
-                                                <span>·</span>
-                                                <span class="inline-flex items-center gap-1 font-medium text-foreground/80">
-                                                    <MapPin class="size-3 text-muted-foreground" />
-                                                    {{
-                                                        ing.branch_name ??
-                                                        'Chưa xác định'
-                                                    }}
-                                                </span>
-                                                <span
-                                                    v-if="ing.average_cost > 0"
-                                                    class="inline-flex items-center gap-1 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 font-bold text-indigo-600 dark:text-indigo-400"
-                                                >
-                                                    Giá vốn: {{ vnd(ing.average_cost) }}/{{
-                                                        ing.unit?.symbol ?? 'đv'
-                                                    }}
-                                                </span>
-                                            </div>
-                                        </div>
+                        <!-- Category Pills -->
+                        <div class="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                            <button
+                                v-for="st in [
+                                    { key: 'all', label: 'Tất cả' },
+                                    { key: 'fresh', label: 'Tươi sống' },
+                                    { key: 'daily', label: 'Trong ngày' },
+                                    { key: 'canned_packaged', label: 'Đóng gói' },
+                                    { key: 'dry', label: 'Đồ khô' },
+                                ]"
+                                :key="st.key"
+                                type="button"
+                                @click="selectedStorageTypeFilter = st.key"
+                                class="cursor-pointer rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all"
+                                :class="
+                                    selectedStorageTypeFilter === st.key
+                                        ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-600 shadow-xs dark:border-indigo-500/30 dark:bg-indigo-500/20 dark:text-indigo-300'
+                                        : 'border-transparent bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                "
+                            >
+                                {{ st.label }}
+                            </button>
+                        </div>
+                    </div>
 
-                                        <div class="flex flex-row items-center justify-between border-t border-border/50 pt-3 sm:flex-col sm:items-end sm:justify-start sm:border-0 sm:pt-0">
-                                            <span
-                                                class="mb-1 block text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                            >
-                                                Tồn hiện tại
-                                            </span>
-                                            <div
-                                                class="flex items-center justify-end gap-2"
-                                            >
-                                                <TrendingDown
-                                                    v-if="
-                                                        ing.stock !== null &&
-                                                        ing.stock <
-                                                            (ing.min_stock_level ||
-                                                                5)
-                                                    "
-                                                    class="size-4 text-rose-500"
-                                                />
-                                                <span
-                                                    class="rounded-xl border px-3.5 py-1.5 font-mono text-base font-black tracking-tight sm:text-xl"
-                                                    :class="
-                                                        ing.stock === null
-                                                            ? 'border-border bg-muted text-muted-foreground'
-                                                            : ing.stock <
-                                                                (ing.min_stock_level ||
-                                                                    5)
-                                                              ? 'border-rose-500/30 bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                                                              : ing.stock <
-                                                                  (ing.reorder_level ||
-                                                                      20)
-                                                                ? 'border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                                                                : 'border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                                    "
-                                                >
-                                                    {{
-                                                        ing.stock !== null
-                                                            ? ing.stock.toFixed(
-                                                                  1,
-                                                              )
-                                                            : '—'
-                                                    }}
-                                                    {{ ing.unit?.symbol ?? '' }}
-                                                </span>
-                                            </div>
-                                            <span
-                                                class="mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold"
-                                                :class="
-                                                    getStockStatus(ing).classes
-                                                "
-                                            >
-                                                {{ getStockStatus(ing).label }}
-                                            </span>
-                                        </div>
+                    <!-- 3. Two-Column Dashboard Layout (Left: Table, Right: Cards) -->
+                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                        <!-- Left Column: Data Table -->
+                        <div class="xl:col-span-8 2xl:col-span-8 min-w-0">
+                            <div class="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden">
+                                <!-- Card Header -->
+                                <div class="flex items-center justify-between border-b border-border/80 px-5 py-4 sm:px-6">
+                                    <div class="flex items-center gap-2.5">
+                                        <h2 class="text-base sm:text-lg font-black tracking-tight text-foreground">
+                                            Danh sách nguyên liệu ({{ filteredIngredientsByStorage.length }})
+                                        </h2>
                                     </div>
-
-                                    <!-- Active Batches (FEFO Breakdown) -->
-                                    <div
-                                        v-if="
-                                            ing.batches &&
-                                            ing.batches.length > 0
-                                        "
-                                        class="mt-4 space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-4 sm:p-5"
-                                    >
-                                        <div
-                                            class="flex items-center justify-between text-xs font-bold tracking-wide text-muted-foreground"
-                                        >
-                                            <span
-                                                class="flex items-center gap-1.5 text-foreground"
-                                            >
-                                                <Layers
-                                                    class="size-4 text-indigo-500"
-                                                />
-                                                Theo dõi lô (FEFO):
-                                                <span class="rounded-md bg-indigo-500/10 px-2 py-0.5 font-bold text-indigo-600 dark:text-indigo-400">
-                                                    {{ ing.batches.length }} lô
-                                                </span>
-                                            </span>
-                                            <span class="uppercase tracking-wider">Số lượng còn</span>
-                                        </div>
-
-                                        <div
-                                            v-for="b in ing.batches"
-                                            :key="b.id"
-                                            class="flex flex-col gap-2.5 border-t border-border/60 pt-3 text-xs sm:flex-row sm:items-center sm:justify-between"
-                                        >
-                                            <div
-                                                class="flex flex-wrap items-center gap-2 font-mono"
-                                            >
-                                                <span
-                                                    class="rounded-md bg-background px-2 py-0.5 text-xs font-bold text-foreground ring-1 ring-border"
-                                                    >{{ b.batch_number }}</span
-                                                >
-                                                <span class="text-xs text-muted-foreground"
-                                                    >· Nhập
-                                                    {{
-                                                        b.purchased_at || '—'
-                                                    }}</span
-                                                >
-                                                <span
-                                                    v-if="b.expiry_date"
-                                                    :class="[
-                                                        'rounded-md border px-2 py-0.5 text-xs font-bold',
-                                                        b.is_expired
-                                                            ? 'border-rose-500/20 bg-rose-500/15 text-rose-600 dark:text-rose-300'
-                                                            : b.is_expiring_soon
-                                                              ? 'border-amber-500/20 bg-amber-500/15 text-amber-600 dark:text-amber-300'
-                                                              : 'border-emerald-500/20 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300',
-                                                    ]"
-                                                >
-                                                    {{
-                                                        b.is_expired
-                                                            ? 'Hết hạn · ' +
-                                                              b.expiry_date
-                                                            : b.is_expiring_soon
-                                                              ? 'Sắp hết hạn · ' +
-                                                                b.expiry_date
-                                                              : 'HSD: ' +
-                                                                b.expiry_date
-                                                    }}
-                                                </span>
-                                            </div>
-                                            <div
-                                                class="flex items-center justify-between gap-3 sm:justify-end"
-                                            >
-                                                <span
-                                                    v-if="b.is_locked"
-                                                    class="rounded-md border border-orange-500/20 bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-600 dark:text-orange-400"
-                                                    :title="b.lock_reason ?? ''"
-                                                    >Đã khóa</span
-                                                >
-                                                <span
-                                                    v-else-if="b.is_recalled"
-                                                    class="rounded-md border border-purple-500/20 bg-purple-500/15 px-2 py-0.5 text-xs font-bold text-purple-600 dark:text-purple-400"
-                                                    >Đã thu hồi</span
-                                                >
-                                                <span
-                                                    class="font-mono text-sm font-black text-foreground sm:text-base"
-                                                >
-                                                    {{ b.quantity_remaining }}
-                                                    {{ ing.unit?.symbol ?? '' }}
-                                                </span>
-                                                <!-- Hành động khóa/thu hồi -->
-                                                <div
-                                                    v-if="
-                                                        b.status !== 'recalled'
-                                                    "
-                                                    class="flex items-center gap-1.5"
-                                                >
-                                                    <button
-                                                        v-if="!b.is_locked"
-                                                        type="button"
-                                                        @click="lockBatch(b.id)"
-                                                        class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 text-xs font-bold text-orange-600 transition-colors hover:bg-orange-500/20 dark:text-orange-400"
-                                                        title="Khóa lô này"
-                                                        aria-label="Khóa lô này"
-                                                    >
-                                                        <LockKeyhole
-                                                            class="size-3.5"
-                                                        />Khóa
-                                                    </button>
-                                                    <button
-                                                        v-if="
-                                                            b.is_locked &&
-                                                            isOwnerRole
-                                                        "
-                                                        type="button"
-                                                        @click="
-                                                            unlockBatch(b.id)
-                                                        "
-                                                        class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
-                                                        title="Mở khóa (chỉ Chủ)"
-                                                        aria-label="Mở khóa lô này"
-                                                    >
-                                                        <UnlockKeyhole
-                                                            class="size-3.5"
-                                                        />Mở khóa
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        @click="
-                                                            recallBatch(b.id)
-                                                        "
-                                                        class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 text-xs font-bold text-purple-600 transition-colors hover:bg-purple-500/20 dark:text-purple-400"
-                                                        title="Yêu cầu kho thu hồi"
-                                                        aria-label="Yêu cầu kho thu hồi lô này"
-                                                    >
-                                                        <RefreshCw
-                                                            class="size-3.5"
-                                                        />Thu hồi
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                                        <span>Hiển thị {{ paginatedIngredients.length }} / {{ filteredIngredientsByStorage.length }}</span>
                                     </div>
                                 </div>
-                            </div>
-                            <div
-                                v-if="totalIngredientPages > 1"
-                                class="flex items-center justify-between border-t border-border bg-slate-50/50 p-3 dark:bg-slate-900/10"
-                            >
-                                <span
-                                    class="text-[11px] font-medium text-muted-foreground"
-                                >
-                                    Trang {{ ingredientCurrentPage }} /
-                                    {{ totalIngredientPages }} · tổng
-                                    {{ filteredIngredientsByStorage.length }}
-                                    nguyên liệu
-                                </span>
-                                <div class="flex items-center gap-1">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        :disabled="ingredientCurrentPage === 1"
-                                        @click="ingredientCurrentPage--"
-                                        class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
-                                    >
-                                        <ChevronLeft class="size-3.5" />
-                                    </Button>
 
-                                    <template
-                                        v-for="(
-                                            page, idx
-                                        ) in visibleIngredientPages"
-                                        :key="idx"
-                                    >
-                                        <span
-                                            v-if="page === '...'"
-                                            class="px-1 text-xs font-bold text-muted-foreground select-none"
-                                            >...</span
-                                        >
+                                <!-- Table -->
+                                <div class="overflow-x-auto">
+                                    <table class="w-full min-w-[620px] sm:min-w-0 table-fixed text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr class="border-b border-border/80 bg-muted/40 text-[11px] font-bold tracking-wider text-muted-foreground uppercase whitespace-nowrap">
+                                                <th class="py-3 pl-4 pr-2 text-left">NGUYÊN LIỆU</th>
+                                                <th class="py-3 px-1 text-center w-[92px]">DANH MỤC</th>
+                                                <th class="py-3 px-1 text-center w-[52px]">ĐƠN VỊ</th>
+                                                <th class="py-3 px-1 sm:px-2 text-right w-[72px]">TỒN KHO</th>
+                                                <th class="py-3 px-1 sm:px-2 text-right w-[88px]">GIÁ VỐN</th>
+                                                <th class="py-3 px-1 sm:px-2 text-center w-[88px]">HSD</th>
+                                                <th class="py-3 px-1 text-center w-[98px]">TRẠNG THÁI</th>
+                                                <th class="py-3 pr-4 pl-1 text-center w-[92px]">THAO TÁC</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-border/60">
+                                            <template v-for="ing in paginatedIngredients" :key="ing.id">
+                                                <tr
+                                                    class="transition-colors hover:bg-muted/30 group"
+                                                    :class="expandedIngredientId === ing.id ? 'bg-muted/20' : ''"
+                                                >
+                                                    <!-- NGUYÊN LIỆU -->
+                                                    <td class="py-3 pl-4 pr-2">
+                                                        <div class="min-w-0">
+                                                            <div
+                                                                @click="toggleIngredientExpand(ing.id)"
+                                                                class="font-bold text-foreground hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer truncate text-xs sm:text-sm"
+                                                                :title="ing.name"
+                                                            >
+                                                                {{ ing.name }}
+                                                            </div>
+                                                            <div class="mt-0.5 flex items-center font-mono text-[11px] text-muted-foreground truncate">
+                                                                <span class="truncate font-medium">{{ ing.sku ?? 'ING-' + ing.id }}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    <!-- DANH MỤC -->
+                                                    <td class="py-3 px-1 text-center">
+                                                        <span
+                                                            :class="[
+                                                                'inline-flex items-center rounded-lg border px-2 py-0.5 text-[10px] sm:text-[11px] font-bold whitespace-nowrap',
+                                                                getStorageBadgeClass(ing.storage_type),
+                                                            ]"
+                                                        >
+                                                            {{ getStorageLabel(ing) }}
+                                                        </span>
+                                                    </td>
+
+                                                    <!-- ĐƠN VỊ -->
+                                                    <td class="py-3 px-1 text-center font-mono font-medium text-muted-foreground">
+                                                        {{ ing.unit?.symbol ?? 'đv' }}
+                                                    </td>
+
+                                                    <!-- TỒN KHO -->
+                                                    <td class="py-3 px-1 sm:px-2 text-right">
+                                                        <div class="font-mono font-black text-xs sm:text-sm whitespace-nowrap" :class="ing.stock === null || ing.stock <= 0 ? 'text-rose-600 dark:text-rose-400' : ing.stock < (ing.min_stock_level || 5) ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'">
+                                                            {{ ing.stock !== null ? Number(ing.stock).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) : '—' }}
+                                                        </div>
+                                                    </td>
+
+                                                    <!-- GIÁ VỐN -->
+                                                    <td class="py-3 px-1 sm:px-2 text-right">
+                                                        <span class="font-mono font-medium text-muted-foreground whitespace-nowrap">
+                                                            {{ ing.average_cost > 0 ? `${vnd(ing.average_cost)}/${ing.unit?.symbol ?? ''}` : 'Chưa có' }}
+                                                        </span>
+                                                    </td>
+
+                                                    <!-- HSD -->
+                                                    <td class="py-3 px-1 sm:px-2 text-center">
+                                                        <span
+                                                            class="font-mono text-xs whitespace-nowrap"
+                                                            :class="isEarliestExpiringSoon(ing) ? 'font-bold text-rose-600 dark:text-rose-400' : 'text-muted-foreground'"
+                                                        >
+                                                            {{ getEarliestExpiry(ing) }}
+                                                        </span>
+                                                    </td>
+
+                                                    <!-- TRẠNG THÁI -->
+                                                    <td class="py-3 px-1 text-center">
+                                                        <span
+                                                            class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] sm:text-[11px] font-bold whitespace-nowrap"
+                                                            :class="getStockStatus(ing).classes"
+                                                        >
+                                                            <span class="size-1.5 rounded-full shrink-0" :class="getStockStatus(ing).dotClass"></span>
+                                                            {{ getStockStatus(ing).label }}
+                                                        </span>
+                                                    </td>
+
+                                                    <!-- THAO TÁC -->
+                                                    <td class="py-3 pr-4 pl-1 text-center">
+                                                        <div class="flex items-center justify-center gap-0.5 sm:gap-1">
+                                                            <button
+                                                                type="button"
+                                                                @click="toggleIngredientExpand(ing.id)"
+                                                                class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                                                                :title="expandedIngredientId === ing.id ? 'Thu gọn chi tiết lô' : 'Xem chi tiết lô FEFO'"
+                                                            >
+                                                                <Eye class="size-3.5 sm:size-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                @click="openEditIngredientModal(ing)"
+                                                                class="rounded-lg p-1 text-muted-foreground hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                                                                title="Chỉnh sửa nguyên liệu"
+                                                            >
+                                                                <Edit class="size-3.5 sm:size-4" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                @click="handleQuickPurchase(ing)"
+                                                                class="rounded-lg p-1 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                                                title="Nhập thêm hàng"
+                                                            >
+                                                                <ShoppingCart class="size-3.5 sm:size-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Expandable Row: FEFO Batches -->
+                                                <tr v-if="expandedIngredientId === ing.id" class="bg-muted/30">
+                                                    <td colspan="8" class="p-4 sm:p-5 border-b border-border/80">
+                                                        <div class="space-y-3">
+                                                            <div class="flex items-center justify-between">
+                                                                <div class="flex items-center gap-2">
+                                                                    <Layers class="size-4 text-indigo-500" />
+                                                                    <span class="text-xs font-bold text-foreground">
+                                                                        Theo dõi lô (FEFO): {{ ing.batches?.length ?? 0 }} lô
+                                                                    </span>
+                                                                    <span v-if="ing.storage_type_label" class="text-xs text-muted-foreground">
+                                                                        · {{ ing.storage_type_label }}
+                                                                    </span>
+                                                                </div>
+                                                                <span class="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                                    Số lượng & Thời hạn
+                                                                </span>
+                                                            </div>
+
+                                                            <div v-if="ing.batches && ing.batches.length > 0" class="divide-y divide-border/60 rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+                                                                <div
+                                                                    v-for="b in ing.batches"
+                                                                    :key="b.id"
+                                                                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-2.5 text-xs first:pt-0 last:pb-0"
+                                                                >
+                                                                    <div class="flex flex-wrap items-center gap-2.5 font-mono">
+                                                                        <span class="rounded-md border border-border bg-muted/80 px-2 py-0.5 font-bold text-foreground">
+                                                                            {{ b.batch_number }}
+                                                                        </span>
+                                                                        <span class="text-muted-foreground">Nhập: {{ b.purchased_at ?? '—' }}</span>
+                                                                        <span
+                                                                            :class="[
+                                                                                'rounded-md px-2 py-0.5 font-bold text-[11px]',
+                                                                                b.is_expired
+                                                                                    ? 'bg-rose-500/15 text-rose-600 border border-rose-500/20'
+                                                                                    : b.is_expiring_soon
+                                                                                      ? 'bg-amber-500/15 text-amber-600 border border-amber-500/20'
+                                                                                      : 'bg-emerald-500/15 text-emerald-600 border border-emerald-500/20',
+                                                                            ]"
+                                                                        >
+                                                                            HSD: {{ b.expiry_date ?? '—' }}
+                                                                        </span>
+                                                                        <span v-if="b.days_remaining !== null" class="text-[10px] text-muted-foreground font-medium">
+                                                                            ({{ b.days_remaining > 0 ? `Còn ${b.days_remaining} ngày` : 'Đã hết hạn' }})
+                                                                        </span>
+                                                                    </div>
+                                                                    <div class="flex items-center gap-3">
+                                                                        <span class="font-mono font-black text-foreground">
+                                                                            {{ Number(b.quantity_remaining).toLocaleString('vi-VN') }} {{ ing.unit?.symbol ?? '' }}
+                                                                        </span>
+                                                                        <div class="flex items-center gap-1.5">
+                                                                            <button
+                                                                                v-if="!b.is_locked"
+                                                                                type="button"
+                                                                                @click="lockBatch(b.id)"
+                                                                                class="inline-flex h-7 items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 text-[11px] font-bold text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400 cursor-pointer"
+                                                                                title="Khóa lô hàng"
+                                                                            >
+                                                                                <LockKeyhole class="size-3" />Khóa
+                                                                            </button>
+                                                                            <button
+                                                                                v-else
+                                                                                type="button"
+                                                                                @click="unlockBatch(b.id)"
+                                                                                class="inline-flex h-7 items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-[11px] font-bold text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400 cursor-pointer"
+                                                                                title="Mở khóa lô"
+                                                                            >
+                                                                                <UnlockKeyhole class="size-3" />Mở
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                @click="recallBatch(b.id)"
+                                                                                class="inline-flex h-7 items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 text-[11px] font-bold text-purple-600 transition-colors hover:bg-purple-500/20 dark:text-purple-400 cursor-pointer"
+                                                                                title="Yêu cầu thu hồi lô"
+                                                                            >
+                                                                                <RefreshCw class="size-3" />Thu hồi
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div v-else class="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                                                                Chưa có bản ghi lô chi tiết cho nguyên liệu này.
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </template>
+
+                                            <tr v-if="!filteredIngredientsByStorage.length">
+                                                <td colspan="8" class="py-12 text-center text-xs text-muted-foreground">
+                                                    Không tìm thấy nguyên liệu phù hợp với bộ lọc hiện tại.
+                                                    <span class="mt-1 block text-muted-foreground/70">Thử đổi từ khóa tìm kiếm hoặc chọn danh mục khác.</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Pagination Footer matching Image 2 -->
+                                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/80 bg-muted/20 px-5 py-3.5">
+                                    <div class="text-xs text-muted-foreground font-medium">
+                                        Hiển thị
+                                        <span class="font-bold text-foreground">
+                                            {{ filteredIngredientsByStorage.length ? (ingredientCurrentPage - 1) * ingredientPerPage + 1 : 0 }}–{{ Math.min(ingredientCurrentPage * ingredientPerPage, filteredIngredientsByStorage.length) }}
+                                        </span>
+                                        / {{ filteredIngredientsByStorage.length }} nguyên liệu
+                                    </div>
+
+                                    <div class="flex items-center gap-1">
                                         <Button
-                                            v-else
                                             size="sm"
-                                            :variant="
-                                                ingredientCurrentPage === page
-                                                    ? 'default'
-                                                    : 'outline'
-                                            "
-                                            @click="
-                                                ingredientCurrentPage =
-                                                    Number(page)
-                                            "
-                                            class="h-7 min-w-[28px] rounded-lg px-1 text-xs font-bold"
+                                            variant="outline"
+                                            :disabled="ingredientCurrentPage === 1"
+                                            @click="ingredientCurrentPage--"
+                                            class="h-8 w-8 rounded-lg p-0"
                                         >
-                                            {{ page }}
+                                            <ChevronLeft class="size-4" />
                                         </Button>
-                                    </template>
 
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        :disabled="
-                                            ingredientCurrentPage ===
-                                            totalIngredientPages
-                                        "
-                                        @click="ingredientCurrentPage++"
-                                        class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
-                                    >
-                                        <ChevronRight class="size-3.5" />
-                                    </Button>
+                                        <template v-for="(p, idx) in visibleIngredientPages" :key="idx">
+                                            <span v-if="p === '...'" class="px-1 text-xs font-bold text-muted-foreground select-none">...</span>
+                                            <Button
+                                                v-else
+                                                size="sm"
+                                                :variant="ingredientCurrentPage === p ? 'default' : 'outline'"
+                                                @click="ingredientCurrentPage = Number(p)"
+                                                class="h-8 min-w-[32px] rounded-lg px-2 text-xs font-bold"
+                                                :class="ingredientCurrentPage === p ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''"
+                                            >
+                                                {{ p }}
+                                            </Button>
+                                        </template>
+
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            :disabled="ingredientCurrentPage === totalIngredientPages"
+                                            @click="ingredientCurrentPage++"
+                                            class="h-8 w-8 rounded-lg p-0"
+                                        >
+                                            <ChevronRight class="size-4" />
+                                        </Button>
+                                    </div>
+
+                                    <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                                        <span>Hiển thị</span>
+                                        <select
+                                            v-model="ingredientPerPage"
+                                            class="h-8 rounded-lg border border-input bg-background px-2 text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                                        >
+                                            <option :value="10">10</option>
+                                            <option :value="20">20</option>
+                                            <option :value="50">50</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                            <div
-                                v-if="!filteredIngredientsByStorage.length"
-                                class="py-12 text-center text-xs text-muted-foreground"
-                            >
-                                Chưa có nguyên liệu trong phạm vi này.
-                                <span
-                                    class="mt-1 block text-muted-foreground/70"
-                                    >Thêm nguyên liệu để bắt đầu theo dõi tồn
-                                    kho.</span
-                                >
+                        </div>
+
+                        <!-- Right Column: 3 Dashboard Cards -->
+                        <div class="xl:col-span-4 2xl:col-span-4 min-w-0 flex flex-col gap-5">
+                            <!-- Card 1: TỒN KHO THEO DANH MỤC (SVG Donut Chart) -->
+                            <div class="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xs font-black tracking-wider text-muted-foreground uppercase">
+                                        TỒN KHO THEO DANH MỤC
+                                    </h3>
+                                </div>
+
+                                <div class="flex flex-col 2xl:flex-row items-center gap-4 sm:gap-5">
+                                    <!-- Donut SVG -->
+                                    <div class="relative flex size-32 sm:size-36 shrink-0 items-center justify-center">
+                                        <svg class="size-full -rotate-90" viewBox="0 0 160 160">
+                                            <!-- Background Ring -->
+                                            <circle
+                                                cx="80"
+                                                cy="80"
+                                                r="58"
+                                                fill="transparent"
+                                                stroke="currentColor"
+                                                stroke-width="18"
+                                                class="text-muted/30"
+                                            />
+                                            <!-- Segments -->
+                                            <circle
+                                                v-for="cat in categoryDistribution"
+                                                :key="cat.key"
+                                                cx="80"
+                                                cy="80"
+                                                :r="cat.radius"
+                                                fill="transparent"
+                                                :stroke="cat.strokeColor"
+                                                stroke-width="18"
+                                                :stroke-dasharray="cat.strokeDasharray"
+                                                :stroke-dashoffset="cat.strokeDashoffset"
+                                                class="transition-all duration-500 ease-out"
+                                            />
+                                        </svg>
+                                        <!-- Donut Center Info -->
+                                        <div class="absolute flex flex-col items-center justify-center text-center">
+                                            <span class="text-xs font-black text-foreground">{{ ingredients.length }}</span>
+                                            <span class="text-[9px] font-bold text-muted-foreground uppercase">Nguyên liệu</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Legend list -->
+                                    <div class="w-full min-w-0 space-y-2">
+                                        <div
+                                            v-for="cat in categoryDistribution"
+                                            :key="cat.key"
+                                            class="flex items-center justify-between gap-2 text-xs"
+                                        >
+                                            <div class="flex items-center gap-1.5 min-w-0">
+                                                <span class="size-2 shrink-0 rounded-full" :class="cat.dotClass"></span>
+                                                <span class="font-bold text-foreground truncate text-[11px] sm:text-xs">{{ cat.label }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-1 font-mono text-[11px] shrink-0">
+                                                <span class="text-muted-foreground">{{ cat.displayValue }}</span>
+                                                <span class="font-bold text-foreground">({{ cat.percent }}%)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </CardContent>
-                    </Card>
+
+                            <!-- Card 2: CẢNH BÁO -->
+                            <div class="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xs font-black tracking-wider text-muted-foreground uppercase">
+                                        CẢNH BÁO
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        @click="ingredientStatusFilter = 'low'"
+                                        class="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 transition-colors cursor-pointer"
+                                    >
+                                        Xem tất cả
+                                    </button>
+                                </div>
+
+                                <div v-if="urgentAlerts.length" class="space-y-3">
+                                    <div
+                                        v-for="alert in urgentAlerts"
+                                        :key="alert.title"
+                                        class="flex items-center justify-between gap-2.5 rounded-xl border border-border/70 bg-muted/30 p-3 transition-all hover:bg-muted/50"
+                                    >
+                                        <div class="flex items-start gap-2.5 min-w-0 flex-1">
+                                            <AlertTriangle
+                                                v-if="alert.type === 'low_stock'"
+                                                class="mt-0.5 size-4 shrink-0 text-amber-500"
+                                            />
+                                            <CalendarCheck
+                                                v-else-if="alert.type === 'expired'"
+                                                class="mt-0.5 size-4 shrink-0 text-rose-500"
+                                            />
+                                            <Clock
+                                                v-else
+                                                class="mt-0.5 size-4 shrink-0 text-amber-500"
+                                            />
+                                            <div class="min-w-0 flex-1">
+                                                <p class="truncate text-xs font-bold text-foreground" :title="alert.title">{{ alert.title }}</p>
+                                                <p class="mt-0.5 text-[11px] text-muted-foreground truncate">{{ alert.sub }}</p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            @click="handleQuickPurchase(alert.ingredient)"
+                                            class="h-7 shrink-0 rounded-lg border-border text-[11px] font-bold text-foreground hover:border-indigo-500 hover:text-indigo-600"
+                                        >
+                                            Nhập thêm
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div v-else class="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                                    Mức tồn và hạn sử dụng đang ở trạng thái an toàn.
+                                </div>
+                            </div>
+
+                            <!-- Card 3: THAO TÁC NHANH -->
+                            <div class="rounded-2xl border border-border/80 bg-card p-5 shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-xs font-black tracking-wider text-muted-foreground uppercase">
+                                        THAO TÁC NHANH
+                                    </h3>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2.5">
+                                    <button
+                                        type="button"
+                                        @click="activeTab = 'purchase'"
+                                        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/80 bg-muted/40 p-3.5 text-center transition-all hover:border-indigo-500/40 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 group cursor-pointer"
+                                    >
+                                        <div class="flex size-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                                            <ArrowDown class="size-4.5" />
+                                        </div>
+                                        <span class="text-xs font-bold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Nhập kho</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click="router.visit('/inventory/transfers')"
+                                        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/80 bg-muted/40 p-3.5 text-center transition-all hover:border-sky-500/40 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 group cursor-pointer"
+                                    >
+                                        <div class="flex size-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:scale-110 transition-transform">
+                                            <ArrowLeftRight class="size-4.5" />
+                                        </div>
+                                        <span class="text-xs font-bold text-foreground group-hover:text-sky-600 dark:group-hover:text-sky-400">Điều chuyển kho</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click="activeTab = 'waste'"
+                                        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/80 bg-muted/40 p-3.5 text-center transition-all hover:border-rose-500/40 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 group cursor-pointer"
+                                    >
+                                        <div class="flex size-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform">
+                                            <ArrowUp class="size-4.5" />
+                                        </div>
+                                        <span class="text-xs font-bold text-foreground group-hover:text-rose-600 dark:group-hover:text-rose-400">Xuất dùng</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click="activeTab = 'reconcile'"
+                                        class="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/80 bg-muted/40 p-3.5 text-center transition-all hover:border-emerald-500/40 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 group cursor-pointer"
+                                    >
+                                        <div class="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+                                            <ClipboardCheck class="size-4.5" />
+                                        </div>
+                                        <span class="text-xs font-bold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Kiểm kê kho</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Recipe catalog on /inventory/recipes -->
@@ -2353,7 +2830,6 @@ const recallBatch = (batchId: number) => {
                         </CardContent>
                     </Card>
                 </div>
-            </div>
         </template>
 
         <!-- ══ TAB: NHẬP HÀNG ═════════════════════════════════════════════════ -->
