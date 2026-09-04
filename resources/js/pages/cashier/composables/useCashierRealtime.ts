@@ -2,47 +2,46 @@ import { router } from '@inertiajs/vue3';
 import { ref, onMounted, onUnmounted } from 'vue';
 
 export function useCashierRealtime(restaurantId: () => number | undefined) {
-    const wsConnected = ref(true);
-    const pollingActive = ref(false);
+    const wsConnected = ref(false);
+    const pollingActive = ref(true);
     let wsCheckInterval: ReturnType<typeof setInterval> | null = null;
-    let fallbackPollInterval: ReturnType<typeof setInterval> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let isReloading = false;
 
-    const triggerPollingFallback = () => {
-        if (pollingActive.value) {
+    // Keys cần reload cho bảng điều khiển Thu ngân
+    const cashierDataKeys = [
+        'qrOrders',
+        'tablesData',
+        'externalOrders',
+        'kitchenReadyItems',
+        'shiftInfo',
+    ];
+
+    const reloadData = (onlyKeys: string[] = cashierDataKeys) => {
+        if (isReloading) {
             return;
+        }
+
+        isReloading = true;
+        router.reload({
+            only: onlyKeys,
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => {
+                isReloading = false;
+            },
+        });
+    };
+
+    const configurePolling = (intervalMs: number) => {
+        if (pollInterval) {
+            clearInterval(pollInterval);
         }
 
         pollingActive.value = true;
-
-        const reloadData = () => {
-            router.reload({
-                only: [
-                    'qrOrders',
-                    'tablesData',
-                    'externalOrders',
-                    'kitchenReadyItems',
-                ],
-                preserveScroll: true,
-                preserveState: true,
-            });
-        };
-
-        // Kích hoạt ngay sau 500ms, sau đó định kỳ 2.5s/lần
-        setTimeout(reloadData, 500);
-        fallbackPollInterval = setInterval(reloadData, 2500);
-    };
-
-    const stopPollingFallback = () => {
-        if (!pollingActive.value) {
-            return;
-        }
-
-        pollingActive.value = false;
-
-        if (fallbackPollInterval) {
-            clearInterval(fallbackPollInterval);
-            fallbackPollInterval = null;
-        }
+        pollInterval = setInterval(() => {
+            reloadData();
+        }, intervalMs);
     };
 
     const checkConnection = () => {
@@ -51,17 +50,21 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
             window.Echo.connector &&
             window.Echo.connector.pusher
         ) {
-            const state = window.Echo.connector.pusher.connection.state;
-            wsConnected.value = state === 'connected';
+            const state = window.Echo.connector.pusher.connection?.state;
+            const isConnected = state === 'connected';
+            wsConnected.value = isConnected;
 
-            if (state === 'disconnected' || state === 'failed') {
-                triggerPollingFallback();
-            } else if (state === 'connected') {
-                stopPollingFallback();
+            if (isConnected) {
+                // Khi WebSocket hoạt động: duy trì nhịp heartbeat 8s/lần để Keep-Alive Session
+                // tránh bị hết hạn phiên (419 Expired) sau 120 phút và làm lưới an toàn
+                configurePolling(8000);
+            } else {
+                // Khi WebSocket chưa/không kết nối: polling nhanh 3s/lần để dữ liệu luôn tức thời
+                configurePolling(3000);
             }
         } else {
             wsConnected.value = false;
-            triggerPollingFallback();
+            configurePolling(3000);
         }
     };
 
@@ -71,11 +74,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
     };
 
     const onQrOrdersUpdated = () => {
-        router.reload({
-            only: ['qrOrders', 'tablesData'],
-            preserveScroll: true,
-            preserveState: true,
-        });
+        reloadData(['qrOrders', 'tablesData']);
     };
 
     onMounted(() => {
@@ -85,51 +84,48 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         const restId = restaurantId();
 
         if (window.Echo && restId) {
-            window.Echo.private(`restaurant.${restId}`)
-                .listen('.OrderCreated', () => {
-                    router.reload({
-                        only: [
-                            'qrOrders',
-                            'tablesData',
-                            'externalOrders',
-                            'kitchenReadyItems',
-                        ],
-                    });
-                })
-                .listen('.OrderStatusUpdated', () => {
-                    router.reload({
-                        only: [
-                            'tablesData',
-                            'completedHistory',
-                            'externalOrders',
-                            'kitchenReadyItems',
-                        ],
-                    });
-                });
-
-            // QR temporary orders use a public restaurant channel so the cashier
-            // screen refreshes when a customer submits, confirms a revision, or
-            // when staff rejects/approves the request.
+            // Lắng nghe kênh nhà hàng (dành cho nhân viên/thu ngân)
             window.Echo.private(`restaurant.${restId}`)
                 .listen('.temporary_order.created', () => {
-                    router.reload({
-                        only: ['qrOrders', 'tablesData'],
-                    });
+                    reloadData(['qrOrders', 'tablesData']);
                 })
                 .listen('.temporary_order.updated', () => {
-                    router.reload({
-                        only: ['qrOrders', 'tablesData'],
-                    });
+                    reloadData(['qrOrders', 'tablesData']);
+                })
+                .listen('.order.paid', () => {
+                    reloadData([
+                        'tablesData',
+                        'completedHistory',
+                        'shiftInfo',
+                        'kitchenReadyItems',
+                    ]);
+                })
+                .listen('.order.status_updated', () => {
+                    reloadData([
+                        'tablesData',
+                        'externalOrders',
+                        'kitchenReadyItems',
+                        'shiftInfo',
+                    ]);
+                })
+                .listen('.kitchen.waiter_called', () => {
+                    reloadData(['kitchenReadyItems', 'tablesData']);
+                })
+                .listen('.kitchen.item_cancelled', () => {
+                    reloadData(['kitchenReadyItems', 'tablesData']);
+                })
+                .listen('.payment.requested', () => {
+                    reloadData(['tablesData']);
                 });
 
-            window.Echo.private(`kitchen.${restId}`).listen(
-                '.kitchen.updated',
-                () => {
-                    router.reload({
-                        only: ['kitchenReadyItems', 'tablesData'],
-                    });
-                },
-            );
+            // Lắng nghe kênh bếp
+            window.Echo.private(`kitchen.${restId}`)
+                .listen('.kitchen.updated', () => {
+                    reloadData(['kitchenReadyItems', 'tablesData']);
+                })
+                .listen('.kitchen.item_cancelled', () => {
+                    reloadData(['kitchenReadyItems', 'tablesData']);
+                });
         }
     });
 
@@ -138,9 +134,14 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
 
         if (wsCheckInterval) {
             clearInterval(wsCheckInterval);
+            wsCheckInterval = null;
         }
 
-        stopPollingFallback();
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+
         const restId = restaurantId();
 
         if (window.Echo && restId) {

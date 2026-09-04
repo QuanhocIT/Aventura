@@ -1246,11 +1246,11 @@ const refreshPage = () => {
 
         <div
             v-if="modifiedCount > 0"
-            class="sticky bottom-6 z-20 flex flex-col items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-slate-900/95 p-4 text-white shadow-2xl backdrop-blur-md sm:flex-row sm:px-6 dark:border-amber-500/40 dark:bg-slate-950/95"
+            class="sticky bottom-6 z-20 flex flex-col items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-white/95 p-4 text-slate-900 shadow-2xl backdrop-blur-md sm:flex-row sm:px-6 dark:border-amber-500/40 dark:bg-slate-950/95 dark:text-white"
         >
             <div class="flex items-center gap-3">
                 <div
-                    class="flex size-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400"
+                    class="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400"
                 >
                     <BadgePercent class="size-5" />
                 </div>
@@ -1259,7 +1259,7 @@ const refreshPage = () => {
                         Đang có {{ modifiedCount }} nguyên liệu được thay đổi
                         đơn giá
                     </div>
-                    <div class="text-xs text-slate-400">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">
                         {{
                             isOwnerOrAdmin
                                 ? 'Nhấn "Lưu Bảng Giá" để áp dụng chính thức cho toàn hệ thống.'
@@ -1274,7 +1274,7 @@ const refreshPage = () => {
                     variant="outline"
                     size="sm"
                     @click="resetChanges"
-                    class="border-slate-700 bg-slate-800 text-xs text-slate-200 hover:bg-slate-700"
+                    class="border-slate-200 bg-slate-100 text-xs text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                     <RotateCcw class="mr-1.5 size-3.5" />
                     Hủy thay đổi
@@ -1307,12 +1307,12 @@ const refreshPage = () => {
                 @click.self="showSubmitDialog = false"
             >
                 <div
-                    class="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-950 p-5 text-white shadow-2xl sm:p-6"
+                    class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl sm:p-6 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <p
-                                class="text-[10px] font-bold tracking-[0.18em] text-emerald-400 uppercase"
+                                class="text-[10px] font-bold tracking-[0.18em] text-emerald-600 uppercase dark:text-emerald-400"
                             >
                                 Kiểm soát thay đổi
                             </p>
@@ -1323,7 +1323,7 @@ const refreshPage = () => {
                                         : 'Gửi đề xuất thay đổi giá'
                                 }}
                             </h2>
-                            <p class="mt-1 text-xs text-slate-400">
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 {{
                                     isOwnerOrAdmin
                                         ? 'Thay đổi sẽ tác động ngay đến giá vốn xuất kho và báo cáo COGS toàn chuỗi.'
@@ -1334,16 +1334,16 @@ const refreshPage = () => {
                         <Button
                             variant="ghost"
                             size="icon"
-                            class="text-slate-400 hover:text-white"
+                            class="text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
                             @click="showSubmitDialog = false"
                             ><X class="size-4"
                         /></Button>
                     </div>
 
                     <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div class="rounded-xl bg-white/5 p-3">
+                        <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                             <p
-                                class="text-[10px] tracking-wider text-slate-400 uppercase"
+                                class="text-[10px] tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Mặt hàng
                             </p>
@@ -1351,9 +1351,9 @@ const refreshPage = () => {
                                 {{ modifiedCount }}
                             </p>
                         </div>
-                        <div class="rounded-xl bg-white/5 p-3">
+                        <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                             <p
-                                class="text-[10px] tracking-wider text-slate-400 uppercase"
+                                class="text-[10px] tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Tăng/giảm tuyệt đối
                             </p>
@@ -1361,9 +1361,9 @@ const refreshPage = () => {
                                 {{ formatCurrency(totalAbsoluteDelta) }}
                             </p>
                         </div>
-                        <div class="rounded-xl bg-white/5 p-3">
+                        <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                             <p
-                                class="text-[10px] tracking-wider text-slate-400 uppercase"
+                                class="text-[10px] tracking-wider text-slate-500 uppercase dark:text-slate-400"
                             >
                                 Biến động lớn nhất
                             </p>
@@ -1371,13 +1371,13 @@ const refreshPage = () => {
                                 {{ largestChangePercent.toFixed(1) }}%
                             </p>
                         </div>
-                        <div class="rounded-xl bg-amber-500/10 p-3">
+                        <div class="rounded-xl border border-amber-200/60 bg-amber-50 p-3 dark:border-transparent dark:bg-amber-500/10">
                             <p
-                                class="text-[10px] tracking-wider text-amber-300 uppercase"
+                                class="text-[10px] tracking-wider text-amber-700 uppercase dark:text-amber-300"
                             >
                                 Trạng thái
                             </p>
-                            <p class="mt-1 text-sm font-bold text-amber-200">
+                            <p class="mt-1 text-sm font-bold text-amber-900 dark:text-amber-200">
                                 {{
                                     isOwnerOrAdmin
                                         ? 'Áp dụng ngay'
@@ -1389,10 +1389,10 @@ const refreshPage = () => {
 
                     <div
                         v-if="largestChangePercent >= 10"
-                        class="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100"
+                        class="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
                     >
                         <AlertTriangle
-                            class="mt-0.5 size-4 shrink-0 text-amber-300"
+                            class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300"
                         />
                         <span
                             >Có mặt hàng biến động từ 10% trở lên. Hãy ghi rõ
@@ -1402,18 +1402,18 @@ const refreshPage = () => {
                     </div>
 
                     <div class="mt-4">
-                        <label class="text-xs font-semibold text-slate-200"
+                        <label class="text-xs font-semibold text-slate-700 dark:text-slate-200"
                             >Lý do / căn cứ thay đổi
-                            <span class="text-rose-300">*</span></label
+                            <span class="text-rose-500 dark:text-rose-300">*</span></label
                         >
                         <textarea
                             v-model="changeReason"
                             rows="4"
                             required
-                            class="mt-1.5 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white transition outline-none focus:border-emerald-400"
+                            class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                             placeholder="VD: Theo hóa đơn PO-2026-0812, nhà cung cấp tăng giá 8% từ ngày..."
                         />
-                        <p class="mt-1 text-[11px] text-slate-400">
+                        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                             Nội dung này được lưu vào nhật ký giá và đi cùng
                             phiếu phê duyệt.
                         </p>
@@ -1423,7 +1423,7 @@ const refreshPage = () => {
                         <Button
                             type="button"
                             variant="outline"
-                            class="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800"
+                            class="border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-transparent dark:text-slate-200 dark:hover:bg-slate-800"
                             @click="showSubmitDialog = false"
                             >Quay lại</Button
                         >

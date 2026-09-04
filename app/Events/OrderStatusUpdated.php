@@ -5,23 +5,42 @@ namespace App\Events;
 use App\Models\Order;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Guest-safe order status event. The tracking token is a per-order capability;
- * no restaurant or customer data is exposed on this channel.
+ * Order status event broadcasted to tracking channel, restaurant staff, and table.
  */
 class OrderStatusUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Order $order) {}
+    public function __construct(public Order $order)
+    {
+        $this->order->loadMissing('table');
+    }
 
     public function broadcastOn(): array
     {
-        return [new Channel("order.{$this->order->tracking_token}")];
+        $channels = [];
+
+        if (! empty($this->order->tracking_token)) {
+            $channels[] = new Channel("order.{$this->order->tracking_token}");
+        }
+
+        if (! empty($this->order->restaurant_id)) {
+            $channels[] = new PrivateChannel("restaurant.{$this->order->restaurant_id}");
+        }
+
+        /** @var \App\Models\RestaurantTable|null $table */
+        $table = $this->order->table;
+        if ($table && ! empty($table->qr_token)) {
+            $channels[] = new Channel('table.'.$table->qr_token);
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

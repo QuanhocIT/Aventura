@@ -976,12 +976,13 @@ onMounted(() => {
     }, 300);
 
     if (Echo && restaurantId) {
-        Echo.private(`kitchen.${restaurantId}`).listen(
-            '.kitchen.updated',
-            (e: any) => {
+        Echo.private(`kitchen.${restaurantId}`)
+            .listen('.kitchen.updated', (e: any) => {
                 kitchenEventBatcher.push(e);
-            },
-        );
+            })
+            .listen('.kitchen.item_cancelled', (e: any) => {
+                kitchenEventBatcher.push(e);
+            });
 
         // Lắng nghe thay đổi kho/thực đơn để hot-reload
         Echo.private(`restaurant.${restaurantId}`).listen(
@@ -993,6 +994,36 @@ onMounted(() => {
     }
 
     // 4. WebSocket connection heartbeat and polling fallback
+    let isKitchenReloading = false;
+    const reloadKitchenData = () => {
+        if (isKitchenReloading || isSubmittingWaste.value) {
+            return;
+        }
+
+        isKitchenReloading = true;
+        router.reload({
+            only: [
+                'pendingItems',
+                'completedItems',
+                'kitchenStats',
+                'products',
+            ],
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => {
+                isKitchenReloading = false;
+            },
+        });
+    };
+
+    const setKitchenPollingInterval = (intervalMs: number) => {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+        }
+
+        pollingInterval = setInterval(reloadKitchenData, intervalMs);
+    };
+
     const checkWebSocketConnection = () => {
         const pusher = (Echo as any)?.connector?.pusher;
 
@@ -1001,11 +1032,9 @@ onMounted(() => {
 
             if (state === 'connected') {
                 connectionStatus.value = 'connected';
-
-                if (pollingInterval) {
-                    clearInterval(pollingInterval);
-                    pollingInterval = null;
-                }
+                // Khi kết nối Reverb thành công: duy trì nhịp 8s để Keep-Alive Session cho Bếp
+                // không bị hết hạn phiên sau 120 phút và làm lưới an toàn
+                setKitchenPollingInterval(8000);
 
                 return;
             } else if (state === 'connecting') {
@@ -1016,25 +1045,12 @@ onMounted(() => {
         }
 
         connectionStatus.value = 'polling';
-
-        if (!pollingInterval) {
-            pollingInterval = setInterval(() => {
-                router.reload({
-                    only: [
-                        'pendingItems',
-                        'completedItems',
-                        'kitchenStats',
-                        'products',
-                    ],
-                    preserveState: true,
-                    preserveScroll: true,
-                });
-            }, 20000);
-        }
+        // Khi chạy Polling fallback: chu kỳ 3.5s để Bếp nhận đơn mới tức thời không cần F5
+        setKitchenPollingInterval(3500);
     };
 
     statusCheckInterval = setInterval(checkWebSocketConnection, 10000);
-    setTimeout(checkWebSocketConnection, 2000);
+    setTimeout(checkWebSocketConnection, 1500);
 });
 
 onUnmounted(() => {

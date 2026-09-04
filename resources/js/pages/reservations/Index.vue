@@ -1680,17 +1680,17 @@ async function copyPhone(phone: string) {
                 <div class="mb-5 flex items-start justify-between">
                     <div>
                         <p
-                            class="text-xs font-semibold tracking-wider text-rose-300 uppercase"
+                            class="text-xs font-semibold tracking-wider text-rose-600 uppercase dark:text-rose-300"
                         >
                             Huỷ lịch đặt bàn
                         </p>
-                        <h3 class="mt-1 text-xl font-bold text-white">
+                        <h3 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">
                             {{ selected.guest_name }}
                         </h3>
                     </div>
                     <button
                         type="button"
-                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-white"
+                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white"
                         @click="showCancelModal = false"
                     >
                         <X class="size-4" />
@@ -1698,16 +1698,16 @@ async function copyPhone(phone: string) {
                 </div>
                 <label
                     ><span
-                        class="mb-1.5 block text-sm font-medium text-slate-300"
-                        >Lý do huỷ <b class="text-rose-400">*</b></span
+                        class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                        >Lý do huỷ <b class="text-rose-500 dark:text-rose-400">*</b></span
                     ><textarea
                         v-model="cancelForm.reason"
                         rows="4"
                         placeholder="Ví dụ: Khách gọi điện xin huỷ..."
-                        class="w-full resize-none rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20"
+                        class="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-400/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-600 dark:focus:border-rose-400"
                     /><small
                         v-if="cancelForm.errors.reason"
-                        class="mt-1 block text-xs text-rose-400"
+                        class="mt-1 block text-xs text-rose-500 dark:text-rose-400"
                         >{{ cancelForm.errors.reason }}</small
                     ></label
                 >
@@ -1716,7 +1716,7 @@ async function copyPhone(phone: string) {
                 >
                     <Button
                         variant="outline"
-                        class="border-slate-700 text-slate-300 hover:bg-slate-800"
+                        class="border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                         @click="showCancelModal = false"
                         >Đóng</Button
                     ><Button

@@ -1025,11 +1025,20 @@ watch(
 );
 
 // Background refreshing
+let isFetchingOrders = false;
 function refetchActiveOrders() {
+    if (isFetchingOrders) {
+        return;
+    }
+
+    isFetchingOrders = true;
     router.reload({
         only: ['activeTempOrders'],
         preserveScroll: true,
         preserveState: true,
+        onFinish: () => {
+            isFetchingOrders = false;
+        },
     });
 }
 
@@ -1058,8 +1067,21 @@ async function confirmRevision(order: ActiveOrder) {
     }
 }
 
+let isFetchingMenu = false;
 function refetchMenuOnly() {
-    router.reload({ only: ['products'] });
+    if (isFetchingMenu) {
+        return;
+    }
+
+    isFetchingMenu = true;
+    router.reload({
+        only: ['products'],
+        preserveScroll: true,
+        preserveState: true,
+        onFinish: () => {
+            isFetchingMenu = false;
+        },
+    });
 }
 
 // Guest cancellation handler is kept at setup scope so it is available to the template.
@@ -1187,10 +1209,23 @@ onMounted(() => {
         }
     }, 1000);
 
-    // Tự động kiểm tra cập nhật đơn hàng của khách mỗi 2 giây mà không cần nhấn F5
+    // Tự động kiểm tra cập nhật đơn hàng của khách (3s khi có đơn, 9s khi chưa đặt)
+    // và đồng bộ thực đơn mỗi 15s mà không cần nhấn F5
+    let customerCycleCounter = 0;
     orderPollingInterval = setInterval(() => {
-        refetchActiveOrders();
-    }, 2000);
+        customerCycleCounter++;
+        const hasActiveOrders =
+            props.activeTempOrders && props.activeTempOrders.length > 0;
+
+        if (hasActiveOrders || customerCycleCounter % 3 === 0) {
+            refetchActiveOrders();
+        }
+
+        if (customerCycleCounter >= 5) {
+            customerCycleCounter = 0;
+            refetchMenuOnly();
+        }
+    }, 3000);
 
     // Listen to live temporary order status updates
     if (window.Echo) {

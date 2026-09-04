@@ -152,6 +152,17 @@ class SecurityFirewallMiddleware
      */
     protected function shouldSkipRateLimit(Request $request): bool
     {
+        // Bỏ qua rate limit toàn cục cho các request đồng bộ ngầm (Inertia partial reload)
+        // để Bếp, Thu ngân và Khách không bị văng/chặn khi chạy polling liên tục trong ca trực
+        if ($request->isMethod('GET') && $request->hasHeader('X-Inertia-Partial-Data')) {
+            return true;
+        }
+
+        // Bỏ qua menu xem món của khách (được kiểm soát riêng ở cấp độ route)
+        if ($request->isMethod('GET') && $request->is('customer/order/*')) {
+            return true;
+        }
+
         foreach ($this->exceptRateLimit as $except) {
             if ($except !== '/') {
                 $except = trim($except, '/');

@@ -2347,23 +2347,23 @@ onUnmounted(() => {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 text-slate-200 shadow-2xl"
+                    class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-950 dark:text-slate-200"
                 >
                     <header
-                        class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
+                        class="flex items-center justify-between border-b border-amber-200/80 bg-amber-50/80 p-4 dark:border-amber-500/10 dark:bg-amber-500/10"
                     >
                         <div class="flex items-center gap-2">
-                            <Bot class="size-5 animate-pulse text-amber-400" />
+                            <Bot class="size-5 animate-pulse text-amber-600 dark:text-amber-400" />
                             <h3
-                                class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
+                                class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-700 uppercase dark:text-amber-400"
                             >
                                 Smart Upselling Engine
-                                <Sparkles class="size-3.5 text-amber-400" />
+                                <Sparkles class="size-3.5 text-amber-600 dark:text-amber-400" />
                             </h3>
                         </div>
                         <button
                             @click="showUpsellModal = false"
-                            class="bg-slate-855 cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                            class="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
                         >
                             <X class="size-4" />
                         </button>
@@ -2371,15 +2371,15 @@ onUnmounted(() => {
 
                     <div class="space-y-4 p-5">
                         <div
-                            class="space-y-2 rounded-2xl border border-slate-800 bg-slate-950 p-4"
+                            class="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
                         >
                             <p
-                                class="text-slate-350 text-xs leading-relaxed font-medium"
+                                class="text-xs leading-relaxed font-medium text-slate-700 dark:text-slate-300"
                             >
                                 {{ upsellData.suggestion }}
                             </p>
                             <div
-                                class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
+                                class="flex items-center justify-between border-t border-slate-200 pt-2 text-[10px] text-slate-500 dark:border-slate-900"
                             >
                                 <span
                                     >Độ tin cậy:
@@ -2393,31 +2393,31 @@ onUnmounted(() => {
 
                         <div
                             v-if="upsellData.recommended_item"
-                            class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                            class="flex items-center justify-between rounded-xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs dark:border-amber-500/10 dark:bg-amber-500/5"
                         >
-                            <span class="font-bold text-slate-200"
+                            <span class="font-bold text-slate-800 dark:text-slate-200"
                                 >Gợi ý: Mời dùng
                                 {{ upsellData.recommended_item }}</span
                             >
                             <span
-                                class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
+                                class="text-xxs rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
                                 >-10% combo</span
                             >
                         </div>
                     </div>
 
                     <footer
-                        class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
+                        class="flex gap-2 border-t border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/20"
                     >
                         <button
                             @click="showUpsellModal = false"
-                            class="text-slate-450 hover:bg-slate-850 h-10 flex-1 cursor-pointer rounded-xl border border-slate-800 text-xs font-bold"
+                            class="h-10 flex-1 cursor-pointer rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                             Bỏ qua
                         </button>
                         <button
                             @click="addUpsellItem"
-                            class="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
+                            class="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-white shadow-lg shadow-amber-500/10 hover:bg-amber-400 dark:text-slate-950"
                         >
                             <Check class="size-4" /> Thêm vào đơn
                         </button>
@@ -2433,17 +2433,17 @@ onUnmounted(() => {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 text-slate-200 shadow-2xl"
+                    class="relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-800 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 >
                     <header
-                        class="flex items-center justify-between border-b border-slate-800 p-4"
+                        class="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800"
                     >
-                        <h3 class="text-xs font-bold text-slate-200">
+                        <h3 class="text-xs font-bold text-slate-800 dark:text-slate-200">
                             Lý do từ chối yêu cầu QR
                         </h3>
                         <button
                             @click="showCancelModal = false"
-                            class="bg-slate-850 hover:bg-slate-850 cursor-pointer rounded-lg p-1 text-slate-400"
+                            class="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
                         >
                             <X class="size-4" />
                         </button>
@@ -2454,23 +2454,23 @@ onUnmounted(() => {
                             v-model="cancelReason"
                             rows="3"
                             placeholder="Nhập lý do từ chối..."
-                            class="w-full resize-none rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-300 focus:border-red-500 focus:outline-none"
+                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-red-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
                         ></textarea>
                     </div>
 
                     <footer
-                        class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
+                        class="flex gap-2 border-t border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/20"
                     >
                         <button
                             @click="showCancelModal = false"
-                            class="border-slate-850 hover:bg-slate-850 h-9 flex-1 cursor-pointer rounded-lg border text-xs font-bold text-slate-400"
+                            class="h-9 flex-1 cursor-pointer rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                             Quay lại
                         </button>
                         <button
                             @click="submitCancel"
                             :disabled="!cancelReason.trim() || isCancellingQr"
-                            class="flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-600"
+                            class="flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-red-600 text-xs font-bold text-white hover:bg-red-500 disabled:bg-slate-200 disabled:text-slate-400 dark:bg-red-500 dark:text-slate-950 dark:hover:bg-red-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
                         >
                             <Loader2
                                 v-if="isCancellingQr"

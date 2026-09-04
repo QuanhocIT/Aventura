@@ -623,20 +623,20 @@ onUnmounted(() => {
 
                 <div v-else-if="drawerStep === 'select'" class="space-y-6">
                     <div
-                        class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-indigo-500/30 bg-indigo-950/20 p-5"
+                        class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-indigo-200/80 bg-indigo-50/80 p-5 shadow-sm dark:border-indigo-500/30 dark:bg-indigo-950/20"
                     >
                         <div class="flex items-center gap-3 text-left">
                             <div
-                                class="flex size-11 items-center justify-center rounded-2xl bg-indigo-600/20 text-indigo-300"
+                                class="flex size-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 shadow-sm dark:bg-indigo-600/20 dark:text-indigo-300"
                             >
                                 <Utensils class="size-5" />
                             </div>
                             <div>
-                                <p class="text-sm font-black text-slate-100">
+                                <p class="text-sm font-black text-slate-800 dark:text-slate-100">
                                     Lên món cho Bàn
                                     {{ activeTable?.name || '' }}
                                 </p>
-                                <p class="text-xs text-slate-400">
+                                <p class="text-xs font-medium text-slate-600 dark:text-slate-400">
                                     Chọn món trong thực đơn, sau đó xác nhận để
                                     xem lại đơn.
                                 </p>
@@ -645,7 +645,7 @@ onUnmounted(() => {
 
                         <button
                             type="button"
-                            class="rounded-xl px-3 py-2 text-xs font-bold text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100"
+                            class="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                             @click="isCartOpen = false"
                         >
                             Quay lại chọn bàn
@@ -663,19 +663,19 @@ onUnmounted(() => {
                     />
 
                     <div
-                        class="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-500/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur"
+                        class="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur dark:border-indigo-500/30 dark:bg-slate-950/95 dark:shadow-2xl"
                     >
                         <div class="text-left">
-                            <p class="text-sm font-black text-slate-100">
+                            <p class="text-sm font-black text-slate-900 dark:text-slate-100">
                                 Đã chọn {{ totalCartQty }} món
                             </p>
-                            <p class="text-xs text-slate-400">
+                            <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                                 {{ totalCartAmount.toLocaleString('vi-VN') }}đ
                             </p>
                         </div>
                         <button
                             type="button"
-                            class="rounded-xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="rounded-xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-lg shadow-indigo-600/25 transition-all hover:bg-indigo-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="cartItems.length === 0"
                             @click="drawerStep = 'confirm'"
                         >
@@ -959,11 +959,11 @@ onUnmounted(() => {
         <Teleport to="body">
             <div
                 v-if="cancelItemTarget"
-                class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+                class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
                 @click.self="closeCancelItemModal"
             >
                 <div
-                    class="w-full max-w-md rounded-3xl border border-rose-500/30 bg-slate-900 p-6 text-left shadow-2xl"
+                    class="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-6 text-left shadow-2xl dark:border-rose-500/30 dark:bg-slate-900"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="cancel-item-title"
@@ -972,18 +972,18 @@ onUnmounted(() => {
                         <div>
                             <p
                                 id="cancel-item-title"
-                                class="text-lg font-black text-slate-100"
+                                class="text-lg font-black text-slate-900 dark:text-slate-100"
                             >
                                 Hủy món
                             </p>
-                            <p class="mt-1 text-xs leading-5 text-slate-400">
+                            <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
                                 {{ cancelItemTarget.product_name }} ·
                                 {{ cancelItemTarget.quantity }} món
                             </p>
                         </div>
                         <button
                             type="button"
-                            class="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+                            class="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
                             :disabled="isCancellingItem"
                             aria-label="Đóng"
                             @click="closeCancelItemModal"
@@ -995,14 +995,14 @@ onUnmounted(() => {
                     <div class="mt-5 space-y-3">
                         <label
                             for="cashier-cancel-reason"
-                            class="block text-xs font-bold text-slate-300"
+                            class="block text-xs font-bold text-slate-700 dark:text-slate-300"
                         >
-                            Lý do hủy món <span class="text-rose-400">*</span>
+                            Lý do hủy món <span class="text-rose-500">*</span>
                         </label>
                         <select
                             id="cashier-cancel-reason"
                             v-model="cancelItemReason"
-                            class="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 transition-colors outline-none focus:border-rose-500"
+                            class="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 transition-colors outline-none focus:border-rose-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         >
                             <option
                                 v-for="reason in cancelReasonOptions"
@@ -1021,7 +1021,7 @@ onUnmounted(() => {
                             rows="3"
                             maxlength="500"
                             placeholder="Nhập lý do hủy..."
-                            class="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-rose-500"
+                            class="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-rose-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
                         />
                         <p class="text-[11px] leading-5 text-slate-500">
                             Nếu món đã bắt đầu chế biến, yêu cầu sẽ chuyển đến
@@ -1032,7 +1032,7 @@ onUnmounted(() => {
                     <div class="mt-6 grid grid-cols-2 gap-3">
                         <button
                             type="button"
-                            class="h-11 rounded-xl border border-slate-700 text-xs font-black text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="h-11 rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-transparent dark:text-slate-300 dark:hover:bg-slate-800"
                             :disabled="isCancellingItem"
                             @click="closeCancelItemModal"
                         >

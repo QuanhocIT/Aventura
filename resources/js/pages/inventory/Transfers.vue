@@ -1807,7 +1807,7 @@ const formatDuration = (hours: number) => {
                         <!-- Group Requisition in Work Queue -->
                         <div
                             v-if="group.is_group"
-                            class="flex flex-col gap-3 rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                            class="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-indigo-500/30 dark:bg-indigo-950/20"
                         >
                             <button
                                 type="button"
@@ -1816,7 +1816,7 @@ const formatDuration = (hours: number) => {
                             >
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span
-                                        class="rounded bg-indigo-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-300"
+                                        class="rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
                                     >
                                         #{{
                                             group.request_group_id

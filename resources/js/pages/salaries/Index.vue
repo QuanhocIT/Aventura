@@ -2121,15 +2121,15 @@ const compact = (v: number) =>
     <!-- ══ Floating Bulk Action Bar ════════════════════════════════════════════ -->
     <div
         v-if="selectedIds.length > 0 && canApprove"
-        class="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 animate-in items-center gap-4 rounded-2xl border border-indigo-200 bg-slate-900 px-6 py-3.5 text-white shadow-2xl transition-all slide-in-from-bottom-5 fade-in dark:border-indigo-900"
+        class="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 animate-in items-center gap-4 rounded-2xl border border-slate-200 bg-white/95 px-6 py-3.5 text-slate-900 shadow-2xl backdrop-blur-md transition-all slide-in-from-bottom-5 fade-in dark:border-indigo-900 dark:bg-slate-900 dark:text-white"
     >
         <div class="flex items-center gap-2">
             <span
-                class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-black"
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white"
             >
                 {{ selectedIds.length }}
             </span>
-            <span class="text-xs font-bold text-slate-200">
+            <span class="text-xs font-bold text-slate-700 dark:text-slate-200">
                 bảng lương đã chọn
             </span>
         </div>
@@ -2146,7 +2146,7 @@ const compact = (v: number) =>
             <Button
                 size="sm"
                 variant="outline"
-                class="h-8 rounded-xl border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:bg-slate-700"
+                class="h-8 rounded-xl border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 @click="openBulkDialog"
             >
                 <Plus class="mr-1 size-3.5" />
@@ -2154,7 +2154,7 @@ const compact = (v: number) =>
             </Button>
             <button
                 @click="selectedIds = []"
-                class="ml-2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                class="ml-2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
                 title="Bỏ chọn tất cả"
             >
                 <X class="size-4" />

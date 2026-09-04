@@ -3,6 +3,8 @@
 namespace App\Events;
 
 use App\Models\Order;
+use App\Models\RestaurantTable;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -17,11 +19,21 @@ class OrderPaid implements ShouldBroadcastNow
         public Order $order,
         public int $restaurantId,
         public int $tableId
-    ) {}
+    ) {
+        $this->order->loadMissing('table');
+    }
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("restaurant.{$this->restaurantId}")];
+        $channels = [new PrivateChannel("restaurant.{$this->restaurantId}")];
+
+        /** @var RestaurantTable|null $table */
+        $table = $this->order->table ?? RestaurantTable::find($this->tableId);
+        if ($table && ! empty($table->qr_token)) {
+            $channels[] = new Channel('table.'.$table->qr_token);
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

@@ -280,19 +280,23 @@ Route::prefix('api/v1')->middleware(['auth.apikey', 'throttle:120,1'])->name('ap
 });
 
 // Chức năng QR-Ordering dành cho khách hàng tại bàn & Tích điểm hóa đơn
+// Tuyến hiển thị Menu và trạng thái thanh toán dùng giới hạn cao hơn (240 req/phút) để nhiều khách cùng Wi-Fi không bị chặn 429
+Route::middleware('throttle:240,1')->group(function () {
+    Route::get('customer/order/{restaurant}/{token}', [QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
+    Route::get('api/orders/{order}/payment-status', [OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');
+});
+
 Route::middleware('throttle:60,1')->group(function () {
     Route::get('customer/loyalty/order-summary/{order}', [CustomerLoyaltyClaimController::class, 'getOrderPointsSummary'])->name('customer.loyalty.order-summary');
     Route::post('customer/loyalty/claim-points', [CustomerLoyaltyClaimController::class, 'claimPoints'])->name('customer.loyalty.claim-points');
     Route::post('customer/order/call-staff/{restaurant}', [QROrderController::class, 'callStaff'])->name('customer.qr-order.call-staff');
     Route::post('customer/order/payment-request/{restaurant}', [QROrderController::class, 'paymentRequest'])->name('customer.qr-order.payment-request');
     Route::post('customer/order/feedback/{restaurant}', [QROrderController::class, 'submitFeedback'])->name('customer.qr-order.feedback');
-    Route::get('customer/order/{restaurant}/{token}', [QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
     Route::post('customer/order/{restaurant}/{token}', [QROrderController::class, 'submitOrder'])->middleware('throttle:qr_order_submit')->name('customer.qr-order.submit');
     Route::post('customer/order/{restaurant}/{token}/temporary/{temporaryOrder}/cancel', [QROrderController::class, 'cancelOrder'])->name('customer.qr-order.cancel');
     Route::post('customer/order/{restaurant}/{token}/temporary/{temporaryOrder}/confirm-revision', [QROrderController::class, 'confirmRevision'])->name('customer.qr-order.confirm-revision');
     Route::post('api/customer/track-behavior', [CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
     Route::get('api/orders/{order}/payment-qr', [OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
-    Route::get('api/orders/{order}/payment-status', [OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');
 
     // Public đặt bàn trước (khách quét QR đặt bàn)
     Route::post('r/{restaurantId}/reservations', [TableReservationController::class, 'publicStore'])->name('reservations.public-store');

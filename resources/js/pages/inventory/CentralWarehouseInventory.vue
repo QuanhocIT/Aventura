@@ -397,12 +397,12 @@ const activityTypeLabel = (type: string) =>
         </div>
 
         <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Card class="border-indigo-500/20 bg-indigo-950/10"
+            <Card class="border-indigo-100 bg-indigo-50/70 dark:border-indigo-500/20 dark:bg-indigo-950/10"
                 ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-indigo-300 uppercase">
+                    ><p class="text-[11px] font-bold text-indigo-700 uppercase dark:text-indigo-300">
                         Mặt hàng
                     </p>
-                    <p class="mt-2 text-2xl font-bold text-indigo-100">
+                    <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-indigo-100">
                         {{ inventorySummary.ingredient_count || 0 }}
                     </p>
                     <p class="mt-1 text-[11px] text-muted-foreground">
@@ -410,12 +410,12 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-sky-500/20 bg-sky-950/10"
+            <Card class="border-sky-100 bg-sky-50/70 dark:border-sky-500/20 dark:bg-sky-950/10"
                 ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-sky-300 uppercase">
+                    ><p class="text-[11px] font-bold text-sky-700 uppercase dark:text-sky-300">
                         Tồn thực tế
                     </p>
-                    <p class="mt-2 text-2xl font-bold text-sky-100">
+                    <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-sky-100">
                         {{ formatQuantity(inventorySummary.on_hand_quantity) }}
                     </p>
                     <p class="mt-1 text-[11px] text-muted-foreground">
@@ -423,14 +423,14 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-emerald-500/20 bg-emerald-950/10"
+            <Card class="border-emerald-100 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-950/10"
                 ><CardContent class="p-4"
                     ><p
-                        class="text-[11px] font-bold text-emerald-300 uppercase"
+                        class="text-[11px] font-bold text-emerald-700 uppercase dark:text-emerald-300"
                     >
                         Tồn khả dụng
                     </p>
-                    <p class="mt-2 text-2xl font-bold text-emerald-100">
+                    <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-emerald-100">
                         {{
                             formatQuantity(inventorySummary.available_quantity)
                         }}
@@ -440,12 +440,12 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-violet-500/20 bg-violet-950/10"
+            <Card class="border-violet-100 bg-violet-50/70 dark:border-violet-500/20 dark:bg-violet-950/10"
                 ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-violet-300 uppercase">
+                    ><p class="text-[11px] font-bold text-violet-700 uppercase dark:text-violet-300">
                         Giá trị tồn
                     </p>
-                    <p class="mt-2 text-lg font-bold text-violet-100">
+                    <p class="mt-2 text-lg font-bold text-slate-900 dark:text-violet-100">
                         {{ formatCurrency(inventorySummary.on_hand_value) }}
                     </p>
                     <p class="mt-1 text-[11px] text-muted-foreground">
@@ -453,12 +453,12 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-amber-500/20 bg-amber-950/10"
+            <Card class="border-amber-100 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-950/10"
                 ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-amber-300 uppercase">
+                    ><p class="text-[11px] font-bold text-amber-700 uppercase dark:text-amber-300">
                         Cần bổ sung
                     </p>
-                    <p class="mt-2 text-2xl font-bold text-amber-100">
+                    <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-amber-100">
                         {{ inventorySummary.low_stock_count || 0 }}
                     </p>
                     <p class="mt-1 text-[11px] text-muted-foreground">
@@ -466,12 +466,12 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-orange-500/20 bg-orange-950/10"
+            <Card class="border-orange-100 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-950/10"
                 ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-orange-300 uppercase">
+                    ><p class="text-[11px] font-bold text-orange-700 uppercase dark:text-orange-300">
                         Lô sắp hết hạn
                     </p>
-                    <p class="mt-2 text-2xl font-bold text-orange-100">
+                    <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-orange-100">
                         {{ inventorySummary.expiring_soon_count || 0 }}
                     </p>
                     <p class="mt-1 text-[11px] text-muted-foreground">
@@ -1288,7 +1288,7 @@ const activityTypeLabel = (type: string) =>
                     </div>
                     <form class="space-y-4" @submit.prevent="submitAdjust">
                         <div
-                            class="rounded-xl border border-indigo-400/20 bg-indigo-950/20 p-3 text-xs text-indigo-100"
+                            class="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-800 dark:border-indigo-400/20 dark:bg-indigo-950/20 dark:text-indigo-100"
                         >
                             Kiểm kê nhanh sẽ ghi nhận lại tồn thực tế và tạo
                             giao dịch kiểm kê. Nếu chênh lệch lớn, hệ thống vẫn

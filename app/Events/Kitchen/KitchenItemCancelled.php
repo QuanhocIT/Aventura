@@ -2,6 +2,7 @@
 
 namespace App\Events\Kitchen;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -32,6 +33,10 @@ class KitchenItemCancelled implements ShouldBroadcastNow
             new PrivateChannel("kitchen.{$this->restaurantId}"),
             new PrivateChannel("restaurant.{$this->restaurantId}"),
         ];
+
+        if (! empty($this->tableToken)) {
+            $channels[] = new Channel('table.'.$this->tableToken);
+        }
 
         return $channels;
     }

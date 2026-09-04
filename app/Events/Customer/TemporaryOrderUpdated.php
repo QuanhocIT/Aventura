@@ -3,6 +3,7 @@
 namespace App\Events\Customer;
 
 use App\Models\TemporaryOrder;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -13,11 +14,22 @@ class TemporaryOrderUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public TemporaryOrder $temporaryOrder) {}
+    public function __construct(public TemporaryOrder $temporaryOrder)
+    {
+        $this->temporaryOrder->loadMissing('table');
+    }
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("restaurant.{$this->temporaryOrder->restaurant_id}")];
+        $channels = [new PrivateChannel("restaurant.{$this->temporaryOrder->restaurant_id}")];
+
+        /** @var \App\Models\RestaurantTable|\App\Models\Table|null $table */
+        $table = $this->temporaryOrder->table;
+        if ($table && ! empty($table->qr_token)) {
+            $channels[] = new Channel('table.'.$table->qr_token);
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string

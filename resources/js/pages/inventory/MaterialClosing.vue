@@ -557,7 +557,7 @@ onMounted(openFromQuery);
     <Head :title="closingTitle" />
 
     <div
-        class="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 lg:px-8"
+        class="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8"
     >
         <div class="mx-auto flex max-w-[1500px] flex-col gap-6">
             <div
@@ -566,19 +566,19 @@ onMounted(openFromQuery);
                 <div>
                     <Link
                         :href="backUrl"
-                        class="mb-3 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"
+                        class="mb-3 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft class="size-4" /> {{ backLabel }}
                     </Link>
                     <div class="flex items-center gap-3">
                         <div
-                            class="rounded-2xl bg-amber-500/15 p-3 text-amber-300"
+                            class="rounded-2xl bg-amber-100 p-3 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
                         >
                             <ClipboardCheck class="size-7" />
                         </div>
                         <div>
                             <p
-                                class="text-xs font-bold tracking-[0.2em] text-amber-300 uppercase"
+                                class="text-xs font-bold tracking-[0.2em] text-amber-700 uppercase dark:text-amber-300"
                             >
                                 {{ branchLabel }} · Đối chiếu định kỳ
                             </p>
@@ -591,7 +591,7 @@ onMounted(openFromQuery);
                             </h1>
                         </div>
                     </div>
-                    <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+                    <p class="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                         Chọn kỳ từ ngày đến ngày. Hệ thống khóa snapshot
                         {{ isBranchMode ? 'riêng cho chi nhánh' : 'Kho Tổng' }}:
                         tồn đầu kỳ + nhập − xuất = tồn phải còn, sau đó nhân
@@ -602,7 +602,7 @@ onMounted(openFromQuery);
                     <select
                         v-if="isBranchMode && (props.branches?.length || 0) > 1"
                         v-model="selectedBranchId"
-                        class="h-9 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200"
+                        class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         @change="
                             router.get(
                                 '/inventory/branch-closing',
@@ -621,14 +621,14 @@ onMounted(openFromQuery);
                     </select>
                     <Button
                         variant="outline"
-                        class="gap-2 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
+                        class="gap-2"
                         @click="router.reload()"
                     >
                         <RefreshCw class="size-4" /> Làm mới
                     </Button>
                     <Button
                         v-if="canManage"
-                        class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400"
+                        class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-slate-950"
                         @click="showCreate = true"
                     >
                         <ClipboardCheck class="size-4" />
@@ -638,74 +638,74 @@ onMounted(openFromQuery);
             </div>
 
             <div
-                class="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/80"
+                class="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-100/80"
             >
-                <span class="font-bold text-amber-300">Phạm vi an toàn:</span>
+                <span class="font-bold text-amber-700 dark:text-amber-300">Phạm vi an toàn:</span>
                 {{ scopeMessage }}
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card class="border-slate-800 bg-slate-900/80"
+                <Card class="border-border bg-card shadow-sm"
                     ><CardContent class="p-5"
                         ><p
-                            class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                            class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
                         >
                             Tổng kỳ chốt
                         </p>
                         <p class="mt-2 text-3xl font-black">
                             {{ props.sessions.length }}
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">
+                        <p class="mt-1 text-xs text-muted-foreground">
                             đã lưu snapshot
                         </p></CardContent
                     ></Card
                 >
-                <Card class="border-amber-500/20 bg-amber-500/5"
+                <Card class="border-amber-200 bg-amber-50/70 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/5"
                     ><CardContent class="p-5"
                         ><p
-                            class="text-xs font-bold tracking-wider text-amber-300 uppercase"
+                            class="text-xs font-bold tracking-wider text-amber-700 uppercase dark:text-amber-300"
                         >
                             Đang đối chiếu
                         </p>
-                        <p class="mt-2 text-3xl font-black text-amber-200">
+                        <p class="mt-2 text-3xl font-black text-slate-900 dark:text-amber-200">
                             {{
                                 props.sessions.filter(
                                     (s) => s.status === 'in_progress',
                                 ).length
                             }}
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">
+                        <p class="mt-1 text-xs text-muted-foreground">
                             có thể giao nhân viên
                         </p></CardContent
                     ></Card
                 >
-                <Card class="border-sky-500/20 bg-sky-500/5"
+                <Card class="border-sky-200 bg-sky-50/70 shadow-sm dark:border-sky-500/20 dark:bg-sky-500/5"
                     ><CardContent class="p-5"
                         ><p
-                            class="text-xs font-bold tracking-wider text-sky-300 uppercase"
+                            class="text-xs font-bold tracking-wider text-sky-700 uppercase dark:text-sky-300"
                         >
                             Chờ phê duyệt
                         </p>
-                        <p class="mt-2 text-3xl font-black text-sky-200">
+                        <p class="mt-2 text-3xl font-black text-slate-900 dark:text-sky-200">
                             {{
                                 props.sessions.filter(
                                     (s) => s.status === 'pending_approval',
                                 ).length
                             }}
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">
+                        <p class="mt-1 text-xs text-muted-foreground">
                             chưa ghi điều chỉnh
                         </p></CardContent
                     ></Card
                 >
-                <Card class="border-rose-500/20 bg-rose-500/5"
+                <Card class="border-rose-200 bg-rose-50/70 shadow-sm dark:border-rose-500/20 dark:bg-rose-500/5"
                     ><CardContent class="p-5"
                         ><p
-                            class="text-xs font-bold tracking-wider text-rose-300 uppercase"
+                            class="text-xs font-bold tracking-wider text-rose-700 uppercase dark:text-rose-300"
                         >
                             Thiếu đã xác định
                         </p>
-                        <p class="mt-2 text-xl font-black text-rose-200">
+                        <p class="mt-2 text-xl font-black text-slate-900 dark:text-rose-200">
                             {{
                                 formatCurrency(
                                     props.sessions.reduce(
@@ -715,16 +715,16 @@ onMounted(openFromQuery);
                                 )
                             }}
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">
+                        <p class="mt-1 text-xs text-muted-foreground">
                             theo các kỳ đã đối chiếu
                         </p></CardContent
                     ></Card
                 >
             </div>
 
-            <Card class="border-slate-800 bg-slate-900/80">
+            <Card class="border-border bg-card shadow-sm">
                 <CardHeader
-                    class="flex flex-col gap-3 border-b border-slate-800 sm:flex-row sm:items-center sm:justify-between"
+                    class="flex flex-col gap-3 border-b border-border sm:flex-row sm:items-center sm:justify-between"
                 >
                     <div>
                         <CardTitle class="text-lg">{{
@@ -732,7 +732,7 @@ onMounted(openFromQuery);
                                 ? 'Các kỳ chốt kho chi nhánh'
                                 : 'Các kỳ chốt nguyên liệu'
                         }}</CardTitle
-                        ><CardDescription class="text-slate-400"
+                        ><CardDescription class="text-muted-foreground"
                             >Mỗi kỳ lưu lại số liệu để truy vết và đối chiếu,
                             không phụ thuộc nhà cung cấp.</CardDescription
                         >
@@ -740,26 +740,26 @@ onMounted(openFromQuery);
                     <Input
                         v-model="search"
                         placeholder="Tìm mã kỳ / ngày / trạng thái"
-                        class="h-9 w-full border-slate-700 bg-slate-950 sm:w-64"
+                        class="h-9 w-full border-input bg-background sm:w-64"
                     />
                 </CardHeader>
                 <CardContent class="p-0">
                     <div
                         v-if="filteredSessions.length === 0"
-                        class="p-12 text-center text-sm text-slate-500"
+                        class="p-12 text-center text-sm text-muted-foreground"
                     >
                         Chưa có kỳ chốt nào trong phạm vi {{ branchLabel }}.
                     </div>
-                    <div v-else class="divide-y divide-slate-800">
+                    <div v-else class="divide-y divide-border">
                         <button
                             v-for="session in filteredSessions"
                             :key="session.id"
-                            class="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-slate-800/50 lg:flex-row lg:items-center lg:justify-between"
+                            class="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-muted/50 lg:flex-row lg:items-center lg:justify-between"
                             @click="openSession(session)"
                         >
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <span class="font-black"
+                                    <span class="font-black text-foreground"
                                         >Kỳ chốt #{{ session.id }}</span
                                     ><Badge
                                         variant="outline"
@@ -769,12 +769,12 @@ onMounted(openFromQuery);
                                         }}</Badge
                                     >
                                 </div>
-                                <p class="mt-1 text-sm text-slate-400">
+                                <p class="mt-1 text-sm text-muted-foreground">
                                     {{ session.period_start }} →
                                     {{ session.period_end }} ·
                                     {{ session.items?.length || 0 }} nguyên liệu
                                 </p>
-                                <p class="mt-1 text-xs text-slate-500">
+                                <p class="mt-1 text-xs text-muted-foreground">
                                     Đếm 1:
                                     {{
                                         session.countedBy?.name ||
@@ -790,8 +790,8 @@ onMounted(openFromQuery);
                                 class="grid grid-cols-2 gap-x-6 gap-y-1 text-right text-xs sm:grid-cols-4"
                             >
                                 <div>
-                                    <p class="text-slate-500">Phải còn</p>
-                                    <p class="font-bold text-slate-200">
+                                    <p class="text-muted-foreground">Phải còn</p>
+                                    <p class="font-bold text-foreground">
                                         {{
                                             formatNumber(
                                                 session.total_expected_quantity,
@@ -800,8 +800,8 @@ onMounted(openFromQuery);
                                     </p>
                                 </div>
                                 <div>
-                                    <p class="text-slate-500">Giá trị</p>
-                                    <p class="font-bold text-slate-200">
+                                    <p class="text-muted-foreground">Giá trị</p>
+                                    <p class="font-bold text-foreground">
                                         {{
                                             formatCurrency(
                                                 session.total_expected_value,
@@ -810,8 +810,8 @@ onMounted(openFromQuery);
                                     </p>
                                 </div>
                                 <div>
-                                    <p class="text-slate-500">Thiếu</p>
-                                    <p class="font-bold text-rose-400">
+                                    <p class="text-muted-foreground">Thiếu</p>
+                                    <p class="font-bold text-rose-600 dark:text-rose-400">
                                         {{
                                             formatCurrency(
                                                 session.total_shortage_value,
@@ -820,14 +820,14 @@ onMounted(openFromQuery);
                                     </p>
                                 </div>
                                 <div v-if="!isBranchMode">
-                                    <p class="text-slate-500">Task</p>
+                                    <p class="text-muted-foreground">Task</p>
                                     <p
                                         class="font-bold"
                                         :class="
                                             taskFor(session.id)?.status ===
                                             'completed'
-                                                ? 'text-emerald-400'
-                                                : 'text-amber-300'
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-amber-600 dark:text-amber-300'
                                         "
                                     >
                                         {{
@@ -844,9 +844,9 @@ onMounted(openFromQuery);
 
             <Card
                 v-if="selectedSession"
-                class="border-amber-500/30 bg-slate-900/95 shadow-2xl shadow-amber-950/20"
+                class="border-amber-200 bg-card shadow-2xl dark:border-amber-500/30 dark:bg-slate-900/95"
             >
-                <CardHeader class="border-b border-slate-800">
+                <CardHeader class="border-b border-border">
                     <div
                         class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
                     >
@@ -864,7 +864,7 @@ onMounted(openFromQuery);
                                     }}</Badge
                                 >
                             </div>
-                            <CardDescription class="mt-1 text-slate-400"
+                            <CardDescription class="mt-1 text-muted-foreground"
                                 >{{ selectedSession.period_start }} →
                                 {{ selectedSession.period_end }} ·
                                 {{ branch.name }}</CardDescription
@@ -877,7 +877,7 @@ onMounted(openFromQuery);
                                     selectedSession.status === 'in_progress'
                                 "
                                 variant="outline"
-                                class="gap-2 border-slate-700"
+                                class="gap-2 border-border"
                                 @click="openAssign(selectedSession)"
                                 ><UserPlus class="size-4" /> Giao đối
                                 chiếu</Button
@@ -888,13 +888,13 @@ onMounted(openFromQuery);
                                     selectedSession.status === 'in_progress'
                                 "
                                 variant="outline"
-                                class="border-rose-500/30 text-rose-300"
+                                class="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300"
                                 @click="cancelSession"
                                 >Hủy kỳ</Button
                             >
                             <Button
                                 variant="ghost"
-                                class="text-slate-400"
+                                class="text-muted-foreground hover:text-foreground"
                                 @click="selectedSession = null"
                                 >Đóng</Button
                             >
@@ -904,12 +904,12 @@ onMounted(openFromQuery);
                 <CardContent class="space-y-5 p-5">
                     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                         <div
-                            class="rounded-xl border border-slate-800 bg-slate-950/70 p-3"
+                            class="rounded-xl border border-border bg-muted/30 p-3"
                         >
-                            <p class="text-[11px] text-slate-500 uppercase">
+                            <p class="text-[11px] text-muted-foreground uppercase">
                                 Tồn đầu kỳ
                             </p>
-                            <p class="mt-1 font-black">
+                            <p class="mt-1 font-black text-foreground">
                                 {{
                                     formatNumber(
                                         (selectedSession.items || []).reduce(
@@ -923,14 +923,14 @@ onMounted(openFromQuery);
                             </p>
                         </div>
                         <div
-                            class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"
+                            class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5"
                         >
                             <p
-                                class="text-[11px] text-emerald-400/70 uppercase"
+                                class="text-[11px] text-emerald-700 uppercase dark:text-emerald-400/70"
                             >
                                 Nhập trong kỳ
                             </p>
-                            <p class="mt-1 font-black text-emerald-300">
+                            <p class="mt-1 font-black text-emerald-900 dark:text-emerald-300">
                                 {{
                                     formatNumber(
                                         (selectedSession.items || []).reduce(
@@ -944,12 +944,12 @@ onMounted(openFromQuery);
                             </p>
                         </div>
                         <div
-                            class="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3"
+                            class="rounded-xl border border-orange-200 bg-orange-50/70 p-3 dark:border-orange-500/20 dark:bg-orange-500/5"
                         >
-                            <p class="text-[11px] text-orange-400/70 uppercase">
+                            <p class="text-[11px] text-orange-700 uppercase dark:text-orange-400/70">
                                 Xuất trong kỳ
                             </p>
-                            <p class="mt-1 font-black text-orange-300">
+                            <p class="mt-1 font-black text-orange-900 dark:text-orange-300">
                                 {{
                                     formatNumber(
                                         (selectedSession.items || []).reduce(
@@ -958,19 +958,19 @@ onMounted(openFromQuery);
                                                 Number(
                                                     i.outbound_quantity || 0,
                                                 ),
-                                            0,
+                                             0,
                                         ),
                                     )
                                 }}
                             </p>
                         </div>
                         <div
-                            class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3"
+                            class="rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-500/20 dark:bg-sky-500/5"
                         >
-                            <p class="text-[11px] text-sky-400/70 uppercase">
+                            <p class="text-[11px] text-sky-700 uppercase dark:text-sky-400/70">
                                 Phải còn
                             </p>
-                            <p class="mt-1 font-black text-sky-300">
+                            <p class="mt-1 font-black text-sky-900 dark:text-sky-300">
                                 {{
                                     formatNumber(
                                         selectedSession.total_expected_quantity,
@@ -979,12 +979,12 @@ onMounted(openFromQuery);
                             </p>
                         </div>
                         <div
-                            class="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3"
+                            class="rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-500/20 dark:bg-rose-500/5"
                         >
-                            <p class="text-[11px] text-rose-400/70 uppercase">
+                            <p class="text-[11px] text-rose-700 uppercase dark:text-rose-400/70">
                                 Thiếu
                             </p>
-                            <p class="mt-1 font-black text-rose-300">
+                            <p class="mt-1 font-black text-rose-900 dark:text-rose-300">
                                 {{
                                     formatCurrency(
                                         selectedSession.total_shortage_value,
@@ -993,12 +993,12 @@ onMounted(openFromQuery);
                             </p>
                         </div>
                         <div
-                            class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3"
+                            class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/5"
                         >
-                            <p class="text-[11px] text-amber-400/70 uppercase">
+                            <p class="text-[11px] text-amber-700 uppercase dark:text-amber-400/70">
                                 Thừa
                             </p>
-                            <p class="mt-1 font-black text-amber-300">
+                            <p class="mt-1 font-black text-amber-900 dark:text-amber-300">
                                 {{
                                     formatCurrency(
                                         selectedSession.total_surplus_value,
@@ -1009,29 +1009,29 @@ onMounted(openFromQuery);
                     </div>
 
                     <div
-                        class="rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-400"
+                        class="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground"
                     >
                         <div
                             class="flex flex-wrap items-center justify-between gap-2"
                         >
                             <span
                                 >Người mở kỳ:
-                                <strong class="text-slate-200">{{
+                                <strong class="text-foreground">{{
                                     selectedSession.countedBy?.name || '—'
                                 }}</strong></span
                             ><span v-if="selectedSession.secondCountedBy"
                                 >Nhân viên đối chiếu:
-                                <strong class="text-amber-300">{{
+                                <strong class="text-amber-700 dark:text-amber-300">{{
                                     selectedSession.secondCountedBy.name
                                 }}</strong></span
                             ><span v-if="activeTask"
                                 >Task:
-                                <strong class="text-slate-200">{{
+                                <strong class="text-foreground">{{
                                     activeTask.status
                                 }}</strong></span
                             >
                         </div>
-                        <p class="mt-2 text-xs text-slate-500">
+                        <p class="mt-2 text-xs text-muted-foreground">
                             Số “Phải còn” là số hệ thống tính từ sổ giao dịch
                             tại thời điểm mở kỳ. Số thực tế chỉ được ghi vào tồn
                             kho sau bước phê duyệt.
@@ -1039,11 +1039,11 @@ onMounted(openFromQuery);
                     </div>
 
                     <div
-                        class="overflow-x-auto rounded-xl border border-slate-800"
+                        class="overflow-x-auto rounded-xl border border-border"
                     >
                         <table class="w-full min-w-[1080px] text-left text-xs">
                             <thead
-                                class="bg-slate-950 text-[11px] tracking-wider text-slate-500 uppercase"
+                                class="bg-muted/40 text-[11px] tracking-wider text-muted-foreground uppercase"
                             >
                                 <tr>
                                     <th class="px-3 py-3">Nguyên liệu</th>
@@ -1066,7 +1066,7 @@ onMounted(openFromQuery);
                                     <th class="px-3 py-3"></th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800">
+                            <tbody class="divide-y divide-border">
                                 <tr
                                     v-for="(
                                         item, index
@@ -1075,13 +1075,13 @@ onMounted(openFromQuery);
                                     class="align-top"
                                 >
                                     <td class="px-3 py-3">
-                                        <p class="font-bold text-slate-200">
+                                        <p class="font-bold text-foreground">
                                             {{
                                                 item.ingredient?.name ||
                                                 `Nguyên liệu #${item.ingredient_id}`
                                             }}
                                         </p>
-                                        <p class="mt-1 text-slate-500">
+                                        <p class="mt-1 text-muted-foreground">
                                             {{ item.ingredient?.sku || '—' }} ·
                                             {{
                                                 item.ingredient?.unit?.symbol ||
@@ -1090,35 +1090,35 @@ onMounted(openFromQuery);
                                         </p>
                                     </td>
                                     <td
-                                        class="px-3 py-3 text-right text-slate-300"
+                                        class="px-3 py-3 text-right text-muted-foreground"
                                     >
                                         {{
                                             formatNumber(item.opening_quantity)
                                         }}
                                     </td>
                                     <td
-                                        class="px-3 py-3 text-right text-emerald-300"
+                                        class="px-3 py-3 text-right text-emerald-600 dark:text-emerald-300"
                                     >
                                         {{
                                             formatNumber(item.inbound_quantity)
                                         }}
                                     </td>
                                     <td
-                                        class="px-3 py-3 text-right text-orange-300"
+                                        class="px-3 py-3 text-right text-orange-600 dark:text-orange-300"
                                     >
                                         {{
                                             formatNumber(item.outbound_quantity)
                                         }}
                                     </td>
                                     <td
-                                        class="px-3 py-3 text-right font-bold text-sky-300"
+                                        class="px-3 py-3 text-right font-bold text-sky-700 dark:text-sky-300"
                                     >
                                         {{
                                             formatNumber(item.expected_quantity)
                                         }}
                                     </td>
                                     <td
-                                        class="px-3 py-3 text-right text-slate-300"
+                                        class="px-3 py-3 text-right text-muted-foreground"
                                     >
                                         {{ formatCurrency(item.unit_cost) }}
                                     </td>
@@ -1132,11 +1132,11 @@ onMounted(openFromQuery);
                                             type="number"
                                             min="0"
                                             step="0.001"
-                                            class="h-8 w-28 border-slate-700 bg-slate-950 text-right text-xs"
+                                            class="h-8 w-28 border-input bg-background text-right text-xs"
                                         />
                                         <span
                                             v-else
-                                            class="font-bold text-slate-200"
+                                            class="font-bold text-foreground"
                                             >{{
                                                 item.final_quantity === null
                                                     ? '—'
@@ -1166,7 +1166,7 @@ onMounted(openFromQuery);
                                         >
                                         <p
                                             v-if="item.final_quantity !== null"
-                                            class="mt-1 text-slate-500"
+                                            class="mt-1 text-muted-foreground"
                                         >
                                             {{
                                                 formatCurrency(
@@ -1183,7 +1183,7 @@ onMounted(openFromQuery);
                                             "
                                             size="sm"
                                             variant="outline"
-                                            class="border-rose-500/30 text-[11px] text-rose-300"
+                                            class="border-rose-300 text-[11px] text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300"
                                             @click.stop="reconcileItem(item)"
                                             >Đồng đếm</Button
                                         >
@@ -1194,12 +1194,12 @@ onMounted(openFromQuery);
                     </div>
 
                     <div
-                        class="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between"
+                        class="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                         <div
-                            class="flex items-center gap-2 text-xs text-slate-500"
+                            class="flex items-center gap-2 text-xs text-muted-foreground"
                         >
-                            <ShieldAlert class="size-4 text-amber-400" /> Chênh
+                            <ShieldAlert class="size-4 text-amber-500 dark:text-amber-400" /> Chênh
                             lệch âm là thiếu thực tế so với số hệ thống phải
                             còn.
                         </div>
@@ -1207,7 +1207,7 @@ onMounted(openFromQuery);
                             <Button
                                 v-if="canEditSelectedCounts"
                                 :disabled="isSubmitting"
-                                class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400"
+                                class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-slate-950"
                                 @click="submitCounts"
                                 ><CheckCircle2 class="size-4" /> Lưu kết quả đối
                                 chiếu</Button
@@ -1219,7 +1219,7 @@ onMounted(openFromQuery);
                                 "
                                 :disabled="isSubmitting"
                                 variant="outline"
-                                class="border-sky-500/30 text-sky-300"
+                                class="border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300"
                                 @click="submitForApproval"
                                 >Gửi phê duyệt</Button
                             >
@@ -1242,18 +1242,18 @@ onMounted(openFromQuery);
 
         <div
             v-if="showCreate"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             @click.self="showCreate = false"
         >
             <Card
-                class="w-full max-w-lg border-slate-700 bg-slate-900 shadow-2xl"
+                class="w-full max-w-lg border-border bg-card shadow-2xl"
                 ><CardHeader
                     ><CardTitle>{{
                         isBranchMode
                             ? 'Mở kỳ chốt kho chi nhánh'
                             : 'Mở kỳ chốt nguyên liệu'
                     }}</CardTitle
-                    ><CardDescription class="text-slate-400"
+                    ><CardDescription class="text-muted-foreground"
                         >Không dùng nhà cung cấp. Hệ thống đọc sổ giao dịch
                         {{ branchLabel }} theo khoảng ngày bạn
                         chọn.</CardDescription
@@ -1263,7 +1263,7 @@ onMounted(openFromQuery);
                         <Label>Chi nhánh</Label
                         ><select
                             v-model="selectedBranchId"
-                            class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"
+                            class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
                             <option
                                 v-for="candidate in props.branches"
@@ -1280,7 +1280,7 @@ onMounted(openFromQuery);
                             ><Input
                                 v-model="periodForm.from_date"
                                 type="date"
-                                class="border-slate-700 bg-slate-950"
+                                class="border-input bg-background"
                             />
                         </div>
                         <div class="space-y-2">
@@ -1288,12 +1288,12 @@ onMounted(openFromQuery);
                             ><Input
                                 v-model="periodForm.to_date"
                                 type="date"
-                                class="border-slate-700 bg-slate-950"
+                                class="border-input bg-background"
                             />
                         </div>
                     </div>
                     <div
-                        class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-sky-200"
+                        class="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs leading-5 text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/5 dark:text-sky-200"
                     >
                         Sau khi mở kỳ, hệ thống sẽ hiển thị từng nguyên liệu:
                         tồn đầu kỳ, tổng nhập, tổng xuất, tồn phải còn và giá
@@ -1307,12 +1307,12 @@ onMounted(openFromQuery);
                     <div class="flex justify-end gap-2">
                         <Button
                             variant="outline"
-                            class="border-slate-700"
+                            class="border-border"
                             @click="showCreate = false"
                             >Hủy</Button
                         ><Button
                             :disabled="isSubmitting"
-                            class="bg-amber-500 font-bold text-slate-950"
+                            class="bg-amber-500 font-bold text-slate-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-slate-950"
                             @click="createClosing"
                             >Tạo kỳ chốt</Button
                         >
@@ -1323,17 +1323,17 @@ onMounted(openFromQuery);
 
         <div
             v-if="showAssign && selectedSession"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             @click.self="showAssign = false"
         >
             <Card
-                class="w-full max-w-lg border-slate-700 bg-slate-900 shadow-2xl"
+                class="w-full max-w-lg border-border bg-card shadow-2xl"
                 ><CardHeader
                     ><CardTitle
                         >Giao việc đối chiếu #{{
                             selectedSession.id
                         }}</CardTitle
-                    ><CardDescription class="text-slate-400"
+                    ><CardDescription class="text-muted-foreground"
                         >Nhân viên sẽ nhập số thực tế cho toàn bộ nguyên liệu và
                         kết quả được ghi vào lịch sử kỳ chốt.</CardDescription
                     ></CardHeader
@@ -1342,7 +1342,7 @@ onMounted(openFromQuery);
                         <Label>Nhân viên {{ branchLabel }}</Label
                         ><select
                             v-model="assignForm.assigned_to"
-                            class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"
+                            class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
                         >
                             <option value="">Chọn nhân viên</option>
                             <option
@@ -1364,7 +1364,7 @@ onMounted(openFromQuery);
                             <Label>Ưu tiên</Label
                             ><select
                                 v-model="assignForm.priority"
-                                class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"
+                                class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
                             >
                                 <option value="normal">Bình thường</option>
                                 <option value="high">Cao</option>
@@ -1376,7 +1376,7 @@ onMounted(openFromQuery);
                             ><Input
                                 v-model="assignForm.due_at"
                                 type="datetime-local"
-                                class="border-slate-700 bg-slate-950"
+                                class="border-input bg-background"
                             />
                         </div>
                     </div>
@@ -1385,18 +1385,18 @@ onMounted(openFromQuery);
                         ><textarea
                             v-model="assignForm.notes"
                             rows="3"
-                            class="w-full rounded-md border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200"
+                            class="w-full rounded-md border border-input bg-background p-3 text-sm text-foreground"
                         />
                     </div>
                     <div class="flex justify-end gap-2">
                         <Button
                             variant="outline"
-                            class="border-slate-700"
+                            class="border-border"
                             @click="showAssign = false"
                             >Hủy</Button
                         ><Button
                             :disabled="isSubmitting"
-                            class="gap-2 bg-amber-500 font-bold text-slate-950"
+                            class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-slate-950"
                             @click="assignCounter"
                             ><UserPlus class="size-4" /> Giao việc</Button
                         >

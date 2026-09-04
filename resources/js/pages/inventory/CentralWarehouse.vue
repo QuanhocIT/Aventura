@@ -1614,11 +1614,11 @@ const submitRecall = async () => {
         <div class="flex items-center justify-between gap-3 text-xs">
             <Link
                 href="/inventory/central-warehouse"
-                class="inline-flex items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-200"
+                class="inline-flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200"
                 >← Tổng quan Kho Tổng</Link
             >
             <span
-                class="rounded-full border border-indigo-500/20 bg-indigo-950/10 px-3 py-1 text-indigo-300"
+                class="rounded-full border border-indigo-200 bg-indigo-50/80 px-3 py-1 text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-950/10 dark:text-indigo-300"
                 >Workspace: Đơn cấp phát</span
             >
         </div>
@@ -1721,19 +1721,19 @@ const submitRecall = async () => {
             </Card>
 
             <Card
-                class="border-amber-500/20 bg-amber-950/10 shadow-sm transition hover:shadow"
+                class="border-amber-200 bg-amber-50/70 shadow-sm transition hover:shadow dark:border-amber-500/20 dark:bg-amber-950/10"
             >
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-amber-300">
+                        <p class="text-xs font-medium text-amber-700 dark:text-amber-300">
                             Chờ Kho Duyệt
                         </p>
-                        <p class="mt-1 text-2xl font-bold text-amber-100">
+                        <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-amber-100">
                             {{ stats.pending }}
                         </p>
                     </div>
                     <div
-                        class="rounded-lg bg-amber-950/50 p-2.5 text-amber-300"
+                        class="rounded-lg bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
                     >
                         <Clock class="h-5 w-5" />
                     </div>
@@ -1741,37 +1741,37 @@ const submitRecall = async () => {
             </Card>
 
             <Card
-                class="border-blue-500/20 bg-blue-950/10 shadow-sm transition hover:shadow"
+                class="border-blue-200 bg-blue-50/70 shadow-sm transition hover:shadow dark:border-blue-500/20 dark:bg-blue-950/10"
             >
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-blue-300">
+                        <p class="text-xs font-medium text-blue-700 dark:text-blue-300">
                             Đã Duyệt (Chờ Xuất)
                         </p>
-                        <p class="mt-1 text-2xl font-bold text-blue-100">
+                        <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-blue-100">
                             {{ stats.approved }}
                         </p>
                     </div>
-                    <div class="rounded-lg bg-blue-950/50 p-2.5 text-blue-300">
+                    <div class="rounded-lg bg-blue-100 p-2.5 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                         <PackageCheck class="h-5 w-5" />
                     </div>
                 </CardContent>
             </Card>
 
             <Card
-                class="border-purple-500/20 bg-purple-950/10 shadow-sm transition hover:shadow"
+                class="border-purple-200 bg-purple-50/70 shadow-sm transition hover:shadow dark:border-purple-500/20 dark:bg-purple-950/10"
             >
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-purple-300">
+                        <p class="text-xs font-medium text-purple-700 dark:text-purple-300">
                             Đang Giao Hàng
                         </p>
-                        <p class="mt-1 text-2xl font-bold text-purple-100">
+                        <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-purple-100">
                             {{ stats.dispatched }}
                         </p>
                     </div>
                     <div
-                        class="rounded-lg bg-purple-950/50 p-2.5 text-purple-300"
+                        class="rounded-lg bg-purple-100 p-2.5 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300"
                     >
                         <Truck class="h-5 w-5" />
                     </div>
@@ -1779,19 +1779,19 @@ const submitRecall = async () => {
             </Card>
 
             <Card
-                class="border-emerald-500/20 bg-emerald-950/10 shadow-sm transition hover:shadow"
+                class="border-emerald-200 bg-emerald-50/70 shadow-sm transition hover:shadow dark:border-emerald-500/20 dark:bg-emerald-950/10"
             >
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
-                        <p class="text-xs font-medium text-emerald-300">
+                        <p class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                             Hoàn Thành
                         </p>
-                        <p class="mt-1 text-2xl font-bold text-emerald-100">
+                        <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-emerald-100">
                             {{ stats.completed }}
                         </p>
                     </div>
                     <div
-                        class="rounded-lg bg-emerald-950/50 p-2.5 text-emerald-300"
+                        class="rounded-lg bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                     >
                         <CheckCircle2 class="h-5 w-5" />
                     </div>
@@ -2186,110 +2186,110 @@ const submitRecall = async () => {
             <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
                 <button
                     type="button"
-                    class="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3 text-left"
+                    class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-left transition hover:bg-amber-100/70 dark:border-amber-500/20 dark:bg-amber-950/10"
                     @click="activeTab = 'pending'"
                 >
                     <p
-                        class="text-[10px] font-semibold text-amber-300 uppercase"
+                        class="text-[10px] font-semibold text-amber-700 uppercase dark:text-amber-300"
                     >
                         Chờ duyệt
                     </p>
-                    <p class="mt-1 text-xl font-bold text-amber-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-amber-100">
                         {{ stats.pending }}
                     </p>
                 </button>
                 <button
                     type="button"
-                    class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left"
+                    class="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-left transition hover:bg-rose-100/70 dark:border-rose-500/20 dark:bg-rose-950/10"
                     @click="
                         searchQuery = '';
                         activeTab = 'all';
                     "
                 >
                     <p
-                        class="text-[10px] font-semibold text-rose-300 uppercase"
+                        class="text-[10px] font-semibold text-rose-700 uppercase dark:text-rose-300"
                     >
                         Quá hạn
                     </p>
-                    <p class="mt-1 text-xl font-bold text-rose-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-rose-100">
                         {{ operationalSummary.overdue_requests || 0 }}
                     </p>
                 </button>
                 <button
                     type="button"
-                    class="rounded-xl border border-indigo-500/20 bg-indigo-950/10 p-3 text-left"
+                    class="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-left transition hover:bg-indigo-100/70 dark:border-indigo-500/20 dark:bg-indigo-950/10"
                     @click="activeTab = 'preparing'"
                 >
                     <p
-                        class="text-[10px] font-semibold text-indigo-300 uppercase"
+                        class="text-[10px] font-semibold text-indigo-700 uppercase dark:text-indigo-300"
                     >
                         Đang soạn
                     </p>
-                    <p class="mt-1 text-xl font-bold text-indigo-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-indigo-100">
                         {{ stats.preparing }}
                     </p>
                 </button>
                 <button
                     type="button"
-                    class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3 text-left"
+                    class="rounded-xl border border-violet-200 bg-violet-50/70 p-3 text-left transition hover:bg-violet-100/70 dark:border-violet-500/20 dark:bg-violet-950/10"
                     @click="activeTab = 'dispatch_pending_approval'"
                 >
                     <p
-                        class="text-[10px] font-semibold text-violet-300 uppercase"
+                        class="text-[10px] font-semibold text-violet-700 uppercase dark:text-violet-300"
                     >
                         Chờ duyệt xuất
                     </p>
-                    <p class="mt-1 text-xl font-bold text-violet-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-violet-100">
                         {{ stats.dispatch_pending }}
                     </p>
                 </button>
                 <button
                     type="button"
-                    class="rounded-xl border border-orange-500/20 bg-orange-950/10 p-3 text-left"
+                    class="rounded-xl border border-orange-200 bg-orange-50/70 p-3 text-left transition hover:bg-orange-100/70 dark:border-orange-500/20 dark:bg-orange-950/10"
                     @click="activeTab = 'partial_received'"
                 >
                     <p
-                        class="text-[10px] font-semibold text-orange-300 uppercase"
+                        class="text-[10px] font-semibold text-orange-700 uppercase dark:text-orange-300"
                     >
                         Nhận một phần
                     </p>
-                    <p class="mt-1 text-xl font-bold text-orange-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-orange-100">
                         {{ stats.partial_received }}
                     </p>
                 </button>
                 <button
                     type="button"
-                    class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left"
+                    class="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-left transition hover:bg-rose-100/70 dark:border-rose-500/20 dark:bg-rose-950/10"
                     @click="activeTab = 'disputed'"
                 >
                     <p
-                        class="text-[10px] font-semibold text-rose-300 uppercase"
+                        class="text-[10px] font-semibold text-rose-700 uppercase dark:text-rose-300"
                     >
                         Tranh chấp
                     </p>
-                    <p class="mt-1 text-xl font-bold text-rose-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-rose-100">
                         {{ stats.disputed }}
                     </p>
                 </button>
                 <div
-                    class="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-3"
+                    class="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-500/20 dark:bg-emerald-950/10"
                 >
                     <p
-                        class="text-[10px] font-semibold text-emerald-300 uppercase"
+                        class="text-[10px] font-semibold text-emerald-700 uppercase dark:text-emerald-300"
                     >
                         Fill rate
                     </p>
-                    <p class="mt-1 text-xl font-bold text-emerald-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-emerald-100">
                         {{ operationalSummary.fill_rate_percent ?? 100 }}%
                     </p>
                 </div>
                 <div
-                    class="rounded-xl border border-sky-500/20 bg-sky-950/10 p-3"
+                    class="rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-500/20 dark:bg-sky-950/10"
                 >
-                    <p class="text-[10px] font-semibold text-sky-300 uppercase">
+                    <p class="text-[10px] font-semibold text-sky-700 uppercase dark:text-sky-300">
                         Tồn thấp
                     </p>
-                    <p class="mt-1 text-xl font-bold text-sky-100">
+                    <p class="mt-1 text-xl font-bold text-slate-900 dark:text-sky-100">
                         {{ inventorySummary.low_stock_count || 0 }}
                     </p>
                 </div>
@@ -2571,7 +2571,7 @@ const submitRecall = async () => {
                             >
                         </div>
                         <div
-                            class="col-span-2 rounded-lg border border-indigo-500/20 bg-indigo-950/10 p-3 text-indigo-200"
+                            class="col-span-2 rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 text-indigo-900 dark:border-indigo-500/20 dark:bg-indigo-950/10 dark:text-indigo-200"
                         >
                             {{ receivingSummary?.today || 0 }} phiếu nhập hôm
                             nay ·
@@ -2612,58 +2612,58 @@ const submitRecall = async () => {
             </div>
 
             <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Card class="border-indigo-500/20 bg-indigo-950/10 shadow-sm">
+                <Card class="border-indigo-200 bg-indigo-50/70 shadow-sm dark:border-indigo-500/20 dark:bg-indigo-950/10">
                     <CardContent class="p-4">
                         <div class="flex items-start justify-between gap-2">
                             <p
-                                class="text-[11px] font-bold tracking-wide text-indigo-300 uppercase"
+                                class="text-[11px] font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300"
                             >
                                 Đơn gửi hôm nay
                             </p>
-                            <CalendarDays class="h-4 w-4 text-indigo-400" />
+                            <CalendarDays class="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         </div>
-                        <p class="mt-2 text-2xl font-bold text-indigo-100">
+                        <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-indigo-100">
                             {{ analytics.summary.today_requests }}
                         </p>
-                        <p class="mt-1 text-[11px] text-indigo-200/80">
+                        <p class="mt-1 text-[11px] text-slate-600 dark:text-indigo-200/80">
                             {{ formatQuantity(analytics.summary.today_items) }}
                             đơn vị ·
                             {{ formatCurrency(analytics.summary.today_value) }}
                         </p>
                     </CardContent>
                 </Card>
-                <Card class="border-amber-500/20 bg-amber-950/10 shadow-sm">
+                <Card class="border-amber-200 bg-amber-50/70 shadow-sm dark:border-amber-500/20 dark:bg-amber-950/10">
                     <CardContent class="p-4">
                         <div class="flex items-start justify-between gap-2">
                             <p
-                                class="text-[11px] font-bold tracking-wide text-amber-300 uppercase"
+                                class="text-[11px] font-bold tracking-wide text-amber-700 uppercase dark:text-amber-300"
                             >
                                 Cần xử lý
                             </p>
-                            <Clock class="h-4 w-4 text-amber-400" />
+                            <Clock class="h-4 w-4 text-amber-600 dark:text-amber-400" />
                         </div>
-                        <p class="mt-2 text-2xl font-bold text-amber-100">
+                        <p class="mt-1 text-2xl font-bold text-slate-900 dark:text-amber-100">
                             {{ analytics.summary.today_pending }}
                         </p>
-                        <p class="mt-1 text-[11px] text-amber-200/80">
+                        <p class="mt-1 text-[11px] text-slate-600 dark:text-amber-200/80">
                             đơn đang chờ Kho Tổng duyệt
                         </p>
                     </CardContent>
                 </Card>
-                <Card class="border-emerald-500/20 bg-emerald-950/10 shadow-sm">
+                <Card class="border-emerald-200 bg-emerald-50/70 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-950/10">
                     <CardContent class="p-4">
                         <div class="flex items-start justify-between gap-2">
                             <p
-                                class="text-[11px] font-bold tracking-wide text-emerald-300 uppercase"
+                                class="text-[11px] font-bold tracking-wide text-emerald-700 uppercase dark:text-emerald-300"
                             >
                                 Nhu cầu 7 ngày
                             </p>
-                            <TrendingUp class="h-4 w-4 text-emerald-400" />
+                            <TrendingUp class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
-                        <p class="mt-2 text-2xl font-bold text-emerald-100">
+                        <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-emerald-100">
                             {{ analytics.summary.last7_requests }}
                         </p>
-                        <p class="mt-1 text-[11px] text-emerald-200/80">
+                        <p class="mt-1 text-[11px] text-slate-600 dark:text-emerald-200/80">
                             {{ formatQuantity(analytics.summary.last7_items) }}
                             đơn vị · TB
                             {{ analytics.summary.average_daily_requests }}
@@ -2671,20 +2671,20 @@ const submitRecall = async () => {
                         </p>
                     </CardContent>
                 </Card>
-                <Card class="border-rose-500/20 bg-rose-950/10 shadow-sm">
+                <Card class="border-rose-200 bg-rose-50/70 shadow-sm dark:border-rose-500/20 dark:bg-rose-950/10">
                     <CardContent class="p-4">
                         <div class="flex items-start justify-between gap-2">
                             <p
-                                class="text-[11px] font-bold tracking-wide text-rose-300 uppercase"
+                                class="text-[11px] font-bold tracking-wide text-rose-700 uppercase dark:text-rose-300"
                             >
                                 Cần nhập gấp
                             </p>
-                            <AlertTriangle class="h-4 w-4 text-rose-400" />
+                            <AlertTriangle class="h-4 w-4 text-rose-600 dark:text-rose-400" />
                         </div>
-                        <p class="mt-2 text-2xl font-bold text-rose-100">
+                        <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-rose-100">
                             {{ analytics.summary.urgent_recommendations }}
                         </p>
-                        <p class="mt-1 text-[11px] text-rose-200/80">
+                        <p class="mt-1 text-[11px] text-slate-600 dark:text-rose-200/80">
                             nguyên liệu có rủi ro thiếu trong 7 ngày
                         </p>
                     </CardContent>
@@ -2912,7 +2912,7 @@ const submitRecall = async () => {
                                 class="flex items-center gap-3 p-3"
                             >
                                 <span
-                                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-950/40 text-xs font-bold text-indigo-300"
+                                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
                                     >{{ Number(index) + 1 }}</span
                                 >
                                 <div class="min-w-0 flex-1">
@@ -3303,12 +3303,12 @@ const submitRecall = async () => {
                 >
                     <!-- Modal Header -->
                     <div
-                        class="flex items-center justify-between border-b bg-slate-900 p-5 text-white"
+                        class="flex items-center justify-between border-b border-border bg-muted/40 p-5 text-card-foreground dark:bg-slate-900 dark:text-white"
                     >
                         <div>
                             <div class="flex items-center gap-2">
                                 <span
-                                    class="font-mono text-lg font-bold text-indigo-300"
+                                    class="font-mono text-lg font-bold text-indigo-600 dark:text-indigo-300"
                                     >{{ selectedRequest.request_code }}</span
                                 >
                                 <span
@@ -3324,9 +3324,9 @@ const submitRecall = async () => {
                                     }}
                                 </span>
                             </div>
-                            <p class="mt-1 text-xs text-slate-300">
+                            <p class="mt-1 text-xs text-muted-foreground">
                                 Chi nhánh nhận:
-                                <strong class="text-white">{{
+                                <strong class="text-foreground">{{
                                     selectedRequest.to_branch?.name
                                 }}</strong>
                                 | Lập bởi: {{ selectedRequest.creator?.name }}
@@ -3334,7 +3334,7 @@ const submitRecall = async () => {
                         </div>
                         <button
                             @click="isDetailModalOpen = false"
-                            class="rounded-lg p-1 text-slate-400 hover:text-white"
+                            class="rounded-lg p-1 text-muted-foreground hover:text-foreground"
                         >
                             <X class="h-6 w-6" />
                         </button>
@@ -3345,7 +3345,7 @@ const submitRecall = async () => {
                         <!-- Notes -->
                         <div
                             v-if="selectedRequest.notes"
-                            class="flex items-start gap-2 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-amber-200"
+                            class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200"
                         >
                             <AlertCircle
                                 class="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
