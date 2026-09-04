@@ -34,6 +34,10 @@ import {
     ArrowDown,
     ArrowUp,
     ArrowLeftRight,
+    ArrowUpRight,
+    ChefHat,
+    CheckCircle2,
+    CircleDashed,
 } from 'lucide-vue-next';
 import {
     computed,
@@ -400,6 +404,24 @@ const getStorageLabel = (ingredient: Ingredient) => {
 const recipeSearch = ref('');
 const recipeCurrentPage = ref(1);
 const recipePerPage = 5;
+
+const recipeStats = computed(() => {
+    const configured = props.products.filter((product) => product.recipes.length > 0).length;
+    const ingredients = new Set(
+        props.products.flatMap((product) =>
+            product.recipes.map((recipe) => recipe.ingredient_id),
+        ),
+    ).size;
+
+    return {
+        configured,
+        missing: Math.max(props.products.length - configured, 0),
+        ingredients,
+        completion: props.products.length
+            ? Math.round((configured / props.products.length) * 100)
+            : 0,
+    };
+});
 
 const filteredRecipeProducts = computed(() => {
     if (!props.products) {
@@ -2809,141 +2831,167 @@ const recallBatch = (batchId: number) => {
                 </div>
 
                 <!-- Recipe catalog on /inventory/recipes -->
-                <div v-if="isRecipesPage" class="lg:col-span-1">
-                    <Card
-                        class="overflow-hidden border-slate-200/80 shadow-sm dark:border-slate-800"
-                    >
-                        <CardHeader
-                            class="border-b border-border px-5 py-5 sm:px-6"
-                        >
-                            <div
-                                class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                            >
-                                <div>
-                                    <CardTitle
-                                        class="flex items-center gap-2 text-lg tracking-tight"
-                                    >
-                                        <Scale
-                                            class="size-5 text-indigo-500"
-                                        />Công thức định lượng món ăn
-                                    </CardTitle>
-                                    <CardDescription class="text-xs">
-                                        Khai báo nguyên liệu cấu thành cho từng
-                                        món để tính giá vốn và trừ kho chính
-                                        xác.
-                                    </CardDescription>
+                <div v-if="isRecipesPage" class="recipe-catalog lg:col-span-1">
+                    <Card class="recipe-catalog-card overflow-hidden">
+                        <div class="recipe-catalog-accent" aria-hidden="true"></div>
+                        <CardHeader class="recipe-catalog-header px-5 py-5 sm:px-7 sm:py-6">
+                            <div class="recipe-heading-row">
+                                <div class="flex min-w-0 items-start gap-3.5">
+                                    <div class="recipe-section-icon">
+                                        <ChefHat class="size-5" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="recipe-kicker">
+                                            <span>Thư viện vận hành</span>
+                                            <span class="recipe-live-status">
+                                                <span class="recipe-live-dot"></span>
+                                                Đồng bộ trực tiếp
+                                            </span>
+                                        </div>
+                                        <CardTitle class="mt-1.5 flex flex-wrap items-center gap-2 text-xl tracking-tight">
+                                            Công thức định lượng
+                                            <span class="recipe-title-count">{{ products.length }} món</span>
+                                        </CardTitle>
+                                        <CardDescription class="mt-1 max-w-2xl text-xs leading-5">
+                                            Chuẩn hóa nguyên liệu theo từng món để kiểm soát giá vốn và tự động trừ kho chính xác.
+                                        </CardDescription>
+                                    </div>
                                 </div>
-                                <div class="relative w-full sm:w-72">
-                                    <Search
-                                        class="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400"
-                                    />
+                                <div class="recipe-search-box">
+                                    <Search class="recipe-search-icon" />
                                     <input
                                         v-model="recipeSearch"
                                         type="text"
                                         aria-label="Tìm kiếm món ăn"
-                                        placeholder="Tìm theo tên món hoặc mã món..."
-                                        class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/80 pr-3 pl-9 text-xs font-medium placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/15 focus:outline-none dark:border-slate-700 dark:bg-slate-900/70"
+                                        placeholder="Tìm tên món hoặc mã món..."
+                                        class="recipe-search-input"
                                     />
+                                    <kbd class="recipe-search-key">⌘ K</kbd>
+                                </div>
+                            </div>
+
+                            <div class="recipe-stats-grid">
+                                <div class="recipe-stat-card recipe-stat-card--success">
+                                    <div class="recipe-stat-icon"><CheckCircle2 class="size-4" /></div>
+                                    <div class="recipe-stat-content">
+                                        <span class="recipe-stat-label">Đã có công thức</span>
+                                        <div class="recipe-stat-value-row">
+                                            <strong>{{ recipeStats.configured }}</strong>
+                                            <span>/ {{ products.length }} món</span>
+                                        </div>
+                                        <div class="recipe-progress-track">
+                                            <span :style="{ width: `${recipeStats.completion}%` }"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="recipe-stat-card recipe-stat-card--warning">
+                                    <div class="recipe-stat-icon"><CircleDashed class="size-4" /></div>
+                                    <div class="recipe-stat-content">
+                                        <span class="recipe-stat-label">Cần hoàn thiện</span>
+                                        <div class="recipe-stat-value-row">
+                                            <strong>{{ recipeStats.missing }}</strong>
+                                            <span>món chưa khai báo</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="recipe-stat-card recipe-stat-card--accent">
+                                    <div class="recipe-stat-icon"><Scale class="size-4" /></div>
+                                    <div class="recipe-stat-content">
+                                        <span class="recipe-stat-label">Nguyên liệu đang dùng</span>
+                                        <div class="recipe-stat-value-row">
+                                            <strong>{{ recipeStats.ingredients }}</strong>
+                                            <span>thành phần duy nhất</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent class="p-0">
-                            <div
-                                v-if="paginatedProducts.length"
-                                class="divide-y divide-border"
-                            >
-                                <div
-                                    v-for="p in paginatedProducts"
-                                    :key="p.id"
-                                    class="flex flex-col gap-4 p-5 transition-colors hover:bg-muted/25 sm:px-6"
-                                >
-                                    <div
-                                        class="flex items-center justify-between"
-                                    >
-                                        <div>
-                                            <h4
-                                                class="text-base font-bold tracking-tight"
-                                            >
-                                                {{ p.name }}
-                                            </h4>
-                                            <p
-                                                class="text-[10px] text-muted-foreground"
-                                            >
-                                                Mã món: {{ p.code }}
-                                            </p>
-                                        </div>
-                                        <Button
-                                            @click="openAddRecipeModal(p)"
-                                            size="sm"
-                                            variant="outline"
-                                            class="btn-set-recipe h-9 rounded-lg border-indigo-200 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
-                                        >
-                                            <Settings2
-                                                class="mr-1 size-3.5"
-                                            />{{
-                                                p.recipes.length
-                                                    ? 'Chỉnh sửa công thức'
-                                                    : 'Thiết lập công thức'
-                                            }}
-                                        </Button>
+
+                        <CardContent class="recipe-catalog-content p-0">
+                            <div v-if="paginatedProducts.length">
+                                <div class="recipe-list-toolbar">
+                                    <div class="flex items-center gap-2">
+                                        <span class="recipe-toolbar-title">Danh sách món ăn</span>
+                                        <span class="recipe-toolbar-count">{{ filteredRecipeProducts.length }}</span>
                                     </div>
-                                    <div
-                                        class="rounded-xl border border-border/80 bg-muted/30 p-3.5"
+                                    <span class="recipe-completion-pill">
+                                        <span class="recipe-live-dot"></span>
+                                        {{ recipeStats.completion }}% đã hoàn tất
+                                    </span>
+                                </div>
+
+                                <div class="recipe-list">
+                                    <article
+                                        v-for="(p, index) in paginatedProducts"
+                                        :key="p.id"
+                                        class="recipe-item group"
                                     >
-                                        <div
-                                            v-if="p.recipes.length"
-                                            class="flex flex-wrap gap-2"
-                                        >
-                                            <span
-                                                v-for="r in p.recipes"
-                                                :key="r.id"
-                                                class="flex items-center gap-1 rounded-lg border bg-card px-2.5 py-1.5 text-xs font-medium"
+                                        <div class="recipe-item-topline">
+                                            <div class="recipe-item-main">
+                                                <div class="recipe-item-index">
+                                                    {{ String(index + 1 + (recipeCurrentPage - 1) * recipePerPage).padStart(2, '0') }}
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <h4 class="recipe-item-name">{{ p.name }}</h4>
+                                                        <span
+                                                            v-if="p.recipes.length"
+                                                            class="recipe-status recipe-status--ready"
+                                                        >
+                                                            <CheckCircle2 class="size-3" /> Đã khai báo
+                                                        </span>
+                                                        <span v-else class="recipe-status recipe-status--missing">
+                                                            <CircleDashed class="size-3" /> Chưa hoàn thiện
+                                                        </span>
+                                                    </div>
+                                                    <div class="recipe-item-meta">
+                                                        <span>Mã món</span>
+                                                        <code>{{ p.code }}</code>
+                                                        <span class="recipe-meta-divider">•</span>
+                                                        <span>{{ p.recipes.length ? `${p.recipes.length} thành phần` : 'Chưa có thành phần' }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                @click="openAddRecipeModal(p)"
+                                                size="sm"
+                                                variant="outline"
+                                                class="recipe-action-btn"
                                             >
-                                                <strong
-                                                    >{{
-                                                        r.ingredient_name
-                                                    }}:</strong
-                                                >
+                                                <span class="recipe-action-icon"><Settings2 class="size-3.5" /></span>
+                                                <span>{{ p.recipes.length ? 'Chỉnh sửa' : 'Thiết lập' }}</span>
+                                                <ArrowUpRight class="recipe-action-arrow size-3.5" />
+                                            </Button>
+                                        </div>
+
+                                        <div class="recipe-ingredients-panel">
+                                            <div v-if="p.recipes.length" class="recipe-ingredients-list">
                                                 <span
-                                                    class="font-mono font-bold text-indigo-500"
-                                                    >{{ r.quantity }}</span
+                                                    v-for="r in p.recipes"
+                                                    :key="r.id"
+                                                    class="recipe-ingredient-chip"
                                                 >
-                                                <span
-                                                    class="text-muted-foreground"
-                                                    >{{ r.unit_symbol }}</span
-                                                >
-                                                <span
-                                                    v-if="r.waste_rate > 0"
-                                                    class="rounded border border-amber-200 bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                                >
-                                                    +{{ r.waste_rate }}% hao
+                                                    <span class="recipe-ingredient-name">{{ r.ingredient_name }}</span>
+                                                    <span class="recipe-ingredient-quantity">{{ r.quantity }} <small>{{ r.unit_symbol }}</small></span>
+                                                    <span v-if="r.waste_rate > 0" class="recipe-waste-badge">+{{ r.waste_rate }}% hao</span>
                                                 </span>
-                                            </span>
+                                            </div>
+                                            <div v-else class="recipe-missing-state">
+                                                <span class="recipe-missing-icon"><CircleDashed class="size-4" /></span>
+                                                <span>
+                                                    <strong>Công thức chưa được thiết lập</strong>
+                                                    <small>Thêm định lượng để hệ thống tính giá vốn và trừ kho.</small>
+                                                </span>
+                                                <ArrowUpRight class="recipe-missing-arrow size-4" />
+                                            </div>
                                         </div>
-                                        <div
-                                            v-else
-                                            class="flex items-center gap-1 text-[11px] text-muted-foreground"
-                                        >
-                                            <AlertTriangle
-                                                class="size-3.5 text-amber-400"
-                                            />
-                                            Chưa khai báo công thức · món này
-                                            chưa được tính giá vốn.
-                                        </div>
-                                    </div>
+                                    </article>
                                 </div>
 
                                 <!-- Pagination controls for recipes list -->
-                                <div
-                                    v-if="totalRecipePages > 1"
-                                    class="flex items-center justify-between border-t border-border bg-slate-50/50 p-4 dark:bg-slate-900/10"
-                                >
-                                    <span
-                                        class="text-xs font-medium text-muted-foreground"
-                                    >
-                                        Trang {{ recipeCurrentPage }} /
-                                        {{ totalRecipePages }} (Tổng
-                                        {{ filteredRecipeProducts.length }} món)
+                                <div v-if="totalRecipePages > 1" class="recipe-pagination">
+                                    <span class="recipe-pagination-label">
+                                        Hiển thị {{ (recipeCurrentPage - 1) * recipePerPage + 1 }}–{{ Math.min(recipeCurrentPage * recipePerPage, filteredRecipeProducts.length) }} trong {{ filteredRecipeProducts.length }} món
                                     </span>
                                     <div class="flex items-center gap-1.5">
                                         <Button
@@ -2951,66 +2999,46 @@ const recallBatch = (batchId: number) => {
                                             variant="outline"
                                             :disabled="recipeCurrentPage === 1"
                                             @click="recipeCurrentPage--"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
+                                            class="recipe-page-btn"
+                                            aria-label="Trang trước"
                                         >
                                             <ChevronLeft class="size-3.5" />
                                         </Button>
-
-                                        <template
-                                            v-for="(
-                                                page, idx
-                                            ) in visibleRecipePages"
-                                            :key="idx"
-                                        >
-                                            <span
-                                                v-if="page === '...'"
-                                                class="px-1.5 text-xs font-bold text-muted-foreground select-none"
-                                                >...</span
-                                            >
+                                        <template v-for="(page, idx) in visibleRecipePages" :key="idx">
+                                            <span v-if="page === '...'" class="px-1 text-xs text-muted-foreground">...</span>
                                             <Button
                                                 v-else
                                                 size="sm"
-                                                :variant="
-                                                    recipeCurrentPage === page
-                                                        ? 'default'
-                                                        : 'outline'
-                                                "
-                                                @click="
-                                                    recipeCurrentPage =
-                                                        Number(page)
-                                                "
-                                                class="h-7 min-w-[28px] rounded-lg px-1 text-xs font-bold"
+                                                :variant="recipeCurrentPage === page ? 'default' : 'outline'"
+                                                @click="recipeCurrentPage = Number(page)"
+                                                class="recipe-page-btn"
+                                                :class="{ 'recipe-page-btn--active': recipeCurrentPage === page }"
                                             >
                                                 {{ page }}
                                             </Button>
                                         </template>
-
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            :disabled="
-                                                recipeCurrentPage ===
-                                                totalRecipePages
-                                            "
+                                            :disabled="recipeCurrentPage === totalRecipePages"
                                             @click="recipeCurrentPage++"
-                                            class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
+                                            class="recipe-page-btn"
+                                            aria-label="Trang sau"
                                         >
                                             <ChevronRight class="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
                             </div>
-                            <div
-                                v-else-if="products.length"
-                                class="py-12 text-center text-xs text-muted-foreground"
-                            >
-                                Không tìm thấy món phù hợp với từ khóa.
+                            <div v-else-if="products.length" class="recipe-empty-state">
+                                <div class="recipe-empty-icon"><Search class="size-5" /></div>
+                                <strong>Không tìm thấy món phù hợp</strong>
+                                <span>Thử tìm với tên món hoặc mã món khác.</span>
                             </div>
-                            <div
-                                v-else
-                                class="py-12 text-center text-xs text-muted-foreground"
-                            >
-                                Chưa có món ăn cần thiết lập công thức.
+                            <div v-else class="recipe-empty-state">
+                                <div class="recipe-empty-icon"><ChefHat class="size-5" /></div>
+                                <strong>Chưa có món ăn cần thiết lập</strong>
+                                <span>Thêm món ăn vào thực đơn để bắt đầu xây dựng công thức.</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -5317,5 +5345,653 @@ const recallBatch = (batchId: number) => {
 
 .ai-forecast-scroll::-webkit-scrollbar {
     display: none;
+}
+
+/* Recipe workspace: a calm, information-dense surface for daily operations. */
+.recipe-catalog {
+    min-width: 0;
+}
+
+.recipe-catalog-card {
+    position: relative;
+    gap: 0;
+    border-color: color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 1.25rem;
+    background:
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, #6366f1 7%, transparent), transparent 28rem),
+        var(--card);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.12);
+}
+
+.recipe-catalog-accent {
+    position: absolute;
+    inset: 0 12% auto;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, #818cf8 18%, #c4b5fd 50%, transparent 82%);
+    opacity: 0.85;
+}
+
+.recipe-catalog-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1.35rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--background) 18%, transparent), transparent);
+}
+
+.recipe-heading-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+}
+
+.recipe-section-icon {
+    display: inline-flex;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, #818cf8 32%, var(--border));
+    border-radius: 0.9rem;
+    background: linear-gradient(145deg, color-mix(in srgb, #6366f1 24%, transparent), color-mix(in srgb, #8b5cf6 8%, transparent));
+    color: #a5b4fc;
+    box-shadow: 0 10px 24px rgb(99 102 241 / 0.14), inset 0 1px rgb(255 255 255 / 0.08);
+}
+
+.recipe-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--muted-foreground);
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.recipe-live-status,
+.recipe-completion-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid color-mix(in srgb, #34d399 22%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, #34d399 7%, transparent);
+    color: #6ee7b7;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 0.28rem 0.55rem;
+    text-transform: none;
+}
+
+.recipe-live-status {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.recipe-live-dot {
+    width: 0.35rem;
+    height: 0.35rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.recipe-title-count {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, #818cf8 25%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, #6366f1 10%, transparent);
+    color: #a5b4fc;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    padding: 0.3rem 0.55rem;
+    text-transform: uppercase;
+}
+
+.recipe-search-box {
+    position: relative;
+    width: min(100%, 19rem);
+    flex: 0 0 19rem;
+}
+
+.recipe-search-icon {
+    position: absolute;
+    top: 50%;
+    left: 0.9rem;
+    width: 1rem;
+    height: 1rem;
+    color: var(--muted-foreground);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.recipe-search-input {
+    width: 100%;
+    height: 2.75rem;
+    border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+    border-radius: 0.8rem;
+    outline: none;
+    background: color-mix(in srgb, var(--background) 58%, transparent);
+    color: var(--foreground);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0 3.4rem 0 2.65rem;
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.recipe-search-input::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.72;
+}
+
+.recipe-search-input:focus {
+    border-color: color-mix(in srgb, #818cf8 65%, var(--border));
+    background: color-mix(in srgb, var(--card) 84%, transparent);
+    box-shadow: 0 0 0 3px rgb(99 102 241 / 0.12);
+}
+
+.recipe-search-key {
+    position: absolute;
+    top: 50%;
+    right: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--muted) 64%, transparent);
+    color: var(--muted-foreground);
+    font-family: inherit;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.28rem 0.35rem;
+    transform: translateY(-50%);
+}
+
+.recipe-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.recipe-stat-card {
+    --recipe-stat-color: #a5b4fc;
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--recipe-stat-color) 18%, var(--border));
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, var(--recipe-stat-color) 5%, var(--background));
+    padding: 0.8rem 0.9rem;
+}
+
+.recipe-stat-card--success {
+    --recipe-stat-color: #34d399;
+}
+
+.recipe-stat-card--warning {
+    --recipe-stat-color: #fbbf24;
+}
+
+.recipe-stat-card--accent {
+    --recipe-stat-color: #a78bfa;
+}
+
+.recipe-stat-icon {
+    display: inline-flex;
+    width: 1.9rem;
+    height: 1.9rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--recipe-stat-color) 12%, transparent);
+    color: var(--recipe-stat-color);
+}
+
+.recipe-stat-content {
+    min-width: 0;
+}
+
+.recipe-stat-label {
+    display: block;
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.recipe-stat-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-top: 0.2rem;
+    color: var(--muted-foreground);
+    font-size: 0.65rem;
+    white-space: nowrap;
+}
+
+.recipe-stat-value-row strong {
+    color: var(--foreground);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 1.15rem;
+    letter-spacing: -0.04em;
+}
+
+.recipe-progress-track {
+    width: 100%;
+    height: 0.22rem;
+    margin-top: 0.48rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--recipe-stat-color) 12%, var(--muted));
+}
+
+.recipe-progress-track span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--recipe-stat-color);
+    transition: width 400ms ease;
+}
+
+.recipe-catalog-content {
+    min-width: 0;
+}
+
+.recipe-list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    padding: 0.85rem 1.75rem;
+}
+
+.recipe-toolbar-title {
+    color: var(--foreground);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.recipe-toolbar-count {
+    display: inline-flex;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, #818cf8 12%, transparent);
+    color: #a5b4fc;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.recipe-list {
+    min-width: 0;
+}
+
+.recipe-item {
+    position: relative;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+    padding: 1.2rem 1.75rem 1.3rem;
+    transition: background 180ms ease;
+}
+
+.recipe-item:last-child {
+    border-bottom: 0;
+}
+
+.recipe-item:hover {
+    background: color-mix(in srgb, #818cf8 3.5%, transparent);
+}
+
+.recipe-item-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.recipe-item-main {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+
+.recipe-item-index {
+    display: inline-flex;
+    width: 2.2rem;
+    height: 2.2rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, #818cf8 17%, var(--border));
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, #818cf8 5%, var(--background));
+    color: color-mix(in srgb, #a5b4fc 72%, var(--muted-foreground));
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.recipe-item-name {
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    line-height: 1.35;
+}
+
+.recipe-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 0.3rem 0.5rem;
+}
+
+.recipe-status--ready {
+    border: 1px solid rgb(52 211 153 / 0.2);
+    background: rgb(52 211 153 / 0.08);
+    color: #6ee7b7;
+}
+
+.recipe-status--missing {
+    border: 1px solid rgb(251 191 36 / 0.22);
+    background: rgb(251 191 36 / 0.08);
+    color: #fcd34d;
+}
+
+.recipe-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+    color: var(--muted-foreground);
+    font-size: 0.66rem;
+    font-weight: 600;
+}
+
+.recipe-item-meta code {
+    border-radius: 0.3rem;
+    background: color-mix(in srgb, var(--muted) 68%, transparent);
+    color: color-mix(in srgb, var(--foreground) 72%, var(--muted-foreground));
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.62rem;
+    padding: 0.15rem 0.35rem;
+}
+
+.recipe-meta-divider {
+    color: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+}
+
+.recipe-action-btn {
+    height: 2.2rem;
+    flex: 0 0 auto;
+    gap: 0.42rem;
+    border-color: color-mix(in srgb, #818cf8 38%, var(--border));
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, #6366f1 5%, transparent);
+    color: #a5b4fc;
+    font-size: 0.68rem;
+    font-weight: 800;
+    transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.recipe-action-btn:hover {
+    border-color: #818cf8;
+    background: color-mix(in srgb, #6366f1 13%, transparent);
+    color: #c4b5fd;
+    transform: translateY(-1px);
+}
+
+.recipe-action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #c4b5fd;
+}
+
+.recipe-action-arrow {
+    opacity: 0.55;
+    transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.recipe-action-btn:hover .recipe-action-arrow {
+    opacity: 1;
+    transform: translate(1px, -1px);
+}
+
+.recipe-ingredients-panel {
+    margin: 0.85rem 0 0 3rem;
+    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    border-radius: 0.82rem;
+    background: color-mix(in srgb, var(--background) 44%, transparent);
+    padding: 0.65rem;
+}
+
+.recipe-ingredients-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.recipe-ingredient-chip {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 0.58rem;
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.68rem;
+    font-weight: 650;
+    line-height: 1;
+    padding: 0.55rem 0.62rem;
+}
+
+.recipe-ingredient-name {
+    max-width: 12rem;
+    overflow: hidden;
+    color: var(--foreground);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.recipe-ingredient-quantity {
+    color: #a5b4fc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.recipe-ingredient-quantity small {
+    color: var(--muted-foreground);
+    font-family: inherit;
+    font-size: 0.6rem;
+    font-weight: 650;
+}
+
+.recipe-waste-badge {
+    border: 1px solid rgb(251 191 36 / 0.2);
+    border-radius: 0.3rem;
+    background: rgb(251 191 36 / 0.08);
+    color: #fcd34d;
+    font-size: 0.58rem;
+    font-weight: 800;
+    padding: 0.22rem 0.32rem;
+}
+
+.recipe-missing-state {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--muted-foreground);
+}
+
+.recipe-missing-icon {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+    background: rgb(251 191 36 / 0.08);
+    color: #fbbf24;
+}
+
+.recipe-missing-state strong,
+.recipe-missing-state small {
+    display: block;
+}
+
+.recipe-missing-state strong {
+    color: var(--foreground);
+    font-size: 0.7rem;
+    font-weight: 750;
+}
+
+.recipe-missing-state small {
+    margin-top: 0.18rem;
+    font-size: 0.64rem;
+}
+
+.recipe-missing-arrow {
+    margin-left: auto;
+    color: var(--muted-foreground);
+    opacity: 0.6;
+}
+
+.recipe-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    background: color-mix(in srgb, var(--background) 32%, transparent);
+    padding: 0.9rem 1.75rem;
+}
+
+.recipe-pagination-label {
+    color: var(--muted-foreground);
+    font-size: 0.66rem;
+    font-weight: 650;
+}
+
+.recipe-page-btn {
+    display: inline-flex;
+    width: 1.8rem;
+    height: 1.8rem;
+    min-width: 1.8rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.55rem;
+    padding: 0;
+    font-size: 0.65rem;
+    font-weight: 800;
+}
+
+.recipe-page-btn--active {
+    border-color: #6366f1;
+    background: #6366f1;
+    color: white;
+    box-shadow: 0 5px 14px rgb(99 102 241 / 0.25);
+}
+
+.recipe-empty-state {
+    display: flex;
+    min-height: 15rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 2rem;
+    text-align: center;
+}
+
+.recipe-empty-icon {
+    display: inline-flex;
+    width: 2.6rem;
+    height: 2.6rem;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.35rem;
+    border: 1px solid color-mix(in srgb, #818cf8 20%, var(--border));
+    border-radius: 0.85rem;
+    background: color-mix(in srgb, #6366f1 8%, transparent);
+    color: #a5b4fc;
+}
+
+.recipe-empty-state strong {
+    color: var(--foreground);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.recipe-empty-state span:last-child {
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+}
+
+@media (max-width: 768px) {
+    .recipe-heading-row {
+        flex-direction: column;
+        gap: 1.1rem;
+    }
+
+    .recipe-search-box {
+        width: 100%;
+        flex-basis: auto;
+    }
+
+    .recipe-list-toolbar,
+    .recipe-item,
+    .recipe-pagination {
+        padding-right: 1.1rem;
+        padding-left: 1.1rem;
+    }
+
+    .recipe-ingredients-panel {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 560px) {
+    .recipe-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .recipe-item-topline,
+    .recipe-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .recipe-action-btn {
+        align-self: flex-start;
+    }
 }
 </style>

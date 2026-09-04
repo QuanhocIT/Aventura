@@ -1079,13 +1079,6 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
-            title: 'Món bán chạy',
-            href: '/best-sellers',
-            icon: Flame,
-            permission: 'view_report',
-            feature: 'advanced_analytics',
-        },
-        {
             title: 'Trợ lý AI Chiến lược',
             href: '/ai-advisor',
             icon: Bot,
