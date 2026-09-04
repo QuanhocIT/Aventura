@@ -52,6 +52,17 @@ class RestaurantTable extends Model
             ->latest('id');
     }
 
+    /**
+     * Lịch đặt bàn gần nhất hôm nay chưa ngồi (dùng cho hiển thị trên card bàn).
+     */
+    public function nextReservation(): HasOne
+    {
+        return $this->hasOne(TableReservation::class, 'table_id')
+            ->whereDate('reservation_date', now()->toDateString())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->orderBy('reservation_time');
+    }
+
     protected static function booted(): void
     {
         static::creating(function ($table) {

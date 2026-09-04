@@ -103,7 +103,7 @@ class CashierDashboardController extends Controller
             // Query tables along with their active unpaid orders (load all active orders per table)
             $tablesData = RestaurantTable::with(['area', 'orders' => function ($q) {
                 $q->activeForService()->with('items.product');
-            }])
+            }, 'nextReservation'])
                 ->where('restaurant_id', $restaurant->id)
                 ->where('branch_id', $branchId)
                 ->orderBy('name')
@@ -174,6 +174,9 @@ class CashierDashboardController extends Controller
                         'status' => $status,
                         'is_payment_requested' => $isPaymentRequested,
                         'active_order' => $activeOrderData,
+                        'next_reservation_time' => $t->nextReservation
+                            ? substr((string) $t->nextReservation->reservation_time, 0, 5)
+                            : null,
                     ];
                 })->all();
 

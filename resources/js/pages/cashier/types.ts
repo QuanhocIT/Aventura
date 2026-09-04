@@ -20,6 +20,7 @@ export interface TableItem {
     capacity: number;
     status: 'available' | 'occupied' | 'reserved' | 'cleaning' | 'inactive';
     is_payment_requested?: boolean;
+    next_reservation_time?: string | null;
     active_order?: {
         id: number;
         order_number: string;

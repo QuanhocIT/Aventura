@@ -160,6 +160,70 @@ const props = defineProps<{
 const vouchers = ref<Voucher[]>([...props.receivingVouchers]);
 const summary = ref({ ...props.receivingSummary });
 const inventory = ref({ ...props.inventorySummary });
+const locations = ref<Location[]>([...(props.warehouseLocations ?? [])]);
+
+watch(
+    () => props.warehouseLocations,
+    (newVal) => {
+        if (newVal) {
+            locations.value = [...newVal];
+        }
+    },
+    { deep: true },
+);
+
+const isLocationModalOpen = ref(false);
+const isSavingLocation = ref(false);
+const locationForm = ref({
+    branch_id: props.centralBranch?.id ?? '',
+    zone: '',
+    rack: '',
+    shelf: '',
+    bin: '',
+    location_code: '',
+    is_cold_storage: false,
+    is_quarantine: false,
+});
+
+const openLocationModal = () => {
+    isLocationModalOpen.value = true;
+};
+
+const saveLocation = async () => {
+    if (!locationForm.value.zone || !locationForm.value.location_code) {
+        toast.error('Vui lòng nhập khu vực và mã vị trí kho.');
+
+        return;
+    }
+
+    isSavingLocation.value = true;
+
+    try {
+        const res = await axios.post(
+            '/api/warehouse-locations',
+            locationForm.value,
+        );
+
+        if (res.data.success) {
+            locations.value.push(res.data.data);
+            toast.success(res.data.message || 'Đã tạo vị trí kho thành công.');
+            locationForm.value = {
+                branch_id: props.centralBranch?.id ?? '',
+                zone: '',
+                rack: '',
+                shelf: '',
+                bin: '',
+                location_code: '',
+                is_cold_storage: false,
+                is_quarantine: false,
+            };
+        }
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể tạo vị trí kho.');
+    } finally {
+        isSavingLocation.value = false;
+    }
+};
 
 watch(
     () => props.receivingVouchers,
@@ -1087,6 +1151,14 @@ const documentTypeLabel = (type: string) =>
                         @click="showGrnForm = true"
                         ><Plus class="size-3.5" /> Nhập nguyên liệu vào Kho
                         Tổng</Button
+                    ><Button
+                        v-if="canManageWarehouse"
+                        variant="outline"
+                        class="h-9 gap-1.5 rounded-xl border-slate-200 bg-white/90 px-3.5 text-xs font-bold text-slate-800 shadow-2xs hover:bg-slate-100 dark:border-white/10 dark:bg-black/50 dark:text-slate-200 dark:hover:bg-white/10"
+                        @click="openLocationModal"
+                        ><MapPin class="size-3.5 text-sky-500" /> Vị trí kho ({{
+                            locations.length
+                        }})</Button
                     ><Link href="/inventory/staff-portal"
                         ><Button
                             variant="outline"
@@ -1105,86 +1177,101 @@ const documentTypeLabel = (type: string) =>
         </section>
 
         <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Card class="border-orange-500/20 bg-orange-950/10"
-                ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-orange-300 uppercase">
+            <Card
+                class="border-orange-200/80 bg-orange-50/70 shadow-xs dark:border-orange-500/20 dark:bg-orange-950/20"
+            >
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-orange-700 uppercase dark:text-orange-300">
                         Chờ xử lý
                     </p>
-                    <p class="mt-2 text-2xl font-black text-orange-100">
+                    <p class="mt-2 text-2xl font-black text-orange-950 dark:text-orange-50">
                         {{ pendingCount }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Chưa được hạch toán tồn
-                    </p></CardContent
-                ></Card
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card
+                class="border-emerald-200/80 bg-emerald-50/70 shadow-xs dark:border-emerald-500/20 dark:bg-emerald-950/20"
             >
-            <Card class="border-emerald-500/20 bg-emerald-950/10"
-                ><CardContent class="p-4"
-                    ><p
-                        class="text-[11px] font-bold text-emerald-300 uppercase"
-                    >
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-emerald-700 uppercase dark:text-emerald-300">
                         Đã nhập kho
                     </p>
-                    <p class="mt-2 text-2xl font-black text-emerald-100">
+                    <p class="mt-2 text-2xl font-black text-emerald-950 dark:text-emerald-50">
                         {{ summary.confirmed ?? 0 }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Đã tạo giao dịch và lô
-                    </p></CardContent
-                ></Card
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card
+                class="border-rose-200/80 bg-rose-50/70 shadow-xs dark:border-rose-500/20 dark:bg-rose-950/20"
             >
-            <Card class="border-rose-500/20 bg-rose-950/10"
-                ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-rose-300 uppercase">
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-rose-700 uppercase dark:text-rose-300">
                         Phiếu lệch (phiếu cũ)
                     </p>
-                    <p class="mt-2 text-2xl font-black text-rose-100">
+                    <p class="mt-2 text-2xl font-black text-rose-950 dark:text-rose-50">
                         {{ discrepancyCount }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Cần giải trình trước khi đóng
-                    </p></CardContent
-                ></Card
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card
+                class="border-amber-200/80 bg-amber-50/70 shadow-xs dark:border-amber-500/20 dark:bg-amber-950/20"
             >
-            <Card class="border-amber-500/20 bg-amber-950/10"
-                ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-amber-300 uppercase">
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-amber-700 uppercase dark:text-amber-300">
                         Chênh lệch (phiếu cũ)
                     </p>
-                    <p class="mt-2 text-2xl font-black text-amber-100">
+                    <p class="mt-2 text-2xl font-black text-amber-950 dark:text-amber-50">
                         {{ formatQuantity(summary.discrepancy_quantity) }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Tổng số lượng lệch
-                    </p></CardContent
-                ></Card
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card
+                class="border-sky-200/80 bg-sky-50/70 shadow-xs dark:border-sky-500/20 dark:bg-sky-950/20"
             >
-            <Card class="border-sky-500/20 bg-sky-950/10"
-                ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-sky-300 uppercase">
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-sky-700 uppercase dark:text-sky-300">
                         Tồn hiện tại
                     </p>
-                    <p class="mt-2 text-2xl font-black text-sky-100">
+                    <p class="mt-2 text-2xl font-black text-sky-950 dark:text-sky-50">
                         {{ formatQuantity(inventory.on_hand_quantity) }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Sau các lần nhập đã xác nhận
-                    </p></CardContent
-                ></Card
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card
+                class="border-indigo-200/80 bg-indigo-50/70 shadow-xs dark:border-indigo-500/20 dark:bg-indigo-950/20"
             >
-            <Card class="border-indigo-500/20 bg-indigo-950/10"
-                ><CardContent class="p-4"
-                    ><p class="text-[11px] font-bold text-indigo-300 uppercase">
+                <CardContent class="p-4">
+                    <p class="text-[11px] font-bold text-indigo-700 uppercase dark:text-indigo-300">
                         Thiếu vị trí cất
                     </p>
-                    <p class="mt-2 text-2xl font-black text-indigo-100">
+                    <p class="mt-2 text-2xl font-black text-indigo-950 dark:text-indigo-50">
                         {{ missingPutawayCount }}
                     </p>
-                    <p class="mt-1 text-[11px] text-muted-foreground">
+                    <p class="mt-1 text-[11px] text-slate-600 dark:text-muted-foreground">
                         Phiếu cần bổ sung truy vết
-                    </p></CardContent
-                ></Card
-            >
+                    </p>
+                </CardContent>
+            </Card>
         </section>
 
         <section
@@ -1193,14 +1280,14 @@ const documentTypeLabel = (type: string) =>
         >
             <div
                 v-if="pendingCount > 0"
-                class="flex items-start gap-3 rounded-2xl border border-orange-400/20 bg-orange-500/5 p-4 text-sm"
+                class="flex items-start gap-3 rounded-2xl border border-orange-200 bg-orange-50/90 p-4 text-sm dark:border-orange-400/20 dark:bg-orange-500/5"
             >
-                <ShieldAlert class="mt-0.5 size-5 shrink-0 text-orange-300" />
+                <ShieldAlert class="mt-0.5 size-5 shrink-0 text-orange-600 dark:text-orange-300" />
                 <div>
-                    <p class="font-bold text-orange-100">
+                    <p class="font-bold text-orange-950 dark:text-orange-100">
                         Có {{ pendingCount }} phiếu chưa được xác minh
                     </p>
-                    <p class="mt-1 text-xs text-muted-foreground">
+                    <p class="mt-1 text-xs text-orange-800/80 dark:text-muted-foreground">
                         Chỉ sau khi xác minh, hệ thống mới ghi giao dịch nhập,
                         cập nhật tồn bình quân và tạo lô.
                     </p>
@@ -1208,14 +1295,14 @@ const documentTypeLabel = (type: string) =>
             </div>
             <div
                 v-if="missingPutawayCount > 0"
-                class="flex items-start gap-3 rounded-2xl border border-indigo-400/20 bg-indigo-500/5 p-4 text-sm"
+                class="flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 p-4 text-sm dark:border-indigo-400/20 dark:bg-indigo-500/5"
             >
-                <MapPin class="mt-0.5 size-5 shrink-0 text-indigo-300" />
+                <MapPin class="mt-0.5 size-5 shrink-0 text-indigo-600 dark:text-indigo-300" />
                 <div>
-                    <p class="font-bold text-indigo-100">
+                    <p class="font-bold text-indigo-950 dark:text-indigo-100">
                         {{ missingPutawayCount }} phiếu chưa có vị trí cất hàng
                     </p>
-                    <p class="mt-1 text-xs text-muted-foreground">
+                    <p class="mt-1 text-xs text-indigo-800/80 dark:text-muted-foreground">
                         Không nên đóng phiếu nếu chưa biết lô đang nằm ở
                         khu/kệ/ngăn nào.
                     </p>
@@ -2299,15 +2386,27 @@ const documentTypeLabel = (type: string) =>
                                     Mỗi dòng là một nguyên liệu/lô nhập từ bên ngoài; số lượng bên dưới là số thực tế đưa vào Kho Tổng. Nếu chưa biết vị trí, hệ thống sẽ tạo task cất hàng sau khi duyệt.
                                 </p>
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="gap-1.5 rounded-xl border-border text-xs font-semibold hover:bg-accent"
-                                @click="addGrnLine"
-                            >
-                                <Plus class="size-3.5" /> Thêm dòng
-                            </Button>
+                            <div class="flex items-center gap-2">
+                                <Button
+                                    v-if="canManageWarehouse"
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="gap-1.5 rounded-xl border-sky-500/30 text-xs font-semibold text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-950/20"
+                                    @click="openLocationModal"
+                                >
+                                    <MapPin class="size-3.5" /> Quản lý vị trí cất
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="gap-1.5 rounded-xl border-border text-xs font-semibold hover:bg-accent"
+                                    @click="addGrnLine"
+                                >
+                                    <Plus class="size-3.5" /> Thêm dòng
+                                </Button>
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto p-3">
@@ -2452,7 +2551,7 @@ const documentTypeLabel = (type: string) =>
                                             >
                                                 <option :value="null">Chọn vị trí</option>
                                                 <option
-                                                    v-for="location in warehouseLocations"
+                                                    v-for="location in locations"
                                                     :key="location.id"
                                                     :value="location.id"
                                                 >
@@ -2585,6 +2684,245 @@ const documentTypeLabel = (type: string) =>
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </Teleport>
+
+    <!-- Modal Quản lý / Tạo vị trí Kho Tổng -->
+    <Teleport to="body">
+        <div
+            v-if="isLocationModalOpen"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-sky-500/30 bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-border bg-sky-50 px-5 py-4 dark:bg-sky-950/40"
+                >
+                    <div>
+                        <h3
+                            class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-foreground"
+                        >
+                            <MapPin class="h-5 w-5 text-sky-600 dark:text-sky-300" /> Vị trí
+                            Kho Tổng
+                        </h3>
+                        <p class="mt-1 text-[11px] text-slate-600 dark:text-sky-200/80">
+                            Quản lý khu vực (zone), dãy kệ (rack), tầng (shelf), ô (bin) và đặc tính lạnh/cách ly.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        @click="isLocationModalOpen = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div
+                    class="grid flex-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_1.2fr]"
+                >
+                    <div
+                        v-if="canManageWarehouse"
+                        class="space-y-3 rounded-xl border border-border bg-muted/20 p-4"
+                    >
+                        <h4
+                            class="text-xs font-bold tracking-wider text-sky-700 uppercase dark:text-sky-300"
+                        >
+                            Tạo vị trí mới
+                        </h4>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-foreground"
+                                    >Khu vực / Zone *</label
+                                >
+                                <Input
+                                    v-model="locationForm.zone"
+                                    placeholder="VD: ZONE-A, KHO KHÔ"
+                                    class="h-8 text-xs"
+                                />
+                            </div>
+                            <div>
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-foreground"
+                                    >Mã vị trí *</label
+                                >
+                                <Input
+                                    v-model="locationForm.location_code"
+                                    placeholder="VD: A3-01, KHO-A01"
+                                    class="h-8 text-xs"
+                                />
+                            </div>
+                            <div>
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Dãy kệ / Rack</label
+                                >
+                                <Input
+                                    v-model="locationForm.rack"
+                                    placeholder="VD: A"
+                                    class="h-8 text-xs"
+                                />
+                            </div>
+                            <div>
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Tầng / Shelf</label
+                                >
+                                <Input
+                                    v-model="locationForm.shelf"
+                                    placeholder="VD: 01"
+                                    class="h-8 text-xs"
+                                />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Ngăn / Ô / Bin</label
+                                >
+                                <Input
+                                    v-model="locationForm.bin"
+                                    placeholder="VD: 01"
+                                    class="h-8 text-xs"
+                                />
+                            </div>
+                        </div>
+                        <div
+                            class="space-y-2 text-xs text-foreground"
+                        >
+                            <label class="flex items-center gap-2"
+                                ><input
+                                    v-model="locationForm.is_cold_storage"
+                                    type="checkbox"
+                                    class="rounded border-input"
+                                />
+                                Kho lạnh / bảo quản mát</label
+                            >
+                            <label class="flex items-center gap-2"
+                                ><input
+                                    v-model="locationForm.is_quarantine"
+                                    type="checkbox"
+                                    class="rounded border-input"
+                                />
+                                Khu cách ly (chờ xử lý / hàng lỗi)</label
+                            >
+                        </div>
+                        <Button
+                            @click="saveLocation"
+                            :disabled="isSavingLocation"
+                            size="sm"
+                            class="w-full bg-sky-600 text-white hover:bg-sky-700 font-semibold"
+                        >
+                            {{
+                                isSavingLocation
+                                    ? 'Đang lưu...'
+                                    : 'Lưu vị trí kho'
+                            }}
+                        </Button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="mb-2 flex items-center justify-between">
+                            <h4
+                                class="text-xs font-bold tracking-wider text-foreground uppercase"
+                            >
+                                Danh sách vị trí hiện có
+                            </h4>
+                            <span class="text-[11px] font-semibold text-sky-700 dark:text-sky-300"
+                                >{{ locations.length }} vị trí</span
+                            >
+                        </div>
+                        <div
+                            class="max-h-[45vh] overflow-auto rounded-xl border border-border"
+                        >
+                            <table class="w-full text-left text-xs">
+                                <thead
+                                    class="sticky top-0 border-b border-border bg-muted/80 text-muted-foreground"
+                                >
+                                    <tr>
+                                        <th class="p-3">Mã</th>
+                                        <th class="p-3">Zone</th>
+                                        <th class="p-3">Cấu trúc</th>
+                                        <th class="p-3 text-right">Loại</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr v-if="locations.length === 0">
+                                        <td
+                                            colspan="4"
+                                            class="p-5 text-center text-muted-foreground"
+                                        >
+                                            Chưa có vị trí kho.
+                                        </td>
+                                    </tr>
+                                    <tr
+                                        v-for="location in locations"
+                                        :key="location.id"
+                                        class="hover:bg-muted/20"
+                                    >
+                                        <td
+                                            class="p-3 font-mono font-bold text-sky-600 dark:text-sky-300"
+                                        >
+                                            {{ location.location_code }}
+                                        </td>
+                                        <td class="p-3 text-foreground font-medium">
+                                            {{ location.zone }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-muted-foreground"
+                                        >
+                                            {{
+                                                [
+                                                    location.rack,
+                                                    location.shelf,
+                                                    location.bin,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' / ') || '-'
+                                            }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right text-[10px] font-semibold uppercase"
+                                        >
+                                            <span
+                                                v-if="
+                                                    location.is_quarantine
+                                                "
+                                                class="text-rose-600 dark:text-rose-400 font-bold"
+                                                >Cách ly</span
+                                            >
+                                            <span
+                                                v-else-if="
+                                                    location.is_cold_storage
+                                                "
+                                                class="text-cyan-600 dark:text-cyan-300 font-bold"
+                                                >Kho lạnh</span
+                                            >
+                                            <span
+                                                v-else
+                                                class="text-emerald-600 dark:text-emerald-400 font-bold"
+                                                >Thường</span
+                                            >
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="flex justify-end border-t border-border bg-muted/20 px-5 py-4"
+                >
+                    <Button
+                        @click="isLocationModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
+                </div>
             </div>
         </div>
     </Teleport>

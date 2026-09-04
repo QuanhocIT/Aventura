@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Users, Utensils } from 'lucide-vue-next';
+import { Users, Utensils, Clock } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import type { TableItem } from '../types';
 
@@ -168,13 +168,23 @@ const getStatusBadge = (table: TableItem) => {
                         </div>
                     </div>
 
-                    <Badge
-                        variant="secondary"
-                        class="border-0 text-[10px] font-bold"
-                        :class="getStatusBadge(table).class"
-                    >
-                        {{ getStatusBadge(table).label }}
-                    </Badge>
+                    <div class="flex flex-col items-end gap-1">
+                        <Badge
+                            variant="secondary"
+                            class="border-0 text-[10px] font-bold"
+                            :class="getStatusBadge(table).class"
+                        >
+                            {{ getStatusBadge(table).label }}
+                        </Badge>
+                        <!-- Giờ đặt bàn (chỉ hiển thị khi trạng thái là reserved) -->
+                        <span
+                            v-if="table.status === 'reserved' && table.next_reservation_time"
+                            class="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                        >
+                            <Clock class="size-3" />
+                            {{ table.next_reservation_time }}
+                        </span>
+                    </div>
                 </div>
 
                 <div
