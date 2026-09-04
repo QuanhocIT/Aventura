@@ -378,7 +378,7 @@ const chartMaxVal = computed(() => {
     >
         <!-- Modern Premium Page Header -->
         <div
-            class="relative overflow-hidden rounded-3xl border border-slate-100 bg-linear-to-r from-indigo-50/40 via-purple-50/10 to-transparent p-6 shadow-xs dark:border-slate-800/80 dark:from-slate-900/60 dark:via-slate-900/10 dark:to-transparent"
+            class="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-linear-to-r from-indigo-50/60 via-slate-50/50 to-white p-6 shadow-sm shadow-slate-200/50 dark:border-slate-800/80 dark:from-slate-900/60 dark:via-slate-900/10 dark:to-transparent"
         >
             <!-- Background mesh accent -->
             <div
@@ -416,7 +416,7 @@ const chartMaxVal = computed(() => {
                             }}
                         </h1>
                         <p
-                            class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400"
+                            class="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-400"
                         >
                             {{
                                 isManager !== false
@@ -447,7 +447,7 @@ const chartMaxVal = computed(() => {
         <!-- Navigation Tabs with modern Pill design (Only for Managers / Owners) -->
         <div
             v-if="isManager !== false"
-            class="border-slate-150 flex shrink-0 gap-2 overflow-x-auto border-b pb-1.5 dark:border-slate-800/80"
+            class="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 pb-1.5 dark:border-slate-800/80"
         >
             <button
                 @click="activeTab = 'active'"
@@ -455,7 +455,7 @@ const chartMaxVal = computed(() => {
                     'flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 active:scale-95',
                     activeTab === 'active'
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/15 dark:bg-indigo-500'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
                 ]"
             >
                 <Wallet class="size-4" />
@@ -467,7 +467,7 @@ const chartMaxVal = computed(() => {
                     'flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 active:scale-95',
                     activeTab === 'history'
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/15 dark:bg-indigo-500'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
                 ]"
             >
                 <History class="size-4" />
@@ -479,7 +479,7 @@ const chartMaxVal = computed(() => {
                     'flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 active:scale-95',
                     activeTab === 'analytics'
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/15 dark:bg-indigo-500'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
                 ]"
             >
                 <BarChart3 class="size-4" />
@@ -491,7 +491,7 @@ const chartMaxVal = computed(() => {
                     'flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-300 active:scale-95',
                     activeTab === 'forecast'
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/15 dark:bg-indigo-500'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200',
                 ]"
             >
                 <TrendingUp class="size-4" />
@@ -507,14 +507,14 @@ const chartMaxVal = computed(() => {
             >
                 <div
                     v-if="activeRegister.needs_opening_reconciliation"
-                    class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800 lg:col-span-3 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300"
+                    class="flex items-start gap-3 rounded-2xl border border-amber-300/90 bg-amber-50/90 p-4 text-amber-900 shadow-xs lg:col-span-3 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300"
                 >
-                    <ShieldAlert class="mt-0.5 size-5 shrink-0" />
+                    <ShieldAlert class="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <div class="min-w-0 flex-1">
-                        <p class="text-xs font-black">
+                        <p class="text-xs font-black text-amber-950 dark:text-amber-200">
                             Có két tự động mở do nhân viên chưa mở ca
                         </p>
-                        <p class="mt-1 text-[11px] font-medium">
+                        <p class="mt-1 text-[11px] font-medium text-amber-800 dark:text-amber-300/90">
                             Doanh thu tiền mặt vẫn được ghi nhận, nhưng các
                             khoản chi và chốt ca đang khóa cho đến khi quản lý
                             xác nhận số dư đầu ca.
@@ -528,7 +528,7 @@ const chartMaxVal = computed(() => {
                             :key="row.id"
                             type="button"
                             variant="outline"
-                            class="h-8 rounded-lg border-amber-300 px-3 text-[10px] font-black text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-300"
+                            class="h-8 rounded-lg border border-amber-400 bg-white px-3 text-[10px] font-black text-amber-900 shadow-xs hover:border-amber-500 hover:bg-amber-100 dark:border-amber-800 dark:bg-transparent dark:text-amber-300"
                             @click="beginReconcile(row)"
                         >
                             Đối soát {{ row.area_name }}
@@ -539,29 +539,29 @@ const chartMaxVal = computed(() => {
                 <div class="space-y-6 lg:col-span-1">
                     <!-- Shift info card -->
                     <Card
-                        class="overflow-hidden border-slate-100 bg-card shadow-md shadow-slate-200/50 transition-all duration-300 hover:shadow-lg dark:border-slate-800/80 dark:shadow-none"
+                        class="overflow-hidden border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 transition-all duration-300 hover:shadow-md dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                     >
                         <CardHeader
-                            class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/40 pb-3 dark:bg-slate-900/30"
+                            class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-850 dark:bg-slate-900/30"
                         >
                             <CardTitle
-                                class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-700 uppercase dark:text-slate-300"
                             >
                                 <Clock class="size-4 text-indigo-500" />
                                 Chi tiết phiên trực
                             </CardTitle>
                         </CardHeader>
                         <CardContent
-                            class="divide-y divide-slate-100 p-5 text-xs dark:divide-slate-800/80"
+                            class="divide-y divide-slate-200/80 p-5 text-xs dark:divide-slate-800/80"
                         >
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Chi nhánh</span
                                 >
                                 <span
-                                    class="rounded-md bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                    class="rounded-md border border-indigo-200/80 bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-700 dark:border-transparent dark:bg-indigo-950/40 dark:text-indigo-400"
                                 >
                                     {{ activeRegister.branch_name }}
                                 </span>
@@ -569,11 +569,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Khu vực thu ngân</span
                                 >
                                 <span
-                                    class="rounded-md bg-violet-50 px-2 py-0.5 font-extrabold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                                    class="rounded-md border border-violet-200/80 bg-violet-50 px-2 py-0.5 font-extrabold text-violet-700 dark:border-transparent dark:bg-violet-950/40 dark:text-violet-400"
                                 >
                                     {{ activeRegister.area_name }}
                                 </span>
@@ -581,11 +581,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Ca đang hoạt động</span
                                 >
                                 <span
-                                    class="rounded-md bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                    class="rounded-md border border-indigo-200/80 bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-700 dark:border-transparent dark:bg-indigo-950/40 dark:text-indigo-400"
                                 >
                                     {{ activeRegister.shift_name }}
                                 </span>
@@ -593,11 +593,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Người mở két</span
                                 >
                                 <span
-                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                    class="font-extrabold text-slate-800 dark:text-slate-200"
                                 >
                                     {{ activeRegister.opened_by_name }}
                                 </span>
@@ -605,11 +605,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Ngày làm việc</span
                                 >
                                 <span
-                                    class="font-bold text-slate-700 dark:text-slate-200"
+                                    class="font-extrabold text-slate-800 dark:text-slate-200"
                                 >
                                     {{
                                         new Date(
@@ -621,11 +621,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Mở két lúc</span
                                 >
                                 <span
-                                    class="font-mono font-bold text-slate-600 dark:text-slate-300"
+                                    class="font-mono font-extrabold text-slate-800 dark:text-slate-300"
                                 >
                                     {{ activeRegister.opened_at }}
                                 </span>
@@ -635,13 +635,13 @@ const chartMaxVal = computed(() => {
 
                     <!-- Budget & Alert Card with Progress Bar -->
                     <Card
-                        class="overflow-hidden border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                        class="overflow-hidden border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                     >
                         <CardHeader
-                            class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/40 pb-3 dark:bg-slate-900/30"
+                            class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-850 dark:bg-slate-900/30"
                         >
                             <CardTitle
-                                class="flex items-center justify-between text-xs font-black tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="flex items-center justify-between text-xs font-black tracking-wider text-slate-700 uppercase dark:text-slate-300"
                             >
                                 <span class="flex items-center gap-2">
                                     <AlertTriangle
@@ -656,7 +656,7 @@ const chartMaxVal = computed(() => {
                                 </span>
                                 <span
                                     v-if="activeRegister.expense_budget > 0"
-                                    class="font-mono text-[10px] font-bold text-slate-400"
+                                    class="font-mono text-[10px] font-extrabold text-slate-600 dark:text-slate-400"
                                 >
                                     {{ Math.round(budgetProgressPercent) }}%
                                 </span>
@@ -666,11 +666,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between text-xs"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Hạn mức tối đa:</span
                                 >
                                 <span
-                                    class="font-mono font-bold text-slate-700 dark:text-slate-200"
+                                    class="font-mono font-extrabold text-slate-800 dark:text-slate-200"
                                 >
                                     {{
                                         activeRegister.expense_budget > 0
@@ -682,11 +682,11 @@ const chartMaxVal = computed(() => {
                             <div
                                 class="flex items-center justify-between text-xs"
                             >
-                                <span class="font-semibold text-slate-400"
+                                <span class="font-bold text-slate-600 dark:text-slate-400"
                                     >Đã chi ngoài:</span
                                 >
                                 <span
-                                    class="font-mono font-bold text-slate-700 dark:text-slate-200"
+                                    class="font-mono font-extrabold text-slate-800 dark:text-slate-200"
                                 >
                                     {{ vnd(activeExpensesTotal) }}
                                 </span>
@@ -698,13 +698,13 @@ const chartMaxVal = computed(() => {
                                 class="space-y-1"
                             >
                                 <div
-                                    class="relative h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                    class="relative h-2.5 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800"
                                 >
                                     <div
                                         class="h-full rounded-full transition-all duration-500"
                                         :class="[
                                             isBudgetExceeded
-                                                ? 'bg-rose-550 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                                                ? 'bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
                                                 : budgetProgressPercent > 80
                                                   ? 'bg-amber-500'
                                                   : 'bg-emerald-500',
@@ -715,13 +715,13 @@ const chartMaxVal = computed(() => {
                                     />
                                 </div>
                                 <div
-                                    class="flex justify-between text-[9px] font-bold text-slate-400 uppercase"
+                                    class="flex justify-between text-[10px] font-extrabold text-slate-500 uppercase dark:text-slate-400"
                                 >
                                     <span>An toàn</span>
                                     <span
                                         :class="
                                             isBudgetExceeded
-                                                ? 'text-rose-500'
+                                                ? 'text-rose-600 dark:text-rose-400'
                                                 : ''
                                         "
                                         >Hết hạn mức</span
@@ -732,19 +732,19 @@ const chartMaxVal = computed(() => {
                             <!-- Budget Alert callouts -->
                             <div
                                 v-if="isBudgetExceeded"
-                                class="flex gap-3 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-950/20 dark:bg-rose-950/20"
+                                class="flex gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 dark:border-rose-950/20 dark:bg-rose-950/20"
                             >
                                 <ShieldAlert
-                                    class="mt-0.5 size-5 shrink-0 animate-bounce text-rose-500"
+                                    class="mt-0.5 size-5 shrink-0 animate-bounce text-rose-600 dark:text-rose-500"
                                 />
                                 <div>
                                     <p
-                                        class="text-xs font-bold text-rose-700 dark:text-rose-400"
+                                        class="text-xs font-black text-rose-800 dark:text-rose-400"
                                     >
                                         Đã vượt ngân sách ca!
                                     </p>
                                     <p
-                                        class="mt-1 text-[10px] leading-relaxed text-rose-500/90 dark:text-rose-500/80"
+                                        class="mt-1 text-[10px] leading-relaxed font-semibold text-rose-700 dark:text-rose-500/80"
                                     >
                                         Tổng chi tiêu ngoài két đã vượt quá hạn
                                         mức tối đa
@@ -755,23 +755,23 @@ const chartMaxVal = computed(() => {
                             </div>
                             <div
                                 v-else-if="activeRegister.expense_budget > 0"
-                                class="flex gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-950/20 dark:bg-emerald-950/20"
+                                class="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 dark:border-emerald-950/20 dark:bg-emerald-950/20"
                             >
                                 <CheckCircle2
-                                    class="text-emerald-550 mt-0.5 size-5 shrink-0"
+                                    class="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400"
                                 />
                                 <div>
                                     <p
-                                        class="text-xs font-bold text-emerald-700 dark:text-emerald-400"
+                                        class="text-xs font-black text-emerald-800 dark:text-emerald-400"
                                     >
                                         Trong tầm kiểm soát
                                     </p>
                                     <p
-                                        class="mt-1 text-[10px] leading-relaxed text-emerald-600 dark:text-emerald-500/80"
+                                        class="mt-1 text-[10px] leading-relaxed font-semibold text-emerald-700 dark:text-emerald-500/80"
                                     >
                                         Ngân quỹ chi tiêu ngoài còn lại:
                                         <strong
-                                            class="font-mono text-emerald-700 dark:text-emerald-400"
+                                            class="font-mono font-black text-emerald-800 dark:text-emerald-400"
                                             >{{
                                                 vnd(
                                                     activeRegister.expense_budget -
@@ -790,7 +790,7 @@ const chartMaxVal = computed(() => {
                 <div class="space-y-6 lg:col-span-2">
                     <!-- Balance Display & Quick Actions -->
                     <Card
-                        class="relative overflow-hidden border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                        class="relative overflow-hidden border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                     >
                         <!-- Spot glow effect in top corner -->
                         <div
@@ -799,11 +799,11 @@ const chartMaxVal = computed(() => {
 
                         <CardContent class="p-6">
                             <div
-                                class="flex flex-col gap-6 border-b border-slate-100 pb-6 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800/80"
+                                class="flex flex-col gap-6 border-b border-slate-200/80 pb-6 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800/80"
                             >
                                 <div>
                                     <p
-                                        class="text-xs font-black tracking-wider text-slate-400 uppercase"
+                                        class="text-xs font-black tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                     >
                                         Tiền mặt thực tế dự kiến trong két
                                     </p>
@@ -818,13 +818,13 @@ const chartMaxVal = computed(() => {
                                             }}
                                         </p>
                                         <span
-                                            class="rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                            class="rounded-md border border-indigo-200/80 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-extrabold text-indigo-700 dark:border-transparent dark:bg-indigo-950/40 dark:text-indigo-400"
                                         >
                                             Trong két
                                         </span>
                                     </div>
                                     <p
-                                        class="mt-2 text-[10px] font-medium text-slate-400"
+                                        class="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400"
                                     >
                                         Gồm: Số dư mở đầu ca ({{
                                             vnd(activeRegister.opening_balance)
@@ -839,17 +839,17 @@ const chartMaxVal = computed(() => {
                                     <Button
                                         @click="openTxModal('out')"
                                         variant="outline"
-                                        class="h-10 cursor-pointer rounded-xl border-rose-100 text-xs font-extrabold text-rose-600 shadow-xs transition-all hover:bg-rose-50 hover:text-rose-700 active:scale-95 dark:border-rose-950/30 dark:hover:bg-rose-950/20"
+                                        class="h-10 cursor-pointer rounded-xl border border-rose-300 bg-rose-50/70 px-4 text-xs font-black text-rose-700 shadow-xs transition-all hover:border-rose-400 hover:bg-rose-100 active:scale-95 dark:border-rose-950/30 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-950/40"
                                     >
-                                        <MinusCircle class="mr-2 size-4.5" />
+                                        <MinusCircle class="mr-2 size-4.5 text-rose-600 dark:text-rose-400" />
                                         Chi tiền ngoài két
                                     </Button>
                                     <Button
                                         @click="openTxModal('in')"
                                         variant="outline"
-                                        class="h-10 cursor-pointer rounded-xl border-emerald-100 text-xs font-extrabold text-emerald-600 shadow-xs transition-all hover:bg-emerald-50 hover:text-emerald-700 active:scale-95 dark:border-emerald-950/30 dark:hover:bg-emerald-950/20"
+                                        class="h-10 cursor-pointer rounded-xl border border-emerald-300 bg-emerald-50/70 px-4 text-xs font-black text-emerald-700 shadow-xs transition-all hover:border-emerald-400 hover:bg-emerald-100 active:scale-95 dark:border-emerald-950/30 dark:bg-emerald-950/20 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                                     >
-                                        <PlusCircle class="mr-2 size-4.5" />
+                                        <PlusCircle class="mr-2 size-4.5 text-emerald-600 dark:text-emerald-400" />
                                         Thu tiền mặt khác
                                     </Button>
                                 </div>
@@ -865,24 +865,24 @@ const chartMaxVal = computed(() => {
                             <!-- Live transactions log list -->
                             <div class="pt-6">
                                 <h3
-                                    class="mb-4 flex items-center gap-2 text-xs font-black tracking-wider text-slate-500 uppercase"
+                                    class="mb-4 flex items-center gap-2 text-xs font-black tracking-wider text-slate-700 uppercase dark:text-slate-300"
                                 >
                                     <ArrowRightLeft
-                                        class="size-4.5 text-slate-400"
+                                        class="size-4.5 text-slate-500 dark:text-slate-400"
                                     />
                                     Biến động két tiền ca trực
                                 </h3>
 
                                 <div
                                     v-if="activeTransactions.length === 0"
-                                    class="flex flex-col items-center justify-center py-12 text-center text-slate-400"
+                                    class="flex flex-col items-center justify-center py-12 text-center text-slate-500 dark:text-slate-400"
                                 >
-                                    <Info class="mb-2 size-8 opacity-20" />
-                                    <p class="text-xs font-bold text-slate-400">
+                                    <Info class="mb-2 size-8 opacity-30 text-slate-400" />
+                                    <p class="text-xs font-bold text-slate-600 dark:text-slate-400">
                                         Chưa phát sinh giao dịch tiền mặt
                                     </p>
                                     <p
-                                        class="mt-0.5 text-[10px] text-slate-400/80"
+                                        class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400/80"
                                     >
                                         Nhấn nút bên trên để bắt đầu ghi nhận
                                         các khoản thu chi ngoài hệ thống
@@ -891,20 +891,20 @@ const chartMaxVal = computed(() => {
 
                                 <div
                                     v-else
-                                    class="max-h-[350px] divide-y divide-slate-100 overflow-y-auto pr-1 dark:divide-slate-800/80"
+                                    class="max-h-[350px] divide-y divide-slate-200/80 overflow-y-auto pr-1 dark:divide-slate-800/80"
                                 >
                                     <div
                                         v-for="tx in activeTransactions"
                                         :key="tx.id"
-                                        class="flex items-center justify-between py-3.5 transition-colors hover:bg-slate-50/20 dark:hover:bg-slate-900/10"
+                                        class="flex items-center justify-between py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/20"
                                     >
                                         <div class="flex items-center gap-3">
                                             <div
                                                 :class="[
-                                                    'flex h-9 w-9 items-center justify-center rounded-xl border-2 shadow-xs',
+                                                    'flex h-9 w-9 items-center justify-center rounded-xl border shadow-xs',
                                                     tx.type === 'in'
-                                                        ? 'border-emerald-50 bg-emerald-50 text-emerald-600 dark:border-emerald-950/30 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                                        : 'dark:text-rose-450 border-rose-50 bg-rose-50 text-rose-600 dark:border-rose-950/30 dark:bg-rose-950/40',
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-950/30 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                        : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-950/30 dark:bg-rose-950/40 dark:text-rose-400',
                                                 ]"
                                             >
                                                 <component
@@ -918,30 +918,30 @@ const chartMaxVal = computed(() => {
                                             </div>
                                             <div>
                                                 <p
-                                                    class="text-xs font-bold text-slate-700 dark:text-slate-200"
+                                                    class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                                 >
                                                     {{ tx.notes }}
                                                 </p>
                                                 <p
-                                                    class="mt-1 text-[10px] font-semibold text-slate-400/90"
+                                                    class="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400"
                                                 >
                                                     Chi nhánh:
                                                     <strong
-                                                        class="text-slate-500"
+                                                        class="font-bold text-slate-700 dark:text-slate-300"
                                                         >{{
                                                             tx.branch_name
                                                         }}</strong
                                                     >
                                                     · Khu vực:
                                                     <strong
-                                                        class="text-slate-500"
+                                                        class="font-bold text-slate-700 dark:text-slate-300"
                                                         >{{
                                                             tx.area_name
                                                         }}</strong
                                                     >
                                                     · Nhân viên:
                                                     <strong
-                                                        class="text-slate-500"
+                                                        class="font-bold text-slate-700 dark:text-slate-300"
                                                         >{{
                                                             tx.created_by_name
                                                         }}</strong
@@ -955,8 +955,8 @@ const chartMaxVal = computed(() => {
                                             :class="[
                                                 'font-mono text-sm font-black',
                                                 tx.type === 'in'
-                                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                                    : 'text-rose-600 dark:text-rose-400',
+                                                    ? 'text-emerald-700 dark:text-emerald-400'
+                                                    : 'text-rose-700 dark:text-rose-400',
                                             ]"
                                         >
                                             {{ tx.type === 'in' ? '+' : '-'
@@ -1021,17 +1021,17 @@ const chartMaxVal = computed(() => {
         <!-- tab: REGISTERS HISTORY -->
         <div v-if="activeTab === 'history'" class="animate-fade-in space-y-6">
             <Card
-                class="overflow-hidden border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                class="overflow-hidden border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
             >
                 <CardHeader
-                    class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/40 pb-3 dark:bg-slate-900/30"
+                    class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-850 dark:bg-slate-900/30"
                 >
                     <CardTitle
-                        class="text-sm font-black tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                        class="text-sm font-black tracking-wider text-slate-700 uppercase dark:text-slate-300"
                     >
                         Nhật ký chốt ca két tiền mặt
                     </CardTitle>
-                    <CardDescription class="text-xs">
+                    <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
                         Lịch sử đối soát bàn giao két cuối mỗi ca làm việc, theo
                         dõi chênh lệch ngân quỹ thực tế.
                     </CardDescription>
@@ -1040,7 +1040,7 @@ const chartMaxVal = computed(() => {
                     <table class="w-full border-collapse text-left text-xs">
                         <thead>
                             <tr
-                                class="border-b border-slate-100 bg-slate-50/20 font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-900/5"
+                                class="border-b border-slate-200 bg-slate-100/75 font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300"
                             >
                                 <th class="p-3.5 pl-6">Ngày chốt</th>
                                 <th class="p-3.5">Chi nhánh</th>
@@ -1075,15 +1075,15 @@ const chartMaxVal = computed(() => {
                             </tr>
                         </thead>
                         <tbody
-                            class="divide-y divide-slate-100 text-slate-600 dark:divide-slate-800/80 dark:text-slate-300"
+                            class="divide-y divide-slate-200/80 text-slate-700 dark:divide-slate-800/80 dark:text-slate-300"
                         >
                             <tr v-if="registers.length === 0">
                                 <td
                                     colspan="9"
-                                    class="p-12 text-center text-slate-400"
+                                    class="p-12 text-center text-slate-500 dark:text-slate-400"
                                 >
                                     <Info
-                                        class="mx-auto mb-2 size-8 opacity-25"
+                                        class="mx-auto mb-2 size-8 opacity-30 text-slate-400"
                                     />
                                     Chưa ghi nhận phiên làm việc chốt ca nào.
                                 </td>
@@ -1091,40 +1091,40 @@ const chartMaxVal = computed(() => {
                             <tr
                                 v-for="r in paginatedRegisters"
                                 :key="r.id"
-                                class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
+                                class="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/30"
                             >
                                 <td class="p-3.5 pl-6 font-black">
                                     {{ r.closing_date }}
                                 </td>
                                 <td class="p-3.5 font-bold">
                                     <span
-                                        class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                        class="rounded-md border border-indigo-200/80 bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:border-transparent dark:bg-indigo-950/40 dark:text-indigo-400"
                                     >
                                         {{ r.branch_name }}
                                     </span>
                                 </td>
                                 <td class="p-3.5">
                                     <span
-                                        class="rounded bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                                        class="rounded-md border border-violet-200/80 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:border-transparent dark:bg-violet-950/40 dark:text-violet-400"
                                     >
                                         {{ r.area_name }}
                                     </span>
                                 </td>
                                 <td class="p-3.5">
                                     <span
-                                        class="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                        class="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                     >
                                         {{ r.shift_name }}
                                     </span>
                                 </td>
                                 <td class="p-3.5">
                                     <p
-                                        class="font-bold text-slate-700 dark:text-slate-200"
+                                        class="font-bold text-slate-800 dark:text-slate-200"
                                     >
                                         {{ r.opened_by_name }}
                                     </p>
                                     <p
-                                        class="mt-0.5 text-[10px] text-slate-400/90"
+                                        class="mt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400"
                                     >
                                         Đóng két: {{ r.closed_by_name }}
                                     </p>
@@ -1144,7 +1144,7 @@ const chartMaxVal = computed(() => {
                                     }}
                                 </td>
                                 <td
-                                    class="p-3.5 text-right font-mono font-black text-slate-700 dark:text-slate-100"
+                                    class="p-3.5 text-right font-mono font-black text-slate-800 dark:text-slate-100"
                                 >
                                     {{
                                         r.status === 'closed'
@@ -1160,10 +1160,10 @@ const chartMaxVal = computed(() => {
                                         :class="[
                                             'rounded-md px-1.5 py-0.5 text-xs',
                                             r.difference > 0
-                                                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
+                                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-transparent dark:bg-emerald-950/20 dark:text-emerald-400'
                                                 : r.difference < 0
-                                                  ? 'dark:text-rose-455 bg-rose-50 text-rose-600 dark:bg-rose-950/20'
-                                                  : 'text-slate-400',
+                                                  ? 'border border-rose-200 bg-rose-50 text-rose-700 dark:border-transparent dark:bg-rose-950/20 dark:text-rose-400'
+                                                  : 'text-slate-500 font-bold',
                                         ]"
                                     >
                                         {{ r.difference > 0 ? '+' : ''
@@ -1181,7 +1181,7 @@ const chartMaxVal = computed(() => {
                                             'rounded-full px-2.5 py-0.5 text-[9px] font-black tracking-wider uppercase shadow-2xs',
                                             r.status === 'open'
                                                 ? 'bg-emerald-500 text-white'
-                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                                                : 'border border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
                                         ]"
                                     >
                                         {{
@@ -1198,18 +1198,18 @@ const chartMaxVal = computed(() => {
                     <!-- Pagination Bar (10 items per page) -->
                     <div
                         v-if="registers.length > itemsPerPage"
-                        class="flex flex-col items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 p-4 text-xs sm:flex-row dark:border-slate-800 dark:bg-slate-900/20"
+                        class="flex flex-col items-center justify-between gap-3 border-t border-slate-200/80 bg-slate-50/70 p-4 text-xs sm:flex-row dark:border-slate-800 dark:bg-slate-900/20"
                     >
-                        <p class="text-slate-500 dark:text-slate-400">
+                        <p class="text-slate-600 dark:text-slate-400">
                             Hiển thị
                             <span
-                                class="font-bold text-slate-700 dark:text-slate-200"
+                                class="font-bold text-slate-800 dark:text-slate-200"
                             >
                                 {{ (currentPage - 1) * itemsPerPage + 1 }}
                             </span>
                             -
                             <span
-                                class="font-bold text-slate-700 dark:text-slate-200"
+                                class="font-bold text-slate-800 dark:text-slate-200"
                             >
                                 {{
                                     Math.min(
@@ -1220,7 +1220,7 @@ const chartMaxVal = computed(() => {
                             </span>
                             trên tổng số
                             <span
-                                class="font-bold text-slate-700 dark:text-slate-200"
+                                class="font-bold text-slate-800 dark:text-slate-200"
                             >
                                 {{ registers.length }}
                             </span>
@@ -1231,7 +1231,7 @@ const chartMaxVal = computed(() => {
                             <button
                                 @click="goToPage(currentPage - 1)"
                                 :disabled="currentPage === 1"
-                                class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                                 Trước
                             </button>
@@ -1244,7 +1244,7 @@ const chartMaxVal = computed(() => {
                                     'inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-xs font-bold transition-all',
                                     currentPage === p
                                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
+                                        : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
                                 ]"
                             >
                                 {{ p }}
@@ -1253,7 +1253,7 @@ const chartMaxVal = computed(() => {
                             <button
                                 @click="goToPage(currentPage + 1)"
                                 :disabled="currentPage === totalPages"
-                                class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                                 Sau
                             </button>
@@ -1266,19 +1266,19 @@ const chartMaxVal = computed(() => {
         <!-- tab: CASH FLOW CHARTS -->
         <div v-if="activeTab === 'analytics'" class="animate-fade-in space-y-6">
             <Card
-                class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                class="border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
             >
                 <CardHeader
-                    class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/40 pb-3 dark:bg-slate-900/30"
+                    class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-850 dark:bg-slate-900/30"
                 >
                     <div class="flex items-center justify-between">
                         <div>
                             <CardTitle
-                                class="text-sm font-black tracking-wider text-slate-500 uppercase dark:text-slate-400"
+                                class="text-sm font-black tracking-wider text-slate-700 uppercase dark:text-slate-300"
                             >
                                 Biến động Dòng tiền mặt hàng ngày (Thu vs Chi)
                             </CardTitle>
-                            <CardDescription class="text-xs">
+                            <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
                                 So sánh và theo dõi biến động dòng tiền nạp vào
                                 (inflow) và chi tiền mặt ngoài két (outflow)
                                 trong 30 ngày qua.
@@ -1290,20 +1290,20 @@ const chartMaxVal = computed(() => {
                     <!-- Dynamic Interactive CSS/Tailwind Chart -->
                     <div class="space-y-6">
                         <div
-                            class="relative flex h-56 items-end justify-between gap-2 overflow-x-auto border-b border-slate-200 px-2 pb-2 dark:border-slate-800/80"
+                            class="relative flex h-56 items-end justify-between gap-2 overflow-x-auto border-b border-slate-300 px-2 pb-2 dark:border-slate-800/80"
                         >
                             <!-- Background Grid Lines -->
                             <div
                                 class="pointer-events-none absolute inset-0 flex flex-col justify-between pb-8 text-[9px] font-bold text-slate-400/50"
                             >
                                 <div
-                                    class="w-full border-b border-dashed border-slate-100 dark:border-slate-800/40"
+                                    class="w-full border-b border-dashed border-slate-200 dark:border-slate-800/40"
                                 />
                                 <div
-                                    class="w-full border-b border-dashed border-slate-100 dark:border-slate-800/40"
+                                    class="w-full border-b border-dashed border-slate-200 dark:border-slate-800/40"
                                 />
                                 <div
-                                    class="w-full border-b border-dashed border-slate-100 dark:border-slate-800/40"
+                                    class="w-full border-b border-dashed border-slate-200 dark:border-slate-800/40"
                                 />
                                 <div class="w-full" />
                             </div>
@@ -1319,40 +1319,40 @@ const chartMaxVal = computed(() => {
                                 >
                                     <!-- In bar (Green Gradient) -->
                                     <div
-                                        class="w-2.5 rounded-t-full bg-gradient-to-t from-emerald-500/60 to-emerald-500 shadow-sm transition-all duration-300 group-hover:from-emerald-500 group-hover:to-emerald-400 group-hover:shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                                        class="w-2.5 rounded-t-full bg-gradient-to-t from-emerald-500/70 to-emerald-500 shadow-sm transition-all duration-300 group-hover:from-emerald-500 group-hover:to-emerald-400 group-hover:shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                                         :style="`height: ${Math.max(4, (d.in / chartMaxVal) * 140)}px`"
                                     />
                                     <!-- Out bar (Red Gradient) -->
                                     <div
-                                        class="w-2.5 rounded-t-full bg-gradient-to-t from-rose-500/60 to-rose-500 shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-rose-400 group-hover:shadow-[0_0_8px_rgba(244,63,94,0.3)]"
+                                        class="w-2.5 rounded-t-full bg-gradient-to-t from-rose-500/70 to-rose-500 shadow-sm transition-all duration-300 group-hover:from-rose-500 group-hover:to-rose-400 group-hover:shadow-[0_0_8px_rgba(244,63,94,0.3)]"
                                         :style="`height: ${Math.max(4, (d.out / chartMaxVal) * 140)}px`"
                                     />
                                 </div>
 
                                 <!-- Premium glassmorphic tooltip -->
                                 <div
-                                    class="dark:text-slate-150 absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 animate-in rounded-2xl border border-slate-200/80 bg-white/95 p-3 text-[10px] font-bold text-slate-800 shadow-xl backdrop-blur-md transition-all fade-in slide-in-from-bottom-2 group-hover:block dark:border-slate-800 dark:bg-slate-950/95"
+                                    class="absolute bottom-full left-1/2 z-30 mb-2 hidden -translate-x-1/2 animate-in rounded-2xl border border-slate-300 bg-white/95 p-3 text-[10px] font-bold text-slate-800 shadow-xl backdrop-blur-md transition-all fade-in slide-in-from-bottom-2 group-hover:block dark:border-slate-800 dark:bg-slate-950/95 dark:text-slate-100"
                                 >
                                     <p
-                                        class="mb-1.5 border-b border-slate-100 pb-1 text-center font-black text-slate-500 dark:border-slate-800/80"
+                                        class="mb-1.5 border-b border-slate-200 pb-1 text-center font-black text-slate-700 dark:border-slate-800/80 dark:text-slate-300"
                                     >
                                         Ngày {{ d.date }}
                                     </p>
                                     <div class="space-y-1">
                                         <p
-                                            class="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400"
+                                            class="flex justify-between gap-4 text-emerald-700 dark:text-emerald-400"
                                         >
                                             <span>Thu:</span>
                                             <span>+{{ vnd(d.in) }}</span>
                                         </p>
                                         <p
-                                            class="dark:text-rose-450 flex justify-between gap-4 text-rose-600"
+                                            class="flex justify-between gap-4 text-rose-700 dark:text-rose-400"
                                         >
                                             <span>Chi:</span>
                                             <span>-{{ vnd(d.out) }}</span>
                                         </p>
                                         <p
-                                            class="text-indigo-650 dark:border-slate-850 flex justify-between gap-4 border-t border-slate-100 pt-1 font-black dark:text-indigo-400"
+                                            class="flex justify-between gap-4 border-t border-slate-200 pt-1 font-black text-indigo-700 dark:border-slate-800 dark:text-indigo-400"
                                         >
                                             <span>Ròng:</span>
                                             <span>{{ vnd(d.net) }}</span>
@@ -1362,7 +1362,7 @@ const chartMaxVal = computed(() => {
 
                                 <!-- Date labels -->
                                 <span
-                                    class="shrink-0 scale-90 font-mono text-[9px] font-bold text-slate-400"
+                                    class="shrink-0 scale-90 font-mono text-[9px] font-bold text-slate-500 dark:text-slate-400"
                                 >
                                     {{ d.date }}
                                 </span>
@@ -1371,7 +1371,7 @@ const chartMaxVal = computed(() => {
 
                         <!-- Legend indicators -->
                         <div
-                            class="flex justify-center gap-6 pt-2 text-xs font-bold text-slate-500"
+                            class="flex justify-center gap-6 pt-2 text-xs font-bold text-slate-600 dark:text-slate-400"
                         >
                             <span class="flex items-center gap-2">
                                 <span
@@ -1396,19 +1396,19 @@ const chartMaxVal = computed(() => {
             <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Forecast Metrics -->
                 <Card
-                    class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                    class="border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                 >
                     <CardHeader
-                        class="dark:border-slate-850 border-b border-slate-50 bg-slate-50/20 pb-3 dark:bg-slate-900/10"
+                        class="border-b border-slate-200/80 bg-slate-50/70 pb-3 dark:border-slate-850 dark:bg-slate-900/10"
                     >
                         <CardTitle
-                            class="text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                            class="text-[10px] font-black tracking-wider text-slate-600 uppercase dark:text-slate-400"
                         >
                             Dự báo Thu (7 ngày tiếp theo)
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-xs font-bold text-slate-400">
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-400">
                             Ước tính thu tiền mặt (7 ngày)
                         </p>
                         <p
@@ -1416,9 +1416,9 @@ const chartMaxVal = computed(() => {
                         >
                             +{{ vnd(forecast.projected_in) }}
                         </p>
-                        <p class="mt-2 text-[10px] font-medium text-slate-400">
+                        <p class="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             Dựa trên trung bình doanh số thực tế:
-                            <strong class="dark:text-slate-350 text-slate-500"
+                            <strong class="font-bold text-slate-700 dark:text-slate-200"
                                 >{{ vnd(forecast.avg_daily_in) }}/ngày</strong
                             >.
                         </p>
@@ -1426,29 +1426,29 @@ const chartMaxVal = computed(() => {
                 </Card>
 
                 <Card
-                    class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                    class="border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                 >
                     <CardHeader
-                        class="dark:border-slate-850 border-b border-slate-50 bg-slate-50/20 pb-3 dark:bg-slate-900/10"
+                        class="border-b border-slate-200/80 bg-slate-50/70 pb-3 dark:border-slate-850 dark:bg-slate-900/10"
                     >
                         <CardTitle
-                            class="text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                            class="text-[10px] font-black tracking-wider text-slate-600 uppercase dark:text-slate-400"
                         >
                             Dự báo Chi (7 ngày tiếp theo)
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-xs font-bold text-slate-400">
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-400">
                             Dự chi tiền mặt ngoài két (7 ngày)
                         </p>
                         <p
-                            class="dark:text-rose-455 mt-1.5 font-mono text-2xl font-black text-rose-600"
+                            class="mt-1.5 font-mono text-2xl font-black text-rose-600 dark:text-rose-400"
                         >
                             -{{ vnd(forecast.projected_out) }}
                         </p>
-                        <p class="mt-2 text-[10px] font-medium text-slate-400">
+                        <p class="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             Dựa trên trung bình chi tiêu ngoài ca:
-                            <strong class="dark:text-slate-350 text-slate-500"
+                            <strong class="font-bold text-slate-700 dark:text-slate-200"
                                 >{{ vnd(forecast.avg_daily_out) }}/ngày</strong
                             >.
                         </p>
@@ -1456,19 +1456,19 @@ const chartMaxVal = computed(() => {
                 </Card>
 
                 <Card
-                    class="border-slate-100 shadow-md shadow-slate-200/50 dark:border-slate-800/80 dark:shadow-none"
+                    class="border border-slate-200/90 bg-white shadow-sm shadow-slate-200/60 dark:border-slate-800/80 dark:bg-card dark:shadow-none"
                 >
                     <CardHeader
-                        class="dark:border-slate-850 border-b border-slate-50 bg-slate-50/20 pb-3 dark:bg-slate-900/10"
+                        class="border-b border-slate-200/80 bg-slate-50/70 pb-3 dark:border-slate-850 dark:bg-slate-900/10"
                     >
                         <CardTitle
-                            class="text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                            class="text-[10px] font-black tracking-wider text-slate-600 uppercase dark:text-slate-400"
                         >
                             Số dư dự tính cuối kỳ 7 ngày
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="p-5">
-                        <p class="text-xs font-bold text-slate-400">
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-400">
                             Số dư két ước tính cuối kỳ
                         </p>
                         <p
@@ -1481,10 +1481,10 @@ const chartMaxVal = computed(() => {
                         >
                             {{ vnd(forecast.projected_balance) }}
                         </p>
-                        <p class="mt-2 text-[10px] font-medium text-slate-400">
+                        <p class="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             Số dư tiền mặt khả dụng hiện tại:
                             <strong
-                                class="dark:text-slate-350 text-slate-500"
+                                class="font-bold text-slate-700 dark:text-slate-200"
                                 >{{ vnd(forecast.current_cash) }}</strong
                             >.
                         </p>
@@ -1494,24 +1494,24 @@ const chartMaxVal = computed(() => {
 
             <!-- Forecast Warning Callout with premium look -->
             <Card
-                class="overflow-hidden border shadow-md shadow-slate-200/40 dark:shadow-none"
+                class="overflow-hidden border shadow-sm dark:shadow-none"
                 :class="[
                     forecast.status === 'warning'
-                        ? 'border-rose-200 bg-rose-50/40 dark:border-rose-950/20 dark:bg-rose-950/20'
+                        ? 'border-rose-300 bg-rose-50/70 dark:border-rose-950/20 dark:bg-rose-950/20'
                         : forecast.status === 'low_reserve'
-                          ? 'border-amber-200 bg-amber-50/40 dark:border-amber-950/20 dark:bg-amber-950/20'
-                          : 'border-emerald-100 bg-emerald-50/40 dark:border-emerald-950/10 dark:bg-emerald-950/10',
+                          ? 'border-amber-300 bg-amber-50/70 dark:border-amber-950/20 dark:bg-amber-950/20'
+                          : 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-950/10 dark:bg-emerald-950/10',
                 ]"
             >
                 <CardContent class="flex items-start gap-4 p-6">
                     <div
                         :class="[
-                            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 shadow-xs',
+                            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border shadow-xs',
                             forecast.status === 'warning'
-                                ? 'text-rose-550 border-rose-100 bg-rose-50 dark:border-rose-900/30 dark:bg-rose-950/60'
+                                ? 'border-rose-200 bg-rose-100/80 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/60'
                                 : forecast.status === 'low_reserve'
-                                  ? 'border-amber-100 bg-amber-50 text-amber-500 dark:border-amber-900/30 dark:bg-amber-950/60'
-                                  : 'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/60',
+                                  ? 'border-amber-200 bg-amber-100/80 text-amber-600 dark:border-amber-900/30 dark:bg-amber-950/60'
+                                  : 'border-emerald-200 bg-emerald-100/80 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/60',
                         ]"
                     >
                         <AlertTriangle
@@ -1526,10 +1526,10 @@ const chartMaxVal = computed(() => {
                             class="text-sm font-black tracking-wider uppercase"
                             :class="[
                                 forecast.status === 'warning'
-                                    ? 'text-rose-700 dark:text-rose-400'
+                                    ? 'text-rose-800 dark:text-rose-400'
                                     : forecast.status === 'low_reserve'
-                                      ? 'text-amber-700 dark:text-amber-400'
-                                      : 'text-emerald-700 dark:text-emerald-400',
+                                      ? 'text-amber-800 dark:text-amber-400'
+                                      : 'text-emerald-800 dark:text-emerald-400',
                             ]"
                         >
                             {{
@@ -1541,7 +1541,7 @@ const chartMaxVal = computed(() => {
                             }}
                         </h3>
                         <p
-                            class="text-xs leading-relaxed font-semibold text-slate-500 dark:text-slate-400"
+                            class="text-xs leading-relaxed font-semibold text-slate-600 dark:text-slate-400"
                         >
                             {{ forecast.message }}
                         </p>
@@ -1557,20 +1557,20 @@ const chartMaxVal = computed(() => {
                 class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
             >
                 <Card
-                    class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
+                    class="w-full max-w-md animate-in border border-slate-200/90 bg-white shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80 dark:bg-card"
                 >
                     <CardHeader
-                        class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                        class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-800 dark:bg-slate-900/30"
                     >
                         <CardTitle
-                            class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                            class="flex items-center gap-2 text-sm font-black text-slate-700 uppercase dark:text-slate-200"
                         >
                             <Wallet
                                 class="size-5 text-indigo-600 dark:text-indigo-400"
                             />
                             Mở Két Tiền Mặt Đầu Ca
                         </CardTitle>
-                        <CardDescription class="text-xs">
+                        <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
                             Khai báo số dư két tiền ban đầu để cashier thực hiện
                             thanh toán & đối soát.
                         </CardDescription>
@@ -1581,7 +1581,7 @@ const chartMaxVal = computed(() => {
                             <div v-if="areas.length" class="space-y-1.5">
                                 <Label
                                     for="open-area"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Khu vực thu ngân<span
                                         v-if="areas.length > 1"
@@ -1593,7 +1593,7 @@ const chartMaxVal = computed(() => {
                                 <select
                                     id="open-area"
                                     v-model="openForm.area_id"
-                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-xs font-bold text-slate-800 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                                 >
                                     <option
                                         value=""
@@ -1618,14 +1618,14 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="open-shift"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Chọn ca làm việc:
                                 </Label>
                                 <select
                                     id="open-shift"
                                     v-model="openForm.shift_id"
-                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-xs font-bold text-slate-800 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                                 >
                                     <option value="" disabled>
                                         -- Chọn ca trực --
@@ -1644,7 +1644,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="open-balance"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Số dư tiền mặt mở ca (VND):
                                 </Label>
@@ -1655,7 +1655,7 @@ const chartMaxVal = computed(() => {
                                     min="0"
                                     step="1"
                                     placeholder="Ví dụ: 2000000"
-                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:text-slate-200"
                                 />
                             </div>
 
@@ -1663,7 +1663,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="open-budget"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Hạn mức chi ngoài két (VND - Tùy chọn):
                                 </Label>
@@ -1674,10 +1674,10 @@ const chartMaxVal = computed(() => {
                                     min="0"
                                     step="1"
                                     placeholder="Ví dụ: 1000000"
-                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:text-slate-200"
                                 />
                                 <p
-                                    class="text-[10px] font-medium text-slate-400/90"
+                                    class="text-[10px] font-medium text-slate-500 dark:text-slate-400"
                                 >
                                     Cảnh báo thâm hụt khi chi tiền mua gas, đá
                                     viên đi chợ gấp trong ca.
@@ -1688,7 +1688,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="open-notes"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Ghi chú mở đầu ca:
                                 </Label>
@@ -1697,18 +1697,18 @@ const chartMaxVal = computed(() => {
                                     v-model="openForm.notes"
                                     type="text"
                                     placeholder="Ghi chú số dư bàn giao (nếu có)..."
-                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:text-slate-200"
                                 />
                             </div>
                         </CardContent>
                         <div
-                            class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
+                            class="flex justify-end gap-2 border-t border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/10"
                         >
                             <Button
                                 type="button"
                                 variant="outline"
                                 @click="showOpenModal = false"
-                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                                class="h-10 cursor-pointer rounded-xl border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
                             >
                                 Hủy
                             </Button>
@@ -1736,13 +1736,13 @@ const chartMaxVal = computed(() => {
                 class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
             >
                 <Card
-                    class="w-full max-w-md animate-in border-slate-100 shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80"
+                    class="w-full max-w-md animate-in border border-slate-200/90 bg-white shadow-2xl duration-200 zoom-in-95 dark:border-slate-800/80 dark:bg-card"
                 >
                     <CardHeader
-                        class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                        class="border-b border-slate-200/90 bg-slate-50/80 pb-3 dark:border-slate-800 dark:bg-slate-900/30"
                     >
                         <CardTitle
-                            class="dark:text-slate-350 flex items-center gap-2 text-sm font-black text-slate-600 uppercase"
+                            class="flex items-center gap-2 text-sm font-black text-slate-700 uppercase dark:text-slate-200"
                         >
                             <component
                                 :is="
@@ -1763,7 +1763,7 @@ const chartMaxVal = computed(() => {
                                     : 'Ghi Nhận Khoản Chi Ngoài Két'
                             }}
                         </CardTitle>
-                        <CardDescription class="text-xs">
+                        <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
                             {{
                                 transactionModalType === 'in'
                                     ? 'Ghi nhận nguồn nạp tiền mặt khác ngoài doanh thu bàn ăn.'
@@ -1777,7 +1777,7 @@ const chartMaxVal = computed(() => {
                             <div v-if="areas.length" class="space-y-1.5">
                                 <Label
                                     for="tx-area"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Khu vực nhận giao dịch<span
                                         v-if="areas.length > 1"
@@ -1789,7 +1789,7 @@ const chartMaxVal = computed(() => {
                                 <select
                                     id="tx-area"
                                     v-model="txForm.area_id"
-                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-xs font-bold text-slate-800 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                                 >
                                     <option
                                         value=""
@@ -1814,7 +1814,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="tx-amount"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Số tiền giao dịch (VND):
                                 </Label>
@@ -1825,7 +1825,7 @@ const chartMaxVal = computed(() => {
                                     min="1"
                                     step="1"
                                     placeholder="Nhập số tiền..."
-                                    class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:text-slate-200"
                                 />
                             </div>
 
@@ -1836,7 +1836,7 @@ const chartMaxVal = computed(() => {
                             >
                                 <Label
                                     for="tx-voucher-code"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Mã chứng từ / hóa đơn
                                     <span class="text-rose-500">*</span>
@@ -1848,10 +1848,10 @@ const chartMaxVal = computed(() => {
                                     required
                                     maxlength="100"
                                     placeholder="Ví dụ: HD-2026-001"
-                                    class="h-11 w-full rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500/10"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold uppercase text-slate-800 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:text-slate-200"
                                 />
                                 <p
-                                    class="text-[10px] font-medium text-slate-400/90"
+                                    class="text-[10px] font-medium text-slate-500 dark:text-slate-400"
                                 >
                                     Mỗi mã chỉ được dùng một lần; giao dịch đã
                                     ghi không thể sửa hoặc xóa.
@@ -1862,7 +1862,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="tx-notes"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Nội dung/Lý do chi tiết:
                                 </Label>
@@ -1871,18 +1871,18 @@ const chartMaxVal = computed(() => {
                                     v-model="txForm.notes"
                                     rows="3"
                                     placeholder="Ví dụ: Chi tiền mua rau thơm đi chợ, Khách trả nợ tiền mặt..."
-                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-xs font-bold text-slate-800 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                                 ></textarea>
                             </div>
                         </CardContent>
                         <div
-                            class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/10"
+                            class="flex justify-end gap-2 border-t border-slate-200/80 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/10"
                         >
                             <Button
                                 type="button"
                                 variant="outline"
                                 @click="showTransactionModal = false"
-                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                                class="h-10 cursor-pointer rounded-xl border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
                             >
                                 Hủy
                             </Button>
@@ -1915,18 +1915,18 @@ const chartMaxVal = computed(() => {
                 class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
             >
                 <Card
-                    class="w-full max-w-md animate-in border-amber-200 shadow-2xl duration-200 zoom-in-95 dark:border-amber-900/50"
+                    class="w-full max-w-md animate-in border border-amber-300/90 bg-white shadow-2xl duration-200 zoom-in-95 dark:border-amber-900/50 dark:bg-card"
                 >
                     <CardHeader
-                        class="border-b border-amber-100 pb-3 dark:border-amber-900/30"
+                        class="border-b border-amber-200/80 bg-amber-50/80 pb-3 dark:border-amber-900/30 dark:bg-amber-950/20"
                     >
                         <CardTitle
-                            class="flex items-center gap-2 text-sm font-black text-amber-700 uppercase dark:text-amber-300"
+                            class="flex items-center gap-2 text-sm font-black text-amber-900 uppercase dark:text-amber-300"
                         >
-                            <ShieldAlert class="size-5" />
+                            <ShieldAlert class="size-5 text-amber-600 dark:text-amber-400" />
                             Đối soát số dư đầu ca
                         </CardTitle>
-                        <CardDescription class="text-xs">
+                        <CardDescription class="text-xs text-amber-800/90 dark:text-amber-300/80">
                             Xác nhận số tiền thực tế có trong két tại thời điểm
                             bắt đầu ca. Thao tác được ghi audit và không thể sửa
                             lại bằng giao diện thu ngân.
@@ -1937,7 +1937,7 @@ const chartMaxVal = computed(() => {
                             <div class="space-y-1.5">
                                 <Label
                                     for="reconcile-opening"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Số dư đầu ca thực tế (VND)
                                 </Label>
@@ -1949,13 +1949,13 @@ const chartMaxVal = computed(() => {
                                     type="number"
                                     min="0"
                                     step="1"
-                                    class="h-11 w-full rounded-xl text-xs font-bold"
+                                    class="h-11 w-full rounded-xl border-slate-300 text-xs font-bold text-slate-800 dark:border-slate-800 dark:text-slate-200"
                                 />
                             </div>
                             <div class="space-y-1.5">
                                 <Label
                                     for="reconcile-notes"
-                                    class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-wider text-slate-600 uppercase dark:text-slate-400"
                                 >
                                     Biên bản / lý do xác nhận
                                     <span class="text-rose-500">*</span>
@@ -1964,26 +1964,26 @@ const chartMaxVal = computed(() => {
                                     id="reconcile-notes"
                                     v-model="reconcileForm.notes"
                                     rows="3"
-                                    class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                    class="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-xs font-bold text-slate-800 outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
                                     placeholder="Ví dụ: Đã kiểm đếm cùng thu ngân Nguyễn Văn A..."
                                 ></textarea>
                             </div>
                         </CardContent>
                         <div
-                            class="flex justify-end gap-2 border-t border-amber-100 bg-amber-50/40 p-4 dark:border-amber-900/30 dark:bg-amber-950/10"
+                            class="flex justify-end gap-2 border-t border-amber-200/80 bg-amber-50/60 p-4 dark:border-amber-900/30 dark:bg-amber-950/10"
                         >
                             <Button
                                 type="button"
                                 variant="outline"
                                 @click="showReconcileModal = false"
-                                class="h-10 cursor-pointer rounded-xl text-xs font-bold"
+                                class="h-10 cursor-pointer rounded-xl border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
                             >
                                 Hủy
                             </Button>
                             <Button
                                 type="submit"
                                 :disabled="reconcileForm.processing"
-                                class="h-10 cursor-pointer rounded-xl bg-amber-600 px-5 text-xs font-bold text-white hover:bg-amber-700"
+                                class="h-10 cursor-pointer rounded-xl bg-amber-600 px-5 text-xs font-bold text-white hover:bg-amber-700 shadow-xs"
                             >
                                 Xác nhận đối soát
                             </Button>
