@@ -10,6 +10,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\StockTransferRequest;
+use App\Models\StockTransferBatchLineage;
 use App\Models\Unit;
 use App\Models\User;
 use App\Notifications\StockTransferStageNotification;
@@ -83,12 +84,12 @@ class StockTransferRequestTest extends TestCase
         ]);
     }
 
-    private function makeRequest(): StockTransferRequest
+    private function makeRequest(float $quantity = 30): StockTransferRequest
     {
         $this->actingAs($this->managerA)->post('/inventory/transfers', [
             'to_branch_id' => $this->branchA->id,
             'ingredient_id' => $this->ingredient->id,
-            'quantity_requested' => 30,
+            'quantity_requested' => $quantity,
             'reason' => 'Chi nhánh A hết bột mì đột xuất',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
@@ -426,5 +427,201 @@ class StockTransferRequestTest extends TestCase
         $this->assertEquals('routed', $transfers[1]->status);
         $this->assertEquals($transfers[0]->handover_code, $transfers[1]->handover_code);
         $this->assertEquals($this->branchB->id, $transfers[0]->from_branch_id);
+    }
+
+    public function test_branch_manager_cannot_bypass_routing_with_direct_source(): void
+    {
+        $this->actingAs($this->managerA)
+            ->post('/inventory/transfers', [
+                'to_branch_id' => $this->branchA->id,
+                'from_branch_id' => $this->branchB->id,
+                'ingredient_id' => $this->ingredient->id,
+                'quantity_requested' => 10,
+                'reason' => 'Không được tự chọn kho cấp',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_direct_request_generates_a_handover_code(): void
+    {
+        $this->actingAs($this->owner)
+            ->post('/inventory/transfers', [
+                'to_branch_id' => $this->branchA->id,
+                'from_branch_id' => $this->branchB->id,
+                'ingredient_id' => $this->ingredient->id,
+                'quantity_requested' => 10,
+                'reason' => 'Điều chuyển trực tiếp có mã bàn giao',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
+        $this->assertEquals('routed', $transfer->status);
+        $this->assertSame(6, strlen((string) $transfer->handover_code));
+    }
+
+    public function test_mixed_shortage_and_quality_issue_keeps_the_shortage_separate(): void
+    {
+        Storage::fake('local');
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
+            'quantity_dispatched' => 30,
+        ])->assertRedirect();
+
+        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+            'handover_code' => $t->refresh()->handover_code,
+            'quantity_received' => 25,
+            'quantity_received_good' => 20,
+            'quantity_received_damaged' => 3,
+            'quantity_received_expired' => 2,
+            'received_condition' => 'mixed',
+            'received_note' => 'Thiếu 5kg, có 3kg hỏng và 2kg hết hạn.',
+            'receiving_evidence' => UploadedFile::fake()->create('mixed.pdf', 100, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $t->refresh();
+        $this->assertSame('quarantined', $t->status);
+        $this->assertEqualsWithDelta(5, (float) $t->shortage_quantity, 0.001);
+        $this->assertEqualsWithDelta(10, (float) $t->discrepancy_quantity, 0.001);
+        $this->assertEquals(2, StockTransferBatchLineage::where('stock_transfer_request_id', $t->id)->whereIn('quality', ['damaged', 'expired'])->count());
+
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/resolve-discrepancy", [
+            'shortage_action' => 'accepted_loss',
+            'discrepancy_resolution' => 'Đã xác nhận thiếu 5kg và ghi nhận hao hụt theo biên bản.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertNotNull($t->refresh()->shortage_resolved_at);
+        $this->assertSame('quarantined', $t->status);
+    }
+
+    public function test_receiving_preserves_multiple_source_batch_lineage(): void
+    {
+        Storage::fake('local');
+        InventoryBatch::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchB->id,
+            'ingredient_id' => $this->ingredient->id,
+            'batch_number' => 'LOT-EARLY-RECEIVE',
+            'quantity_remaining' => 40,
+            'unit_cost' => 18000,
+            'purchased_at' => now()->subDays(2),
+            'expiry_date' => now()->addDays(2)->toDateString(),
+            'status' => 'active',
+        ]);
+        InventoryBatch::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchB->id,
+            'ingredient_id' => $this->ingredient->id,
+            'batch_number' => 'LOT-LATE-RECEIVE',
+            'quantity_remaining' => 60,
+            'unit_cost' => 22000,
+            'purchased_at' => now()->subDay(),
+            'expiry_date' => now()->addDays(10)->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $t = $this->makeRequest(80);
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
+            'quantity_dispatched' => 80,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+            'handover_code' => $t->refresh()->handover_code,
+            'quantity_received' => 80,
+            'quantity_received_good' => 60,
+            'quantity_received_damaged' => 10,
+            'quantity_received_expired' => 10,
+            'received_condition' => 'mixed',
+            'received_note' => 'Đã tách riêng hàng tốt, hỏng và hết hạn theo từng lô.',
+            'receiving_evidence' => UploadedFile::fake()->create('lineage.pdf', 100, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $lineages = StockTransferBatchLineage::where('stock_transfer_request_id', $t->id)->get();
+        $this->assertEqualsWithDelta(60, (float) $lineages->where('quality', 'good')->sum('quantity'), 0.001);
+        $this->assertEqualsWithDelta(10, (float) $lineages->where('quality', 'damaged')->sum('quantity'), 0.001);
+        $this->assertEqualsWithDelta(10, (float) $lineages->where('quality', 'expired')->sum('quantity'), 0.001);
+        $this->assertGreaterThanOrEqual(2, $lineages->pluck('source_batch_id')->filter()->unique()->count());
+    }
+
+    public function test_legacy_internal_transfer_entrypoint_starts_the_controlled_workflow(): void
+    {
+        $this->actingAs($this->owner)->post('/api/inventory/internal-transfers', [
+            'from_branch_id' => $this->branchB->id,
+            'to_branch_id' => $this->branchA->id,
+            'ingredient_id' => $this->ingredient->id,
+            'quantity' => 20,
+            'notes' => 'Điều phối bổ sung từ màn hình cũ.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
+        $this->assertSame('routed', $transfer->status);
+        $this->assertSame(6, strlen((string) $transfer->handover_code));
+        $this->assertSame(0, InventoryTransaction::count());
+    }
+
+    public function test_temperature_breach_cannot_be_received_as_good(): void
+    {
+        $this->ingredient->update([
+            'storage_temperature_min_c' => 0,
+            'storage_temperature_max_c' => 5,
+        ]);
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
+            'quantity_dispatched' => 30,
+        ])->assertRedirect();
+
+        $this->actingAs($this->managerA)
+            ->from('/inventory/transfers')
+            ->post("/inventory/transfers/{$t->id}/receive", [
+                'handover_code' => $t->refresh()->handover_code,
+                'quantity_received' => 30,
+                'transport_temperature_min_c' => -2,
+                'transport_temperature_max_c' => 4,
+            ])
+            ->assertSessionHasErrors(['received_note']);
+
+        $this->assertSame('dispatched', $t->refresh()->status);
+    }
+
+    public function test_reship_resolution_creates_a_follow_up_request(): void
+    {
+        Storage::fake('local');
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
+            'quantity_dispatched' => 30,
+        ])->assertRedirect();
+        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+            'handover_code' => $t->refresh()->handover_code,
+            'quantity_received' => 28,
+            'received_condition' => 'shortage',
+            'received_note' => 'Thiếu 2kg khi kiểm đếm tại cửa nhận.',
+            'receiving_evidence' => UploadedFile::fake()->create('reship.pdf', 100, 'application/pdf'),
+        ])->assertRedirect();
+
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/resolve-discrepancy", [
+            'shortage_action' => 'reship',
+            'discrepancy_resolution' => 'Yêu cầu xuất bổ sung 2kg cho chi nhánh nhận.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('received', $t->refresh()->status);
+        $this->assertDatabaseHas('stock_transfer_requests', [
+            'to_branch_id' => $this->branchA->id,
+            'ingredient_id' => $this->ingredient->id,
+            'quantity_requested' => 2,
+            'status' => 'requested',
+            'idempotency_key' => 'stock_transfer_reship_'.$t->id,
+        ]);
     }
 }

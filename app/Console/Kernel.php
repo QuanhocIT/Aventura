@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('restaurants:validate-activity')->dailyAt('23:00');
         $schedule->command('restaurants:calculate-health')->dailyAt('23:15');
         $schedule->command('tickets:check-sla')->everyFiveMinutes();
+        $schedule->command('stock-transfers:check-sla')->everyFiveMinutes();
     }
 
     protected function commands(): void

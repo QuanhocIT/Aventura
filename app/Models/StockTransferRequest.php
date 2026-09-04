@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Yêu cầu điều chuyển hàng liên chi nhánh (định tuyến bởi Chủ, bàn giao hai bước).
@@ -18,12 +19,14 @@ class StockTransferRequest extends Model
     protected $casts = [
         'request_group_id' => 'string',
         'quantity_requested' => 'decimal:3',
+        'backorder_quantity' => 'decimal:3',
         'quantity_dispatched' => 'decimal:3',
         'quantity_received' => 'decimal:3',
         'quantity_received_good' => 'decimal:3',
         'quantity_received_damaged' => 'decimal:3',
         'quantity_received_expired' => 'decimal:3',
         'discrepancy_quantity' => 'decimal:3',
+        'shortage_quantity' => 'decimal:3',
         'dispatch_unit_cost' => 'decimal:2',
         'routed_at' => 'datetime',
         'dispatched_at' => 'datetime',
@@ -31,6 +34,8 @@ class StockTransferRequest extends Model
         'discrepancy_resolved_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'disposition_at' => 'datetime',
+        'shortage_resolved_at' => 'datetime',
+        'sla_escalated_at' => 'datetime',
         'transport_temperature_min_c' => 'decimal:2',
         'transport_temperature_max_c' => 'decimal:2',
     ];
@@ -75,6 +80,11 @@ class StockTransferRequest extends Model
         return $this->belongsTo(User::class, 'discrepancy_resolved_by');
     }
 
+    public function shortageResolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'shortage_resolved_by');
+    }
+
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
@@ -98,5 +108,10 @@ class StockTransferRequest extends Model
     public function dispositionBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'disposition_by');
+    }
+
+    public function batchLineages(): HasMany
+    {
+        return $this->hasMany(StockTransferBatchLineage::class, 'stock_transfer_request_id');
     }
 }

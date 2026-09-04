@@ -602,10 +602,18 @@ class WarehouseReverseLogisticsService
                 $sourceFullySettled = $returnOrder->items->every(function (InventoryReturnItem $item): bool {
                     return ! $item->quarantine || in_array($item->quarantine->fresh()->status, ['returned', 'destroyed'], true);
                 });
+                $stockTransfer = StockTransferRequest::where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($returnOrder->source_id)
+                    ->first();
+                $hasPendingShortage = $stockTransfer
+                    && ((float) ($stockTransfer->shortage_quantity ?? 0) + (float) ($stockTransfer->backorder_quantity ?? 0)) > 0.0005
+                    && ! $stockTransfer->shortage_resolved_at;
                 StockTransferRequest::where('restaurant_id', $actor->restaurant_id)
                     ->whereKey($returnOrder->source_id)
                     ->update([
-                        'status' => $sourceFullySettled ? ($disposition === 'destroyed' ? 'destroyed' : 'returned') : 'quarantined',
+                        'status' => $hasPendingShortage
+                            ? 'discrepancy'
+                            : ($sourceFullySettled ? ($disposition === 'destroyed' ? 'destroyed' : 'returned') : 'quarantined'),
                         'disposition' => $disposition,
                         'disposition_notes' => $notes,
                         'disposition_by' => $actor->id,

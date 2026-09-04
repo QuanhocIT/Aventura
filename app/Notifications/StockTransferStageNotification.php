@@ -67,6 +67,11 @@ class StockTransferStageNotification extends Notification
             default => "Đơn điều chuyển {$ing} có cập nhật trạng thái mới.",
         };
 
+        if ($this->stage === 'sla_breached') {
+            $title = 'Phiếu điều chuyển vượt SLA';
+            $message = "Phiếu điều chuyển {$ing} đang ở trạng thái {$this->transfer->status} và đã quá thời hạn SLA; cần xử lý ngay.";
+        }
+
         return [
             'type' => 'stock_transfer_'.$this->stage,
             'stage' => $this->stage,

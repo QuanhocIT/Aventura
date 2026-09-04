@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class InternalTransferController extends Controller
 {
@@ -35,7 +36,18 @@ class InternalTransferController extends Controller
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         // 1. Fetch branches
-        $branches = RestaurantBranch::where('restaurant_id', $user->restaurant_id)->get();
+        $branches = RestaurantBranch::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('is_central_warehouse', false)
+                    ->orWhereNull('is_central_warehouse');
+            })
+            ->where(function ($query): void {
+                $query->where('warehouse_type', '!=', 'central')
+                    ->orWhereNull('warehouse_type');
+            })
+            ->get();
         if ($branches->count() <= 1) {
             return response()->json(['recommendations' => [], 'message' => 'Bạn cần tối thiểu 2 chi nhánh để thực hiện luân chuyển kho liên chi nhánh.']);
         }
@@ -246,10 +258,26 @@ class InternalTransferController extends Controller
         $sourceBranch = RestaurantBranch::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('is_central_warehouse', false)
+                    ->orWhereNull('is_central_warehouse');
+            })
+            ->where(function ($query): void {
+                $query->where('warehouse_type', '!=', 'central')
+                    ->orWhereNull('warehouse_type');
+            })
             ->findOrFail($fromBranchId);
         $destinationBranch = RestaurantBranch::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('is_central_warehouse', false)
+                    ->orWhereNull('is_central_warehouse');
+            })
+            ->where(function ($query): void {
+                $query->where('warehouse_type', '!=', 'central')
+                    ->orWhereNull('warehouse_type');
+            })
             ->findOrFail($toBranchId);
         $reason = $request->input('notes') ?: 'YÃªu cáº§u luÃ¢n chuyá»ƒn kho ná»™i bá»™.';
         $controlledRequest = StockTransferRequest::create([
@@ -261,16 +289,20 @@ class InternalTransferController extends Controller
             'priority' => 'normal',
             'reason' => $reason,
             'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
-            'status' => 'requested',
+            'document_code' => 'DC-NL/'.now()->format('Y').'/'.Str::upper(Str::random(10)),
+            'status' => 'routed',
             'requested_by' => $user->id,
+            'routed_by' => $user->id,
+            'routed_at' => now(),
+            'handover_code' => strtoupper(Str::random(6)),
         ]);
         User::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('id', '!=', $user->id)
             ->whereHas('roles', fn ($query) => $query->whereIn('name', ['owner', 'warehouse_manager']))
             ->get()
-            ->each(fn (User $recipient) => $recipient->notify(new StockTransferStageNotification($controlledRequest, 'requested', $user->name)));
-        AuditLog::log('stock_transfer_requested_from_legacy_endpoint', 'created', $controlledRequest, null, [
+            ->each(fn (User $recipient) => $recipient->notify(new StockTransferStageNotification($controlledRequest, 'routed', $user->name)));
+        AuditLog::log('stock_transfer_routed_from_legacy_endpoint', 'created', $controlledRequest, null, [
             'source' => 'inventory.internal-transfers',
             'by' => $user->name,
         ]);
