@@ -5,15 +5,13 @@ import {
     AlertTriangle,
     ArrowLeft,
     CheckCircle2,
-    ClipboardCheck,
-    Clock3,
     FileWarning,
     History,
     Layers,
     ShieldAlert,
     ShieldCheck,
+    ShoppingCart,
     Sparkles,
-    UserRound,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
@@ -117,15 +115,7 @@ const props = defineProps<{
     rootCauseOptions: Array<{ value: string; label: string }>;
 }>();
 
-const editingId = ref<number | null>(null);
 const busyId = ref<number | null>(null);
-const plans = ref<Record<number, string>>({});
-const causes = ref<Record<number, string>>({});
-const causeCodes = ref<Record<number, string>>({});
-const containmentActions = ref<Record<number, string>>({});
-const correctiveActions = ref<Record<number, string>>({});
-const dates = ref<Record<number, string>>({});
-const responsibleIds = ref<Record<number, number | null>>({});
 const errorMessage = ref('');
 const selectedBranchId = ref<number | null>(props.filters.branch_id ?? null);
 const selectedStatus = ref(props.filters.status || 'active');
@@ -138,20 +128,18 @@ const status = computed(() => selectedStatus.value || 'active');
 const severity = computed(() => selectedSeverity.value || '');
 
 const processSteps = [
-    { num: '1', name: 'Phát hiện', desc: 'Hệ thống ghi nhận tồn < 0' },
-    { num: '2', name: 'Điều tra', desc: 'Phân loại nguyên nhân & giao việc' },
-    { num: '3', name: 'Phê duyệt', desc: 'Mức Cao/Critical cần Chủ duyệt' },
-    { num: '4', name: 'Khắc phục', desc: 'Nhập bù/điều chỉnh giao dịch thật' },
-    { num: '5', name: 'Đối chiếu', desc: 'Người độc lập kiểm tra số dư' },
-    { num: '6', name: 'Chốt', desc: 'Đóng hồ sơ & lưu vết kiểm toán' },
+    { num: '1', name: 'Phát hiện', desc: 'Hệ thống tự động ghi nhận tồn kho < 0' },
+    { num: '2', name: 'Cảnh báo', desc: 'Thông báo đến bộ phận kho & chi nhánh' },
+    { num: '3', name: 'Nhập bù kho', desc: 'Tạo đơn nhập hàng hoặc nhận điều chuyển' },
+    { num: '4', name: 'Tự động chốt', desc: 'Tồn kho >= 0 hệ thống tự động đóng hồ sơ' },
 ];
 
 const statusLabel = (value: string): string =>
     ({
-        open: 'Chưa lập phương án',
+        open: 'Cần nhập bù',
         in_progress: 'Đang xử lý',
-        pending_owner_approval: 'Chờ Chủ duyệt',
-        pending_verification: 'Chờ đối chiếu độc lập',
+        pending_owner_approval: 'Chờ duyệt',
+        pending_verification: 'Chờ kiểm tra',
         resolved: 'Đã chốt xong',
     })[value] || value;
 
@@ -186,22 +174,6 @@ function formatCurrency(value: number | undefined): string {
     }).format(value || 0);
 }
 
-function planDraft(item: NegativeCase): string {
-    return plans.value[item.id] ?? item.handling_plan ?? item.auto_plan ?? '';
-}
-
-function beginEdit(item: NegativeCase): void {
-    editingId.value = item.id;
-    plans.value[item.id] = item.handling_plan ?? item.auto_plan ?? '';
-    causes.value[item.id] = item.root_cause ?? '';
-    causeCodes.value[item.id] = item.root_cause_code ?? '';
-    containmentActions.value[item.id] = item.containment_action ?? '';
-    correctiveActions.value[item.id] = item.corrective_action ?? '';
-    dates.value[item.id] = item.expected_restock_at ?? '';
-    responsibleIds.value[item.id] = item.responsible_user_id ?? null;
-    errorMessage.value = '';
-}
-
 function applyFilters(): void {
     const params: Record<string, string | number> = {};
 
@@ -221,43 +193,6 @@ function applyFilters(): void {
         preserveState: true,
         replace: true,
     });
-}
-
-async function savePlan(item: NegativeCase): Promise<void> {
-    const handlingPlan = planDraft(item).trim();
-
-    if (handlingPlan.length < 10) {
-        errorMessage.value = 'Phương án xử lý cần tối thiểu 10 ký tự.';
-
-        return;
-    }
-
-    errorMessage.value = '';
-    busyId.value = item.id;
-
-    try {
-        await axios.post(
-            `/api/inventory/negative-stock-cases/${item.id}/plan`,
-            {
-                handling_plan: handlingPlan,
-                root_cause: causes.value[item.id] || null,
-                responsible_user_id: responsibleIds.value[item.id] || null,
-                expected_restock_at: dates.value[item.id] || null,
-                root_cause_code: causeCodes.value[item.id] || null,
-                containment_action: containmentActions.value[item.id] || null,
-                corrective_action: correctiveActions.value[item.id] || null,
-            },
-        );
-        editingId.value = null;
-        await router.reload({ only: ['cases', 'summary'] });
-    } catch (error: any) {
-        errorMessage.value =
-            error?.response?.data?.message ||
-            Object.values(error?.response?.data?.errors ?? {})?.flat()?.[0] ||
-            'Không thể lưu phương án xử lý.';
-    } finally {
-        busyId.value = null;
-    }
 }
 
 async function submitVerification(item: NegativeCase): Promise<void> {
@@ -395,7 +330,7 @@ const summaryCards = computed(() => [
     {
         title: 'Hồ sơ đang mở',
         value: props.summary.active_cases,
-        subtitle: `${props.summary.open_cases ?? 0} chưa lập phương án`,
+        subtitle: `${props.summary.open_cases ?? 0} mặt hàng cần nhập bù`,
         colorClass: 'text-rose-600 dark:text-rose-400',
         badge: 'Cần xử lý',
         badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20',
@@ -483,7 +418,7 @@ const summaryCards = computed(() => [
                     </h1>
 
                     <p class="mt-1 max-w-3xl text-xs text-muted-foreground leading-relaxed">
-                        Quy trình đóng hồ sơ chặt chẽ: xác định nguyên nhân, lập phương án bù/điều chỉnh, phê duyệt theo thẩm quyền và chỉ chốt sau khi tồn thực tế không còn âm.
+                        Theo dõi các nguyên liệu bị âm kho do xuất bán trước hoặc nhập trễ. Khi nhập hàng bù vào kho (tồn kho ≥ 0), hệ thống sẽ tự động hoàn tất và đóng hồ sơ.
                     </p>
                 </div>
 
@@ -502,22 +437,22 @@ const summaryCards = computed(() => [
             </div>
         </header>
 
-        <!-- ── 2. PROCESS STEPPER CARD (QUY TRÌNH CHUẨN 6 BƯỚC) ───────── -->
+        <!-- ── 2. PROCESS STEPPER CARD (QUY TRÌNH XỬ LÝ TỰ ĐỘNG) ───────── -->
         <Card class="overflow-hidden border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs">
             <CardHeader class="border-b border-border/60 bg-muted/20 py-3.5 px-5">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex items-center gap-2 text-xs font-bold text-foreground">
                         <Sparkles class="size-3.5 text-primary" />
-                        Quy trình kiểm soát âm tồn 6 bước tiêu chuẩn
+                        Quy trình xử lý âm tồn kho tự động
                     </div>
                     <span class="text-[11px] font-medium text-muted-foreground">
-                        Không được bỏ qua bước giao dịch kho và đối chiếu độc lập
+                        Nhập hàng bù vào kho để hệ thống tự động đưa số tồn về bình thường và đóng hồ sơ
                     </span>
                 </div>
             </CardHeader>
 
             <CardContent class="p-4 sm:p-5">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div
                         v-for="step in processSteps"
                         :key="step.num"
@@ -711,165 +646,30 @@ const summaryCards = computed(() => [
                         </div>
                     </div>
 
-                    <!-- 4 Info Columns Grid -->
-                    <div class="mt-3.5 grid gap-2.5 text-xs md:grid-cols-4">
+                    <!-- Info Columns Grid -->
+                    <div class="mt-3.5 grid gap-2.5 text-xs md:grid-cols-2">
                         <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
                             <div class="font-bold text-foreground">
-                                Cách xử lý bắt buộc
+                                Hướng xử lý bù tồn
                             </div>
                             <div class="mt-1 text-muted-foreground font-medium leading-relaxed">
-                                {{ item.auto_plan }}
+                                Nhập hàng nhà cung cấp hoặc nhận điều chuyển từ Kho Tổng để bù đủ
+                                <strong class="text-rose-600 dark:text-rose-400">{{ formatQuantity(item.negative_quantity) }} {{ item.unit_symbol || '' }}</strong>.
+                                Khi tồn kho thực tế trở về mức ≥ 0, hệ thống sẽ tự động đóng hồ sơ.
                             </div>
                         </div>
 
-                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
-                            <div class="font-bold text-foreground">
-                                Người phụ trách
-                            </div>
-                            <div class="mt-1 flex items-center gap-1.5 text-muted-foreground font-medium">
-                                <UserRound class="size-3.5 text-primary" />
-                                {{ item.responsible_user_name || 'Chưa giao người phụ trách' }}
-                            </div>
-                            <div
-                                v-if="item.expected_restock_at"
-                                class="mt-1 flex items-center gap-1.5 text-muted-foreground"
-                            >
-                                <Clock3 class="size-3.5 text-amber-500" />
-                                Bù dự kiến: {{ item.expected_restock_at }}
-                            </div>
-                        </div>
-
-                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
-                            <div class="font-bold text-foreground">
-                                Nguyên nhân & kiểm soát
-                            </div>
-                            <div class="mt-1 text-muted-foreground font-medium">
-                                {{ item.root_cause_label || 'Chưa phân loại nguyên nhân' }}
-                            </div>
-                            <div v-if="item.root_cause" class="mt-1 text-foreground font-semibold">
-                                {{ item.root_cause }}
-                            </div>
-                        </div>
-
-                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3">
-                            <div class="font-bold text-foreground">
-                                Phê duyệt & Đối chiếu
-                            </div>
-                            <div class="mt-1 text-muted-foreground font-medium">
-                                {{
-                                    item.owner_approval_status === 'approved'
-                                        ? `Đã duyệt${item.approved_by_name ? ` bởi ${item.approved_by_name}` : ''}`
-                                        : item.owner_approval_required
-                                          ? 'Bắt buộc Chủ doanh nghiệp duyệt'
-                                          : 'Không yêu cầu duyệt cấp Chủ'
-                                }}
-                            </div>
-                            <div
-                                v-if="item.status === 'pending_verification'"
-                                class="mt-1 font-bold text-cyan-600 dark:text-cyan-400"
-                            >
-                                Đã gửi {{ item.verification_requested_at || '' }}, chờ đối chiếu
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Expandable Edit Form -->
-                    <div
-                        v-if="editingId === item.id"
-                        class="mt-3.5 space-y-2.5 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-transparent to-transparent p-4 shadow-xs"
-                    >
-                        <div class="grid gap-2.5 md:grid-cols-2">
-                            <textarea
-                                v-model="plans[item.id]"
-                                rows="3"
-                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                placeholder="Phương án bù/điều chỉnh, giao dịch cần thực hiện và cách đối chiếu..."
-                            />
-                            <div class="space-y-2">
-                                <select
-                                    v-model="causeCodes[item.id]"
-                                    class="h-9 w-full rounded-xl border border-border bg-background px-3 text-xs font-medium outline-none focus:border-primary"
-                                >
-                                    <option value="">
-                                        Chọn nguyên nhân gốc bắt buộc
-                                    </option>
-                                    <option
-                                        v-for="option in rootCauseOptions"
-                                        :key="option.value"
-                                        :value="option.value"
-                                    >
-                                        {{ option.label }}
-                                    </option>
-                                </select>
-                                <textarea
-                                    v-model="causes[item.id]"
-                                    rows="2"
-                                    class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                    placeholder="Mô tả bằng chứng/nguyên nhân cụ thể..."
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2.5 md:grid-cols-2">
-                            <textarea
-                                v-model="containmentActions[item.id]"
-                                rows="2"
-                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                placeholder="Hành động tức thời: khóa bán, kiểm tra lô, tạm dừng xuất..."
-                            />
-                            <textarea
-                                v-model="correctiveActions[item.id]"
-                                rows="2"
-                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                placeholder="Hành động phòng ngừa tái diễn: sửa BOM, đào tạo, chỉnh quy trình..."
-                            />
-                        </div>
-
-                        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <select
-                                    v-model="responsibleIds[item.id]"
-                                    class="h-8.5 rounded-lg border border-border bg-background px-3 text-xs font-medium"
-                                >
-                                    <option :value="null">Tôi phụ trách</option>
-                                    <option
-                                        v-for="candidate in responsibleUsers"
-                                        :key="candidate.id"
-                                        :value="candidate.id"
-                                    >
-                                        {{ candidate.name }}
-                                    </option>
-                                </select>
-                                <label
-                                    class="flex items-center gap-1.5 text-xs text-muted-foreground font-medium"
-                                >
-                                    Ngày bù dự kiến:
-                                    <input
-                                        v-model="dates[item.id]"
-                                        type="date"
-                                        class="h-8.5 rounded-lg border border-border bg-background px-2 text-xs"
-                                    />
-                                </label>
-                            </div>
-
-                            <div class="flex items-center gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    class="h-8.5 rounded-lg text-xs"
-                                    @click="editingId = null"
-                                >
-                                    Hủy
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    class="h-8.5 rounded-lg bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:bg-primary/90"
-                                    :disabled="busyId === item.id"
-                                    @click="savePlan(item)"
-                                >
-                                    <ClipboardCheck class="mr-1.5 size-3.5" />
-                                    Lưu phương án
-                                </Button>
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-3 flex flex-col justify-between">
+                            <div>
+                                <div class="font-bold text-foreground">
+                                    Thông tin nguồn & Chi nhánh
+                                </div>
+                                <div class="mt-1 text-muted-foreground font-medium">
+                                    {{ item.branch_name || 'Kho chưa xác định' }} · Nguồn: {{ item.source_label }}
+                                </div>
+                                <div class="mt-0.5 text-muted-foreground">
+                                    Phát hiện: {{ item.detected_at || '—' }} · Hạn xử lý: {{ item.due_at || '—' }}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -954,19 +754,17 @@ const summaryCards = computed(() => [
 
                     <!-- Action Buttons Toolbar -->
                     <div
-                        v-if="editingId !== item.id && item.status !== 'resolved'"
+                        v-if="item.status !== 'resolved'"
                         class="mt-3.5 flex flex-wrap items-center gap-2"
                     >
-                        <Button
+                        <Link
                             v-if="canManage"
-                            size="sm"
-                            variant="outline"
-                            class="h-8.5 rounded-lg border-border bg-background text-xs font-semibold text-foreground hover:bg-muted shadow-xs"
-                            @click="beginEdit(item)"
+                            href="/inventory?tab=purchase"
+                            class="inline-flex items-center h-8.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs transition"
                         >
-                            <ClipboardCheck class="mr-1.5 size-3.5 text-amber-500" />
-                            {{ item.handling_plan ? 'Cập nhật phương án' : 'Lập phương án' }}
-                        </Button>
+                            <ShoppingCart class="mr-1.5 size-3.5 text-emerald-500" />
+                            Tạo đơn nhập bù kho
+                        </Link>
 
                         <template
                             v-if="item.status === 'pending_owner_approval' && canApprove"
@@ -1062,11 +860,11 @@ const summaryCards = computed(() => [
         <!-- ── 5. NGUYÊN TẮC CHỐT HỒ SƠ ────────────────────────────────── -->
         <Card class="rounded-2xl border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-xs">
             <CardContent class="flex flex-wrap items-start gap-3.5 p-4.5 text-xs text-muted-foreground">
-                <div class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                    <AlertTriangle class="size-4" />
+                <div class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 class="size-4" />
                 </div>
                 <div class="leading-relaxed">
-                    <strong class="text-foreground">Nguyên tắc chốt hồ sơ âm kho:</strong> Hệ thống không tự xóa hồ sơ khi chỉ tạo phiếu nhập bù trên giấy. Người phụ trách phải phân loại đúng nguyên nhân gốc, thực hiện giao dịch kho thật, gửi đối chiếu; một nhân sự độc lập kiểm tra thực tế và xác nhận số dư không còn âm mới được chốt. Các hồ sơ mức Cao/Critical bắt buộc phải có phê duyệt từ Chủ doanh nghiệp.
+                    <strong class="text-foreground">Cơ chế xử lý âm kho tự động:</strong> Khi phát sinh giao dịch nhập kho nhà cung cấp, kiểm kê hoặc nhận điều chuyển từ Kho Tổng đưa số lượng tồn của nguyên liệu về mức không còn âm (≥ 0), hệ thống sẽ tự động cập nhật và đóng hồ sơ sự vụ mà không cần phải lập phương án giải trình thủ công.
                 </div>
             </CardContent>
         </Card>

@@ -137,17 +137,18 @@ class NegativeInventoryService
 
         if ($activeCases->isNotEmpty()) {
             foreach ($activeCases as $case) {
-                $wasReady = $case->verification_status === 'ready';
                 $case->update([
+                    'status' => 'resolved',
                     'negative_quantity' => 0,
                     'verification_status' => 'ready',
+                    'resolved_at' => now(),
+                    'resolution_type' => 'restocked',
+                    'resolution_note' => 'Tự động đóng hồ sơ: đã nhập hàng bổ sung và số tồn kho đã về mức không còn âm (>= 0).',
                     'last_activity_at' => now(),
                 ]);
-                if (! $wasReady) {
-                    $this->recordEvent($case, 'stock_replenished', $case->status, $case->status, 'Tồn đã về 0 hoặc dương; hồ sơ chuyển sang bước chờ đối chiếu.', [
-                        'on_hand' => $onHand,
-                    ]);
-                }
+                $this->recordEvent($case, 'stock_replenished_and_resolved', $case->status, 'resolved', 'Tự động hoàn tất và đóng hồ sơ sau khi nhập hàng bù (tồn kho >= 0).', [
+                    'on_hand' => $onHand,
+                ]);
             }
         }
 
@@ -228,6 +229,27 @@ class NegativeInventoryService
             ->chunkById(100, function (Collection $inventories): void {
                 foreach ($inventories as $inventory) {
                     $this->sync($inventory);
+                }
+            });
+
+        // Tự động đóng hồ sơ nếu tồn kho thực tế đã được bù (>= 0)
+        InventoryNegativeCase::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn (Builder $query) => $query->where('branch_id', $branchId))
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->whereHas('inventory', fn (Builder $q) => $q->where('quantity_on_hand', '>=', -0.0005))
+            ->chunkById(100, function (Collection $cases): void {
+                foreach ($cases as $case) {
+                    $case->update([
+                        'status' => 'resolved',
+                        'negative_quantity' => 0,
+                        'verification_status' => 'ready',
+                        'resolved_at' => now(),
+                        'resolution_type' => 'restocked',
+                        'resolution_note' => 'Tự động đóng hồ sơ: tồn kho đã về mức không còn âm (>= 0).',
+                        'last_activity_at' => now(),
+                    ]);
+                    $this->recordEvent($case, 'stock_replenished_and_resolved', $case->status, 'resolved', 'Tự động hoàn tất và đóng hồ sơ sau khi tồn kho >= 0.');
                 }
             });
     }
