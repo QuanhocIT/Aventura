@@ -100,7 +100,7 @@ watch(
 
                 <!-- Middle row: Value & Title -->
                 <div class="mt-3.5">
-                    <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                    <p class="text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200">
                         Đơn hàng hôm nay
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
@@ -151,7 +151,7 @@ watch(
 
                 <!-- Middle row: Value & Title -->
                 <div class="mt-3.5">
-                    <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                    <p class="text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200">
                         Doanh thu hôm nay
                     </p>
                     <p class="mt-1 truncate text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
@@ -191,7 +191,7 @@ watch(
 
                 <!-- Middle row: Value & Title -->
                 <div class="mt-3.5">
-                    <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                    <p class="text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200">
                         Đơn đã hoàn tất
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
@@ -229,7 +229,7 @@ watch(
 
                 <!-- Middle row: Value & Title -->
                 <div class="mt-3.5">
-                    <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
+                    <p class="text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200">
                         Thực đơn kinh doanh
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
