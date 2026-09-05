@@ -72,6 +72,7 @@ interface CountItem {
     variance_quantity: number;
     variance_percent: number;
     variance_value: number;
+    revision?: number;
     notes?: string;
     reconciliation_status?: 'not_required' | 'pending' | 'resolved' | string;
     reconciliation_notes?: string | null;
@@ -100,9 +101,11 @@ interface CountSession {
         | 'pending_approval'
         | 'approved'
         | 'rejected'
+        | 'stale'
         | 'cancelled';
     blind_count: boolean;
     requires_owner_approval: boolean;
+    approval_override_reason?: string | null;
     total_variance_value: number;
     counted_by: number;
     second_counted_by?: number;
@@ -143,6 +146,7 @@ const props = defineProps<{
     authUserId: number;
     canStartCount: boolean;
     canApprove: boolean;
+    isOwnerOrSuperAdmin: boolean;
     isCentralWarehouseScope: boolean;
     scopeLabel?: string | null;
     scopeMessage?: string | null;
@@ -178,6 +182,7 @@ const activeSession = ref<CountSession | null>(null);
 const countRows = ref<
     Array<{
         id: number;
+        revision?: number;
         counted_quantity: number | undefined;
         counted_quantity_2?: number | null;
         notes: string;
@@ -436,6 +441,7 @@ const openCountModal = (session: CountSession) => {
     const isEditable = ['draft', 'in_progress'].includes(session.status);
     countRows.value = (session.items || []).map((item) => ({
         id: item.id,
+        revision: item.revision,
         counted_quantity: (() => {
             const currentCount = isSecondCounter.value
                 ? item.counted_quantity_2
@@ -513,6 +519,7 @@ const handleSaveCounts = async () => {
     try {
         const payload = rowsToSubmit.map((r) => ({
             id: r.id,
+            version: r.revision,
             counted_quantity: Number(r.counted_quantity),
             notes: r.notes || null,
         }));
@@ -624,11 +631,30 @@ const handleApproveSession = async (session: CountSession) => {
         return;
     }
 
+    let overrideReason: string | null = null;
+    const isOwnApproval =
+        props.isOwnerOrSuperAdmin &&
+        (Number(session.counted_by) === Number(props.authUserId) ||
+            Number(session.second_counted_by) === Number(props.authUserId));
+
+    if (isOwnApproval) {
+        const reason = window.prompt(
+            'Bạn đang phê duyệt kết quả do chính mình kiểm kê. Nhập lý do ngoại lệ:',
+        );
+
+        if (reason === null || !reason.trim()) {
+            return;
+        }
+
+        overrideReason = reason.trim();
+    }
+
     isSubmitting.value = true;
 
     try {
         const res = await axios.post(
             `/api/inventory/count-sessions/${session.id}/approve`,
+            { override_reason: overrideReason },
         );
         toast.success(
             res.data.message ||
@@ -744,6 +770,7 @@ const handleReconcile = async () => {
             {
                 final_quantity: Number(reconciliationForm.value.final_quantity),
                 notes: reconciliationForm.value.notes.trim(),
+                version: reconciliationItem.value.revision ?? null,
             },
         );
         toast.success('Đã chốt dòng kiểm kê sau đối soát.');

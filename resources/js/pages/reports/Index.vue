@@ -1480,18 +1480,18 @@ void deltaBadge;
                             </div>
 
                             <!-- Bars -->
-                            <div class="ml-10 flex h-40 items-end gap-1">
+                            <div class="ml-10 flex h-40 items-end gap-1 border-b border-border/50 pb-0.5">
                                 <div
                                     v-for="s in summaries"
                                     :key="s.date_full"
-                                    class="group relative flex flex-1 flex-col items-center"
+                                    class="group relative flex h-full flex-1 flex-col items-center justify-end"
                                     @mouseenter="hoveredBar = s.date_full"
                                     @mouseleave="hoveredBar = null"
                                 >
                                     <!-- Tooltip -->
                                     <div
                                         v-if="hoveredBar === s.date_full"
-                                        class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 min-w-[140px] -translate-x-1/2 rounded-xl border border-border bg-card p-2.5 text-xs shadow-xl"
+                                        class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 min-w-[140px] -translate-x-1/2 rounded-xl border border-border bg-card p-2.5 text-xs shadow-xl"
                                     >
                                         <p class="mb-1.5 font-bold">
                                             {{ s.date_full }}
@@ -1537,24 +1537,29 @@ void deltaBadge;
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- Bar -->
-                                    <div
-                                        class="w-full rounded-t-md transition-all duration-200"
-                                        :class="
-                                            hoveredBar === s.date_full
-                                                ? 'bg-violet-500'
-                                                : 'bg-violet-400/70'
-                                        "
-                                        :style="{
-                                            height:
-                                                Math.max(
-                                                    (s.net_revenue /
-                                                        maxRevenue) *
-                                                        100,
-                                                    s.net_revenue > 0 ? 4 : 0,
-                                                ) + '%',
-                                        }"
-                                    />
+                                    <!-- Bar Container & Fill -->
+                                    <div class="relative flex h-full w-full items-end justify-center">
+                                        <div
+                                            class="absolute inset-0 rounded-t-md bg-muted/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                                        />
+                                        <div
+                                            class="relative z-10 w-full rounded-t-md transition-all duration-300"
+                                            :class="
+                                                hoveredBar === s.date_full
+                                                    ? 'bg-gradient-to-t from-violet-600 to-indigo-500 shadow-sm shadow-violet-500/25'
+                                                    : 'bg-gradient-to-t from-violet-500/80 to-indigo-400/80 group-hover:from-violet-500 group-hover:to-indigo-400'
+                                            "
+                                            :style="{
+                                                height:
+                                                    Math.max(
+                                                        (s.net_revenue /
+                                                            maxRevenue) *
+                                                            100,
+                                                        s.net_revenue > 0 ? 4 : 0,
+                                                    ) + '%',
+                                            }"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1658,72 +1663,70 @@ void deltaBadge;
                 </Card>
 
                 <Card>
-                    <Deferred data="topProducts">
-                        <template #fallback>
-                            <CardContent
-                                class="flex h-[350px] animate-pulse items-center justify-center gap-2 pt-5 text-xs text-muted-foreground"
+                    <CardContent class="pt-5">
+                        <div class="mb-4 flex items-center justify-between">
+                            <div>
+                                <p class="mb-1 text-sm font-semibold">
+                                    Top 10 món bán chạy
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    Dựa trên đơn hoàn thành trong kỳ
+                                </p>
+                            </div>
+                            <span
+                                v-if="props.topProducts && props.topProducts.length > 0"
+                                class="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400"
                             >
-                                <RefreshCw
-                                    class="size-3.5 animate-spin text-violet-500"
-                                />
-                                Đang tải top món bán chạy...
-                            </CardContent>
-                        </template>
-                        <CardContent class="pt-5">
-                            <p class="mb-1 text-sm font-semibold">
-                                Top món bán chạy
-                            </p>
-                            <p class="mb-4 text-xs text-muted-foreground">
-                                Dựa trên đơn hoàn thành trong kỳ
-                            </p>
+                                {{ props.topProducts.length }} món
+                            </span>
+                        </div>
 
+                        <div
+                            v-if="!props.topProducts || props.topProducts.length === 0"
+                            class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
+                        >
+                            <Package class="size-10 opacity-30" />
+                            <p class="text-sm">Chưa có dữ liệu bán hàng.</p>
+                        </div>
+
+                        <div v-else class="space-y-2.5">
                             <div
-                                v-if="topProducts.length === 0"
-                                class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
+                                v-for="(p, i) in props.topProducts"
+                                :key="p.name"
+                                class="flex items-center gap-3 rounded-lg p-1.5 transition hover:bg-muted/40"
                             >
-                                <Package class="size-10 opacity-30" />
-                                <p class="text-sm">Chưa có dữ liệu bán hàng.</p>
-                            </div>
-
-                            <div v-else class="space-y-2.5">
-                                <div
-                                    v-for="(p, i) in topProducts"
-                                    :key="p.name"
-                                    class="flex items-center gap-3"
+                                <span
+                                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                                    :class="
+                                        i === 0
+                                            ? 'bg-amber-500 text-zinc-950 ring-2 ring-amber-500/30'
+                                            : i === 1
+                                              ? 'bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100'
+                                              : i === 2
+                                                ? 'bg-orange-400 text-zinc-950'
+                                                : 'bg-muted text-muted-foreground'
+                                    "
                                 >
-                                    <span
-                                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                                        :class="
-                                            i === 0
-                                                ? 'bg-amber-500 text-zinc-950'
-                                                : i === 1
-                                                  ? 'bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100'
-                                                  : i === 2
-                                                    ? 'bg-orange-400 text-zinc-950'
-                                                    : 'bg-muted text-muted-foreground'
-                                        "
+                                    {{ i + 1 }}
+                                </span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-sm font-medium">
+                                        {{ p.name }}
+                                    </p>
+                                    <p
+                                        class="text-xs text-muted-foreground"
                                     >
-                                        {{ i + 1 }}
-                                    </span>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="truncate text-sm font-medium">
-                                            {{ p.name }}
-                                        </p>
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {{ p.total_qty }} phần
-                                        </p>
-                                    </div>
-                                    <span
-                                        class="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
-                                    >
-                                        {{ formatCompact(p.total_revenue) }}
-                                    </span>
+                                        {{ p.total_qty }} phần
+                                    </p>
                                 </div>
+                                <span
+                                    class="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
+                                >
+                                    {{ formatCompact(p.total_revenue) }}
+                                </span>
                             </div>
-                        </CardContent>
-                    </Deferred>
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
 

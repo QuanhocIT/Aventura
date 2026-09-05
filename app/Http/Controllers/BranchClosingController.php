@@ -100,6 +100,11 @@ class BranchClosingController extends Controller
                 'code' => $candidate->code,
             ])->values(),
             'selectedBranchId' => (int) $branch->id,
+            'nextPeriodStart' => $this->closingService->nextPeriodStartDate(
+                (int) $user->restaurant_id,
+                (int) $branch->id,
+                'branch_closing',
+            ),
             'sessions' => $sessions,
             'tasks' => [],
             'counterCandidates' => $counterCandidates,

@@ -7,6 +7,7 @@ use App\Models\InventoryCountSession;
 use App\Models\User;
 use App\Models\WarehouseTaskAssignment;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 
 class WarehouseTaskService
 {
@@ -89,6 +90,7 @@ class WarehouseTaskService
                 'assignee_name' => $task->assignee?->name,
                 'assignee_job_title' => $task->assignee?->employee?->job_title,
                 'due_at' => $task->due_at?->toISOString(),
+                'is_overdue' => $task->isOverdue(),
                 'notes' => $task->notes,
                 'created_at' => $task->created_at?->toISOString(),
             ])
@@ -209,6 +211,13 @@ class WarehouseTaskService
             })
             ->firstOrFail();
 
+        $dueAt = ! empty($data['due_at'])
+            ? Carbon::parse($data['due_at'])
+            : now()->addDay();
+        if ($dueAt->isPast()) {
+            throw ValidationException::withMessages(['due_at' => 'Hạn hoàn thành phải ở tương lai.']);
+        }
+
         return WarehouseTaskAssignment::updateOrCreate(
             [
                 'restaurant_id' => $user->restaurant_id,
@@ -221,7 +230,8 @@ class WarehouseTaskService
                 'assigned_by' => $user->id,
                 'status' => 'assigned',
                 'priority' => $data['priority'] ?? 'normal',
-                'due_at' => $data['due_at'] ?? null,
+                'due_at' => $dueAt,
+                'overdue_notified_at' => null,
                 'notes' => $data['notes'] ?? 'Đối chiếu thực tế cho kỳ chốt nguyên liệu.',
                 'completed_at' => null,
             ],

@@ -17,7 +17,6 @@ import {
     Clock,
     CreditCard,
     Info,
-    ChefHat,
     Loader2,
     MapPin,
     Printer,

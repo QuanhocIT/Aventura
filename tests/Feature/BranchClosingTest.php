@@ -14,6 +14,7 @@ use App\Services\InventoryCountService;
 use App\Services\MaterialClosingService;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class BranchClosingTest extends TestCase
@@ -101,9 +102,11 @@ class BranchClosingTest extends TestCase
             ])
             ->assertOk();
 
+        Storage::fake('local');
+        Storage::disk('local')->put('proof/branch-closing.jpg', 'proof');
         $submitted = app(InventoryCountService::class)->finalizeAndSubmitForApproval(
             InventoryCountSession::findOrFail($session->id),
-            '/proof/branch-closing.jpg',
+            'proof/branch-closing.jpg',
         );
         app(InventoryCountService::class)->approveCountSession($submitted, $owner);
 

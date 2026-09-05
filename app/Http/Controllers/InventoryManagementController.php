@@ -900,7 +900,7 @@ class InventoryManagementController extends Controller
                 'items.*.notes' => ['nullable', 'string', 'max:500'],
                 'notes' => ['nullable', 'string', 'max:500'],
                 'idempotency_key' => ['nullable', 'string', 'max:80'],
-                'occurred_at' => ['nullable', 'date'],
+                'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
                 'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
             ]);
 
@@ -1053,7 +1053,7 @@ class InventoryManagementController extends Controller
             'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:80'],
-            'occurred_at' => ['nullable', 'date'],
+            'occurred_at' => ['nullable', 'date', 'before_or_equal:now'],
             'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
             'expiry_date' => ['nullable', 'date'],
         ]);
@@ -1550,6 +1550,12 @@ class InventoryManagementController extends Controller
                 ->where('branch_id', $branchId)
                 ->with('items.ingredient')
                 ->findOrFail($data['count_session_id']);
+
+            abort_if(
+                in_array($countSession->type, ['material_closing', 'branch_closing'], true),
+                422,
+                'Kỳ chốt nguyên liệu/kho phải được xử lý qua workflow kiểm kê nâng cao.',
+            );
 
             abort_if(
                 $countSession->status !== 'in_progress',

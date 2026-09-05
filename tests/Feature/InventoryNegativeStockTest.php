@@ -57,6 +57,8 @@ class InventoryNegativeStockTest extends TestCase
             'Nhập bù từ Kho Tổng, kiểm kê lại và đối chiếu giao dịch bán trong ngày.',
             $owner->id,
             now()->addDay()->toDateString(),
+            'Đang điều tra chênh lệch nhập bù và xác nhận số lượng thực tế.',
+            'receiving_shortage',
         );
 
         $this->assertSame('in_progress', $case->fresh()->status);
@@ -66,16 +68,40 @@ class InventoryNegativeStockTest extends TestCase
             'theoretical_quantity' => 4,
         ]);
 
+        $correction = InventoryTransaction::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'ingredient_id' => $ingredient->id,
+            'inventory_id' => $inventory->id,
+            'performed_by' => $owner->id,
+            'type' => 'purchase',
+            'direction' => 'in',
+            'quantity' => 7,
+            'unit_cost' => 100,
+            'total_cost' => 700,
+            'quantity_before' => -3,
+            'quantity_after' => 4,
+            'occurred_at' => now(),
+        ]);
+
         $this->assertSame('in_progress', $case->fresh()->status);
-        app(NegativeInventoryService::class)->resolve(
+        app(NegativeInventoryService::class)->submitVerification(
+            $case->fresh(),
+            $owner,
+            'Đã nhập bù, đối chiếu giao dịch và gửi xác minh độc lập.',
+        );
+
+        $this->assertSame('pending_verification', $case->fresh()->status);
+        app(NegativeInventoryService::class)->verifyAndResolve(
             $case->fresh(),
             $owner,
             'restocked',
-            'Đã nhập bù và đối chiếu tồn thực tế về dương.',
+            'Đã xác minh giao dịch nhập bù và tồn thực tế về dương.',
         );
 
         $this->assertSame('resolved', $case->fresh()->status);
         $this->assertSame('restocked', $case->fresh()->resolution_type);
+        $this->assertSame($correction->id, $case->fresh()->verification_transaction_id);
     }
 
     public function test_negative_case_cannot_be_closed_while_balance_is_still_negative(): void

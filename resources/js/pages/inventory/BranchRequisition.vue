@@ -572,22 +572,7 @@ const formatQuantity = (qty: any) => {
     }).format(num);
 };
 
-const getReceivedTemperature = (request: any): string => {
-    const item = request?.items?.find(
-        (row: any) =>
-            row.received_temperature_min_c !== null &&
-            row.received_temperature_min_c !== undefined,
-    );
 
-    if (!item) {
-        return 'Không đo';
-    }
-
-    const min = item.received_temperature_min_c;
-    const max = item.received_temperature_max_c ?? min;
-
-    return `${min}°C ~ ${max}°C`;
-};
 
 const isReportIssue = (item: any): boolean =>
     Number(item?.submitted_damaged_quantity || 0) > 0 ||

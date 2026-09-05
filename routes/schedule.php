@@ -2,9 +2,14 @@
 
 use App\Jobs\RecalculateTrustScoresJob;
 use App\Models\Restaurant;
+use App\Models\InventoryCountSession;
 use App\Models\ScheduledTaskRun;
+use App\Models\User;
+use App\Models\WarehouseTaskAssignment;
+use App\Notifications\WarehouseTaskOverdueNotification;
 use App\Services\ApprovalService;
 use App\Services\CentralWarehouseService;
+use App\Services\MaterialClosingService;
 use App\Services\SupportPortalService;
 use App\Services\WarehouseFraudDetectionService;
 use App\Support\MaterializedViews\MaterializedViewRegistry;
@@ -138,6 +143,48 @@ return function (Schedule $schedule): void {
             }
         }
     })->everyTenMinutes()->name('warehouse-fraud-and-overdue-monitoring')->withoutOverlapping();
+
+    $schedule->call(function (): void {
+        InventoryCountSession::withoutGlobalScopes()
+            ->whereIn('type', ['material_closing', 'branch_closing'])
+            ->whereIn('status', ['in_progress', 'pending_approval'])
+            ->chunkById(100, function ($sessions): void {
+                foreach ($sessions as $session) {
+                    try {
+                        app(MaterialClosingService::class)->markStaleIfNeeded($session);
+                    } catch (Throwable $e) {
+                        Log::warning("Lỗi scheduler kiểm tra snapshot kỳ chốt #{$session->id}: ".$e->getMessage());
+                    }
+                }
+            });
+    })->everyTenMinutes()->name('inventory-count-snapshot-stale-monitor')->withoutOverlapping();
+
+    $schedule->call(function (): void {
+        WarehouseTaskAssignment::where('task_type', 'counting')
+            ->whereIn('status', ['assigned', 'in_progress'])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->whereNull('overdue_notified_at')
+            ->with('countSession')
+            ->chunkById(100, function ($tasks): void {
+                foreach ($tasks as $task) {
+                    $task->update([
+                        'overdue_notified_at' => now(),
+                        'notes' => trim(($task->notes ?: '')."\n[QUÁ HẠN] Task cần được nhắc nhở hoặc phân công lại."),
+                    ]);
+
+                    $recipients = User::where('restaurant_id', $task->restaurant_id)
+                        ->where('status', 'active')
+                        ->where(function ($query): void {
+                        $query->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['owner', 'super_admin', 'warehouse_manager']))
+                                ->orWhereHas('permissions', fn ($permissions) => $permissions->where('name', 'warehouse.manage'))
+                                ->orWhereKey($task->assigned_to);
+                        })
+                        ->get();
+                    $recipients->each(fn (User $user) => $user->notify(new WarehouseTaskOverdueNotification($task)));
+                }
+            });
+    })->everyTenMinutes()->name('warehouse-counting-overdue-monitor')->withoutOverlapping();
 
     // ── Chuỗi báo cáo/tổng hợp cuối ngày — PHẢI giữ đúng thứ tự (comment gốc trong
     //    Kernel.php cũ đã ghi rõ lý do: archive chạy sau khi report + kpi xong) ──

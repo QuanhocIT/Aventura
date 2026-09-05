@@ -6,8 +6,11 @@ import {
     CheckCircle2,
     ClipboardCheck,
     RefreshCw,
+    RotateCcw,
     ShieldAlert,
+    UploadCloud,
     UserPlus,
+    XCircle,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -52,8 +55,20 @@ interface ClosingItem {
     variance_quantity: number;
     variance_percent: number;
     variance_value: number;
+    inventory_status?:
+        | 'uncounted'
+        | 'recount_required'
+        | 'negative_stock'
+        | 'shortage'
+        | 'surplus'
+        | 'matched';
+    system_negative?: boolean;
+    system_negative_quantity?: number;
+    system_negative_value?: number;
+    revision?: number;
     reconciliation_status?: string;
     reconciliation_notes?: string | null;
+    reconciled_by?: number | null;
     notes?: string | null;
     ingredient?: Ingredient;
 }
@@ -73,7 +88,19 @@ interface ClosingSession {
     total_surplus_quantity: number;
     total_shortage_value: number;
     total_surplus_value: number;
+    total_negative_quantity?: number;
+    total_negative_value?: number;
+    negative_item_count?: number;
     total_variance_value: number;
+    variance_photo_path?: string | null;
+    variance_proof_path?: string | null;
+    stale_at?: string | null;
+    stale_reason?: string | null;
+    unit_breakdown?: Record<string, {
+        expected_quantity: number;
+        counted_quantity: number;
+        variance_quantity: number;
+    }>;
     counted_by: number;
     second_counted_by?: number | null;
     countedBy?: { id: number; name: string } | null;
@@ -97,6 +124,7 @@ interface ClosingTask {
     status: string;
     priority: string;
     due_at?: string | null;
+    is_overdue?: boolean;
     assigned_to?: number | null;
     assignee?: { id: number; name: string } | null;
     notes?: string | null;
@@ -107,12 +135,14 @@ const props = defineProps<{
     branch: { id: number; name: string; code?: string };
     branches?: Array<{ id: number; name: string; code?: string }>;
     selectedBranchId?: number;
+    nextPeriodStart?: string | null;
     sessions: ClosingSession[];
     tasks: ClosingTask[];
     counterCandidates: CounterCandidate[];
     authUserId: number;
     canManage: boolean;
     canApprove: boolean;
+    isOwnerOrSuperAdmin: boolean;
     isWarehouseStaff: boolean;
     scopeMessage: string;
 }>();
@@ -148,11 +178,15 @@ const firstOfMonth = new Date(
     .toISOString()
     .slice(0, 10);
 
-const periodForm = ref({ from_date: firstOfMonth, to_date: today });
+const periodForm = ref({
+    from_date: props.nextPeriodStart || firstOfMonth,
+    to_date: today,
+});
 const selectedSession = ref<ClosingSession | null>(null);
 const showCreate = ref(false);
 const showAssign = ref(false);
 const isSubmitting = ref(false);
+const isUploadingProof = ref(false);
 const search = ref('');
 const assignForm = ref({
     assigned_to: '',
@@ -161,7 +195,12 @@ const assignForm = ref({
     notes: '',
 });
 const countRows = ref<
-    Array<{ id: number; counted_quantity: string; notes: string }>
+    Array<{
+        id: number;
+        revision?: number;
+        counted_quantity: string;
+        notes: string;
+    }>
 >([]);
 const selectedBranchId = ref(props.selectedBranchId ?? props.branch.id);
 
@@ -221,6 +260,10 @@ function formatCurrency(value: number | string | null | undefined) {
 }
 
 function statusLabel(status: string) {
+    if (status === 'stale') {
+        return 'Snapshot lỗi thời';
+    }
+
     return (
         {
             in_progress: 'Đang đối chiếu',
@@ -249,10 +292,34 @@ function statusClass(status: string) {
         return 'border-rose-500/30 bg-rose-500/10 text-rose-400';
     }
 
+    if (status === 'stale') {
+        return 'border-orange-500/30 bg-orange-500/10 text-orange-400';
+    }
+
     return 'border-slate-500/30 bg-slate-500/10 text-slate-400';
 }
 
 function varianceLabel(item: ClosingItem) {
+    if (
+        item.system_negative &&
+        item.final_quantity === null &&
+        item.reconciliation_status !== 'pending'
+    ) {
+        return 'Chưa đếm · Âm sổ';
+    }
+
+    if (item.reconciliation_status === 'pending' && item.system_negative) {
+        return 'Cần đếm lại · Âm sổ';
+    }
+
+    if (item.inventory_status === 'negative_stock' || item.system_negative) {
+        return 'Âm sổ';
+    }
+
+    if (item.inventory_status === 'shortage') {
+        return 'Thiếu / thất thoát';
+    }
+
     if (item.reconciliation_status === 'pending') {
         return 'Cần đếm lại';
     }
@@ -275,6 +342,7 @@ function varianceLabel(item: ClosingItem) {
 function varianceClass(item: ClosingItem) {
     if (
         item.reconciliation_status === 'pending' ||
+        item.system_negative ||
         Number(item.variance_quantity) < -0.0005
     ) {
         return 'text-rose-400';
@@ -291,12 +359,28 @@ function sessionShortage(session: ClosingSession) {
     return Number(session.total_shortage_value || 0);
 }
 
+const unitBreakdownRows = computed(() =>
+    Object.entries(selectedSession.value?.unit_breakdown || {}).map(
+        ([unit, values]) => ({
+            unit,
+            expected: Number(values.expected_quantity || 0),
+            counted: Number(values.counted_quantity || 0),
+            variance: Number(values.variance_quantity || 0),
+        }),
+    ),
+);
+
+const negativeItems = computed(() =>
+    (selectedSession.value?.items || []).filter((item) => item.system_negative),
+);
+
 function openSession(session: ClosingSession) {
     selectedSession.value = session;
     const isSecondCounter =
         Number(session.second_counted_by) === Number(props.authUserId);
     countRows.value = (session.items || []).map((item) => ({
         id: item.id,
+        revision: item.revision,
         counted_quantity:
             item.final_quantity !== null
                 ? String(item.final_quantity)
@@ -350,6 +434,14 @@ async function createClosing() {
     } finally {
         isSubmitting.value = false;
     }
+}
+
+function openCreate() {
+    periodForm.value = {
+        from_date: props.nextPeriodStart || firstOfMonth,
+        to_date: today,
+    };
+    showCreate.value = true;
 }
 
 function openAssign(session: ClosingSession) {
@@ -415,6 +507,7 @@ async function submitCounts() {
             {
                 items: countRows.value.map((row) => ({
                     id: row.id,
+                    version: row.revision,
                     counted_quantity: Number(row.counted_quantity),
                     notes: row.notes || null,
                 })),
@@ -454,6 +547,80 @@ async function submitForApproval() {
     }
 }
 
+async function uploadProof(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+
+    if (!file || !selectedSession.value) {
+        return;
+    }
+
+    isUploadingProof.value = true;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        await axios.post(
+            `/api/inventory/count-sessions/${selectedSession.value.id}/upload-proof`,
+            formData,
+            { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
+        toast.success('Đã tải bằng chứng chênh lệch.');
+        await router.reload();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể tải bằng chứng.');
+    } finally {
+        isUploadingProof.value = false;
+        (event.target as HTMLInputElement).value = '';
+    }
+}
+
+async function rejectSession() {
+    if (!selectedSession.value) {
+        return;
+    }
+
+    const reason = window.prompt('Nhập lý do từ chối kỳ chốt:');
+
+    if (reason === null || !reason.trim()) {
+        return;
+    }
+
+    isSubmitting.value = true;
+
+    try {
+        await axios.post(
+            `/api/inventory/count-sessions/${selectedSession.value.id}/reject`,
+            { reason },
+        );
+        toast.success('Đã từ chối kỳ chốt.');
+        await router.reload();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể từ chối kỳ chốt.');
+    } finally {
+        isSubmitting.value = false;
+    }
+}
+
+async function reopenSession() {
+    if (!selectedSession.value) {
+        return;
+    }
+
+    isSubmitting.value = true;
+
+    try {
+        await axios.post(
+            `/api/inventory/count-sessions/${selectedSession.value.id}/reopen`,
+        );
+        toast.success('Đã mở lại kỳ chốt để điều chỉnh.');
+        await router.reload();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể mở lại kỳ chốt.');
+    } finally {
+        isSubmitting.value = false;
+    }
+}
+
 async function approveSession() {
     if (
         !selectedSession.value ||
@@ -464,11 +631,33 @@ async function approveSession() {
         return;
     }
 
+    let overrideReason: string | null = null;
+
+    if (
+        props.isOwnerOrSuperAdmin &&
+        (selectedSession.value.counted_by === props.authUserId ||
+            selectedSession.value.second_counted_by === props.authUserId ||
+            selectedSession.value.items?.some(
+                (item) => item.reconciled_by === props.authUserId,
+            ))
+    ) {
+        const reason = window.prompt(
+            'Bạn đang phê duyệt kết quả do chính mình kiểm kê. Nhập lý do ngoại lệ:',
+        );
+
+        if (reason === null || !reason.trim()) {
+            return;
+        }
+
+        overrideReason = reason.trim();
+    }
+
     isSubmitting.value = true;
 
     try {
         const response = await axios.post(
             `/api/inventory/count-sessions/${selectedSession.value.id}/approve`,
+            { override_reason: overrideReason },
         );
         toast.success(
             response.data.message || 'Đã phê duyệt và cập nhật tồn kho.',
@@ -539,7 +728,7 @@ async function reconcileItem(item: ClosingItem) {
     try {
         await axios.post(
             `/api/inventory/count-sessions/${selectedSession.value.id}/items/${item.id}/reconcile`,
-            { final_quantity: Number(finalQuantity), notes },
+            { final_quantity: Number(finalQuantity), notes, version: item.revision },
         );
         toast.success('Đã chốt dòng cần đồng đếm.');
         await router.reload();
@@ -629,7 +818,7 @@ onMounted(openFromQuery);
                     <Button
                         v-if="canManage"
                         class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400 dark:bg-amber-500 dark:text-slate-950"
-                        @click="showCreate = true"
+                        @click="openCreate"
                     >
                         <ClipboardCheck class="size-4" />
                         {{ isBranchMode ? 'Mở kỳ chốt kho' : 'Mở kỳ chốt mới' }}
@@ -871,6 +1060,23 @@ onMounted(openFromQuery);
                             >
                         </div>
                         <div class="flex flex-wrap gap-2">
+                            <label
+                                v-if="
+                                    canManage &&
+                                    selectedSession.status === 'in_progress'
+                                "
+                                class="inline-flex cursor-pointer items-center gap-2 rounded-md border border-sky-300 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300"
+                            >
+                                <UploadCloud class="size-4" />
+                                {{ isUploadingProof ? 'Đang tải...' : 'Tải bằng chứng' }}
+                                <input
+                                    type="file"
+                                    class="hidden"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                                    :disabled="isUploadingProof"
+                                    @change="uploadProof"
+                                />
+                            </label>
                             <Button
                                 v-if="
                                     canManage &&
@@ -885,12 +1091,33 @@ onMounted(openFromQuery);
                             <Button
                                 v-if="
                                     canManage &&
-                                    selectedSession.status === 'in_progress'
+                                    ['in_progress', 'stale'].includes(
+                                        selectedSession.status,
+                                    )
                                 "
                                 variant="outline"
                                 class="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300"
                                 @click="cancelSession"
                                 >Hủy kỳ</Button
+                            >
+                            <Button
+                                v-if="
+                                    canApprove &&
+                                    selectedSession.status === 'pending_approval'
+                                "
+                                variant="outline"
+                                class="border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300"
+                                @click="rejectSession"
+                                ><XCircle class="size-4" /> Từ chối</Button
+                            >
+                            <Button
+                                v-if="
+                                    canManage && selectedSession.status === 'rejected'
+                                "
+                                variant="outline"
+                                class="gap-2 border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300"
+                                @click="reopenSession"
+                                ><RotateCcw class="size-4" /> Mở lại</Button
                             >
                             <Button
                                 variant="ghost"
@@ -902,7 +1129,18 @@ onMounted(openFromQuery);
                     </div>
                 </CardHeader>
                 <CardContent class="space-y-5 p-5">
-                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                    <div
+                        v-if="selectedSession.status === 'stale'"
+                        class="rounded-xl border border-orange-300 bg-orange-50 p-4 text-sm text-orange-900 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200"
+                    >
+                        <strong>Snapshot không còn hợp lệ.</strong>
+                        {{
+                            selectedSession.stale_reason ||
+                            'Ledger đã thay đổi trong kỳ chốt.'
+                        }}
+                        Hãy hủy kỳ này và tạo snapshot mới.
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
                         <div
                             class="rounded-xl border border-border bg-muted/30 p-3"
                         >
@@ -993,6 +1231,36 @@ onMounted(openFromQuery);
                             </p>
                         </div>
                         <div
+                            class="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-500/20 dark:bg-red-500/5"
+                        >
+                            <p class="text-[11px] text-red-700 uppercase dark:text-red-400/70">
+                                Âm sổ
+                            </p>
+                            <p class="mt-1 font-black text-red-900 dark:text-red-300">
+                                {{
+                                    formatCurrency(
+                                        selectedSession.total_negative_value ||
+                                            negativeItems.reduce(
+                                                (sum, item) =>
+                                                    sum +
+                                                    Number(
+                                                        item.system_negative_value ||
+                                                            0,
+                                                    ),
+                                                0,
+                                            ),
+                                    )
+                                }}
+                            </p>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                {{
+                                    selectedSession.negative_item_count ||
+                                    negativeItems.length
+                                }}
+                                nguyên liệu
+                            </p>
+                        </div>
+                        <div
                             class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/5"
                         >
                             <p class="text-[11px] text-amber-700 uppercase dark:text-amber-400/70">
@@ -1005,6 +1273,33 @@ onMounted(openFromQuery);
                                     )
                                 }}
                             </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="unitBreakdownRows.length > 1"
+                        class="rounded-xl border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-500/20 dark:bg-sky-500/5"
+                    >
+                        <p class="text-xs font-bold text-sky-800 dark:text-sky-200">
+                            Tổng hợp theo đơn vị tính
+                        </p>
+                        <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <div
+                                v-for="row in unitBreakdownRows"
+                                :key="row.unit"
+                                class="rounded-lg border border-sky-200/70 bg-background/60 p-3 text-xs dark:border-sky-500/20"
+                            >
+                                <p class="font-bold text-foreground">{{ row.unit }}</p>
+                                <p class="mt-1 text-muted-foreground">
+                                    Phải còn: <strong class="text-foreground">{{ formatNumber(row.expected) }}</strong>
+                                </p>
+                                <p class="text-muted-foreground">
+                                    Thực tế: <strong class="text-foreground">{{ formatNumber(row.counted) }}</strong>
+                                </p>
+                                <p class="text-muted-foreground">
+                                    Chênh lệch: <strong :class="row.variance < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'">{{ formatNumber(row.variance) }}</strong>
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -1280,6 +1575,7 @@ onMounted(openFromQuery);
                             ><Input
                                 v-model="periodForm.from_date"
                                 type="date"
+                                :disabled="Boolean(props.nextPeriodStart)"
                                 class="border-input bg-background"
                             />
                         </div>
@@ -1291,6 +1587,14 @@ onMounted(openFromQuery);
                                 class="border-input bg-background"
                             />
                         </div>
+                    </div>
+                    <div
+                        v-if="props.nextPeriodStart"
+                        class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs leading-5 text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-200"
+                    >
+                        Kỳ mới bắt buộc nối tiếp kỳ đã được xác nhận và bắt đầu từ
+                        {{ props.nextPeriodStart }}. Mốc này không thể tự sửa để
+                        tránh bỏ trống hoặc chồng lấn ngày.
                     </div>
                     <div
                         class="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs leading-5 text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/5 dark:text-sky-200"

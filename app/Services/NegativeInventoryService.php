@@ -137,17 +137,15 @@ class NegativeInventoryService
 
         if ($activeCases->isNotEmpty()) {
             foreach ($activeCases as $case) {
+                $fromStatus = $case->status;
                 $case->update([
-                    'status' => 'resolved',
                     'negative_quantity' => 0,
                     'verification_status' => 'ready',
-                    'resolved_at' => now(),
-                    'resolution_type' => 'restocked',
-                    'resolution_note' => 'Tự động đóng hồ sơ: đã nhập hàng bổ sung và số tồn kho đã về mức không còn âm (>= 0).',
                     'last_activity_at' => now(),
                 ]);
-                $this->recordEvent($case, 'stock_replenished_and_resolved', $case->status, 'resolved', 'Tự động hoàn tất và đóng hồ sơ sau khi nhập hàng bù (tồn kho >= 0).', [
+                $this->recordEvent($case, 'stock_replenished_ready_for_verification', $fromStatus, $fromStatus, 'Tồn kho đã về mức không còn âm; chờ người dùng gửi và hoàn tất đối chiếu độc lập.', [
                     'on_hand' => $onHand,
+                    'source_transaction_id' => $sourceTransaction?->id,
                 ]);
             }
         }
@@ -232,7 +230,7 @@ class NegativeInventoryService
                 }
             });
 
-        // Tự động đóng hồ sơ nếu tồn kho thực tế đã được bù (>= 0)
+        // Không tự động đóng hồ sơ khi tồn kho đã được bù; vẫn cần xác minh độc lập.
         InventoryNegativeCase::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn (Builder $query) => $query->where('branch_id', $branchId))
@@ -240,16 +238,13 @@ class NegativeInventoryService
             ->whereHas('inventory', fn (Builder $q) => $q->where('quantity_on_hand', '>=', -0.0005))
             ->chunkById(100, function (Collection $cases): void {
                 foreach ($cases as $case) {
+                    $fromStatus = $case->status;
                     $case->update([
-                        'status' => 'resolved',
                         'negative_quantity' => 0,
                         'verification_status' => 'ready',
-                        'resolved_at' => now(),
-                        'resolution_type' => 'restocked',
-                        'resolution_note' => 'Tự động đóng hồ sơ: tồn kho đã về mức không còn âm (>= 0).',
                         'last_activity_at' => now(),
                     ]);
-                    $this->recordEvent($case, 'stock_replenished_and_resolved', $case->status, 'resolved', 'Tự động hoàn tất và đóng hồ sơ sau khi tồn kho >= 0.');
+                    $this->recordEvent($case, 'stock_replenished_ready_for_verification', $fromStatus, $fromStatus, 'Tồn kho đã về mức không còn âm; chờ đối chiếu độc lập.');
                 }
             });
     }
@@ -514,6 +509,12 @@ class NegativeInventoryService
         if ($case->status !== 'pending_verification') {
             throw ValidationException::withMessages(['case' => 'Hồ sơ chưa ở bước chờ đối chiếu độc lập.']);
         }
+        if (blank(trim((string) $case->handling_plan)) || blank(trim((string) $case->root_cause_code))) {
+            throw ValidationException::withMessages(['case' => 'Hồ sơ phải có phương án xử lý và nguyên nhân trước khi xác minh.']);
+        }
+        if (! $case->verification_transaction_id) {
+            throw ValidationException::withMessages(['case' => 'Chưa có giao dịch bù/điều chỉnh hợp lệ để xác minh.']);
+        }
         if (! $actor->isOwner() && ! $actor->isSuperAdmin() && (int) $case->responsible_user_id === (int) $actor->id) {
             throw ValidationException::withMessages(['case' => 'Người lập phương án không được tự xác minh hồ sơ của chính mình.']);
         }
@@ -561,6 +562,11 @@ class NegativeInventoryService
     {
         if ($case->status === 'pending_verification') {
             return $this->verifyAndResolve($case, $actor, $resolutionType, $resolutionNote);
+        }
+        if ($case->verification_status === 'ready') {
+            throw ValidationException::withMessages([
+                'case' => 'Hồ sơ đã được bù tồn nhưng chưa được gửi và xác minh độc lập. Hãy thực hiện bước đối chiếu trước khi đóng.',
+            ]);
         }
         $this->assertActorScope($case, $actor);
         $this->assertCanManage($actor);

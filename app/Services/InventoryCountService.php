@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryCountEvent;
 use App\Models\InventoryCountItem;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
 class InventoryCountService
@@ -101,6 +103,7 @@ class InventoryCountService
     public function submitCounts(InventoryCountSession $session, User $user, array $countedItems, bool $isSecondCounter = false): InventoryCountSession
     {
         $this->assertSessionScope($session, $user);
+        $this->materialClosing->assertFresh($session);
 
         return DB::transaction(function () use ($session, $user, $countedItems, $isSecondCounter) {
             $session = InventoryCountSession::whereKey($session->id)
@@ -110,6 +113,28 @@ class InventoryCountService
 
             if ($session->status !== 'in_progress') {
                 throw new InvalidArgumentException('Phien kiem ke da duoc xu ly, khong the ghi them ket qua.');
+            }
+
+            $isClosing = in_array($session->type, ['material_closing', 'branch_closing'], true);
+            $sessionItemIds = InventoryCountItem::where('count_session_id', $session->id)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+            $submittedIds = collect($countedItems)
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->sort()
+                ->values()
+                ->all();
+
+            if (count($submittedIds) !== count(array_unique($submittedIds))) {
+                throw new InvalidArgumentException('Không được gửi trùng dòng nguyên liệu trong một lần nộp.');
+            }
+
+            if ($isClosing && $submittedIds !== $sessionItemIds) {
+                throw new InvalidArgumentException('Kỳ chốt phải gửi đủ và đúng toàn bộ dòng nguyên liệu. Hãy dùng lưu nháp nếu chưa hoàn tất.');
             }
 
             // Gán người đếm 2 trong cùng transaction với kết quả đếm để tránh
@@ -146,8 +171,25 @@ class InventoryCountService
                     ->first();
 
                 if (! $item) {
-                    continue;
+                    throw new InvalidArgumentException('Dòng nguyên liệu không thuộc phiên kiểm kê này.');
                 }
+
+                if (array_key_exists('version', $counted)
+                    && $counted['version'] !== null
+                    && (int) $counted['version'] !== (int) ($item->revision ?? 0)) {
+                    throw new InvalidArgumentException('Dữ liệu kiểm đếm đã thay đổi ở nơi khác. Hãy tải lại phiên trước khi ghi tiếp.');
+                }
+
+                $before = $item->only([
+                    'counted_quantity_1',
+                    'counted_quantity_2',
+                    'final_quantity',
+                    'variance_quantity',
+                    'variance_percent',
+                    'variance_value',
+                    'reconciliation_status',
+                    'revision',
+                ]);
 
                 $qty = (float) $counted['counted_quantity'];
 
@@ -168,6 +210,7 @@ class InventoryCountService
                     'counted_quantity_1' => $item->counted_quantity_1,
                     'counted_quantity_2' => $item->counted_quantity_2,
                     'notes' => $counted['notes'] ?? $item->notes,
+                    'revision' => (int) ($item->revision ?? 0) + 1,
                 ];
 
                 if ($hasBothCounts && ! $countsMatch) {
@@ -196,6 +239,15 @@ class InventoryCountService
                 }
 
                 $item->update($updates);
+
+                $this->recordEvent(
+                    $session,
+                    $user,
+                    'count_submitted',
+                    $item,
+                    $before,
+                    $item->fresh()->only(array_keys($before)),
+                );
             }
 
             $totalVarianceVal = (float) InventoryCountItem::where('count_session_id', $session->id)
@@ -250,10 +302,16 @@ class InventoryCountService
         int $itemId,
         float $finalQuantity,
         string $notes,
+        ?int $expectedRevision = null,
     ): InventoryCountSession {
         $this->assertSessionScope($session, $user);
+        $this->materialClosing->assertFresh($session);
 
-        return DB::transaction(function () use ($session, $user, $itemId, $finalQuantity, $notes) {
+        if ($finalQuantity < 0) {
+            throw new InvalidArgumentException('Số lượng cuối cùng không được âm.');
+        }
+
+        return DB::transaction(function () use ($session, $user, $itemId, $finalQuantity, $notes, $expectedRevision) {
             $lockedSession = InventoryCountSession::whereKey($session->id)
                 ->where('restaurant_id', $user->restaurant_id)
                 ->lockForUpdate()
@@ -263,11 +321,26 @@ class InventoryCountService
                 throw new InvalidArgumentException('Chi co the doi soat dong dem khi phien dang dien ra.');
             }
 
+            $isClosing = in_array($lockedSession->type, ['material_closing', 'branch_closing'], true);
+            if ($isClosing
+                && ! $user->isOwner()
+                && ! $user->isSuperAdmin()
+                && in_array((int) $user->id, array_filter([
+                    (int) $lockedSession->counted_by,
+                    (int) $lockedSession->second_counted_by,
+                ]), true)) {
+                throw new InvalidArgumentException('Người đếm không được tự đối chiếu dòng chốt của chính mình. Hãy giao cho người độc lập.');
+            }
+
             $item = InventoryCountItem::where('count_session_id', $lockedSession->id)
                 ->whereKey($itemId)
                 ->with('ingredient')
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ($expectedRevision !== null && (int) ($item->revision ?? 0) !== $expectedRevision) {
+                throw new InvalidArgumentException('Dữ liệu đối chiếu đã thay đổi ở nơi khác. Hãy tải lại phiên trước khi ghi tiếp.');
+            }
 
             if ($item->counted_quantity_1 === null || $item->counted_quantity_2 === null) {
                 throw new InvalidArgumentException('Dong hang phai co du ca hai lan dem truoc khi doi soat.');
@@ -276,6 +349,17 @@ class InventoryCountService
             if (blank(trim($notes))) {
                 throw new InvalidArgumentException('Bat buoc ghi chu khi chot ket qua doi soat.');
             }
+
+            $before = $item->only([
+                'final_quantity',
+                'variance_quantity',
+                'variance_percent',
+                'variance_value',
+                'reconciliation_status',
+                'reconciliation_notes',
+                'reconciled_by',
+                'revision',
+            ]);
 
             $expected = (float) $item->expected_quantity;
             $variance = $finalQuantity - $expected;
@@ -292,7 +376,17 @@ class InventoryCountService
                 'reconciliation_notes' => trim($notes),
                 'reconciled_by' => $user->id,
                 'reconciled_at' => now(),
+                'revision' => (int) ($item->revision ?? 0) + 1,
             ]);
+
+            $this->recordEvent(
+                $lockedSession,
+                $user,
+                'item_reconciled',
+                $item,
+                $before,
+                $item->fresh()->only(array_keys($before)),
+            );
 
             $totalVarianceValue = (float) InventoryCountItem::where('count_session_id', $lockedSession->id)
                 ->sum(DB::raw('ABS(variance_value)'));
@@ -305,6 +399,8 @@ class InventoryCountService
 
     public function finalizeAndSubmitForApproval(InventoryCountSession $session, ?string $variancePhotoPath = null, ?string $notes = null): InventoryCountSession
     {
+        $this->materialClosing->assertFresh($session);
+
         return DB::transaction(function () use ($session, $variancePhotoPath, $notes) {
             $session = InventoryCountSession::whereKey($session->id)
                 ->where('restaurant_id', $session->restaurant_id)
@@ -334,7 +430,7 @@ class InventoryCountService
             $maxVarPct = (float) $session->items->max(fn ($item) => abs((float) $item->variance_percent));
             $isOver = $governance->isVarianceOverThreshold($session->restaurant_id, $totalLoss, $maxVarPct);
 
-            if ($isOver && blank($variancePhotoPath) && blank($session->variance_photo_path)) {
+            if ($isOver && ! $this->hasValidVarianceProof($session, $variancePhotoPath)) {
                 throw new InvalidArgumentException('Sai lệch vượt quá ngưỡng cho phép của quy tắc quản trị. Bắt buộc đính kèm ảnh bằng chứng hoặc biên bản giải trình!');
             }
 
@@ -343,6 +439,11 @@ class InventoryCountService
                 'requires_owner_approval' => $isOver,
                 'variance_photo_path' => $variancePhotoPath ?: $session->variance_photo_path,
                 'notes' => $notes ? ($session->notes."\n[Gửi duyệt]: ".$notes) : $session->notes,
+            ]);
+
+            $this->recordEvent($session, null, 'submitted_for_approval', null, ['status' => 'in_progress'], [
+                'status' => 'pending_approval',
+                'requires_owner_approval' => $isOver,
             ]);
 
             return $session->fresh();
@@ -377,6 +478,11 @@ class InventoryCountService
                 'rejected_at' => now(),
             ]);
 
+            $this->recordEvent($lockedSession, $approver, 'rejected', null, ['status' => 'pending_approval'], [
+                'status' => 'rejected',
+                'reason' => trim($reason),
+            ]);
+
             return $lockedSession->fresh(['items.ingredient.unit', 'rejectedBy']);
         });
     }
@@ -395,9 +501,29 @@ class InventoryCountService
                 throw new InvalidArgumentException('Chi phien da bi tu choi moi co the mo lai.');
             }
 
+            $hasReplacement = InventoryCountSession::where('restaurant_id', $lockedSession->restaurant_id)
+                ->where('branch_id', $lockedSession->branch_id)
+                ->where('type', $lockedSession->type)
+                ->where('id', '<>', $lockedSession->id)
+                ->whereNotIn('status', ['cancelled', 'rejected'])
+                ->whereNotNull('period_start')
+                ->whereNotNull('period_end')
+                ->whereDate('period_start', '<=', $lockedSession->period_end)
+                ->whereDate('period_end', '>=', $lockedSession->period_start)
+                ->exists();
+            if ($hasReplacement) {
+                throw new InvalidArgumentException('Đã có kỳ chốt khác trùng thời gian. Không thể mở lại kỳ bị từ chối; hãy tiếp tục trên kỳ thay thế.');
+            }
+
             $lockedSession->update([
                 'status' => 'in_progress',
                 'completed_at' => null,
+                'stale_at' => null,
+                'stale_reason' => null,
+            ]);
+
+            $this->recordEvent($lockedSession, $user, 'reopened', null, ['status' => 'rejected'], [
+                'status' => 'in_progress',
             ]);
 
             return $lockedSession->fresh(['items.ingredient.unit', 'countedBy', 'secondCountedBy']);
@@ -418,7 +544,7 @@ class InventoryCountService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! in_array($lockedSession->status, ['draft', 'in_progress', 'pending_approval'], true)) {
+            if (! in_array($lockedSession->status, ['draft', 'in_progress', 'pending_approval', 'stale'], true)) {
                 throw new InvalidArgumentException('Phien kiem ke nay khong con o trang thai co the huy.');
             }
 
@@ -429,21 +555,36 @@ class InventoryCountService
                 'cancelled_at' => now(),
             ]);
 
+            $this->recordEvent($lockedSession, $user, 'cancelled', null, ['status' => $lockedSession->getOriginal('status')], [
+                'status' => 'cancelled',
+                'reason' => trim($reason),
+            ]);
+
             return $lockedSession->fresh(['items.ingredient.unit', 'cancelledBy']);
         });
     }
 
-    public function approveCountSession(InventoryCountSession $session, User $approver): InventoryCountSession
+    public function approveCountSession(
+        InventoryCountSession $session,
+        User $approver,
+        ?string $overrideReason = null,
+    ): InventoryCountSession
     {
         $this->assertSessionScope($session, $approver);
+        $this->materialClosing->assertFresh($session);
 
         if ($session->status !== 'pending_approval') {
             throw new InvalidArgumentException('Chỉ phiên kiểm kê ở trạng thái chờ duyệt mới có thể phê duyệt.');
         }
 
-        // Self-approval check: người đếm 1 không được tự duyệt trừ khi là Owner/Super Admin
-        if ($session->counted_by === $approver->id && ! $approver->isOwner() && ! $approver->isSuperAdmin()) {
+        // Self-approval is forbidden. Owner/Super Admin may override only with a recorded reason.
+        $isParticipant = $this->isParticipant($session, $approver);
+        $isPrivilegedOverride = $approver->isOwner() || $approver->isSuperAdmin();
+        if ($isParticipant && ! $isPrivilegedOverride) {
             throw new InvalidArgumentException('Người thực hiện đếm không được tự phê duyệt kết quả kiểm kê của chính mình!');
+        }
+        if ($isParticipant && blank($overrideReason)) {
+            throw new InvalidArgumentException('Phê duyệt ngoại lệ cho kết quả tự kiểm kê phải nêu rõ lý do.');
         }
 
         // Phân quyền hạn mức: nếu vượt ngưỡng thì chỉ Owner/Super Admin mới duyệt được
@@ -451,7 +592,7 @@ class InventoryCountService
             throw new InvalidArgumentException('Phiên kiểm kê này có sai lệch vượt ngưỡng quy chuẩn, bắt buộc Chủ nhà hàng phê duyệt.');
         }
 
-        return DB::transaction(function () use ($session, $approver) {
+        return DB::transaction(function () use ($session, $approver, $overrideReason) {
             $session = InventoryCountSession::whereKey($session->id)
                 ->where('restaurant_id', $approver->restaurant_id)
                 ->with('items.ingredient.unit')
@@ -462,8 +603,13 @@ class InventoryCountService
                 throw new InvalidArgumentException('Phien kiem ke da duoc xu ly hoac khong con cho phe duyet.');
             }
 
-            if ($session->counted_by === $approver->id && ! $approver->isOwner() && ! $approver->isSuperAdmin()) {
+            $isParticipant = $this->isParticipant($session, $approver);
+            $isPrivilegedOverride = $approver->isOwner() || $approver->isSuperAdmin();
+            if ($isParticipant && ! $isPrivilegedOverride) {
                 throw new InvalidArgumentException('Nguoi thuc hien dem khong duoc tu phe duyet ket qua cua chinh minh.');
+            }
+            if ($isParticipant && blank($overrideReason)) {
+                throw new InvalidArgumentException('Phe duyet ngoai le phai co ly do de luu nhat ky.');
             }
 
             if ($session->requires_owner_approval && ! $approver->isOwner() && ! $approver->isSuperAdmin()) {
@@ -496,16 +642,11 @@ class InventoryCountService
                 $direction = $variance > 0 ? 'in' : 'out';
                 $absQty = abs($variance);
                 $quantityBefore = (float) $inventory->quantity_on_hand;
+                $physicalQuantity = $quantityBefore + $variance;
                 $quantityAfter = $direction === 'in'
                     ? $quantityBefore + $absQty
                     : $quantityBefore - $absQty;
                 $theoreticalBefore = $inventory->effectiveTheoreticalQuantity();
-                $inventory->update([
-                    'quantity_on_hand' => $quantityAfter,
-                    'theoretical_quantity' => $direction === 'in'
-                        ? $theoreticalBefore + $absQty
-                        : $theoreticalBefore - $absQty,
-                ]);
 
                 // Ghi Ledger Bất Biến
                 $transaction = InventoryTransaction::createWithIdempotency([
@@ -527,6 +668,21 @@ class InventoryCountService
                     'quantity_after' => $quantityAfter,
                     'occurred_at' => now(),
                 ]);
+                app(InventoryService::class)->reconcileBatchesForStocktake(
+                    $inventory,
+                    $quantityBefore,
+                    $physicalQuantity,
+                    $transaction,
+                    $approver->id,
+                );
+
+                $inventory->update([
+                    'quantity_on_hand' => $quantityAfter,
+                    'theoretical_quantity' => $direction === 'in'
+                        ? $theoreticalBefore + $absQty
+                        : $theoreticalBefore - $absQty,
+                ]);
+
                 app(NegativeInventoryService::class)->sync($inventory, $transaction);
 
                 // Cập nhật last_counted_at
@@ -538,12 +694,92 @@ class InventoryCountService
                 'approved_by' => $approver->id,
                 'approved_at' => now(),
                 'completed_at' => now(),
+                'approval_override_reason' => $isParticipant ? trim((string) $overrideReason) : null,
+            ]);
+
+            $this->recordEvent($session, $approver, 'approved', null, ['status' => 'pending_approval'], [
+                'status' => 'approved',
+                'approved_by' => $approver->id,
+                'approval_override' => $isParticipant,
+                'override_reason' => $isParticipant ? trim((string) $overrideReason) : null,
             ]);
 
             $this->materialClosing->refreshSummary($session);
 
             return $session->fresh(['items.ingredient.unit', 'approver']);
         });
+    }
+
+    private function isParticipant(InventoryCountSession $session, User $approver): bool
+    {
+        if (in_array((int) $approver->id, array_filter([
+            (int) $session->counted_by,
+            (int) $session->second_counted_by,
+        ]), true)) {
+            return true;
+        }
+
+        return $session->items()->where('reconciled_by', $approver->id)->exists();
+    }
+
+    private function hasValidVarianceProof(InventoryCountSession $session, ?string $candidate): bool
+    {
+        $storedPath = trim((string) ($session->variance_proof_path ?: ''));
+        if ($storedPath !== '' && $this->storedProofMatches($storedPath, (string) ($session->variance_proof_hash ?: ''))) {
+            return true;
+        }
+
+        $candidate = trim((string) ($candidate ?: $session->variance_photo_path ?: ''));
+        if ($candidate === '' || str_contains($candidate, '://')) {
+            return false;
+        }
+
+        foreach (['local', 'public'] as $diskName) {
+            $disk = Storage::disk($diskName);
+            if ($disk->exists($candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function storedProofMatches(string $path, string $expectedHash): bool
+    {
+        foreach (['local', 'public'] as $diskName) {
+            $disk = Storage::disk($diskName);
+            if (! $disk->exists($path)) {
+                continue;
+            }
+
+            if ($expectedHash === '') {
+                return true;
+            }
+
+            return hash_file('sha256', $disk->path($path)) === $expectedHash;
+        }
+
+        return false;
+    }
+
+    private function recordEvent(
+        InventoryCountSession $session,
+        ?User $user,
+        string $eventType,
+        ?InventoryCountItem $item,
+        ?array $oldValues,
+        ?array $newValues,
+    ): void {
+        InventoryCountEvent::create([
+            'restaurant_id' => $session->restaurant_id,
+            'branch_id' => $session->branch_id,
+            'count_session_id' => $session->id,
+            'count_item_id' => $item?->id,
+            'user_id' => $user?->id,
+            'event_type' => $eventType,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+        ]);
     }
 
     private function assertSessionScope(InventoryCountSession $session, User $user): void

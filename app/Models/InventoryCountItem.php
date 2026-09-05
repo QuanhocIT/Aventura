@@ -12,6 +12,13 @@ class InventoryCountItem extends Model
 
     protected $guarded = [];
 
+    protected $appends = [
+        'inventory_status',
+        'system_negative',
+        'system_negative_quantity',
+        'system_negative_value',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -30,6 +37,7 @@ class InventoryCountItem extends Model
             'variance_percent' => 'decimal:2',
             'variance_value' => 'decimal:2',
             'reconciled_at' => 'datetime',
+            'revision' => 'integer',
         ];
     }
 
@@ -51,5 +59,55 @@ class InventoryCountItem extends Model
     public function reconciledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reconciled_by');
+    }
+
+    public function events(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(InventoryCountEvent::class, 'count_item_id');
+    }
+
+    public function getSystemNegativeAttribute(): bool
+    {
+        return (float) $this->expected_quantity < -0.0005;
+    }
+
+    public function getSystemNegativeQuantityAttribute(): float
+    {
+        return $this->system_negative
+            ? round(abs((float) $this->expected_quantity), 3)
+            : 0.0;
+    }
+
+    public function getSystemNegativeValueAttribute(): float
+    {
+        return $this->system_negative
+            ? round($this->system_negative_quantity * (float) $this->unit_cost, 2)
+            : 0.0;
+    }
+
+    public function getInventoryStatusAttribute(): string
+    {
+        if ($this->reconciliation_status === 'pending') {
+            return 'recount_required';
+        }
+
+        if ($this->final_quantity === null) {
+            return 'uncounted';
+        }
+
+        if ($this->system_negative) {
+            return 'negative_stock';
+        }
+
+        $variance = (float) $this->variance_quantity;
+        if ($variance < -0.0005) {
+            return 'shortage';
+        }
+
+        if ($variance > 0.0005) {
+            return 'surplus';
+        }
+
+        return 'matched';
     }
 }

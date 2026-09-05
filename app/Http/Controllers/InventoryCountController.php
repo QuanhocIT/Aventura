@@ -109,6 +109,7 @@ class InventoryCountController extends Controller
             'authUserId' => $user->id,
             'canStartCount' => $user->can('inventory.count') || $user->can('inventory.count.execute') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
             'canApprove' => $user->can('inventory.adjust.approve') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
+            'isOwnerOrSuperAdmin' => $user->isOwner() || $user->isSuperAdmin(),
             'isCentralWarehouseScope' => $isCentralWarehouseScope,
             'scopeLabel' => $isCentralWarehouseScope
                 ? ($centralWarehouse?->name ?? 'Kho Tổng')
@@ -175,6 +176,7 @@ class InventoryCountController extends Controller
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer',
+            'items.*.version' => 'nullable|integer|min:0',
             'items.*.counted_quantity' => 'required|numeric|min:0',
             'items.*.notes' => 'nullable|string',
             'is_second_counter' => 'nullable|boolean',
@@ -243,6 +245,7 @@ class InventoryCountController extends Controller
         $data = $request->validate([
             'final_quantity' => 'required|numeric|min:0',
             'notes' => 'required|string|max:1000',
+            'version' => 'nullable|integer|min:0',
         ]);
 
         try {
@@ -252,6 +255,7 @@ class InventoryCountController extends Controller
                 $itemId,
                 (float) $data['final_quantity'],
                 $data['notes'],
+                array_key_exists('version', $data) ? $data['version'] : null,
             );
 
             return response()->json([
@@ -364,8 +368,12 @@ class InventoryCountController extends Controller
         $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSessionBranch($user, $session);
 
+        $data = $request->validate([
+            'override_reason' => 'nullable|string|max:1000',
+        ]);
+
         try {
-            $updated = $this->countService->approveCountSession($session, $user);
+            $updated = $this->countService->approveCountSession($session, $user, $data['override_reason'] ?? null);
             User::whereKey($updated->counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'approved'));
             User::whereKey($updated->second_counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'approved'));
 
@@ -456,6 +464,12 @@ class InventoryCountController extends Controller
         $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSessionBranch($user, $session);
 
+        abort_unless(
+            $session->status === 'in_progress',
+            422,
+            'Chỉ được tải bằng chứng khi phiên kiểm kê đang thực hiện.',
+        );
+
         $request->validate([
             'file' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
         ]);
@@ -467,6 +481,7 @@ class InventoryCountController extends Controller
         $session->update([
             'variance_proof_path' => $path,
             'variance_proof_hash' => $hash,
+            'variance_photo_path' => $path,
         ]);
 
         return response()->json([

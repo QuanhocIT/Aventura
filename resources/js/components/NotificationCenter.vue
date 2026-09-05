@@ -216,6 +216,7 @@ async function loadDatabaseNotifications() {
             }
 
             let targetUrl = notification.url;
+
             if (
                 notification.type === 'supply_request_created' ||
                 notification.title?.includes('Yêu cầu cấp hàng') ||

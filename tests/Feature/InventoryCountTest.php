@@ -10,6 +10,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Services\InventoryCountService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class InventoryCountTest extends TestCase
@@ -59,9 +60,11 @@ class InventoryCountTest extends TestCase
         $this->assertEquals(-4, $countedSession->items->first()->variance_quantity);
 
         // 3. Finalize and submit for approval
+        Storage::fake('local');
+        Storage::disk('local')->put('photos/variance.jpg', 'proof');
         $submittedSession = $service->finalizeAndSubmitForApproval(
             $countedSession,
-            '/photos/variance.jpg',
+            'photos/variance.jpg',
             'Đã giải trình chi tiết'
         );
         $this->assertEquals('pending_approval', $submittedSession->status);
@@ -142,7 +145,9 @@ class InventoryCountTest extends TestCase
         $this->assertSame('resolved', $reconciled->items->first()->reconciliation_status);
         $this->assertEquals(45, $reconciled->items->first()->final_quantity);
 
-        $submitted = $service->finalizeAndSubmitForApproval($reconciled, '/photos/recount.jpg');
+        Storage::fake('local');
+        Storage::disk('local')->put('photos/recount.jpg', 'proof');
+        $submitted = $service->finalizeAndSubmitForApproval($reconciled, 'photos/recount.jpg');
         $this->assertSame('pending_approval', $submitted->status);
     }
 

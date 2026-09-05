@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryCountItem;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
@@ -15,6 +16,8 @@ use App\Services\MaterialClosingService;
 use App\Services\WarehouseTaskService;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 class MaterialClosingTest extends TestCase
@@ -108,7 +111,9 @@ class MaterialClosingTest extends TestCase
         $counted = InventoryCountSession::findOrFail($session->id);
         $this->assertEquals(500, $counted->fresh()->total_shortage_value);
 
-        $submitted = app(InventoryCountService::class)->finalizeAndSubmitForApproval($counted, '/proof/closing.jpg');
+        Storage::fake('local');
+        Storage::disk('local')->put('proof/closing.jpg', 'proof');
+        $submitted = app(InventoryCountService::class)->finalizeAndSubmitForApproval($counted, 'proof/closing.jpg');
         app(InventoryCountService::class)->approveCountSession($submitted, $approver);
 
         $this->assertEquals(65, $inventory->fresh()->quantity_on_hand);
@@ -119,6 +124,107 @@ class MaterialClosingTest extends TestCase
             'direction' => 'out',
             'quantity' => 5,
         ]);
+    }
+
+    public function test_next_material_closing_must_start_at_last_approved_boundary(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $central = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+            'status' => 'active',
+        ]);
+        $unit = Unit::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Kilogram',
+            'symbol' => 'kg',
+            'type' => 'mass',
+        ]);
+        $ingredient = Ingredient::create([
+            'restaurant_id' => $restaurant->id,
+            'unit_id' => $unit->id,
+            'name' => 'Nguyên liệu liên kỳ',
+            'sku' => 'CONTIGUOUS-01',
+            'average_cost' => 100,
+        ]);
+        Inventory::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $central->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity_on_hand' => 10,
+            'last_cost' => 100,
+        ]);
+
+        $manager = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'warehouse_branch_id' => $central->id,
+        ]);
+        $manager->assignRole('warehouse_manager');
+
+        $previous = InventoryCountSession::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $central->id,
+            'type' => 'material_closing',
+            'status' => 'approved',
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-15',
+            'period_start_at' => '2026-08-01 00:00:00',
+            'period_end_at' => '2026-08-15 23:59:59',
+            'counted_by' => $manager->id,
+            'approved_by' => $manager->id,
+            'approved_at' => '2026-08-16 09:00:00',
+        ]);
+
+        try {
+            app(MaterialClosingService::class)->start(
+                $restaurant->id,
+                $central->id,
+                $manager,
+                '2026-08-20',
+                '2026-08-31',
+            );
+            $this->fail('A gap after the last approved closing must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertStringContainsString('15/08/2026', $exception->getMessage());
+        }
+
+        $next = app(MaterialClosingService::class)->start(
+            $restaurant->id,
+            $central->id,
+            $manager,
+            '2026-08-15',
+            '2026-08-31',
+        );
+
+        $this->assertSame($previous->id, (int) $next->previous_session_id);
+        $this->assertSame('2026-08-15', $next->period_start->toDateString());
+        $this->assertSame('2026-08-16 00:00:00', $next->period_start_at->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-08-31 23:59:59', $next->period_end_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_count_item_distinguishes_negative_stock_from_shortage(): void
+    {
+        $negative = new InventoryCountItem([
+            'expected_quantity' => -5,
+            'unit_cost' => 100,
+            'final_quantity' => 0,
+            'variance_quantity' => 5,
+        ]);
+
+        $shortage = new InventoryCountItem([
+            'expected_quantity' => 10,
+            'unit_cost' => 100,
+            'final_quantity' => 7,
+            'variance_quantity' => -3,
+        ]);
+
+        $this->assertSame('negative_stock', $negative->inventory_status);
+        $this->assertTrue($negative->system_negative);
+        $this->assertSame(5.0, $negative->system_negative_quantity);
+        $this->assertSame(500.0, $negative->system_negative_value);
+        $this->assertSame('shortage', $shortage->inventory_status);
+        $this->assertFalse($shortage->system_negative);
     }
 
     private function transaction(

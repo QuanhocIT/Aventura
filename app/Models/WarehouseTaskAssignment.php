@@ -32,6 +32,7 @@ class WarehouseTaskAssignment extends Model
     {
         return [
             'due_at' => 'datetime',
+            'overdue_notified_at' => 'datetime',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'evidence_paths' => 'array',

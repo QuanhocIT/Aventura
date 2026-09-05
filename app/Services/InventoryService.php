@@ -240,6 +240,11 @@ class InventoryService
         }
 
         // Áp dụng lockForUpdate để tránh tranh chấp khi cộng kho mua hàng đồng thời
+        $occurredAt = ! empty($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : now();
+        if ($occurredAt->isFuture()) {
+            throw new \InvalidArgumentException('Thời điểm ghi nhận tồn kho không được ở tương lai.');
+        }
+
         $inventory = Inventory::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('ingredient_id', $ingredient->id)
@@ -264,7 +269,6 @@ class InventoryService
         $this->ensureLegacyBatchForInventory($inventory);
         if (! empty($data['expiry_date'])) {
             $expiry = Carbon::parse($data['expiry_date']);
-            $occurredAt = ! empty($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : now();
             if ($expiry->diffInDays($occurredAt, false) > -3) {
                 throw new \InvalidArgumentException('Expiry date must be at least 3 days after receiving date.');
             }
@@ -284,7 +288,7 @@ class InventoryService
             'total_cost' => $newQty * $newCost,
             'invoice_file_url' => $data['invoice_file_url'] ?? null,
             'notes' => $data['notes'] ?? null,
-            'occurred_at' => $data['occurred_at'] ?? now(),
+            'occurred_at' => $occurredAt,
             'idempotency_key' => $data['idempotency_key'] ?? null,
         ];
         $transaction = ! empty($data['idempotency_key'])
@@ -304,7 +308,7 @@ class InventoryService
             'batch_number' => $this->resolveBatchNumber($data),
             'quantity_remaining' => $newQty,
             'unit_cost' => $newCost,
-            'purchased_at' => $data['occurred_at'] ?? now(),
+            'purchased_at' => $occurredAt,
             'expiry_date' => $data['expiry_date'] ?? null,
             'supplier_id' => $data['supplier_id'] ?? null,
             'status' => 'active',

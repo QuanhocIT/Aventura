@@ -65,6 +65,20 @@ class MaterialClosingController extends Controller
         }
 
         $sessions = $sessionsQuery->get();
+        $sessions->each(function (InventoryCountSession $session): void {
+            if ($this->closingService->markStaleIfNeeded($session)) {
+                $session->refresh()->load([
+                    'items.ingredient.unit',
+                    'items.reconciledBy',
+                    'branch',
+                    'countedBy',
+                    'secondCountedBy',
+                    'approver',
+                    'rejectedBy',
+                    'cancelledBy',
+                ]);
+            }
+        });
         $sessionIds = $sessions->pluck('id');
         $tasks = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
             ->where('task_type', 'counting')
@@ -83,12 +97,18 @@ class MaterialClosingController extends Controller
             ],
             'branches' => [],
             'selectedBranchId' => (int) $centralBranch->id,
+            'nextPeriodStart' => $this->closingService->nextPeriodStartDate(
+                (int) $user->restaurant_id,
+                (int) $centralBranch->id,
+                'material_closing',
+            ),
             'sessions' => $sessions,
             'tasks' => $tasks,
             'counterCandidates' => $canManage ? $this->taskService->getWarehouseStaff($user->restaurant_id) : [],
             'authUserId' => (int) $user->id,
             'canManage' => $canManage,
             'canApprove' => $user->can('inventory.adjust.approve') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
+            'isOwnerOrSuperAdmin' => $user->isOwner() || $user->isSuperAdmin(),
             'isWarehouseStaff' => $user->hasRole('warehouse_staff'),
             'scopeMessage' => 'Kỳ chốt chỉ lấy dữ liệu Kho Tổng; không lấy nhà cung cấp và không mở rộng sang chi nhánh khác.',
         ]);
@@ -180,6 +200,7 @@ class MaterialClosingController extends Controller
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.id' => 'required|integer',
+            'items.*.version' => 'nullable|integer|min:0',
             'items.*.counted_quantity' => 'required|numeric|min:0',
             'items.*.notes' => 'nullable|string|max:1000',
         ]);
@@ -195,7 +216,13 @@ class MaterialClosingController extends Controller
                 ->whereIn('status', ['assigned', 'in_progress'])
                 ->first();
 
-            if ($task) {
+            $countingComplete = $updated->items->every(function ($item) use ($isSecondCounter): bool {
+                return $isSecondCounter
+                    ? $item->counted_quantity_2 !== null
+                    : $item->counted_quantity_1 !== null;
+            });
+
+            if ($task && $countingComplete) {
                 if ($task->status === 'assigned') {
                     $this->taskService->updateTaskStatus($task, $user, 'in_progress');
                 }

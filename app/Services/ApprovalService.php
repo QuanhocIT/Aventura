@@ -791,6 +791,15 @@ class ApprovalService
 
     private function executeStocktake(array $data, int $restaurantId, int $performedBy, ?int $approvedBy = null): void
     {
+        if (! empty($data['count_session_id'])) {
+            $session = InventoryCountSession::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $data['branch_id'] ?? 0)
+                ->findOrFail($data['count_session_id']);
+            if (in_array($session->type, ['material_closing', 'branch_closing'], true)) {
+                throw new \InvalidArgumentException('Kỳ chốt nguyên liệu/kho phải được phê duyệt qua workflow kiểm kê nâng cao.');
+            }
+        }
+
         DB::transaction(function () use ($data, $restaurantId, $performedBy, $approvedBy): void {
             foreach ($data['reconcile_items'] as $item) {
                 $ingredient = Ingredient::withoutGlobalScopes()->where('restaurant_id', $restaurantId)
