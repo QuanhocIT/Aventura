@@ -278,6 +278,9 @@ class DashboardController extends Controller
                 },
             );
 
+            $refundAmountToday = (float) ($todayLiveStats['refund_amount'] ?? ($todaySummary?->refund_total ?? 0));
+            $refundCountToday = (int) ($todayLiveStats['refund_count'] ?? 0);
+
             $stats = array_merge($resourceCounts, [
                 'orders_today' => $totalToday,
                 'revenue_today' => $revenueToday,
@@ -287,6 +290,8 @@ class DashboardController extends Controller
                 'order_trend' => $orderTrend,
                 'profit_margin_today' => $profitMargin,
                 'completion_rate' => $completionRate,
+                'refund_amount_today' => $refundAmountToday,
+                'refund_count_today' => $refundCountToday,
             ]);
 
             // Alerts calculation moved to deferred method getDashboardAlerts below

@@ -84,6 +84,8 @@ interface Stats {
     order_trend: number | null;
     profit_margin_today: number;
     completion_rate: number;
+    refund_amount_today?: number;
+    refund_count_today?: number;
 }
 
 interface ForecastData {
@@ -1014,14 +1016,18 @@ function getTableStatusInfo(status: string) {
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <p
-                            class="text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-amber-600 dark:text-amber-400':
+                                    (props.stats?.refund_amount_today ?? 0) > 0,
+                            }"
                         >
-                            {{ formatVND(props.stats?.revenue_today ?? 0) }}
+                            {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Doanh thu hôm nay
+                            Hoàn tiền
                         </p>
                     </CardContent>
                 </Card>
@@ -1033,13 +1039,17 @@ function getTableStatusInfo(status: string) {
                     >
                         <p
                             class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-rose-600 dark:text-rose-400':
+                                    (props.stats?.orders_cancelled ?? 0) > 0,
+                            }"
                         >
-                            {{ props.stats?.orders_today ?? 0 }}
+                            {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Đơn hôm nay
+                            Đơn hủy
                         </p>
                     </CardContent>
                 </Card>
@@ -1475,14 +1485,18 @@ function getTableStatusInfo(status: string) {
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <p
-                            class="text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-amber-600 dark:text-amber-400':
+                                    (props.stats?.refund_amount_today ?? 0) > 0,
+                            }"
                         >
-                            {{ formatVND(props.stats?.revenue_today ?? 0) }}
+                            {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Doanh thu hôm nay
+                            Hoàn tiền
                         </p>
                     </CardContent>
                 </Card>
@@ -1494,13 +1508,17 @@ function getTableStatusInfo(status: string) {
                     >
                         <p
                             class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-rose-600 dark:text-rose-400':
+                                    (props.stats?.orders_cancelled ?? 0) > 0,
+                            }"
                         >
-                            {{ props.stats?.orders_today ?? 0 }}
+                            {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Đơn hôm nay
+                            Đơn hủy
                         </p>
                     </CardContent>
                 </Card>
@@ -1921,14 +1939,18 @@ function getTableStatusInfo(status: string) {
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <p
-                            class="text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-amber-600 dark:text-amber-400':
+                                    (props.stats?.refund_amount_today ?? 0) > 0,
+                            }"
                         >
-                            {{ formatVND(props.stats?.revenue_today ?? 0) }}
+                            {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Doanh thu hôm nay
+                            Hoàn tiền
                         </p>
                     </CardContent>
                 </Card>
@@ -1940,13 +1962,17 @@ function getTableStatusInfo(status: string) {
                     >
                         <p
                             class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            :class="{
+                                'text-rose-600 dark:text-rose-400':
+                                    (props.stats?.orders_cancelled ?? 0) > 0,
+                            }"
                         >
-                            {{ props.stats?.orders_today ?? 0 }}
+                            {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
                             class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            Đơn hôm nay
+                            Đơn hủy
                         </p>
                     </CardContent>
                 </Card>
