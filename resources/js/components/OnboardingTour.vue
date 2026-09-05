@@ -86,11 +86,11 @@ const tourSteps: Record<number, TourStep[]> = {
             page: 'dashboard',
         },
         {
-            selector: '.btn-set-recipe:first-of-type',
+            selector: '.recipe-catalog-card, [data-slot="card"]',
             title: 'Cài đặt định lượng 🧪',
             content:
                 'Nhấp vào nút Thiết lập của một món ăn để xây dựng công thức nấu (ví dụ: 1 bát phở = 150g bánh phở, 80g thịt bò).',
-            placement: 'left',
+            placement: 'top',
             page: 'inventory',
         },
     ],
@@ -248,7 +248,12 @@ const skipTour = () => {
     stopTargetPolling();
     targetRect.value = null;
     lastScrolledStep.value = null;
-    // Ghi nhớ người dùng đã dismiss tour ngày này trong session — không tự bật lại khi reload
+    // Ghi nhớ người dùng đã dismiss tour để không tự bật lại làm mờ màn hình
+    localStorage.setItem('aventura_tour_disabled', '1');
+    localStorage.setItem(
+        `aventura_tour_day${currentDay.value}_dismissed`,
+        '1',
+    );
     sessionStorage.setItem(
         `aventura_tour_day${currentDay.value}_dismissed`,
         '1',
@@ -346,6 +351,9 @@ onMounted(() => {
             const status = onboardingStatus.value;
 
             const wasDismissed = (day: number) =>
+                localStorage.getItem('aventura_tour_disabled') === '1' ||
+                localStorage.getItem(`aventura_tour_day${day}_dismissed`) ===
+                '1' ||
                 sessionStorage.getItem(`aventura_tour_day${day}_dismissed`) ===
                 '1';
 
