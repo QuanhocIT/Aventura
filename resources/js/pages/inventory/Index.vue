@@ -5355,7 +5355,7 @@ const recallBatch = (batchId: number) => {
 .recipe-catalog-card {
     position: relative;
     gap: 0;
-    border-color: color-mix(in srgb, var(--border) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
     border-radius: 1.25rem;
     background:
         radial-gradient(circle at 100% 0%, color-mix(in srgb, #6366f1 7%, transparent), transparent 28rem),
@@ -5376,7 +5376,7 @@ const recallBatch = (batchId: number) => {
     display: flex;
     flex-direction: column;
     gap: 1.35rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 13%, transparent);
     background: linear-gradient(180deg, color-mix(in srgb, var(--background) 18%, transparent), transparent);
 }
 
@@ -5394,7 +5394,7 @@ const recallBatch = (batchId: number) => {
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    border: 1px solid color-mix(in srgb, #818cf8 32%, var(--border));
+    border: 1px solid color-mix(in srgb, #818cf8 40%, color-mix(in srgb, var(--foreground) 16%, transparent));
     border-radius: 0.9rem;
     background: linear-gradient(145deg, color-mix(in srgb, #6366f1 24%, transparent), color-mix(in srgb, #8b5cf6 8%, transparent));
     color: #a5b4fc;
@@ -5418,9 +5418,9 @@ const recallBatch = (batchId: number) => {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    border: 1px solid color-mix(in srgb, #34d399 22%, var(--border));
+    border: 1px solid color-mix(in srgb, #34d399 35%, color-mix(in srgb, var(--foreground) 15%, transparent));
     border-radius: 999px;
-    background: color-mix(in srgb, #34d399 7%, transparent);
+    background: color-mix(in srgb, #34d399 10%, transparent);
     color: #6ee7b7;
     font-size: 0.625rem;
     font-weight: 700;
@@ -5441,15 +5441,15 @@ const recallBatch = (batchId: number) => {
     flex: 0 0 auto;
     border-radius: 999px;
     background: currentColor;
-    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .recipe-title-count {
     display: inline-flex;
     align-items: center;
-    border: 1px solid color-mix(in srgb, #818cf8 25%, var(--border));
+    border: 1px solid color-mix(in srgb, #818cf8 35%, color-mix(in srgb, var(--foreground) 15%, transparent));
     border-radius: 999px;
-    background: color-mix(in srgb, #6366f1 10%, transparent);
+    background: color-mix(in srgb, #6366f1 12%, transparent);
     color: #a5b4fc;
     font-size: 0.625rem;
     font-weight: 800;
@@ -5478,10 +5478,10 @@ const recallBatch = (batchId: number) => {
 .recipe-search-input {
     width: 100%;
     height: 2.75rem;
-    border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
     border-radius: 0.8rem;
     outline: none;
-    background: color-mix(in srgb, var(--background) 58%, transparent);
+    background: color-mix(in srgb, var(--background) 75%, transparent);
     color: var(--foreground);
     font-size: 0.75rem;
     font-weight: 600;
@@ -5495,18 +5495,18 @@ const recallBatch = (batchId: number) => {
 }
 
 .recipe-search-input:focus {
-    border-color: color-mix(in srgb, #818cf8 65%, var(--border));
-    background: color-mix(in srgb, var(--card) 84%, transparent);
-    box-shadow: 0 0 0 3px rgb(99 102 241 / 0.12);
+    border-color: color-mix(in srgb, #818cf8 75%, var(--foreground));
+    background: color-mix(in srgb, var(--card) 90%, transparent);
+    box-shadow: 0 0 0 3px rgb(99 102 241 / 0.15);
 }
 
 .recipe-search-key {
     position: absolute;
     top: 50%;
     right: 0.65rem;
-    border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
     border-radius: 0.35rem;
-    background: color-mix(in srgb, var(--muted) 64%, transparent);
+    background: color-mix(in srgb, var(--muted) 70%, transparent);
     color: var(--muted-foreground);
     font-family: inherit;
     font-size: 0.6rem;
@@ -5528,10 +5528,16 @@ const recallBatch = (batchId: number) => {
     min-width: 0;
     align-items: flex-start;
     gap: 0.7rem;
-    border: 1px solid color-mix(in srgb, var(--recipe-stat-color) 18%, var(--border));
+    border: 1px solid color-mix(in srgb, var(--recipe-stat-color) 38%, color-mix(in srgb, var(--foreground) 14%, transparent));
     border-radius: 0.85rem;
-    background: color-mix(in srgb, var(--recipe-stat-color) 5%, var(--background));
+    background: color-mix(in srgb, var(--recipe-stat-color) 6%, color-mix(in srgb, var(--background) 92%, transparent));
     padding: 0.8rem 0.9rem;
+    transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.recipe-stat-card:hover {
+    border-color: color-mix(in srgb, var(--recipe-stat-color) 60%, color-mix(in srgb, var(--foreground) 25%, transparent));
+    transform: translateY(-1px);
 }
 
 .recipe-stat-card--success {
@@ -5554,7 +5560,7 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: center;
     border-radius: 0.65rem;
-    background: color-mix(in srgb, var(--recipe-stat-color) 12%, transparent);
+    background: color-mix(in srgb, var(--recipe-stat-color) 14%, transparent);
     color: var(--recipe-stat-color);
 }
 
@@ -5598,7 +5604,7 @@ const recallBatch = (batchId: number) => {
     margin-top: 0.48rem;
     overflow: hidden;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--recipe-stat-color) 12%, var(--muted));
+    background: color-mix(in srgb, var(--recipe-stat-color) 16%, var(--muted));
 }
 
 .recipe-progress-track span {
@@ -5618,7 +5624,7 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
     padding: 0.85rem 1.75rem;
 }
 
@@ -5637,7 +5643,7 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: center;
     border-radius: 999px;
-    background: color-mix(in srgb, #818cf8 12%, transparent);
+    background: color-mix(in srgb, #818cf8 14%, transparent);
     color: #a5b4fc;
     font-size: 0.65rem;
     font-weight: 800;
@@ -5649,9 +5655,9 @@ const recallBatch = (batchId: number) => {
 
 .recipe-item {
     position: relative;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
     padding: 1.2rem 1.75rem 1.3rem;
-    transition: background 180ms ease;
+    transition: background 180ms ease, border-color 180ms ease;
 }
 
 .recipe-item:last-child {
@@ -5683,10 +5689,10 @@ const recallBatch = (batchId: number) => {
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    border: 1px solid color-mix(in srgb, #818cf8 17%, var(--border));
+    border: 1px solid color-mix(in srgb, #818cf8 38%, color-mix(in srgb, var(--foreground) 16%, transparent));
     border-radius: 0.7rem;
-    background: color-mix(in srgb, #818cf8 5%, var(--background));
-    color: color-mix(in srgb, #a5b4fc 72%, var(--muted-foreground));
+    background: color-mix(in srgb, #818cf8 8%, var(--background));
+    color: color-mix(in srgb, #a5b4fc 80%, var(--muted-foreground));
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.68rem;
     font-weight: 700;
@@ -5712,14 +5718,14 @@ const recallBatch = (batchId: number) => {
 }
 
 .recipe-status--ready {
-    border: 1px solid rgb(52 211 153 / 0.2);
-    background: rgb(52 211 153 / 0.08);
+    border: 1px solid rgb(52 211 153 / 0.35);
+    background: rgb(52 211 153 / 0.1);
     color: #6ee7b7;
 }
 
 .recipe-status--missing {
-    border: 1px solid rgb(251 191 36 / 0.22);
-    background: rgb(251 191 36 / 0.08);
+    border: 1px solid rgb(251 191 36 / 0.35);
+    background: rgb(251 191 36 / 0.1);
     color: #fcd34d;
 }
 
@@ -5734,9 +5740,10 @@ const recallBatch = (batchId: number) => {
 }
 
 .recipe-item-meta code {
+    border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
     border-radius: 0.3rem;
     background: color-mix(in srgb, var(--muted) 68%, transparent);
-    color: color-mix(in srgb, var(--foreground) 72%, var(--muted-foreground));
+    color: color-mix(in srgb, var(--foreground) 75%, var(--muted-foreground));
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.62rem;
     padding: 0.15rem 0.35rem;
@@ -5750,9 +5757,9 @@ const recallBatch = (batchId: number) => {
     height: 2.2rem;
     flex: 0 0 auto;
     gap: 0.42rem;
-    border-color: color-mix(in srgb, #818cf8 38%, var(--border));
+    border: 1px solid color-mix(in srgb, #818cf8 45%, color-mix(in srgb, var(--foreground) 18%, transparent));
     border-radius: 0.7rem;
-    background: color-mix(in srgb, #6366f1 5%, transparent);
+    background: color-mix(in srgb, #6366f1 7%, transparent);
     color: #a5b4fc;
     font-size: 0.68rem;
     font-weight: 800;
@@ -5761,7 +5768,7 @@ const recallBatch = (batchId: number) => {
 
 .recipe-action-btn:hover {
     border-color: #818cf8;
-    background: color-mix(in srgb, #6366f1 13%, transparent);
+    background: color-mix(in srgb, #6366f1 16%, transparent);
     color: #c4b5fd;
     transform: translateY(-1px);
 }
@@ -5785,9 +5792,9 @@ const recallBatch = (batchId: number) => {
 
 .recipe-ingredients-panel {
     margin: 0.85rem 0 0 3rem;
-    border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
     border-radius: 0.82rem;
-    background: color-mix(in srgb, var(--background) 44%, transparent);
+    background: color-mix(in srgb, var(--foreground) 3.5%, transparent);
     padding: 0.65rem;
 }
 
@@ -5802,14 +5809,21 @@ const recallBatch = (batchId: number) => {
     min-width: 0;
     align-items: center;
     gap: 0.45rem;
-    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 16%, transparent);
     border-radius: 0.58rem;
-    background: color-mix(in srgb, var(--card) 82%, transparent);
+    background: color-mix(in srgb, var(--card) 94%, var(--background));
     color: var(--muted-foreground);
     font-size: 0.68rem;
     font-weight: 650;
     line-height: 1;
     padding: 0.55rem 0.62rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    transition: border-color 180ms ease, background 180ms ease;
+}
+
+.recipe-ingredient-chip:hover {
+    border-color: color-mix(in srgb, #818cf8 50%, color-mix(in srgb, var(--foreground) 20%, transparent));
+    background: color-mix(in srgb, #818cf8 8%, var(--card));
 }
 
 .recipe-ingredient-name {
@@ -5835,9 +5849,9 @@ const recallBatch = (batchId: number) => {
 }
 
 .recipe-waste-badge {
-    border: 1px solid rgb(251 191 36 / 0.2);
+    border: 1px solid rgb(251 191 36 / 0.35);
     border-radius: 0.3rem;
-    background: rgb(251 191 36 / 0.08);
+    background: rgb(251 191 36 / 0.1);
     color: #fcd34d;
     font-size: 0.58rem;
     font-weight: 800;
@@ -5859,7 +5873,7 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: center;
     border-radius: 0.6rem;
-    background: rgb(251 191 36 / 0.08);
+    background: rgb(251 191 36 / 0.1);
     color: #fbbf24;
 }
 
@@ -5890,7 +5904,7 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
     background: color-mix(in srgb, var(--background) 32%, transparent);
     padding: 0.9rem 1.75rem;
 }
@@ -5939,9 +5953,9 @@ const recallBatch = (batchId: number) => {
     align-items: center;
     justify-content: center;
     margin-bottom: 0.35rem;
-    border: 1px solid color-mix(in srgb, #818cf8 20%, var(--border));
+    border: 1px solid color-mix(in srgb, #818cf8 35%, color-mix(in srgb, var(--foreground) 16%, transparent));
     border-radius: 0.85rem;
-    background: color-mix(in srgb, #6366f1 8%, transparent);
+    background: color-mix(in srgb, #6366f1 10%, transparent);
     color: #a5b4fc;
 }
 
@@ -5954,6 +5968,84 @@ const recallBatch = (batchId: number) => {
 .recipe-empty-state span:last-child {
     color: var(--muted-foreground);
     font-size: 0.7rem;
+}
+
+/* Explicit Dark Mode Overrides for High-Definition Borders */
+:global(.dark) .recipe-catalog-card {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+:global(.dark) .recipe-catalog-header {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+:global(.dark) .recipe-search-input {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.035);
+}
+
+:global(.dark) .recipe-search-key {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+:global(.dark) .recipe-stat-card {
+    border-color: color-mix(in srgb, var(--recipe-stat-color) 45%, rgba(255, 255, 255, 0.14));
+    background: color-mix(in srgb, var(--recipe-stat-color) 8%, rgba(255, 255, 255, 0.02));
+}
+
+:global(.dark) .recipe-stat-card:hover {
+    border-color: color-mix(in srgb, var(--recipe-stat-color) 65%, rgba(255, 255, 255, 0.25));
+}
+
+:global(.dark) .recipe-list-toolbar {
+    border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+:global(.dark) .recipe-item {
+    border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+:global(.dark) .recipe-item:hover {
+    background: rgba(129, 140, 248, 0.04);
+}
+
+:global(.dark) .recipe-item-index {
+    border-color: rgba(129, 140, 248, 0.4);
+    background: rgba(129, 140, 248, 0.1);
+}
+
+:global(.dark) .recipe-item-meta code {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+:global(.dark) .recipe-action-btn {
+    border-color: rgba(129, 140, 248, 0.42);
+    background: rgba(99, 102, 241, 0.08);
+}
+
+:global(.dark) .recipe-action-btn:hover {
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.18);
+}
+
+:global(.dark) .recipe-ingredients-panel {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+}
+
+:global(.dark) .recipe-ingredient-chip {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+:global(.dark) .recipe-ingredient-chip:hover {
+    border-color: rgba(129, 140, 248, 0.55);
+    background: rgba(129, 140, 248, 0.12);
+}
+
+:global(.dark) .recipe-pagination {
+    border-top-color: rgba(255, 255, 255, 0.14);
 }
 
 @media (max-width: 768px) {
