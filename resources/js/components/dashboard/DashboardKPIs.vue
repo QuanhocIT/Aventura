@@ -81,7 +81,7 @@ watch(
         >
             <!-- 1. ĐƠN HÀNG HÔM NAY -->
             <div
-                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-400/40 hover:shadow-md hover:shadow-indigo-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-indigo-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-indigo-500/60"
+                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-400/40 hover:shadow-md hover:shadow-indigo-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-indigo-500/40"
             >
                 <!-- Top row: Icon + Badge -->
                 <div class="flex items-center justify-between">
@@ -120,7 +120,7 @@ watch(
 
             <!-- 2. DOANH THU HÔM NAY -->
             <div
-                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/40 hover:shadow-md hover:shadow-emerald-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-emerald-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-emerald-500/60"
+                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/40 hover:shadow-md hover:shadow-emerald-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-emerald-500/40"
             >
                 <!-- Top row: Icon + Trend Badge -->
                 <div class="flex items-center justify-between">
@@ -173,7 +173,7 @@ watch(
 
             <!-- 3. ĐƠN ĐÃ HOÀN TẤT -->
             <div
-                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-400/40 hover:shadow-md hover:shadow-sky-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-sky-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-sky-500/60"
+                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-400/40 hover:shadow-md hover:shadow-sky-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-sky-500/40"
             >
                 <!-- Top row: Icon + Completion Rate Badge -->
                 <div class="flex items-center justify-between">
@@ -211,7 +211,7 @@ watch(
 
             <!-- 4. THỰC ĐƠN KINH DOANH -->
             <div
-                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/40 hover:shadow-md hover:shadow-amber-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-amber-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-amber-500/60"
+                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/40 hover:shadow-md hover:shadow-amber-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-amber-500/40"
             >
                 <!-- Top row: Icon + Menu Status Badge -->
                 <div class="flex items-center justify-between">
