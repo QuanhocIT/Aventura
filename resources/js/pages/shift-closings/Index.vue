@@ -1122,7 +1122,7 @@ onUnmounted(() =>
                         id="shift-month"
                         v-model="activeMonth"
                         type="month"
-                        class="h-9 w-36 bg-white py-1 text-xs font-semibold"
+                        class="h-9 w-36 bg-white py-1 text-xs font-semibold dark:bg-slate-950 dark:text-slate-100"
                     />
                 </div>
 

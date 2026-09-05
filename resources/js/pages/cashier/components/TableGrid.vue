@@ -76,11 +76,11 @@ const getStatusBadge = (table: TableItem) => {
         <div class="flex flex-wrap items-center gap-2">
             <button
                 @click="emit('update:selectedArea', 'all')"
-                class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
+                class="rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95"
                 :class="
                     selectedArea === 'all'
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 "
             >
                 Tất cả khu vực
@@ -90,11 +90,11 @@ const getStatusBadge = (table: TableItem) => {
                 v-for="area in areaList"
                 :key="area"
                 @click="emit('update:selectedArea', area)"
-                class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
+                class="rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95"
                 :class="
                     selectedArea === area
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 "
             >
                 {{ area }}
@@ -109,11 +109,11 @@ const getStatusBadge = (table: TableItem) => {
                 :key="filter.value"
                 type="button"
                 @click="emit('update:selectedStatus', filter.value)"
-                class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
+                class="rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 active:scale-95"
                 :class="
                     selectedStatus === filter.value
                         ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 "
             >
                 {{ filter.label }}
@@ -131,7 +131,7 @@ const getStatusBadge = (table: TableItem) => {
                 v-for="table in tables"
                 :key="table.id"
                 @click="emit('selectTable', table)"
-                class="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                class="motion-card group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
                 :class="[
                     isPaying(table)
                         ? 'border-amber-500 bg-amber-50/60 shadow-md ring-2 shadow-amber-500/10 ring-amber-500/40 dark:bg-amber-950/30'

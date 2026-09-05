@@ -255,10 +255,10 @@ class SecurityThreatController extends Controller
             ->limit(10)
             ->get()
             ->map(fn (User $user) => [
-                'id' => 'mock_'.$user->id,
+                'id' => 'user_'.$user->id,
                 'user_id' => $user->id,
-                'ip_address' => '127.0.0.1',
-                'user_agent' => 'Không có session driver database',
+                'ip_address' => $user->last_login_ip ?? 'N/A',
+                'user_agent' => $user->last_login_user_agent ?? 'Đăng nhập gần nhất',
                 'last_activity' => $user->last_login_at?->format('d/m/Y H:i:s'),
                 'user_name' => $user->name,
                 'user_email' => $user->email,

@@ -206,14 +206,32 @@ const submitBooking = () => {
 };
 
 // Kích hoạt lại guided tour thủ công
+const clearTourDismissals = () => {
+    localStorage.removeItem('aventura_tour_disabled');
+
+    for (const day of [1, 2, 3]) {
+        localStorage.removeItem(`aventura_tour_day${day}_dismissed`);
+        sessionStorage.removeItem(`aventura_tour_day${day}_dismissed`);
+    }
+};
+
+const startTourAfterNavigation = (day: number) => {
+    window.dispatchEvent(
+        new CustomEvent('aventura:start-tour', { detail: { day } }),
+    );
+};
+
 const resetOnboarding = () => {
     router.post(
         '/api/onboarding/reset',
         {},
         {
             onSuccess: () => {
+                clearTourDismissals();
                 // Chuyển về dashboard để bắt đầu tour
-                router.visit('/dashboard');
+                router.visit('/dashboard', {
+                    onSuccess: () => startTourAfterNavigation(1),
+                });
             },
         },
     );
@@ -227,12 +245,15 @@ const triggerTour = (day: number) => {
         },
         {
             onSuccess: () => {
+                clearTourDismissals();
                 const dests: Record<number, string> = {
                     1: '/products',
                     2: '/inventory',
                     3: '/employees',
                 };
-                router.visit(dests[day]);
+                router.visit(dests[day], {
+                    onSuccess: () => startTourAfterNavigation(day),
+                });
             },
         },
     );
@@ -939,7 +960,7 @@ const isOwner = computed(() => {
                                             <Input
                                                 v-model="replyForm.message"
                                                 placeholder="Nhập tin nhắn phản hồi..."
-                                                class="h-9 flex-1 rounded-xl bg-white text-xs"
+                                                class="h-9 flex-1 rounded-xl bg-white text-xs dark:bg-slate-950 dark:text-slate-100"
                                             />
                                             <Button
                                                 type="submit"

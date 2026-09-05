@@ -1397,7 +1397,7 @@ const createQuickCombo = () => {
                     <Button
                         @click="runBasketAnalysis"
                         :disabled="isAnalyzing"
-                        class="flex h-11 items-center gap-2 bg-white px-5 font-bold text-indigo-950 shadow-lg transition-all hover:bg-slate-100 active:scale-95"
+                        class="flex h-11 items-center gap-2 bg-white px-5 font-bold text-indigo-950 shadow-lg transition-all hover:bg-slate-100 active:scale-95 dark:bg-slate-900 dark:text-indigo-200 dark:hover:bg-slate-800"
                     >
                         <RefreshCw
                             class="size-4 animate-spin"

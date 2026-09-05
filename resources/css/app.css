@@ -573,7 +573,7 @@
 @keyframes page-enter {
     from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(10px) scale(0.996);
     }
     to {
         opacity: 1;
@@ -581,7 +581,122 @@
     }
 }
 .page-enter {
-    animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: page-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Modern Motion System (Linear / Apple / Vercel style) ── */
+@keyframes motion-fade-in-up {
+    0% {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes motion-scale-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes motion-slide-in-right {
+    0% {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes motion-pulse-subtle {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+}
+
+/* Stagger Animation Engine */
+.animate-fade-in-up {
+    animation: motion-fade-in-up 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-scale-in {
+    animation: motion-scale-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-right {
+    animation: motion-slide-in-right 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger-1 { animation-delay: 35ms; }
+.stagger-2 { animation-delay: 75ms; }
+.stagger-3 { animation-delay: 115ms; }
+.stagger-4 { animation-delay: 155ms; }
+.stagger-5 { animation-delay: 195ms; }
+.stagger-6 { animation-delay: 235ms; }
+.stagger-7 { animation-delay: 275ms; }
+.stagger-8 { animation-delay: 315ms; }
+
+/* Interactive Cards & Elevated Elements */
+.motion-card {
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.motion-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.06), 0 6px 10px -4px rgba(0, 0, 0, 0.03);
+}
+
+.dark .motion-card:hover {
+    box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.45), 0 6px 12px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* Interactive Rows in Data Tables */
+.motion-row {
+    transition: background-color 0.16s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.motion-row:hover {
+    transform: translateX(2px);
+}
+
+/* Interactive Button Hover & Shimmer */
+.motion-btn-primary {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.motion-btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+    transform: skewX(-20deg);
+}
+
+.motion-btn-primary:hover::after {
+    left: 140%;
+    transition: left 0.65s ease-in-out;
 }
 
 /* Transition tiện ích cho chuyển đổi Tab / Nội dung động */
@@ -673,8 +788,15 @@ button:not(:disabled):active,
     .float-soft,
     .float-glow,
     .animate-badge-pop,
-    .page-enter {
+    .page-enter,
+    .animate-fade-in-up,
+    .animate-scale-in,
+    .animate-slide-in-right,
+    .motion-card:hover,
+    .motion-row:hover {
         animation: none !important;
+        transform: none !important;
+        transition: none !important;
     }
     button:not(:disabled):active,
     [role='button']:not([aria-disabled='true']):active {

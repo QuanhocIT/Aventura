@@ -352,12 +352,17 @@ const getWeatherIconColor = (condition: string, isSelected: boolean) => {
 
             <div
                 v-else
-                class="flex flex-col items-center py-8 text-center text-slate-400"
+                class="flex flex-col items-center justify-center py-10 text-center text-slate-400"
             >
-                <Sparkles
-                    class="mb-2 size-7 text-slate-300 dark:text-slate-700"
+                <CloudRain
+                    class="mb-2 size-8 text-slate-300 dark:text-slate-700 opacity-60"
                 />
-                <p class="text-xs">Không có dữ liệu dự báo thời tiết.</p>
+                <p class="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Chưa có dữ liệu thời tiết thực tế
+                </p>
+                <p class="mt-1 max-w-xs text-[11px] text-slate-400 dark:text-slate-500">
+                    Hệ thống cần kết nối OpenWeatherMap API để dự báo thời tiết và đưa ra gợi ý món ăn theo nhiệt độ môi trường.
+                </p>
             </div>
         </CardContent>
     </Card>

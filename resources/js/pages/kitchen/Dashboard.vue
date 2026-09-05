@@ -1149,7 +1149,7 @@ onUnmounted(() => {
             <div class="flex items-center gap-3">
                 <Button
                     @click="showWasteModal = true"
-                    class="h-10 gap-1.5 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                    class="motion-btn-primary h-10 gap-1.5 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
                 >
                     <AlertTriangle class="size-4" />
                     Báo Hỏng / Thất Thoát Nguyên Liệu
@@ -1187,7 +1187,7 @@ onUnmounted(() => {
         <!-- ── THỐNG KÊ TỐC ĐỘ BẾP HÔM NAY ── -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div
-                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
+                class="motion-card animate-fade-in-up stagger-1 rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
                 <p
                     class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
@@ -1201,7 +1201,7 @@ onUnmounted(() => {
                 </p>
             </div>
             <div
-                class="rounded-xl border p-2.5 px-3.5 shadow-xs transition-colors"
+                class="motion-card animate-fade-in-up stagger-2 rounded-xl border p-2.5 px-3.5 shadow-xs transition-colors"
                 :class="
                     lateCount > 0
                         ? 'border-red-300 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/20'
@@ -1229,7 +1229,7 @@ onUnmounted(() => {
                 </p>
             </div>
             <div
-                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
+                class="motion-card animate-fade-in-up stagger-3 rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
                 <p
                     class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
@@ -1243,7 +1243,7 @@ onUnmounted(() => {
                 </p>
             </div>
             <div
-                class="rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
+                class="motion-card animate-fade-in-up stagger-4 rounded-xl border border-slate-200 bg-white p-2.5 px-3.5 shadow-xs dark:border-slate-800/60 dark:bg-slate-900"
             >
                 <div class="flex items-center justify-between">
                     <p
@@ -1396,7 +1396,7 @@ onUnmounted(() => {
                         <Card
                             v-for="tableName in visibleGroupedPendingKeys"
                             :key="tableName"
-                            class="overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-sm transition-all hover:shadow-md dark:border-slate-800/60"
+                            class="motion-card overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-sm transition-all hover:shadow-md dark:border-slate-800/60"
                             :class="{
                                 'animate-pulse border-red-500/60 bg-red-50/5 shadow-lg shadow-red-500/5 dark:border-red-950/50 dark:bg-red-950/5':
                                     hasOverdueItem(groupedPending[tableName]),
@@ -1674,7 +1674,7 @@ onUnmounted(() => {
                             <Button
                                 type="button"
                                 variant="outline"
-                                class="h-11 w-full gap-1.5 rounded-2xl bg-white text-xs font-bold shadow-sm transition-all hover:bg-slate-50"
+                                class="h-11 w-full gap-1.5 rounded-2xl bg-white text-xs font-bold shadow-sm transition-all hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                                 @click="visibleTablesCount += 12"
                             >
                                 Hiển thị thêm bàn chờ... (Còn
@@ -1692,7 +1692,7 @@ onUnmounted(() => {
                         <Card
                             v-for="group in aggregatedPending"
                             :key="group.product_name"
-                            class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm hover:shadow-md dark:border-slate-800/60"
+                            class="motion-card overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm hover:shadow-md dark:border-slate-800/60"
                         >
                             <CardHeader
                                 class="border-b border-slate-100 bg-slate-50/50 px-4 py-3.5 dark:border-slate-800/50 dark:bg-slate-900/40"

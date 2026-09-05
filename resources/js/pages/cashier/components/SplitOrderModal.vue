@@ -167,7 +167,7 @@ const numberFormat = (val: number) =>
                         <Separator />
                         <div class="grid grid-cols-2 gap-2 text-[10px]">
                             <div
-                                class="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5"
+                                class="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 dark:border-slate-800 dark:bg-slate-900/50"
                             >
                                 <div class="mb-1.5 font-bold text-slate-600">
                                     Đơn gốc (còn lại)

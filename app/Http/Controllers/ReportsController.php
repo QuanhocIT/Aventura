@@ -245,12 +245,18 @@ class ReportsController extends Controller
                 'revenue' => (float) $r->revenue,
                 'order_count' => (int) $r->order_count,
                 'width_pct' => round((float) $r->revenue / $maxPeakRevenue * 100, 1),
-            ])->values();
+            ])->all();
         });
+
+        if ($peakHours instanceof \Illuminate\Support\Collection) {
+            $peakHours = $peakHours->all();
+        } elseif (is_array($peakHours) && isset($peakHours[1]) && is_array($peakHours[1]) && is_string($peakHours[0] ?? null)) {
+            $peakHours = $peakHours[1];
+        }
 
         // ── Top 10 products (P1: cache 10 phút) ────────────────────────────────
         $topProductsCacheKey = $this->tenantContext->cacheKey(
-            'reports_top_products',
+            'reports_top_products_v2',
             $restaurantId,
             $period,
             today()->toDateString(),
@@ -273,11 +279,17 @@ class ReportsController extends Controller
                 ->limit(10)
                 ->get()
                 ->map(fn ($r) => [
-                    'name' => $r->name,
+                    'name' => (string) $r->name,
                     'total_qty' => (int) $r->total_qty,
                     'total_revenue' => (float) $r->total_revenue,
-                ])->values();
+                ])->all();
         });
+
+        if ($topProducts instanceof \Illuminate\Support\Collection) {
+            $topProducts = $topProducts->all();
+        } elseif (is_array($topProducts) && isset($topProducts[1]) && is_array($topProducts[1]) && is_string($topProducts[0] ?? null)) {
+            $topProducts = $topProducts[1];
+        }
 
         // ── Today summary ─────────────────────────────────────────────────────
         $todayRecord = $this->branchReports

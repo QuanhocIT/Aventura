@@ -649,7 +649,7 @@ const genderColors = {
                             placeholder="Tìm khách hàng theo SĐT, tên, email..."
                             v-model="searchQuery"
                             @keyup.enter="handleSearch"
-                            class="h-9 bg-white pl-8 text-xs"
+                            class="h-9 bg-white pl-8 text-xs dark:bg-slate-950 dark:text-slate-100"
                         />
                     </div>
                     <Button

@@ -100,24 +100,6 @@ class GeoAnalyticsService
         $zoneRevenue = ['0-2km' => 0, '2-5km' => 0, '5-8km' => 0, '8km+' => 0];
         $distances = [];
 
-        if ($deliveries->isEmpty()) {
-            $heatmap = $this->getOrderHeatmap($restaurantId, $days, $branchId);
-            $mockDeliveries = [];
-            foreach ($heatmap as $h) {
-                for ($i = 0; $i < $h['count']; $i++) {
-                    $perturbationLat = (rand(-50, 50) / 100000);
-                    $perturbationLng = (rand(-50, 50) / 100000);
-                    $mockDeliveries[] = (object) [
-                        'latitude' => $h['lat'] + $perturbationLat,
-                        'longitude' => $h['lng'] + $perturbationLng,
-                        'total_amount' => $h['revenue'] / $h['count'],
-                        'delivery_fee' => 15000 + (rand(0, 4) * 5000),
-                    ];
-                }
-            }
-            $deliveries = collect($mockDeliveries);
-        }
-
         foreach ($deliveries as $d) {
             $dist = $this->haversine($rLat, $rLng, (float) $d->latitude, (float) $d->longitude);
             $distances[] = $dist;

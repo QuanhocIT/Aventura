@@ -111,49 +111,9 @@ const PAD_R = 20;
 const PAD_T = 20;
 const PAD_B = 40;
 
-// Fallback computed for monthly revenue if empty
-const displayMonthlyRevenue = computed(() => {
-    if (props.monthly_revenue && props.monthly_revenue.length > 0) {
-        return props.monthly_revenue;
-    }
-
-    // Mock data for beautiful demo if database is empty
-    return [
-        { label: 'T8/25', revenue: 15000000, count: 5 },
-        { label: 'T9/25', revenue: 18000000, count: 6 },
-        { label: 'T10/25', revenue: 22000000, count: 8 },
-        { label: 'T11/25', revenue: 20000000, count: 7 },
-        { label: 'T12/25', revenue: 28000000, count: 10 },
-        { label: 'T1/26', revenue: 35000000, count: 12 },
-        { label: 'T2/26', revenue: 32000000, count: 11 },
-        { label: 'T3/26', revenue: 42000000, count: 15 },
-        { label: 'T4/26', revenue: 48000000, count: 16 },
-        { label: 'T5/26', revenue: 45000000, count: 14 },
-        { label: 'T6/26', revenue: 58000000, count: 19 },
-        { label: 'T7/26', revenue: 64000000, count: 22 },
-    ];
-});
-
-const isDemoRevenue = computed(
-    () => !props.monthly_revenue || props.monthly_revenue.length === 0,
-);
-
-// Fallback computed for plan revenue if empty
-const displayRevenueByPlan = computed(() => {
-    if (props.revenue_by_plan && props.revenue_by_plan.length > 0) {
-        return props.revenue_by_plan;
-    }
-
-    return [
-        { plan: 'Gói Starter (Khởi nghiệp)', revenue: 12000000, count: 12 },
-        { plan: 'Gói Growth (Chuyên nghiệp)', revenue: 32000000, count: 8 },
-        { plan: 'Gói Enterprise (Doanh nghiệp)', revenue: 20000000, count: 2 },
-    ];
-});
-
-const isDemoPlan = computed(
-    () => !props.revenue_by_plan || props.revenue_by_plan.length === 0,
-);
+// Real data computed for monthly revenue and plan breakdown
+const displayMonthlyRevenue = computed(() => props.monthly_revenue ?? []);
+const displayRevenueByPlan = computed(() => props.revenue_by_plan ?? []);
 
 const chartData = computed(() => {
     const data = displayMonthlyRevenue.value;
@@ -557,14 +517,18 @@ function quickRenew(restaurantName: string) {
                         <BarChart3 class="size-4 text-emerald-500" />
                         <span>Doanh thu 12 tháng gần nhất</span>
                     </CardTitle>
-                    <span
-                        v-if="isDemoRevenue"
-                        class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-600 dark:text-amber-400"
-                        >Dữ liệu mô phỏng</span
-                    >
                 </CardHeader>
                 <CardContent>
+                    <div
+                        v-if="displayMonthlyRevenue.length === 0"
+                        class="flex h-[220px] flex-col items-center justify-center gap-2 text-center text-muted-foreground"
+                    >
+                        <BarChart3 class="size-8 opacity-30" />
+                        <p class="text-sm font-medium">Chưa có dữ liệu doanh thu tháng trong kỳ này</p>
+                        <p class="text-xs text-muted-foreground/80">Số liệu sẽ tự động xuất hiện khi phát sinh giao dịch thanh toán gói</p>
+                    </div>
                     <svg
+                        v-else
                         :viewBox="`0 0 ${CHART_W} ${CHART_H + 40}`"
                         class="w-full text-muted-foreground"
                         style="height: 220px"
@@ -695,14 +659,17 @@ function quickRenew(restaurantName: string) {
                         <Crown class="size-4 animate-pulse text-violet-500" />
                         <span>Doanh thu theo gói</span>
                     </CardTitle>
-                    <span
-                        v-if="isDemoPlan"
-                        class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-600 dark:text-amber-400"
-                        >Dữ liệu mô phỏng</span
-                    >
                 </CardHeader>
                 <CardContent class="space-y-4">
                     <div
+                        v-if="displayRevenueByPlan.length === 0"
+                        class="flex h-[200px] flex-col items-center justify-center gap-2 text-center text-muted-foreground"
+                    >
+                        <Crown class="size-8 opacity-30" />
+                        <p class="text-sm font-medium">Chưa có dữ liệu phân bổ theo gói</p>
+                    </div>
+                    <div
+                        v-else
                         v-for="plan in displayRevenueByPlan"
                         :key="plan.plan"
                         class="space-y-2 rounded-2xl border border-border/30 bg-muted/20 p-3.5 shadow-sm"

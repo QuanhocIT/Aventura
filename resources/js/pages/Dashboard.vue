@@ -498,7 +498,7 @@ function getTableStatusInfo(status: string) {
             >
                 <!-- Hiệu suất Bán hàng Hôm nay -->
                 <Card
-                    class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardHeader
                         class="border-b border-slate-100 bg-slate-50/50 pb-3 dark:border-slate-800 dark:bg-slate-900/10"
@@ -591,7 +591,7 @@ function getTableStatusInfo(status: string) {
 
                 <!-- Phím tắt Vận hành -->
                 <Card
-                    class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardHeader
                         class="border-b border-slate-100 bg-slate-50/50 pb-3 dark:border-slate-800 dark:bg-slate-900/10"
@@ -610,10 +610,10 @@ function getTableStatusInfo(status: string) {
                             <Link
                                 href="/orders"
                                 prefetch
-                                class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
+                                class="motion-card flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
-                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 transition-transform duration-200 group-hover:scale-110 dark:bg-violet-950/40 dark:text-violet-400"
                                 >
                                     <PlusCircle class="size-4.5" />
                                 </div>
@@ -625,10 +625,10 @@ function getTableStatusInfo(status: string) {
                             <Link
                                 href="/tables"
                                 prefetch
-                                class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
+                                class="motion-card flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
-                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
+                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 text-teal-600 transition-transform duration-200 group-hover:scale-110 dark:bg-teal-950/40 dark:text-teal-400"
                                 >
                                     <Layers class="size-4.5" />
                                 </div>
@@ -640,10 +640,10 @@ function getTableStatusInfo(status: string) {
                             <Link
                                 href="/products"
                                 prefetch
-                                class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
+                                class="motion-card flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
-                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600 transition-transform duration-200 group-hover:scale-110 dark:bg-amber-950/40 dark:text-amber-400"
                                 >
                                     <Utensils class="size-4.5" />
                                 </div>
@@ -655,10 +655,10 @@ function getTableStatusInfo(status: string) {
                             <Link
                                 href="/customers"
                                 prefetch
-                                class="flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
+                                class="motion-card flex flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50/30 p-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-800/80 dark:bg-slate-900/20 dark:hover:bg-slate-900/60"
                             >
                                 <div
-                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
+                                    class="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600 transition-transform duration-200 group-hover:scale-110 dark:bg-rose-950/40 dark:text-rose-400"
                                 >
                                     <Users class="size-4.5" />
                                 </div>
@@ -726,13 +726,13 @@ function getTableStatusInfo(status: string) {
             <!-- Thống kê tổng hợp -->
             <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <Card
-                    class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card animate-fade-in-up stagger-1 rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <div
-                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-transform duration-200 group-hover:scale-110 dark:bg-violet-950/40 dark:text-violet-400"
                         >
                             <Package class="size-5" />
                         </div>
@@ -749,13 +749,13 @@ function getTableStatusInfo(status: string) {
                     </CardContent>
                 </Card>
                 <Card
-                    class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card animate-fade-in-up stagger-2 rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <div
-                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 transition-transform duration-200 group-hover:scale-110 dark:bg-indigo-950/40 dark:text-indigo-400"
                         >
                             <Users class="size-5" />
                         </div>
@@ -772,13 +772,13 @@ function getTableStatusInfo(status: string) {
                     </CardContent>
                 </Card>
                 <Card
-                    class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card animate-fade-in-up stagger-3 rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <div
-                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
+                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 text-teal-600 transition-transform duration-200 group-hover:scale-110 dark:bg-teal-950/40 dark:text-teal-400"
                         >
                             <Utensils class="size-5" />
                         </div>
@@ -795,13 +795,13 @@ function getTableStatusInfo(status: string) {
                     </CardContent>
                 </Card>
                 <Card
-                    class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                    class="motion-card animate-fade-in-up stagger-4 rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
                         class="flex flex-col items-center p-4 text-center"
                     >
                         <div
-                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+                            class="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-transform duration-200 group-hover:scale-110 dark:bg-amber-950/40 dark:text-amber-400"
                         >
                             <ShoppingCart class="size-5" />
                         </div>

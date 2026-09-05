@@ -257,6 +257,9 @@ class StockTransferRequestController extends Controller
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
             ->where('quantity_remaining', '>', 0.0005)
+            ->where(function ($query): void {
+                $query->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today());
+            })
             ->orderByRaw('expiry_date IS NULL, expiry_date ASC, purchased_at ASC, id ASC')
             ->get(['id', 'branch_id', 'ingredient_id', 'batch_number', 'expiry_date', 'purchased_at', 'quantity_remaining', 'unit_cost'])
             ->groupBy(fn (InventoryBatch $b): string => $b->branch_id.':'.$b->ingredient_id);

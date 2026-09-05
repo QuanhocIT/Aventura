@@ -183,7 +183,7 @@ const statusColors: Record<string, string> = {
                         type="date"
                         v-model="adminDate"
                         @change="handleDateChange"
-                        class="h-8 w-36 bg-white py-1 text-xs font-semibold"
+                        class="h-8 w-36 bg-white py-1 text-xs font-semibold dark:bg-slate-950 dark:text-slate-100"
                     />
                 </div>
 
@@ -225,7 +225,7 @@ const statusColors: Record<string, string> = {
                         type="text"
                         placeholder="Tìm theo tên nhân viên, mã số, ca trực..."
                         v-model="searchQuery"
-                        class="h-9 bg-white pl-8 text-xs"
+                        class="h-9 bg-white pl-8 text-xs dark:bg-slate-950 dark:text-slate-100"
                     />
                 </div>
                 <Button

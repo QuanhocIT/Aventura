@@ -175,7 +175,7 @@ const submitAdminOverride = () => {
                             >Thao tác thực hiện</Label
                         >
                         <div
-                            class="flex items-center gap-2 rounded-xl border bg-slate-50 p-3 text-xs font-bold"
+                            class="flex items-center gap-2 rounded-xl border bg-slate-50 p-3 text-xs font-bold dark:border-slate-800 dark:bg-slate-900/50"
                         >
                             <span
                                 v-if="action === 'check_in'"

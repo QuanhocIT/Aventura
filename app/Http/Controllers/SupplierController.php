@@ -873,10 +873,10 @@ class SupplierController extends Controller
             ], $items);
 
             return response()->json([
-                'invoice_number' => 'INV-FALLBACK-' . rand(1000, 9999),
+                'invoice_number' => 'INV-DOC-' . now()->format('Ymd-His'),
                 'items' => $parsed,
                 'confidence' => 0.85,
-                'message' => 'Chế độ dự phòng PHP hoạt động.',
+                'message' => 'Trích xuất dự phòng dựa trên dữ liệu đơn đặt hàng (PO).',
             ]);
         }
 

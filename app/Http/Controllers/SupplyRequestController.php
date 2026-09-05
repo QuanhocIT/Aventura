@@ -41,6 +41,7 @@ class SupplyRequestController extends Controller
      */
     public function centralWarehousePage(Request $request): Response
     {
+        $user = $request->user();
         $props = $this->analyticsService->getCentralWarehouseProps($request);
         $props['centralWarehouseAi'] = app(CentralWarehouseAiService::class)->analyze($props);
 
@@ -57,6 +58,8 @@ class SupplyRequestController extends Controller
                 (int) $request->user()->restaurant_id,
                 $props['centralBranch']?->id,
             ),
+            'canManageWarehouse' => $props['canManageWarehouse'] ?? false,
+            'canCreateReceiving' => ! $user->hasRole('warehouse_staff') && ($user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage') || $user->hasRole('warehouse_manager') || $user->can('warehouse.receiving.create')),
         ]);
     }
 

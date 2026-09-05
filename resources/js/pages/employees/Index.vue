@@ -2287,7 +2287,7 @@ const submitSwapReject = () => {
                                         class="flex w-full items-center justify-center"
                                     >
                                         <label
-                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800"
                                         >
                                             <div
                                                 class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
@@ -2336,7 +2336,7 @@ const submitSwapReject = () => {
                                         class="flex w-full items-center justify-center"
                                     >
                                         <label
-                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                            class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800"
                                         >
                                             <div
                                                 class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
@@ -2720,7 +2720,7 @@ const submitSwapReject = () => {
                                     class="flex w-full items-center justify-center"
                                 >
                                     <label
-                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800"
                                     >
                                         <div
                                             class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
@@ -2767,7 +2767,7 @@ const submitSwapReject = () => {
                                     class="flex w-full items-center justify-center"
                                 >
                                     <label
-                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100"
+                                        class="flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/50 dark:hover:bg-slate-800"
                                     >
                                         <div
                                             class="flex flex-col items-center justify-center px-3 pt-2 pb-2 text-center"
@@ -3094,7 +3094,7 @@ const submitSwapReject = () => {
                                                 />
                                                 <div
                                                     v-else
-                                                    class="flex h-16 items-center justify-center rounded border border-dashed bg-slate-50 text-[9px] text-slate-400 italic"
+                                                    class="flex h-16 items-center justify-center rounded border border-dashed bg-slate-50 text-[9px] text-slate-400 italic dark:bg-slate-900/50"
                                                 >
                                                     Chưa có ảnh
                                                 </div>
@@ -3118,7 +3118,7 @@ const submitSwapReject = () => {
                                                 />
                                                 <div
                                                     v-else
-                                                    class="flex h-16 items-center justify-center rounded border border-dashed bg-slate-50 text-[9px] text-slate-400 italic"
+                                                    class="flex h-16 items-center justify-center rounded border border-dashed bg-slate-50 text-[9px] text-slate-400 italic dark:bg-slate-900/50"
                                                 >
                                                     Chưa có ảnh
                                                 </div>

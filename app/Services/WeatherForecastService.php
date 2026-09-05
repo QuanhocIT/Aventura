@@ -61,12 +61,6 @@ class WeatherForecastService
                 $avgSales = (float) $salesMap->get($p->id)->total_qty / 30.0;
             }
 
-            // Seed baseline nếu sản phẩm mới tinh chưa có doanh số để hiển thị trực quan
-            if ($avgSales < 0.1) {
-                $hash = crc32($p->id.$p->name);
-                $avgSales = 2.0 + ($hash % 7); // 2 - 8 đơn mỗi ngày
-            }
-
             $productsData[] = [
                 'product_id' => $p->id,
                 'product_name' => $p->name,
@@ -110,14 +104,14 @@ class WeatherForecastService
     /**
      * Dựng dự báo thời tiết 7 ngày: gọi OpenWeatherMap thật nếu đã cấu hình API key,
      * nối thêm persistence forecast (lặp lại điều kiện ngày cuối) nếu API chỉ trả về
-     * ít hơn 7 ngày (gói free thường chỉ có 5 ngày), hoặc dùng ước tính nếu API lỗi/chưa cấu hình.
+     * ít hơn 7 ngày (gói free thường chỉ có 5 ngày).
      */
     private function buildForecastDays(float $lat, float $lng): array
     {
         $realDays = $this->fetchRealForecast($lat, $lng);
 
         if (empty($realDays)) {
-            return $this->buildEstimatedForecast();
+            return [];
         }
 
         $forecast = array_slice($realDays, 0, 7);
@@ -137,8 +131,7 @@ class WeatherForecastService
 
     /**
      * Gọi OpenWeatherMap /forecast (free tier, 3 giờ/lần trong 5 ngày), gộp theo ngày
-     * (lấy mốc 12:00 trưa làm đại diện). Trả về null nếu chưa cấu hình hoặc lỗi —
-     * để buildForecastDays() rơi về ước tính thay vì làm hỏng luồng chính.
+     * (lấy mốc 12:00 trưa làm đại diện). Trả về null nếu chưa cấu hình hoặc lỗi.
      */
     private function fetchRealForecast(float $lat, float $lng): ?array
     {
@@ -225,37 +218,6 @@ class WeatherForecastService
             'Squall', 'Tornado' => 'windy',
             default => 'cloudy',
         };
-    }
-
-    /**
-     * Ước tính thời tiết deterministic theo ngày khi chưa cấu hình OPENWEATHER_API_KEY
-     * hoặc API lỗi — chỉ dùng làm phương án cuối để tính năng gợi ý thực đơn vẫn chạy được.
-     */
-    private function buildEstimatedForecast(): array
-    {
-        $conditions = ['sunny', 'rainy', 'cloudy', 'windy'];
-        $forecast = [];
-
-        for ($i = 1; $i <= 7; $i++) {
-            $date = now()->addDays($i);
-            $hash = crc32($date->toDateString());
-            $cond = $conditions[$hash % count($conditions)];
-
-            $temp = match (true) {
-                $cond === 'sunny' => 31.0 + ($hash % 5),
-                $cond === 'rainy' => 20.0 + ($hash % 4),
-                $cond === 'cloudy' => 26.0 + ($hash % 4),
-                default => 24.0 + ($hash % 5),
-            };
-
-            $forecast[] = [
-                'date' => $date->format('Y-m-d'),
-                'condition' => $cond,
-                'temperature' => (float) $temp,
-            ];
-        }
-
-        return $forecast;
     }
 
     /**

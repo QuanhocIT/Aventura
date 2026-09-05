@@ -47,6 +47,7 @@ const fallbackTooltipStyle = {
     top: 'auto',
     zIndex: 9999,
 };
+const tourDismissalStorageKey = 'aventura_tour_disabled';
 
 // Định nghĩa tất cả các bước Tour cho 3 Ngày
 const tourSteps: Record<number, TourStep[]> = {
@@ -136,6 +137,16 @@ const updateTargetPosition = () => {
         return;
     }
 
+    // The layout survives Inertia navigations. Never keep a target from the
+    // previous page, otherwise the teleported tour UI can be rendered over an
+    // unrelated screen while the next page is loading.
+    if (!isCorrectPage.value) {
+        targetRect.value = null;
+        tooltipStyle.value = {};
+
+        return;
+    }
+
     const el = document.querySelector(activeStep.value.selector) as HTMLElement;
 
     if (el) {
@@ -213,6 +224,7 @@ const updateTargetPosition = () => {
         };
     } else {
         targetRect.value = null;
+        tooltipStyle.value = {};
     }
 };
 
@@ -236,6 +248,8 @@ const startTour = (day: number) => {
     activeStepIndex.value = 0;
     isTourActive.value = true;
     isSuccessOpen.value = false;
+    targetRect.value = null;
+    tooltipStyle.value = {};
     lastScrolledStep.value = null;
     nextTick(() => {
         updateTargetPosition();
@@ -243,12 +257,33 @@ const startTour = (day: number) => {
     });
 };
 
+const handleManualTourStart = (event: Event) => {
+    const day = Number(
+        (event as CustomEvent<{ day?: number }>).detail?.day,
+    );
+
+    if (day < 1 || day > 3) {
+        return;
+    }
+
+    localStorage.removeItem(tourDismissalStorageKey);
+    localStorage.removeItem(`aventura_tour_day${day}_dismissed`);
+    sessionStorage.removeItem(`aventura_tour_day${day}_dismissed`);
+    startTour(day);
+};
+
 const skipTour = () => {
     isTourActive.value = false;
     stopTargetPolling();
     targetRect.value = null;
     lastScrolledStep.value = null;
-    // Ghi nhớ người dùng đã dismiss tour ngày này trong session — không tự bật lại khi reload
+    // Keep the tour dismissed across reloads. A session-only flag caused the
+    // global overlay to unexpectedly come back on later pages.
+    localStorage.setItem(tourDismissalStorageKey, '1');
+    localStorage.setItem(
+        `aventura_tour_day${currentDay.value}_dismissed`,
+        '1',
+    );
     sessionStorage.setItem(
         `aventura_tour_day${currentDay.value}_dismissed`,
         '1',
@@ -328,6 +363,9 @@ const startNextDay = () => {
 watch(
     () => page.url,
     () => {
+        targetRect.value = null;
+        tooltipStyle.value = {};
+
         nextTick(() => {
             updateTargetPosition();
         });
@@ -336,6 +374,7 @@ watch(
 
 // Lắng nghe trạng thái onboarding của User từ Backend để tự động kích hoạt
 onMounted(() => {
+    window.addEventListener('aventura:start-tour', handleManualTourStart);
     window.addEventListener('resize', updateTargetPosition);
     window.addEventListener('scroll', updateTargetPosition, true);
 
@@ -346,6 +385,9 @@ onMounted(() => {
             const status = onboardingStatus.value;
 
             const wasDismissed = (day: number) =>
+                localStorage.getItem(tourDismissalStorageKey) === '1' ||
+                localStorage.getItem(`aventura_tour_day${day}_dismissed`) ===
+                    '1' ||
                 sessionStorage.getItem(`aventura_tour_day${day}_dismissed`) ===
                 '1';
 
@@ -383,6 +425,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    window.removeEventListener('aventura:start-tour', handleManualTourStart);
     window.removeEventListener('resize', updateTargetPosition);
     window.removeEventListener('scroll', updateTargetPosition, true);
     stopTargetPolling();
@@ -424,18 +467,8 @@ defineExpose({
 
 <template>
     <div>
-        <!-- Backdrop đè sáng đè lên phần tử được chọn -->
+        <!-- Only render the non-blocking guide chrome for a valid target. -->
         <Teleport to="body">
-            <div
-                v-if="isTourActive && targetRect && isCorrectPage"
-                class="pointer-events-none fixed inset-0 transition-opacity duration-300"
-                style="z-index: 9998"
-                :style="{
-                    background: `radial-gradient(circle 85px at ${targetRect.left + targetRect.width / 2}px ${targetRect.top + targetRect.height / 2}px, transparent 92%, rgba(15, 23, 42, 0.2) 100%)`,
-                }"
-            />
-
-            <!-- Pulse Highlight đè trực tiếp lên phần tử mục tiêu -->
             <div
                 v-if="isTourActive && targetRect && isCorrectPage"
                 class="pointer-events-none fixed animate-pulse rounded-md border-2 border-primary"
