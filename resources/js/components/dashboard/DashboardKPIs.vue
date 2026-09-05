@@ -81,30 +81,30 @@ watch(
         >
             <!-- 1. ĐƠN HÀNG HÔM NAY -->
             <div
-                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-400/40 hover:shadow-md hover:shadow-indigo-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-indigo-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-indigo-500/60"
             >
                 <!-- Top row: Icon + Badge -->
                 <div class="flex items-center justify-between">
                     <div
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/60 bg-slate-100/70 text-slate-600 transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-primary dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+                        class="flex size-9.5 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-600 transition-transform duration-200 group-hover:scale-105 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-400"
                     >
                         <ShoppingCart class="size-4.5" />
                     </div>
                     <span
-                        class="inline-flex items-center gap-1.5 rounded-md border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/5 px-2.5 py-0.5 text-[10.5px] font-medium text-indigo-700 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-300"
                     >
-                        <span class="size-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                        <span class="size-1.5 rounded-full bg-indigo-500 animate-pulse" />
                         Hôm nay
                     </span>
                 </div>
 
                 <!-- Middle row: Value & Title -->
-                <div class="mt-3">
+                <div class="mt-3.5">
                     <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
                         Đơn hàng hôm nay
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
-                        <p class="text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
+                        <p class="text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
                             <AnimatedNumber :value="orders" />
                         </p>
                         <span class="text-xs font-normal text-slate-400 dark:text-slate-500">đơn phát sinh</span>
@@ -112,30 +112,30 @@ watch(
                 </div>
 
                 <!-- Bottom row: Subtitle context -->
-                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                <div class="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
                     <span class="truncate">Đang phục vụ & Mới tạo</span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">Thời gian thực</span>
+                    <span class="font-medium text-indigo-600/90 dark:text-indigo-400">Thời gian thực</span>
                 </div>
             </div>
 
             <!-- 2. DOANH THU HÔM NAY -->
             <div
-                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400/40 hover:shadow-md hover:shadow-emerald-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-emerald-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-emerald-500/60"
             >
                 <!-- Top row: Icon + Trend Badge -->
                 <div class="flex items-center justify-between">
                     <div
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/60 bg-slate-100/70 text-slate-600 transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-primary dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+                        class="flex size-9.5 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 transition-transform duration-200 group-hover:scale-105 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-400"
                     >
                         <Banknote class="size-4.5" />
                     </div>
                     <span
                         v-if="stats.revenue_trend !== null"
                         :class="[
-                            'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold',
+                            'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold',
                             stats.revenue_trend >= 0
-                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300'
+                                : 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300',
                         ]"
                     >
                         <component :is="stats.revenue_trend >= 0 ? ArrowUp : ArrowDown" class="size-2.5" />
@@ -143,18 +143,18 @@ watch(
                     </span>
                     <span
                         v-else
-                        class="inline-flex items-center rounded-md border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400"
+                        class="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300"
                     >
                         Thực thu
                     </span>
                 </div>
 
                 <!-- Middle row: Value & Title -->
-                <div class="mt-3">
+                <div class="mt-3.5">
                     <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
                         Doanh thu hôm nay
                     </p>
-                    <p class="mt-1 truncate text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
+                    <p class="mt-1 truncate text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
                         <AnimatedNumber
                             v-if="revenue > 0"
                             :value="revenue"
@@ -165,37 +165,37 @@ watch(
                 </div>
 
                 <!-- Bottom row: Subtitle context -->
-                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                <div class="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
                     <span class="truncate">Tổng tiền đã chốt</span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">Sau chiết khấu</span>
+                    <span class="font-medium text-emerald-600/90 dark:text-emerald-400">Sau chiết khấu</span>
                 </div>
             </div>
 
             <!-- 3. ĐƠN ĐÃ HOÀN TẤT -->
             <div
-                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-400/40 hover:shadow-md hover:shadow-sky-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-sky-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-sky-500/60"
             >
                 <!-- Top row: Icon + Completion Rate Badge -->
                 <div class="flex items-center justify-between">
                     <div
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/60 bg-slate-100/70 text-slate-600 transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-primary dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+                        class="flex size-9.5 shrink-0 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-600 transition-transform duration-200 group-hover:scale-105 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-400"
                     >
                         <CheckCircle2 class="size-4.5" />
                     </div>
                     <span
-                        class="inline-flex items-center rounded-md border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400"
+                        class="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/5 px-2.5 py-0.5 text-[10.5px] font-medium text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-300"
                     >
                         Tỉ lệ: {{ completionRate }}%
                     </span>
                 </div>
 
                 <!-- Middle row: Value & Title -->
-                <div class="mt-3">
+                <div class="mt-3.5">
                     <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
                         Đơn đã hoàn tất
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
-                        <p class="text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
+                        <p class="text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
                             <AnimatedNumber :value="completed" />
                         </p>
                         <span class="text-xs font-normal text-slate-400 dark:text-slate-500">/ {{ orders }} đơn thành công</span>
@@ -203,37 +203,37 @@ watch(
                 </div>
 
                 <!-- Bottom row: Subtitle context -->
-                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                <div class="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
                     <span class="truncate">Đã phục vụ xong</span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">Đã thanh toán</span>
+                    <span class="font-medium text-sky-600/90 dark:text-sky-400">Đã thanh toán</span>
                 </div>
             </div>
 
             <!-- 4. THỰC ĐƠN KINH DOANH -->
             <div
-                class="group relative flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:border-slate-700/80"
+                class="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4.5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/40 hover:shadow-md hover:shadow-amber-500/5 dark:border-slate-800/80 dark:bg-slate-900/60 dark:hover:border-amber-500/40 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-amber-500/60"
             >
                 <!-- Top row: Icon + Menu Status Badge -->
                 <div class="flex items-center justify-between">
                     <div
-                        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200/60 bg-slate-100/70 text-slate-600 transition-colors group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:text-primary dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+                        class="flex size-9.5 shrink-0 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-600 transition-transform duration-200 group-hover:scale-105 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-400"
                     >
                         <UtensilsCrossed class="size-4.5" />
                     </div>
                     <span
-                        class="inline-flex items-center rounded-md border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400"
+                        class="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/5 px-2.5 py-0.5 text-[10.5px] font-medium text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300"
                     >
                         Sẵn sàng bán
                     </span>
                 </div>
 
                 <!-- Middle row: Value & Title -->
-                <div class="mt-3">
+                <div class="mt-3.5">
                     <p class="text-[11px] font-semibold tracking-wider text-slate-500 uppercase dark:text-slate-400">
                         Thực đơn kinh doanh
                     </p>
                     <div class="mt-1 flex items-baseline gap-1.5">
-                        <p class="text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
+                        <p class="text-2xl sm:text-[28px] font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-slate-100">
                             <AnimatedNumber :value="products" />
                         </p>
                         <span class="text-xs font-normal text-slate-400 dark:text-slate-500">món đang mở bán</span>
@@ -241,9 +241,9 @@ watch(
                 </div>
 
                 <!-- Bottom row: Subtitle context -->
-                <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
+                <div class="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800/80 dark:text-slate-400">
                     <span class="truncate">Món ăn & Đồ uống</span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">Sẵn sàng phục vụ</span>
+                    <span class="font-medium text-amber-600/90 dark:text-amber-400">Sẵn sàng phục vụ</span>
                 </div>
             </div>
         </div>
