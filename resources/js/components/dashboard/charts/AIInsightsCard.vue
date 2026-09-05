@@ -67,10 +67,10 @@ function formatMoney(v: number): string {
         <!-- Dự báo doanh thu ngày mai -->
         <Card
             v-if="forecastData"
-            class="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/60"
+            class="relative overflow-hidden rounded-2xl border border-slate-200/80 !bg-transparent backdrop-blur-none shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800/80 dark:!bg-transparent"
         >
             <CardHeader
-                class="flex flex-row items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800/80"
+                class="flex flex-row items-center justify-between border-b border-slate-100 !bg-transparent pb-3 dark:border-slate-800/80 dark:!bg-transparent"
             >
                 <div class="flex items-center gap-2.5">
                     <div
@@ -134,7 +134,7 @@ function formatMoney(v: number): string {
                 <!-- So sánh với hôm nay -->
                 <div
                     v-if="stats?.revenue_today && forecastData.amount > 0"
-                    class="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-950/40"
+                    class="space-y-1.5 rounded-xl border border-slate-100/80 bg-transparent p-2.5 dark:border-slate-800/60 dark:bg-transparent"
                 >
                     <div
                         class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400"

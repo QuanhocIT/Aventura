@@ -113,10 +113,10 @@ const getWeatherIconColor = (condition: string, isSelected: boolean) => {
 
 <template>
     <Card
-        class="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white text-slate-900 shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/60 dark:text-slate-100"
+        class="relative overflow-hidden rounded-2xl border border-slate-200/80 !bg-transparent text-slate-900 shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800/80 dark:!bg-transparent dark:text-slate-100 backdrop-blur-none"
     >
         <CardHeader
-            class="flex flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800/80"
+            class="flex flex-row items-center justify-between gap-3 border-b border-slate-100 !bg-transparent pb-3 dark:border-slate-800/80 dark:!bg-transparent"
         >
             <div class="flex items-center gap-2.5">
                 <div
@@ -170,7 +170,7 @@ const getWeatherIconColor = (condition: string, isSelected: boolean) => {
                             'flex cursor-pointer flex-col items-center justify-between rounded-xl border px-1 py-2 text-center transition-all select-none',
                             selectedDayIndex === idx
                                 ? 'border-sky-500/50 bg-sky-500/10 font-bold text-sky-700 shadow-xs dark:border-sky-400/50 dark:bg-sky-400/15 dark:text-sky-300'
-                                : 'border-slate-200/80 bg-slate-50/70 text-slate-600 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800/80 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200',
+                                : 'border-slate-200/80 bg-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-100/60 hover:text-slate-900 dark:border-slate-800/80 dark:bg-transparent dark:text-slate-400 dark:hover:border-slate-700 dark:hover:bg-slate-800/60 dark:hover:text-slate-200',
                         ]"
                     >
                         <span
@@ -190,7 +190,7 @@ const getWeatherIconColor = (condition: string, isSelected: boolean) => {
 
                 <!-- Selected day detail card -->
                 <div
-                    class="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/40"
+                    class="space-y-3 rounded-2xl border border-slate-200/80 bg-transparent p-3.5 dark:border-slate-800/80 dark:bg-transparent"
                 >
                     <div
                         class="flex items-center justify-between border-b border-slate-200/60 pb-2.5 dark:border-slate-800/60"
