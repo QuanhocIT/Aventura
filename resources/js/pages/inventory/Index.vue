@@ -290,6 +290,7 @@ onMounted(() => {
     if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         const requestedTab = urlParams.get('tab');
+
         if (
             requestedTab &&
             ['stock', 'purchase', 'central', 'waste', 'reconcile', 'planning'].includes(
@@ -304,11 +305,13 @@ onMounted(() => {
 watch(activeTab, (newTab) => {
     if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
+
         if (newTab === 'stock') {
             url.searchParams.delete('tab');
         } else {
             url.searchParams.set('tab', newTab);
         }
+
         window.history.replaceState({}, '', url.toString());
     }
 });
@@ -1181,6 +1184,7 @@ const availableCategories = computed(() => {
             cats.add(i.category_name.trim());
         }
     });
+
     return Array.from(cats);
 });
 
@@ -1207,9 +1211,11 @@ const filteredIngredients = computed(() => {
     if (status !== 'all') {
         list = list.filter((i) => {
             const stock = i.stock;
+
             if (status === 'good') {
                 return stock !== null && stock >= (i.reorder_level || 20);
             }
+
             if (status === 'low') {
                 return (
                     stock !== null &&
@@ -1217,9 +1223,11 @@ const filteredIngredients = computed(() => {
                     stock > 0
                 );
             }
+
             if (status === 'out') {
                 return stock === null || stock <= 0;
             }
+
             if (status === 'expired') {
                 return i.batches?.some(
                     (b) =>
@@ -1227,6 +1235,7 @@ const filteredIngredients = computed(() => {
                         (b.days_remaining !== null && b.days_remaining <= 0),
                 );
             }
+
             return true;
         });
     }
@@ -1238,6 +1247,7 @@ const filteredIngredientsByStorage = computed(() => {
     const storageType = selectedStorageTypeFilter.value;
 
     let list = filteredIngredients.value;
+
     if (storageType !== 'all') {
         list = list.filter(
             (ingredient) => (ingredient.storage_type ?? 'dry') === storageType,
@@ -1245,21 +1255,27 @@ const filteredIngredientsByStorage = computed(() => {
     }
 
     const sort = ingredientSortOption.value;
+
     return [...list].sort((a, b) => {
         if (sort === 'stock_desc') {
             return (b.stock ?? 0) - (a.stock ?? 0);
         }
+
         if (sort === 'stock_asc') {
             return (a.stock ?? 0) - (b.stock ?? 0);
         }
+
         if (sort === 'name_asc') {
             return a.name.localeCompare(b.name, 'vi');
         }
+
         if (sort === 'value_desc') {
             const valA = (a.stock ?? 0) * (a.average_cost ?? 0);
             const valB = (b.stock ?? 0) * (b.average_cost ?? 0);
+
             return valB - valA;
         }
+
         return 0;
     });
 });
@@ -1288,6 +1304,7 @@ const visibleIngredientPages = computed(() => {
         for (let page = 1; page <= total; page++) {
             pages.push(page);
         }
+
         return pages;
     }
 
@@ -1357,6 +1374,7 @@ const totalStockQuantityDisplay = computed(() => {
             maximumFractionDigits: 1,
         });
     }
+
     return totalStockQuantity.value.toFixed(1);
 });
 
@@ -1375,17 +1393,21 @@ const totalInventoryValueFormatted = computed(() => {
 
 const totalInventoryValueCompact = computed(() => {
     const val = totalInventoryValue.value;
+
     if (val >= 1_000_000_000) {
         return (val / 1_000_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' tỷ';
     }
+
     if (val >= 1_000_000) {
         return (val / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' tr';
     }
+
     return val.toLocaleString('vi-VN');
 });
 
 const totalCategoriesCount = computed(() => {
     const cats = new Set(props.ingredients.map((i) => i.category_name).filter(Boolean));
+
     return cats.size;
 });
 
@@ -1444,10 +1466,13 @@ const getEarliestExpiry = (ingredient: Ingredient) => {
     if (!ingredient.batches || ingredient.batches.length === 0) {
         return '—';
     }
+
     const validBatches = ingredient.batches.filter((b) => b.expiry_date);
+
     if (validBatches.length === 0) {
         return '—';
     }
+
     return validBatches[0].expiry_date ?? '—';
 };
 
@@ -1455,6 +1480,7 @@ const isEarliestExpiringSoon = (ingredient: Ingredient) => {
     if (!ingredient.batches || ingredient.batches.length === 0) {
         return false;
     }
+
     return ingredient.batches.some(
         (b) =>
             b.is_expiring_soon ||
@@ -1608,7 +1634,6 @@ const zeroCostIngredients = computed(() =>
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const page = usePage();
 const vnd = (v: number) => new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 
 // ── Submit handlers ───────────────────────────────────────────────────────────
@@ -1751,11 +1776,6 @@ const submitRecipe = () => {
 };
 
 // ── Khóa lô / thu hồi ──────────────────────────────────────────────────────────
-const isOwnerRole = computed(() => {
-    const roles = ((page.props.auth as any)?.user?.roles ?? []) as string[];
-
-    return roles.includes('owner') || roles.includes('super_admin');
-});
 
 const lockBatch = (batchId: number) => {
     const reason = window.prompt(
