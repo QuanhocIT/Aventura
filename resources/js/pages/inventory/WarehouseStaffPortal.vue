@@ -6,6 +6,7 @@ import {
     AlertTriangle,
     ArrowRight,
     BadgeCheck,
+    Bell,
     Box,
     CheckCircle,
     CheckSquare,
@@ -14,6 +15,7 @@ import {
     ClipboardList,
     Clock,
     HardHat,
+    History,
     Package,
     PackageCheck,
     PackageOpen,
@@ -312,6 +314,8 @@ function selectTab(tabId: TabId) {
     setTimeout(checkTabScroll, 300);
 }
 
+const taskStatusFilter = ref<'all' | 'in_progress' | 'assigned' | 'overdue' | 'completed'>('all');
+
 const overdueCount = computed(
     () =>
         taskList.value.filter(
@@ -323,6 +327,40 @@ const overdueCount = computed(
         ).length,
 );
 
+const filteredTasks = computed(() => {
+    if (taskStatusFilter.value === 'in_progress') {
+        return taskList.value.filter((t) => t.status === 'in_progress');
+    }
+
+    if (taskStatusFilter.value === 'assigned') {
+        return taskList.value.filter((t) => t.status === 'assigned');
+    }
+
+    if (taskStatusFilter.value === 'completed') {
+        return taskList.value.filter((t) => t.status === 'completed');
+    }
+
+    if (taskStatusFilter.value === 'overdue') {
+        return taskList.value.filter(
+            (t) =>
+                t.is_overdue ||
+                (t.due_at &&
+                    new Date(t.due_at) < new Date() &&
+                    !['completed', 'cancelled'].includes(t.status)),
+        );
+    }
+
+    return taskList.value;
+});
+
+const taskFilterCounts = computed(() => ({
+    all: taskList.value.length,
+    in_progress: taskList.value.filter((t) => t.status === 'in_progress').length,
+    assigned: taskList.value.filter((t) => t.status === 'assigned').length,
+    overdue: overdueCount.value,
+    completed: taskList.value.filter((t) => t.status === 'completed').length,
+}));
+
 function tasksByType(type: string) {
     return taskList.value.filter(
         (t) => t.task_type === type && t.status !== 'completed',
@@ -333,11 +371,11 @@ function priorityBadgeClass(priority: string) {
     switch (priority) {
         case 'urgent':
         case 'high':
-            return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900';
+            return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
         case 'normal':
-            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-900';
+            return 'bg-muted text-foreground border-border/80';
         default:
-            return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+            return 'bg-muted/60 text-muted-foreground border-border/50';
     }
 }
 
@@ -408,15 +446,15 @@ function formatLocationName(loc: any): string {
 function statusBadgeClass(status: string) {
     switch (status) {
         case 'assigned':
-            return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-400 dark:border-sky-900';
+            return 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20';
         case 'in_progress':
-            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-900';
+            return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
         case 'completed':
-            return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900';
+            return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
         case 'cancelled':
-            return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+            return 'bg-muted text-muted-foreground border-border';
         default:
-            return 'bg-slate-50 text-slate-600 border-slate-200';
+            return 'bg-muted/60 text-muted-foreground border-border';
     }
 }
 
@@ -434,15 +472,15 @@ function statusLabel(status: string): string {
 function voucherStatusBadgeClass(s: string) {
     switch (s) {
         case 'draft':
-            return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300';
+            return 'bg-muted text-muted-foreground border-border';
         case 'confirmed':
-            return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400';
+            return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
         case 'discrepancy':
-            return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-400';
+            return 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20';
         case 'pending_review':
-            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400';
+            return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
         default:
-            return 'bg-slate-100 text-slate-700 border-slate-200';
+            return 'bg-muted text-muted-foreground border-border';
     }
 }
 
@@ -457,38 +495,6 @@ function voucherStatusLabel(s: string): string {
 
     return map[s] ?? s;
 }
-
-// ── Lifecycle & Auto-Refresh ──────────────────────────────────────────────────
-
-onMounted(() => {
-    // Tự động kiểm tra và cập nhật tác vụ mới mỗi 3 giây
-    refreshTimer = setInterval(() => {
-        if (
-            !document.hidden &&
-            !isProcessingTask.value &&
-            !showPickingModal.value &&
-            !showScanModal.value
-        ) {
-            refreshTasks(true);
-        }
-    }, 3000);
-
-    const onVisibilityOrFocus = () => {
-        if (!document.hidden) {
-            refreshTasks(true);
-        }
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityOrFocus);
-    window.addEventListener('focus', onVisibilityOrFocus);
-});
-
-onBeforeUnmount(() => {
-    if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-    }
-});
 
 // ── API Actions ───────────────────────────────────────────────────────────────
 
@@ -1636,56 +1642,111 @@ onBeforeUnmount(() => {
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
         <!-- ── Page Header ── -->
         <div
-            class="flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+            class="flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-center sm:justify-between"
         >
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3.5">
                 <div
-                    class="flex size-12 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-600 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/50 dark:text-amber-400"
+                    class="flex size-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-xs"
                 >
-                    <CheckSquare class="size-6" />
+                    <CheckSquare class="size-5" />
                 </div>
                 <div>
                     <h1
-                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
+                        class="text-xl font-bold tracking-tight text-foreground sm:text-2xl"
                     >
                         Cổng Tác Vụ Nhân Viên Kho
                     </h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                        {{ centralBranch?.name || 'Kho Tổng Sài Gòn' }} • Người
-                        thực thi:
-                        <span
-                            class="font-semibold text-slate-700 dark:text-slate-200"
-                            >{{ currentUser?.name }}</span
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        {{ centralBranch?.name || 'Kho Tổng Sài Gòn' }}
+                        <span class="mx-1.5 opacity-40">•</span>
+                        Người thực thi:
+                        <span class="font-medium text-foreground">{{
+                            currentUser?.name
+                        }}</span>
+                        <span class="text-muted-foreground/80">
+                            ({{ currentUser?.job_title || 'Nhân viên kho' }})</span
                         >
-                        ({{ currentUser?.job_title || 'Nhân viên kho' }})
                     </p>
                 </div>
             </div>
 
-            <div v-if="canManageWarehouse" class="flex items-center gap-2">
-                <Link href="/warehouse/team">
-                    <Button
-                        variant="outline"
-                        class="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
+            <!-- Quick Action Toolbar -->
+            <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-9 gap-1.5 border-border/80 text-xs font-medium shadow-xs hover:bg-muted/60"
+                    @click="showScanModal = true"
+                >
+                    <QrCode class="size-3.5 text-muted-foreground" />
+                    <span>Quét mã</span>
+                </Button>
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-9 gap-1.5 border-border/80 text-xs font-medium shadow-xs hover:bg-muted/60"
+                    :disabled="isLoading"
+                    @click="refreshTasks(false)"
+                >
+                    <RefreshCw
+                        class="size-3.5 text-muted-foreground"
+                        :class="{ 'animate-spin': isLoading }"
+                    />
+                    <span class="hidden sm:inline">Làm mới</span>
+                </Button>
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="relative h-9 gap-1.5 border-border/80 text-xs font-medium shadow-xs hover:bg-muted/60"
+                    :class="{ 'bg-muted/80': showNotifications }"
+                    @click="showNotifications = !showNotifications; showHistory = false"
+                >
+                    <Bell class="size-3.5 text-muted-foreground" />
+                    <span class="hidden sm:inline">Thông báo</span>
+                    <span
+                        v-if="notificationList.length > 0"
+                        class="flex size-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white leading-none"
                     >
-                        <Users class="size-4" />
-                        Quản Lý Đội Ngũ
+                        {{ notificationList.length }}
+                    </span>
+                </Button>
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-9 gap-1.5 border-border/80 text-xs font-medium shadow-xs hover:bg-muted/60"
+                    :class="{ 'bg-muted/80': showHistory }"
+                    @click="showHistory = !showHistory; showNotifications = false"
+                >
+                    <History class="size-3.5 text-muted-foreground" />
+                    <span class="hidden sm:inline">Lịch sử</span>
+                </Button>
+
+                <Link v-if="canManageWarehouse" href="/warehouse/team">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        class="h-9 gap-1.5 text-xs font-medium"
+                    >
+                        <Users class="size-3.5" />
+                        <span>Đội ngũ</span>
                     </Button>
                 </Link>
             </div>
         </div>
 
-        <!-- ── Summary Metric Cards ── -->
+        <!-- ── Notifications Drawer ── -->
         <Card
             v-if="showNotifications"
-            class="border-indigo-200 bg-indigo-50/50 shadow-sm dark:border-indigo-900 dark:bg-indigo-950/30"
+            class="border-border/80 bg-card shadow-sm"
         >
             <CardHeader class="flex flex-row items-center justify-between py-3">
                 <div>
-                    <CardTitle class="text-sm">Thông báo công việc</CardTitle>
+                    <CardTitle class="text-sm font-semibold">Thông báo công việc</CardTitle>
                     <CardDescription class="text-xs"
-                        >Task mới, bàn giao ca và kiểm kê cần xử
-                        lý.</CardDescription
+                        >Task mới, bàn giao ca và kiểm kê cần xử lý.</CardDescription
                     >
                 </div>
                 <Button
@@ -1698,18 +1759,18 @@ onBeforeUnmount(() => {
             <CardContent class="space-y-2 pt-0">
                 <div
                     v-if="notificationList.length === 0"
-                    class="text-xs text-muted-foreground"
+                    class="py-4 text-center text-xs text-muted-foreground"
                 >
                     Không có thông báo chưa đọc.
                 </div>
                 <button
                     v-for="notification in notificationList"
                     :key="notification.id"
-                    class="flex w-full items-start justify-between gap-3 rounded-lg border bg-white p-3 text-left text-xs dark:bg-slate-900"
+                    class="flex w-full items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-left text-xs transition hover:bg-muted/40"
                     @click="markNotificationRead(notification)"
                 >
                     <span
-                        ><strong>{{
+                        ><strong class="text-foreground">{{
                             notification.data?.title ||
                             notification.data?.message ||
                             'Thông báo Kho Tổng'
@@ -1723,12 +1784,13 @@ onBeforeUnmount(() => {
             </CardContent>
         </Card>
 
+        <!-- ── History Drawer ── -->
         <Card
             v-if="showHistory"
-            class="border-slate-200 shadow-sm dark:border-slate-800"
+            class="border-border/80 bg-card shadow-sm"
         >
             <CardHeader class="flex flex-row items-center justify-between py-3">
-                <CardTitle class="text-sm">Lịch sử thao tác của tôi</CardTitle>
+                <CardTitle class="text-sm font-semibold">Lịch sử thao tác của tôi</CardTitle>
                 <Button size="sm" variant="ghost" @click="showHistory = false"
                     >Đóng</Button
                 >
@@ -1736,16 +1798,16 @@ onBeforeUnmount(() => {
             <CardContent class="space-y-2 pt-0">
                 <div
                     v-if="historyList.length === 0"
-                    class="text-xs text-muted-foreground"
+                    class="py-4 text-center text-xs text-muted-foreground"
                 >
-                    Chưa có dữ liệu lịch sử.
+                    Chưa có dữ liệu lịch sử trong phiên này.
                 </div>
                 <div
                     v-for="item in historyList"
                     :key="item.id"
-                    class="flex items-center justify-between rounded-lg border p-2 text-xs"
+                    class="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-2.5 text-xs"
                 >
-                    <span class="font-medium">{{ item.action }}</span>
+                    <span class="font-medium text-foreground">{{ item.action }}</span>
                     <span class="text-muted-foreground">{{
                         new Date(item.created_at).toLocaleString('vi-VN')
                     }}</span>
@@ -1753,151 +1815,160 @@ onBeforeUnmount(() => {
             </CardContent>
         </Card>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card
-                class="border-amber-200/60 bg-gradient-to-br from-amber-500/5 to-transparent shadow-sm dark:border-amber-950/30"
+        <!-- ── Summary Metric Cards (Clean, Refined, Non-garish) ── -->
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+            <!-- 1. Đang thực hiện -->
+            <div
+                class="motion-card animate-fade-in-up stagger-1 group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 shadow-xs transition hover:border-border hover:shadow-sm"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between pb-2"
-                >
-                    <CardDescription
-                        class="text-xs font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400"
-                        >Đang Thực Hiện</CardDescription
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-muted-foreground">Đang thực hiện</span>
+                    <div
+                        class="flex size-7 items-center justify-center rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 transition-transform duration-200 group-hover:scale-110"
                     >
-                    <Zap class="size-4 text-amber-500" />
-                </CardHeader>
-                <CardContent>
-                    <p
-                        class="text-2xl font-black text-amber-600 tabular-nums dark:text-amber-400"
+                        <Zap class="size-3.5" />
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-2">
+                    <span
+                        class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums"
                     >
                         {{ taskSummaryData.in_progress }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        nhiệm vụ đang tiến hành
-                    </p>
-                </CardContent>
-            </Card>
+                    </span>
+                    <span class="text-[11px] text-muted-foreground">tác vụ</span>
+                </div>
+                <p class="mt-1 text-[11px] text-muted-foreground/80 truncate">
+                    Đang tiến hành xử lý
+                </p>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500/50"></div>
+            </div>
 
-            <Card
-                class="border-sky-200/60 bg-gradient-to-br from-sky-500/5 to-transparent shadow-sm dark:border-sky-950/30"
+            <!-- 2. Chờ xử lý -->
+            <div
+                class="motion-card animate-fade-in-up stagger-2 group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 shadow-xs transition hover:border-border hover:shadow-sm"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between pb-2"
-                >
-                    <CardDescription
-                        class="text-xs font-bold tracking-wider text-sky-600 uppercase dark:text-sky-400"
-                        >Chờ Xử Lý</CardDescription
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-muted-foreground">Chờ xử lý</span>
+                    <div
+                        class="flex size-7 items-center justify-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 transition-transform duration-200 group-hover:scale-110"
                     >
-                    <Clock class="size-4 text-sky-500" />
-                </CardHeader>
-                <CardContent>
-                    <p
-                        class="text-2xl font-black text-sky-600 tabular-nums dark:text-sky-400"
+                        <Clock class="size-3.5" />
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-2">
+                    <span
+                        class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums"
                     >
                         {{ taskSummaryData.pending }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        nhiệm vụ chờ bắt đầu
-                    </p>
-                </CardContent>
-            </Card>
+                    </span>
+                    <span class="text-[11px] text-muted-foreground">tác vụ</span>
+                </div>
+                <p class="mt-1 text-[11px] text-muted-foreground/80 truncate">
+                    Chờ bắt đầu thực hiện
+                </p>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-500/50"></div>
+            </div>
 
-            <Card
-                class="border-rose-200/60 bg-gradient-to-br from-rose-500/5 to-transparent shadow-sm dark:border-rose-950/30"
+            <!-- 3. Tác vụ quá hạn -->
+            <div
+                class="motion-card animate-fade-in-up stagger-3 group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 shadow-xs transition hover:border-border hover:shadow-sm"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between pb-2"
-                >
-                    <CardDescription
-                        class="text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
-                        >Tác Vụ Quá Hạn</CardDescription
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-muted-foreground">Tác vụ quá hạn</span>
+                    <div
+                        class="flex size-7 items-center justify-center rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 transition-transform duration-200 group-hover:scale-110"
                     >
-                    <AlertTriangle class="size-4 text-rose-500" />
-                </CardHeader>
-                <CardContent>
-                    <p
-                        class="text-2xl font-black text-rose-600 tabular-nums dark:text-rose-400"
+                        <AlertTriangle class="size-3.5" />
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-2">
+                    <span
+                        class="text-2xl sm:text-3xl font-bold tracking-tight tabular-nums"
+                        :class="overdueCount > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'"
                     >
                         {{ overdueCount }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        cần ưu tiên xử lý gấp
-                    </p>
-                </CardContent>
-            </Card>
+                    </span>
+                    <span class="text-[11px] text-muted-foreground">cần gấp</span>
+                </div>
+                <p class="mt-1 text-[11px] text-muted-foreground/80 truncate">
+                    {{ overdueCount > 0 ? 'Cần ưu tiên xử lý ngay' : 'Không có tác vụ trễ' }}
+                </p>
+                <div
+                    class="absolute bottom-0 left-0 right-0 h-0.5"
+                    :class="overdueCount > 0 ? 'bg-rose-500' : 'bg-rose-500/30'"
+                ></div>
+            </div>
 
-            <Card
-                class="border-emerald-200/60 bg-gradient-to-br from-emerald-500/5 to-transparent shadow-sm dark:border-emerald-950/30"
+            <!-- 4. Hoàn thành hôm nay -->
+            <div
+                class="motion-card animate-fade-in-up stagger-4 group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 shadow-xs transition hover:border-border hover:shadow-sm"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between pb-2"
-                >
-                    <CardDescription
-                        class="text-xs font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
-                        >Hoàn Thành Hôm Nay</CardDescription
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-muted-foreground">Hoàn thành hôm nay</span>
+                    <div
+                        class="flex size-7 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 transition-transform duration-200 group-hover:scale-110"
                     >
-                    <CheckCircle class="size-4 text-emerald-500" />
-                </CardHeader>
-                <CardContent>
-                    <p
-                        class="text-2xl font-black text-emerald-600 tabular-nums dark:text-emerald-400"
+                        <CheckCircle class="size-3.5" />
+                    </div>
+                </div>
+                <div class="mt-2.5 flex items-baseline gap-2">
+                    <span
+                        class="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums"
                     >
                         {{ taskSummaryData.completed_today ?? 0 }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        tác vụ đã hoàn tất chuẩn
-                    </p>
-                </CardContent>
-            </Card>
+                    </span>
+                    <span class="text-[11px] text-muted-foreground">đã xong</span>
+                </div>
+                <p class="mt-1 text-[11px] text-muted-foreground/80 truncate">
+                    Tác vụ đã hoàn tất chuẩn
+                </p>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500/50"></div>
+            </div>
         </div>
 
-        <!-- ── Navigation Tabs ── -->
-        <div class="relative flex items-center group">
+        <div class="relative flex items-center">
             <button
                 v-if="canScrollLeft"
                 type="button"
-                class="absolute -left-3 z-10 flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
-                title="Cuộn sang trái"
+                class="absolute -left-2 z-10 flex size-7 items-center justify-center rounded-full border border-border/80 bg-background/95 text-muted-foreground shadow-xs hover:text-foreground backdrop-blur-xs"
                 @click="scrollTabs('left')"
             >
-                <ChevronLeft class="size-4 text-slate-700 dark:text-slate-200" />
+                <ChevronLeft class="size-3.5" />
             </button>
 
             <div
                 ref="tabsContainer"
-                class="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100/80 p-1.5 scrollbar-none dark:border-slate-800 dark:bg-slate-900/90 sm:flex-wrap sm:overflow-x-visible"
-                @scroll="checkTabScroll"
+                class="flex w-full items-center gap-1.5 overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-1.5 scrollbar-none"
                 @wheel="handleTabsWheel"
+                @scroll="checkTabScroll"
             >
                 <button
                     v-for="tab in tabs"
                     :key="tab.id"
                     :ref="(el) => setTabRef(el, tab.id)"
-                    class="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-semibold transition-all"
+                    class="flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all"
                     :class="
                         activeTab === tab.id
-                            ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100'
-                            : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-200'
+                            ? 'bg-background text-foreground shadow-xs border border-border/60 font-semibold'
+                            : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                     "
                     @click="selectTab(tab.id)"
                 >
                     <component
                         :is="tab.icon"
-                        class="size-4"
-                        :class="
-                            activeTab === tab.id
-                                ? 'text-amber-500'
-                                : 'text-slate-400'
-                        "
+                        class="size-3.5 shrink-0"
+                        :class="activeTab === tab.id ? 'text-primary' : 'text-muted-foreground/70'"
                     />
                     <span>{{ tab.label }}</span>
                     <span
                         v-if="tab.count > 0"
-                        class="ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                        class="ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-semibold tabular-nums"
                         :class="
-                            activeTab === tab.id
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                            tab.id === 'incident'
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                : activeTab === tab.id
+                                  ? 'bg-muted text-foreground font-bold'
+                                  : 'bg-muted/80 text-muted-foreground'
                         "
                     >
                         {{ tab.count }}
@@ -1908,11 +1979,10 @@ onBeforeUnmount(() => {
             <button
                 v-if="canScrollRight"
                 type="button"
-                class="absolute -right-3 z-10 flex size-7 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md transition-all hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
-                title="Cuộn sang phải"
+                class="absolute -right-2 z-10 flex size-7 items-center justify-center rounded-full border border-border/80 bg-background/95 text-muted-foreground shadow-xs hover:text-foreground backdrop-blur-xs"
                 @click="scrollTabs('right')"
             >
-                <ChevronRight class="size-4 text-slate-700 dark:text-slate-200" />
+                <ChevronRight class="size-3.5" />
             </button>
         </div>
 
@@ -1920,65 +1990,106 @@ onBeforeUnmount(() => {
 
         <!-- 1. HÔM NAY / VIỆC CỦA TÔI -->
         <div v-if="activeTab === 'today'" class="flex flex-col gap-4">
-            <div class="flex items-center justify-between">
+            <!-- Filter Bar -->
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2
-                        class="text-lg font-bold text-slate-900 dark:text-slate-100"
-                    >
+                    <h2 class="text-base font-bold text-foreground">
                         Danh Sách Tác Vụ Của Tôi
                     </h2>
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-muted-foreground mt-0.5">
                         Các công việc do Trưởng kho phân công trực tiếp cho bạn
                     </p>
                 </div>
+
+                <!-- Status Filter Pills -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <button
+                        type="button"
+                        v-for="filter in [
+                            { id: 'all', label: 'Tất cả', count: taskFilterCounts.all },
+                            { id: 'in_progress', label: 'Đang làm', count: taskFilterCounts.in_progress },
+                            { id: 'assigned', label: 'Chờ xử lý', count: taskFilterCounts.assigned },
+                            { id: 'overdue', label: 'Quá hạn', count: taskFilterCounts.overdue },
+                            { id: 'completed', label: 'Đã xong', count: taskFilterCounts.completed },
+                        ]"
+                        :key="filter.id"
+                        class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all"
+                        :class="
+                            taskStatusFilter === filter.id
+                                ? 'bg-foreground text-background shadow-xs font-semibold'
+                                : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                        "
+                        @click="taskStatusFilter = filter.id as any"
+                    >
+                        <span>{{ filter.label }}</span>
+                        <span
+                            class="rounded-full px-1.5 py-0.2 text-[10px] font-semibold tabular-nums"
+                            :class="
+                                taskStatusFilter === filter.id
+                                    ? 'bg-background/20 text-background'
+                                    : 'bg-background text-muted-foreground border border-border/50'
+                            "
+                        >
+                            {{ filter.count }}
+                        </span>
+                    </button>
+                </div>
             </div>
 
+            <!-- Empty State -->
             <div
-                v-if="taskList.length === 0"
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/20"
+                v-if="filteredTasks.length === 0"
+                class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-12 text-center bg-card/50"
             >
                 <div
-                    class="flex size-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
+                    class="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground"
                 >
-                    <Warehouse class="size-7" />
+                    <Warehouse class="size-6" />
                 </div>
                 <h3
-                    class="mt-4 text-sm font-bold text-slate-800 dark:text-slate-200"
+                    class="mt-3 text-sm font-semibold text-foreground"
                 >
-                    Không có tác vụ nào đang chờ
+                    {{ taskStatusFilter !== 'all' ? 'Không có tác vụ phù hợp bộ lọc' : 'Không có tác vụ nào đang chờ' }}
                 </h3>
                 <p
-                    class="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400"
+                    class="mt-1 max-w-sm text-xs text-muted-foreground"
                 >
-                    Hiện tại bạn đã hoàn thành hết các nhiệm vụ được giao. Nhấn
-                    nút "Làm mới" hoặc quét mã QR để nhận công việc mới.
+                    {{ taskStatusFilter !== 'all' ? 'Hãy chọn mục lọc khác để xem thêm công việc.' : 'Hiện tại bạn đã hoàn thành hết các nhiệm vụ được giao.' }}
                 </p>
+                <Button
+                    v-if="taskStatusFilter !== 'all'"
+                    variant="outline"
+                    size="sm"
+                    class="mt-3 text-xs"
+                    @click="taskStatusFilter = 'all'"
+                >
+                    Xem tất cả tác vụ
+                </Button>
             </div>
 
+            <!-- Tasks Grid -->
             <div
                 v-else
-                class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
             >
                 <Card
-                    v-for="task in taskList"
+                    v-for="(task, tIdx) in filteredTasks"
                     :key="task.id"
-                    class="relative flex flex-col justify-between overflow-hidden transition-all hover:shadow-md"
-                    :class="{
-                        'border-rose-300 bg-rose-50/20 dark:border-rose-900/50':
-                            task.is_overdue,
-                        'border-amber-300 bg-amber-50/20 dark:border-amber-900/50':
-                            task.status === 'in_progress',
-                        'border-slate-200 dark:border-slate-800':
-                            task.status === 'assigned',
-                        'border-emerald-200 bg-emerald-50/20 opacity-80 dark:border-emerald-900/40':
-                            task.status === 'completed',
-                    }"
+                    class="motion-card animate-fade-in-up relative flex flex-col justify-between overflow-hidden border border-border/70 bg-card text-card-foreground shadow-xs transition hover:border-border hover:shadow-sm"
+                    :class="[
+                        `stagger-${(tIdx % 6) + 1}`,
+                        {
+                            'border-l-4 border-l-rose-500': task.is_overdue || (task.due_at && new Date(task.due_at) < new Date() && !['completed', 'cancelled'].includes(task.status)),
+                            'border-l-4 border-l-amber-500': task.status === 'in_progress' && !task.is_overdue,
+                            'border-l-4 border-l-emerald-500': task.status === 'completed',
+                        },
+                    ]"
                 >
-                    <div class="p-5">
+                    <div class="p-4 sm:p-5">
                         <div class="flex items-start justify-between gap-2">
                             <Badge
                                 variant="outline"
-                                class="gap-1.5 font-semibold"
+                                class="gap-1.5 text-[11px] font-medium"
                                 :class="priorityBadgeClass(task.priority)"
                             >
                                 <span
@@ -1987,14 +2098,14 @@ onBeforeUnmount(() => {
                                         task.priority === 'urgent' ||
                                         task.priority === 'high'
                                             ? 'bg-rose-500'
-                                            : 'bg-amber-500'
+                                            : 'bg-muted-foreground'
                                     "
                                 ></span>
                                 {{ taskTypeLabel(task.task_type) }}
                             </Badge>
                             <Badge
                                 variant="outline"
-                                class="font-semibold"
+                                class="text-[11px] font-medium"
                                 :class="statusBadgeClass(task.status)"
                             >
                                 {{ statusLabel(task.status) }}
@@ -2003,30 +2114,30 @@ onBeforeUnmount(() => {
 
                         <div
                             v-if="task.supply_request"
-                            class="mt-3.5 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400"
+                            class="mt-3 flex items-center gap-1.5 text-xs font-semibold text-foreground"
                         >
-                            <span>{{ task.supply_request.request_code }}</span>
-                            <ChevronRight class="size-3.5 text-slate-400" />
-                            <span>{{
+                            <span class="font-mono">{{ task.supply_request.request_code }}</span>
+                            <ChevronRight class="size-3.5 text-muted-foreground" />
+                            <span class="text-muted-foreground font-normal">{{
                                 formatBranchName(task.supply_request.to_branch)
                             }}</span>
                         </div>
 
                         <p
                             v-if="task.notes"
-                            class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                            class="mt-2 text-xs leading-relaxed text-muted-foreground line-clamp-2"
                         >
                             {{ task.notes }}
                         </p>
 
                         <div
-                            class="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800/80"
+                            class="mt-3.5 flex flex-wrap items-center gap-3 border-t border-border/60 pt-3 text-[11px] text-muted-foreground"
                         >
                             <span
                                 v-if="task.due_at"
                                 class="flex items-center gap-1"
                                 :class="{
-                                    'font-bold text-rose-600 dark:text-rose-400':
+                                    'font-semibold text-rose-600 dark:text-rose-400':
                                         task.is_overdue,
                                 }"
                             >
@@ -2045,13 +2156,13 @@ onBeforeUnmount(() => {
                                 }}
                             </span>
                             <span class="flex items-center gap-1">
-                                <HardHat class="size-3.5 text-slate-400" />
+                                <HardHat class="size-3.5 text-muted-foreground/70" />
                                 {{ priorityLabel(task.priority) }}
                             </span>
                         </div>
                         <div
                             v-if="task.evidence_urls?.length"
-                            class="mt-3 flex flex-wrap gap-2"
+                            class="mt-3 flex flex-wrap gap-1.5"
                         >
                             <a
                                 v-for="(url, index) in task.evidence_urls"
@@ -2059,7 +2170,7 @@ onBeforeUnmount(() => {
                                 :href="url"
                                 target="_blank"
                                 rel="noopener"
-                                class="rounded-md border border-indigo-200 px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+                                class="rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                                 Chứng từ {{ Number(index) + 1 }}
                             </a>
@@ -2067,34 +2178,33 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div
-                        class="border-t border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30"
+                        class="border-t border-border/60 bg-muted/20 p-3"
                     >
                         <div class="flex items-center justify-end gap-2">
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="w-full gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700 dark:bg-amber-500"
+                                class="w-full gap-1.5 text-xs font-medium"
                                 :disabled="isProcessingTask"
                                 @click="startTask(task)"
                             >
-                                <ArrowRight class="size-3.5" /> Bắt đầu thực
-                                hiện
+                                <ArrowRight class="size-3.5" /> Bắt đầu thực hiện
                             </Button>
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="w-full gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-500"
+                                class="w-full gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
                                 <ClipboardList class="size-3.5" />
                                 {{ getTaskActionButtonLabel(task) }}
                             </Button>
-                            <span
+                            <div
                                 v-if="task.status === 'completed'"
-                                class="flex w-full items-center justify-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                                class="flex w-full items-center justify-center gap-1 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
                             >
                                 <BadgeCheck class="size-4" /> Đã hoàn thành
-                            </span>
+                            </div>
                         </div>
                     </div>
                 </Card>
@@ -2105,11 +2215,11 @@ onBeforeUnmount(() => {
         <div v-if="activeTab === 'delivery'" class="flex flex-col gap-4">
             <div>
                 <h2
-                    class="text-lg font-bold text-slate-900 dark:text-slate-100"
+                    class="text-base font-bold text-foreground"
                 >
                     Giao hàng tới Chi nhánh
                 </h2>
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-muted-foreground mt-0.5">
                     Hoàn tất giao thực tế rồi bấm “Giao hàng thành công” để
                     Quản lý chi nhánh được kiểm đếm và nghiệm thu.
                 </p>
@@ -2117,31 +2227,32 @@ onBeforeUnmount(() => {
 
             <div
                 v-if="tasksByType('delivery').length === 0"
-                class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-10 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/20"
+                class="rounded-xl border border-dashed border-border p-10 text-center text-xs text-muted-foreground bg-card/50"
             >
                 Không có đơn Kho Tổng nào đang chờ bạn giao.
             </div>
 
-            <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div v-else class="grid grid-cols-1 gap-3.5 md:grid-cols-2">
                 <Card
                     v-for="task in tasksByType('delivery')"
                     :key="task.id"
-                    class="border-purple-200 shadow-sm dark:border-purple-900/50"
+                    class="border-border/70 bg-card shadow-xs"
                 >
                     <CardHeader class="pb-3">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <CardTitle class="flex items-center gap-2 text-base">
-                                    <Truck class="size-5 text-purple-500" />
-                                    {{ task.supply_request?.request_code || `Task #${task.id}` }}
+                                <CardTitle class="flex items-center gap-2 text-sm font-semibold">
+                                    <Truck class="size-4 text-primary" />
+                                    <span>{{ task.supply_request?.request_code || `Task #${task.id}` }}</span>
                                 </CardTitle>
                                 <CardDescription class="mt-1 text-xs">
                                     Giao tới:
-                                    {{ formatBranchName(task.supply_request?.to_branch) || 'Chi nhánh nhận hàng' }}
+                                    <span class="font-medium text-foreground">{{ formatBranchName(task.supply_request?.to_branch) || 'Chi nhánh nhận hàng' }}</span>
                                 </CardDescription>
                             </div>
                             <Badge
                                 variant="outline"
+                                class="text-[11px] font-medium"
                                 :class="statusBadgeClass(task.status)"
                             >
                                 {{ statusLabel(task.status) }}
@@ -2151,7 +2262,7 @@ onBeforeUnmount(() => {
                     <CardContent class="space-y-3">
                         <p
                             v-if="task.notes"
-                            class="rounded-lg bg-purple-50 p-3 text-xs leading-relaxed text-purple-900 dark:bg-purple-950/30 dark:text-purple-200"
+                            class="rounded-lg bg-muted/40 p-3 text-xs leading-relaxed text-foreground"
                         >
                             {{ task.notes }}
                         </p>
@@ -2162,29 +2273,31 @@ onBeforeUnmount(() => {
                             <span
                                 v-for="item in task.supply_request.items"
                                 :key="item.id"
-                                class="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                                class="rounded-md border border-border/70 bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground"
                             >
                                 {{ item.ingredient_name }} ·
-                                {{ item.actual_dispatched_quantity ?? item.approved_quantity }}
+                                <span class="font-medium text-foreground">{{ item.actual_dispatched_quantity ?? item.approved_quantity }}</span>
                                 {{ item.unit || '' }}
                             </span>
                         </div>
-                        <Button
-                            v-if="task.status === 'assigned'"
-                            class="w-full gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
-                            :disabled="isProcessingTask"
-                            @click="startTask(task)"
-                        >
-                            <ArrowRight class="size-3.5" /> Bắt đầu giao hàng
-                        </Button>
-                        <Button
-                            v-if="task.status === 'in_progress'"
-                            class="w-full gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-                            @click="openTaskCompletion(task)"
-                        >
-                            <CheckCircle class="size-4" />
-                            Giao hàng thành công
-                        </Button>
+                        <div class="pt-1">
+                            <Button
+                                v-if="task.status === 'assigned'"
+                                class="w-full gap-1.5 text-xs font-medium"
+                                :disabled="isProcessingTask"
+                                @click="startTask(task)"
+                            >
+                                <ArrowRight class="size-3.5" /> Bắt đầu giao hàng
+                            </Button>
+                            <Button
+                                v-if="task.status === 'in_progress'"
+                                class="w-full gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                                @click="openTaskCompletion(task)"
+                            >
+                                <CheckCircle class="size-4" />
+                                Giao hàng thành công
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -2194,37 +2307,37 @@ onBeforeUnmount(() => {
         <div v-if="activeTab === 'receiving'" class="flex flex-col gap-6">
             <Card
                 v-if="!canManageWarehouse"
-                class="border-indigo-200 shadow-sm dark:border-indigo-900/50"
+                class="border-border/70 shadow-xs"
             >
                 <CardHeader>
-                    <CardTitle class="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+                    <CardTitle class="text-base font-semibold text-foreground">
                         Phiếu nhập ngoài được phân công kiểm kê
                     </CardTitle>
-                    <CardDescription class="text-xs text-slate-500 dark:text-slate-400">
+                    <CardDescription class="text-xs text-muted-foreground">
                         Trưởng kho Tổng đã lập phiếu. Bạn phải kiểm đếm thực tế từng dòng và xác nhận; chỉ sau bước này nguyên liệu mới được cộng vào tồn Kho Tổng.
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-3">
                     <div
                         v-if="assignedVerificationList.length === 0"
-                        class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500 dark:border-slate-800"
+                        class="rounded-xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground bg-muted/10"
                     >
                         Hiện không có phiếu nhập ngoài nào đang chờ bạn kiểm kê.
                     </div>
                     <div
                         v-for="voucher in assignedVerificationList"
                         :key="voucher.id"
-                        class="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                        class="rounded-xl border border-border/70 bg-muted/20 p-4 transition hover:border-border"
                     >
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="text-xs">
-                                <p class="font-bold text-slate-900 dark:text-slate-100">{{ voucher.voucher_code }}</p>
-                                <p class="mt-1 text-slate-600 dark:text-slate-300">Nguồn ngoài: {{ voucher.external_source_name || 'Không ghi nhận' }}</p>
-                                <p class="mt-1 text-slate-500">Người lập: {{ voucher.received_by?.name || '---' }} · {{ voucher.items?.length || 0 }} dòng · Khai báo: {{ formatQuantity(voucher.total_expected_qty) }}</p>
+                                <p class="font-bold text-foreground font-mono">{{ voucher.voucher_code }}</p>
+                                <p class="mt-1 text-muted-foreground">Nguồn ngoài: <span class="font-medium text-foreground">{{ voucher.external_source_name || 'Không ghi nhận' }}</span></p>
+                                <p class="mt-1 text-muted-foreground">Người lập: {{ voucher.received_by?.name || '---' }} · {{ voucher.items?.length || 0 }} dòng · Khai báo: {{ formatQuantity(voucher.total_expected_qty) }}</p>
                             </div>
                             <Button
                                 size="sm"
-                                class="shrink-0 gap-1.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                                class="shrink-0 gap-1.5 text-xs font-medium"
                                 @click="openVerification(voucher)"
                             >
                                 <CheckCircle class="size-3.5" /> Kiểm kê & xác nhận
@@ -2234,15 +2347,15 @@ onBeforeUnmount(() => {
                 </CardContent>
             </Card>
 
-            <Card v-if="canManageWarehouse" class="border-slate-200 shadow-sm dark:border-slate-800">
+            <Card v-if="canManageWarehouse" class="border-border/70 shadow-xs">
                 <CardHeader>
                     <div class="flex items-center justify-between">
                         <div>
                             <CardTitle
-                                class="text-lg font-bold text-slate-900 dark:text-slate-100"
+                                class="text-base font-semibold text-foreground"
                                 >Tạo Phiếu Nhập Ngoài Vào Kho Tổng</CardTitle
                             >
-                            <CardDescription class="text-xs text-slate-500"
+                            <CardDescription class="text-xs text-muted-foreground"
                                 >Ghi nhận nguyên liệu từ bên ngoài, không qua nhà cung cấp;
                                 sau đó chờ Trưởng kho xác minh</CardDescription
                             >
@@ -2250,7 +2363,7 @@ onBeforeUnmount(() => {
                         <Button
                             type="button"
                             size="sm"
-                            class="gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700"
+                            class="gap-1.5 text-xs font-medium"
                             @click="addGrnItem"
                         >
                             <Plus class="size-3.5" /> Thêm nguyên liệu
@@ -2261,7 +2374,7 @@ onBeforeUnmount(() => {
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
                             <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                class="text-xs font-medium text-foreground"
                                 >Thời gian nhận hàng *</Label
                             >
                             <Input
@@ -2272,7 +2385,7 @@ onBeforeUnmount(() => {
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                class="text-xs font-medium text-foreground"
                                 >Bên giao / nguồn bên ngoài *</Label
                             >
                             <Input
@@ -2284,33 +2397,28 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div class="rounded-xl border border-amber-100 bg-amber-50/60 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                            <p class="text-[10px] font-bold tracking-wide text-amber-700 uppercase dark:text-amber-300">Người nhập</p>
-                            <p class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">{{ currentUser?.name || 'Tài khoản hiện tại' }}</p>
-                            <p class="mt-1 text-[11px] text-slate-500">Được ghi tự động theo tài khoản lập phiếu.</p>
+                        <div class="rounded-xl border border-border/70 bg-muted/20 p-3.5">
+                            <p class="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Người lập</p>
+                            <p class="mt-1 text-sm font-semibold text-foreground">{{ currentUser?.name || 'Tài khoản hiện tại' }}</p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">Được ghi tự động theo tài khoản lập phiếu.</p>
                         </div>
-                        <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                            <p class="text-[10px] font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">Phân công người kiểm kê *</p>
-                            <select v-model="grnForm.verification_assigned_to" class="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                        <div class="rounded-xl border border-border/70 bg-muted/20 p-3.5">
+                            <p class="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Phân công người kiểm kê *</p>
+                            <select v-model="grnForm.verification_assigned_to" class="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs shadow-xs text-foreground">
                                 <option :value="null">Chọn nhân viên Kho Tổng</option>
                                 <option v-for="staff in warehouseStaff" :key="staff.id" :value="staff.id">
                                     {{ staff.name }}{{ staff.job_title ? ` · ${staff.job_title}` : '' }}
                                 </option>
                             </select>
-                            <p class="mt-1 text-[11px] text-slate-500">Nhân viên được chọn sẽ kiểm đếm độc lập; phiếu chưa được cộng tồn kho trước khi họ xác nhận.</p>
-                        </div>
-                        <div class="hidden rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                            <p class="text-[10px] font-bold tracking-wide text-indigo-700 uppercase dark:text-indigo-300">Người kiểm nhận</p>
-                            <p class="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">Trưởng kho xác minh</p>
-                            <p class="mt-1 text-[11px] text-slate-500">Hệ thống ghi nhận người xác minh khi duyệt phiếu.</p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">Nhân viên được chọn sẽ kiểm đếm độc lập; phiếu chưa được cộng tồn kho trước khi họ xác nhận.</p>
                         </div>
                     </div>
 
                     <div
-                        class="grid grid-cols-1 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                        class="grid grid-cols-1 gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:grid-cols-2 lg:grid-cols-4"
                     >
                         <div class="flex flex-col gap-1">
-                            <Label class="text-[11px] font-semibold">Số tham chiếu bên ngoài</Label>
+                            <Label class="text-[11px] font-medium text-muted-foreground">Số tham chiếu bên ngoài</Label>
                             <Input
                                 v-model="grnForm.external_reference"
                                 placeholder="Biên bản / giấy tờ nếu có"
@@ -2318,10 +2426,10 @@ onBeforeUnmount(() => {
                             />
                         </div>
                         <div class="flex flex-col gap-1">
-                            <Label class="text-[11px] font-semibold">Lý do nhập ngoài *</Label>
+                            <Label class="text-[11px] font-medium text-muted-foreground">Lý do nhập ngoài *</Label>
                             <select
                                 v-model="grnForm.external_receipt_reason"
-                                class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground"
                             >
                                 <option value="external_donation">Biếu tặng / hỗ trợ từ bên ngoài</option>
                                 <option value="external_return">Tiếp nhận hoàn từ bên ngoài</option>
@@ -2329,12 +2437,12 @@ onBeforeUnmount(() => {
                             </select>
                         </div>
                         <div class="flex flex-col gap-1">
-                            <Label class="text-[11px] font-semibold"
+                            <Label class="text-[11px] font-medium text-muted-foreground"
                                 >Kết quả QC</Label
                             >
                             <select
                                 v-model="grnForm.quality_status"
-                                class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-2 text-xs text-foreground"
                             >
                                 <option value="pending">Chờ QC</option>
                                 <option value="passed">Đạt</option>
@@ -2344,27 +2452,31 @@ onBeforeUnmount(() => {
                                 <option value="failed">Không đạt</option>
                             </select>
                         </div>
-                        <Input
-                            v-model="grnForm.quality_notes"
-                            placeholder="Ghi chú QC / bao bì / ngoại quan"
-                            class="h-9 text-xs lg:col-span-2"
-                        />
+                        <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+                            <Label class="text-[11px] font-medium text-muted-foreground">Ghi chú QC</Label>
+                            <Input
+                                v-model="grnForm.quality_notes"
+                                placeholder="Bao bì, ngoại quan..."
+                                class="h-9 text-xs"
+                            />
+                        </div>
                     </div>
 
                     <div
                         v-if="grnForm.items.length === 0"
-                        class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800"
+                        class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center bg-card/50"
                     >
-                        <PackageOpen class="size-8 text-slate-400" />
+                        <PackageOpen class="size-8 text-muted-foreground/60" />
                         <p
-                            class="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
+                            class="mt-2 text-xs font-medium text-muted-foreground"
                         >
                             Chưa có nguyên liệu nào trong phiếu nhận
                         </p>
                         <Button
                             type="button"
                             size="sm"
-                            class="mt-3 gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700"
+                            variant="outline"
+                            class="mt-3 gap-1.5 text-xs font-medium"
                             @click="addGrnItem"
                         >
                             <Plus class="size-3.5" /> Thêm nguyên liệu ngay
@@ -2375,17 +2487,17 @@ onBeforeUnmount(() => {
                         <div
                             v-for="(item, index) in grnForm.items"
                             :key="index"
-                            class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40"
+                            class="rounded-xl border border-border/70 bg-card p-4 shadow-xs"
                         >
                             <div class="flex items-center justify-between pb-3">
                                 <span
-                                    class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                                    class="text-xs font-bold text-foreground"
                                     >#{{ index + 1 }} Mặt hàng</span
                                 >
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    class="size-7 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                                    class="size-7 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
                                     @click="removeGrnItem(index)"
                                 >
                                     <Trash2 class="size-4" />
@@ -2397,13 +2509,13 @@ onBeforeUnmount(() => {
                             >
                                 <div class="flex flex-col gap-1 sm:col-span-2">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Nguyên liệu *</Label
                                     >
                                     <select
                                         v-model="item.ingredient_id"
                                         @change="onGrnItemIngredientChange(item)"
-                                        class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                        class="h-9 rounded-md border border-input bg-background px-2.5 text-xs shadow-xs text-foreground"
                                     >
                                         <option :value="null">
                                             -- Chọn nguyên liệu --
@@ -2420,7 +2532,7 @@ onBeforeUnmount(() => {
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Đơn vị tính *</Label
                                     >
                                     <Input
@@ -2428,12 +2540,12 @@ onBeforeUnmount(() => {
                                         placeholder="kg / túi / thùng"
                                         class="h-9 text-xs"
                                     />
-                                    <span class="text-[10px] text-slate-500">Mặc định theo danh mục; tồn kho vẫn theo đơn vị chuẩn.</span>
+                                    <span class="text-[10px] text-muted-foreground">Mặc định theo danh mục.</span>
                                 </div>
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Số lượng nhập *</Label
                                     >
                                     <Input
@@ -2447,8 +2559,8 @@ onBeforeUnmount(() => {
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
-                                        >Đơn giá nguyên liệu (đ) *</Label
+                                        class="text-[11px] font-medium text-muted-foreground"
+                                        >Đơn giá (đ) *</Label
                                     >
                                     <Input
                                         type="number"
@@ -2461,30 +2573,30 @@ onBeforeUnmount(() => {
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Thành tiền (đ)</Label
                                     >
-                                    <div class="flex h-9 items-center justify-end rounded-md border border-slate-200 bg-slate-100 px-2.5 text-xs font-bold text-amber-700 dark:border-slate-700 dark:bg-slate-800 dark:text-amber-300">
+                                    <div class="flex h-9 items-center justify-end rounded-md border border-border/70 bg-muted/30 px-2.5 text-xs font-semibold text-foreground">
                                         {{ formatCurrency(grnLineTotal(item)) }}
                                     </div>
                                 </div>
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Mã lô (Lot Number) *</Label
                                     >
                                     <Input
                                         type="text"
                                         v-model="item.lot_number"
                                         placeholder="LOT-..."
-                                        class="h-9 text-xs"
+                                        class="h-9 text-xs font-mono"
                                     />
                                 </div>
 
                                 <div class="flex flex-col gap-1">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Hạn sử dụng</Label
                                     >
                                     <Input
@@ -2496,12 +2608,12 @@ onBeforeUnmount(() => {
 
                                 <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-2">
                                     <Label
-                                        class="text-[11px] font-semibold text-slate-600 dark:text-slate-400"
+                                        class="text-[11px] font-medium text-muted-foreground"
                                         >Vị trí cất hàng (nếu đã biết)</Label
                                     >
                                     <select
                                         v-model="item.location_id"
-                                        class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                        class="h-9 rounded-md border border-input bg-background px-2.5 text-xs shadow-xs text-foreground"
                                     >
                                         <option :value="null">
                                             -- Chọn vị trí kho --
@@ -2516,37 +2628,36 @@ onBeforeUnmount(() => {
                                     </select>
                                 </div>
                             </div>
+                        </div>
 
-                            </div>
-
-                        <div class="grid grid-cols-1 gap-3 rounded-xl border border-amber-100 bg-amber-50/60 p-4 sm:grid-cols-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+                        <div class="grid grid-cols-1 gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
                             <div>
-                                <p class="text-[11px] font-semibold text-slate-500">Tổng số lượng nhập</p>
-                                <p class="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
+                                <p class="text-[11px] font-medium text-muted-foreground">Tổng số lượng nhập</p>
+                                <p class="mt-1 text-lg font-bold text-foreground">
                                     {{ formatQuantity(grnForm.items.reduce((total, item) => total + Number(item.actual_qty || 0), 0)) }}
                                 </p>
                             </div>
                             <div class="sm:text-right">
-                                <p class="text-[11px] font-semibold text-slate-500">Tổng hóa đơn / giá trị nhập ngoài</p>
-                                <p class="mt-1 text-lg font-black text-amber-700 dark:text-amber-300">
+                                <p class="text-[11px] font-medium text-muted-foreground">Tổng hóa đơn / giá trị nhập ngoài</p>
+                                <p class="mt-1 text-lg font-bold text-foreground">
                                     {{ formatCurrency(totalReceiptValue) }}
                                 </p>
-                                <p class="mt-1 text-[10px] text-slate-500">Dùng định giá tồn kho, không tạo công nợ nhà cung cấp.</p>
+                                <p class="mt-1 text-[10px] text-muted-foreground">Dùng định giá tồn kho, không tạo công nợ nhà cung cấp.</p>
                             </div>
                         </div>
 
                         <!-- Attachments -->
                         <div class="flex flex-col gap-1.5 pt-2">
                             <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                        >Biên bản / ảnh chứng minh nguồn nhập</Label
+                                class="text-xs font-medium text-foreground"
+                                >Biên bản / ảnh chứng minh nguồn nhập</Label
                             >
                             <div
-                                class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-all hover:bg-slate-100/60 dark:border-slate-700 dark:bg-slate-900/40"
+                                class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-4 transition-all hover:bg-muted/30"
                             >
-                                <Upload class="size-5 text-slate-400" />
+                                <Upload class="size-5 text-muted-foreground" />
                                 <span
-                                    class="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300"
+                                    class="mt-1 text-xs font-medium text-muted-foreground"
                                     >Nhấn để chọn ảnh hoặc kéo thả chứng từ</span
                                 >
                                 <input
@@ -2564,11 +2675,11 @@ onBeforeUnmount(() => {
                                 <span
                                     v-for="(f, i) in grnFiles"
                                     :key="f.name"
-                                    class="flex items-center gap-1.5 rounded-full bg-slate-200 px-3 py-1 text-xs dark:bg-slate-800"
+                                    class="flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-foreground"
                                 >
                                     {{ f.name }}
                                     <button
-                                        class="text-rose-500"
+                                        class="text-rose-500 hover:text-rose-600"
                                         @click="removeFile(i, 'grn')"
                                     >
                                         <X class="size-3" />
@@ -2579,7 +2690,7 @@ onBeforeUnmount(() => {
 
                         <div class="flex justify-end pt-3">
                             <Button
-                                class="gap-2 bg-amber-600 font-semibold text-white hover:bg-amber-700"
+                                class="gap-2 font-medium"
                                 :disabled="isSubmittingGrn"
                                 @click="submitGrn"
                             >
@@ -2598,13 +2709,13 @@ onBeforeUnmount(() => {
             <!-- Lịch sử phiếu nhập ngoài -->
             <div class="flex flex-col gap-3">
                 <h3
-                    class="text-sm font-bold tracking-wider text-slate-500 uppercase"
+                    class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
                 >
                     Phiếu Nhập Ngoài Gần Đây Của Tôi
                 </h3>
                 <div
                     v-if="voucherList.length === 0"
-                    class="rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-800"
+                    class="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground bg-card/50"
                 >
                     Chưa có phiếu nhập ngoài nào được tạo.
                 </div>
@@ -2615,17 +2726,17 @@ onBeforeUnmount(() => {
                     <Card
                         v-for="voucher in voucherList"
                         :key="voucher.id"
-                        class="border-slate-200 shadow-sm dark:border-slate-800"
+                        class="border-border/70 bg-card shadow-xs transition hover:border-border"
                     >
                         <CardContent class="p-4">
                             <div class="flex items-center justify-between">
                                 <span
-                                    class="font-bold text-indigo-600 dark:text-indigo-400"
+                                    class="font-bold font-mono text-foreground"
                                     >{{ voucher.voucher_code }}</span
                                 >
                                 <Badge
                                     variant="outline"
-                                    class="font-semibold"
+                                    class="text-[11px] font-medium"
                                     :class="
                                         voucherStatusBadgeClass(voucher.status)
                                     "
@@ -2633,7 +2744,7 @@ onBeforeUnmount(() => {
                                     {{ voucherStatusLabel(voucher.status) }}
                                 </Badge>
                             </div>
-                            <p class="mt-2 text-xs text-slate-500">
+                            <p class="mt-2 text-xs text-muted-foreground">
                                 {{ voucher.items?.length ?? 0 }} nguyên liệu •
                                 Nhận:
                                 {{
@@ -2644,24 +2755,24 @@ onBeforeUnmount(() => {
                             </p>
                             <div class="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                                 <p>
-                                    <span class="text-slate-500">Người nhập:</span>
-                                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ currentUser?.name || 'Tôi' }}</span>
+                                    <span class="text-muted-foreground">Người nhập:</span>
+                                    <span class="font-medium text-foreground ml-1">{{ currentUser?.name || 'Tôi' }}</span>
                                 </p>
                                 <p>
-                                    <span class="text-slate-500">Người kiểm nhận:</span>
-                                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ voucher.verified_by?.name || 'Chưa xác minh' }}</span>
+                                    <span class="text-muted-foreground">Kiểm nhận:</span>
+                                    <span class="font-medium text-foreground ml-1">{{ voucher.verified_by?.name || 'Chưa' }}</span>
                                 </p>
-                                <p class="col-span-2 font-bold text-amber-700 dark:text-amber-300">
-                                    Tổng hóa đơn / giá trị: {{ formatCurrency(voucherTotal(voucher)) }}
+                                <p class="col-span-2 font-semibold text-foreground">
+                                    Tổng giá trị: {{ formatCurrency(voucherTotal(voucher)) }}
                                 </p>
                             </div>
                             <div
                                 v-if="
                                     (voucher.total_discrepancy_qty ?? 0) !== 0
                                 "
-                                class="mt-2 flex items-center gap-1 rounded bg-rose-50 px-2 py-1 text-xs font-bold text-rose-600 dark:bg-rose-950/40"
+                                class="mt-2 flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 border border-rose-500/20"
                             >
-                                <AlertTriangle class="size-3.5" /> Chênh lệch (phiếu cũ):
+                                <AlertTriangle class="size-3.5" /> Chênh lệch:
                                 {{ voucher.total_discrepancy_qty }}
                             </div>
                         </CardContent>
@@ -2672,59 +2783,56 @@ onBeforeUnmount(() => {
 
         <!-- 3. CẤT HÀNG (PUTAWAY) -->
         <div v-if="activeTab === 'putaway'" class="flex flex-col gap-4">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">
-                Cất Hàng Vào Vị Trí Lưu Trữ
-            </h2>
+            <div>
+                <h2 class="text-base font-semibold text-foreground">
+                    Cất Hàng Vào Vị Trí Lưu Trữ
+                </h2>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                    Đưa hàng hóa đã nhận vào đúng sơ đồ vị trí kệ kho đã quy định
+                </p>
+            </div>
+
             <div
                 v-if="tasksByType('putaway').length === 0"
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800"
+                class="rounded-xl border border-dashed border-border p-10 text-center text-xs text-muted-foreground bg-card/50"
             >
-                <Box class="size-8 text-slate-400" />
-                <h3
-                    class="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                    Không có tác vụ cất hàng
-                </h3>
-                <p class="text-xs text-slate-500">
-                    Tất cả hàng hóa mới nhận đã được đưa vào đúng vị trí lưu
-                    kho.
-                </p>
+                <Box class="mx-auto size-7 text-muted-foreground/60 mb-2" />
+                <p class="font-medium text-foreground">Không có tác vụ cất hàng</p>
+                <p class="mt-1">Tất cả hàng hóa mới nhận đã được đưa vào đúng vị trí lưu kho.</p>
             </div>
             <div
                 v-else
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
             >
                 <Card
                     v-for="task in tasksByType('putaway')"
                     :key="task.id"
-                    class="border-slate-200 shadow-sm dark:border-slate-800"
+                    class="border-border/70 bg-card shadow-xs transition-colors hover:border-border"
                 >
-                    <CardContent class="p-5">
+                    <CardContent class="p-4 space-y-3">
                         <div class="flex items-center justify-between">
                             <Badge
                                 variant="outline"
-                                class="border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/50"
-                                >Cất hàng</Badge
-                            >
+                                class="border-border/80 bg-muted/40 font-medium text-foreground text-xs"
+                            >Cất hàng</Badge>
                             <Badge
                                 variant="outline"
                                 :class="statusBadgeClass(task.status)"
-                                >{{ statusLabel(task.status) }}</Badge
-                            >
+                            >{{ statusLabel(task.status) }}</Badge>
                         </div>
                         <p
                             v-if="task.notes"
-                            class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                            class="rounded-lg bg-muted/30 p-2.5 text-xs leading-relaxed text-muted-foreground"
                         >
                             {{ task.notes }}
                         </p>
                         <div
-                            class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3"
+                            class="flex items-center justify-end gap-2 border-t border-border/60 pt-3"
                         >
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                class="gap-1.5 text-xs font-medium"
                                 @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu cất hàng
@@ -2732,7 +2840,7 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
+                                class="gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
                                 <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
@@ -2746,79 +2854,71 @@ onBeforeUnmount(() => {
         <!-- 4. SOẠN HÀNG (FEFO PICKING) -->
         <div v-if="activeTab === 'picking'" class="flex flex-col gap-4">
             <div
-                class="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-200"
+                class="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 p-3.5"
             >
-                <div class="flex items-center gap-2 text-xs font-bold">
-                    <Shield
-                        class="size-4 text-indigo-600 dark:text-indigo-400"
-                    />
-                    Quy tắc xuất hàng FEFO (First Expired, First Out)
+                <Shield
+                    class="size-4 shrink-0 text-primary mt-0.5"
+                />
+                <div class="space-y-0.5">
+                    <p class="text-xs font-semibold text-foreground">
+                        Quy tắc xuất hàng FEFO (First Expired, First Out)
+                    </p>
+                    <p class="text-xs text-muted-foreground leading-relaxed">
+                        Hệ thống tự động ưu tiên các lô có hạn dùng ngắn nhất. Nhân viên kho chỉ chọn lô khác khi có lý do giải trình đặc biệt.
+                    </p>
                 </div>
-                <p class="mt-1 text-xs text-indigo-800 dark:text-indigo-300">
-                    Hệ thống tự động ưu tiên các lô có hạn dùng ngắn nhất. Nhân
-                    viên kho chỉ chọn lô khác khi có lý do giải trình đặc biệt.
-                </p>
             </div>
 
             <div
                 v-if="tasksByType('picking').length === 0"
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800"
+                class="rounded-xl border border-dashed border-border p-10 text-center text-xs text-muted-foreground bg-card/50"
             >
-                <ClipboardList class="size-8 text-slate-400" />
-                <h3
-                    class="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                    Không có đơn soạn hàng
-                </h3>
-                <p class="text-xs text-slate-500">
-                    Hiện tại không có đơn cấp phát chi nhánh nào cần soạn.
-                </p>
+                <ClipboardList class="mx-auto size-7 text-muted-foreground/60 mb-2" />
+                <p class="font-medium text-foreground">Không có đơn soạn hàng</p>
+                <p class="mt-1">Hiện tại không có đơn cấp phát chi nhánh nào cần soạn.</p>
             </div>
 
             <div
                 v-else
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
             >
                 <Card
                     v-for="task in tasksByType('picking')"
                     :key="task.id"
-                    class="border-slate-200 shadow-sm dark:border-slate-800"
+                    class="border-border/70 bg-card shadow-xs transition-colors hover:border-border"
                 >
-                    <CardContent class="p-5">
+                    <CardContent class="p-4 space-y-3">
                         <div class="flex items-center justify-between">
                             <Badge
                                 variant="outline"
-                                class="border-indigo-200 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50"
-                                >Soạn hàng</Badge
-                            >
+                                class="border-border/80 bg-muted/40 font-medium text-foreground text-xs"
+                            >Soạn hàng FEFO</Badge>
                             <Badge
                                 variant="outline"
                                 :class="statusBadgeClass(task.status)"
-                                >{{ statusLabel(task.status) }}</Badge
-                            >
+                            >{{ statusLabel(task.status) }}</Badge>
                         </div>
                         <div
                             v-if="task.supply_request"
-                            class="mt-2 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                            class="rounded-lg bg-muted/30 p-2 text-xs font-medium text-foreground"
                         >
-                            {{ task.supply_request.request_code }} →
-                            {{
-                                formatBranchName(task.supply_request.to_branch)
-                            }}
+                            <span class="text-primary font-semibold">{{ task.supply_request.request_code }}</span>
+                            <span class="text-muted-foreground mx-1.5">→</span>
+                            <span>{{ formatBranchName(task.supply_request.to_branch) }}</span>
                         </div>
                         <p
                             v-if="task.notes"
-                            class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                            class="rounded-lg bg-muted/30 p-2.5 text-xs leading-relaxed text-muted-foreground"
                         >
                             {{ task.notes }}
                         </p>
                         <div
-                            class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3"
+                            class="flex items-center justify-end gap-2 border-t border-border/60 pt-3"
                         >
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                class="gap-1.5 text-xs font-medium"
                                 @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu soạn
@@ -2826,7 +2926,7 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
+                                class="gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
                                 <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
@@ -2839,59 +2939,56 @@ onBeforeUnmount(() => {
 
         <!-- 5. ĐÓNG GÓI (PACKING) -->
         <div v-if="activeTab === 'packing'" class="flex flex-col gap-4">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">
-                Đóng Gói & Niêm Phong Kiện Hàng
-            </h2>
+            <div>
+                <h2 class="text-base font-semibold text-foreground">
+                    Đóng Gói & Niêm Phong Kiện Hàng
+                </h2>
+                <p class="text-xs text-muted-foreground mt-0.5">
+                    Đóng gói quy cách và gắn mã seal trước khi bàn giao cho xe vận chuyển
+                </p>
+            </div>
+
             <div
                 v-if="tasksByType('packing').length === 0"
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800"
+                class="rounded-xl border border-dashed border-border p-10 text-center text-xs text-muted-foreground bg-card/50"
             >
-                <Package class="size-8 text-slate-400" />
-                <h3
-                    class="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                    Không có kiện hàng cần đóng gói
-                </h3>
-                <p class="text-xs text-slate-500">
-                    Mọi đơn hàng đã được niêm phong và chuyển cho bộ phận vận
-                    chuyển.
-                </p>
+                <Package class="mx-auto size-7 text-muted-foreground/60 mb-2" />
+                <p class="font-medium text-foreground">Không có kiện hàng cần đóng gói</p>
+                <p class="mt-1">Mọi đơn hàng đã được niêm phong và chuyển cho bộ phận vận chuyển.</p>
             </div>
             <div
                 v-else
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
             >
                 <Card
                     v-for="task in tasksByType('packing')"
                     :key="task.id"
-                    class="border-slate-200 shadow-sm dark:border-slate-800"
+                    class="border-border/70 bg-card shadow-xs transition-colors hover:border-border"
                 >
-                    <CardContent class="p-5">
+                    <CardContent class="p-4 space-y-3">
                         <div class="flex items-center justify-between">
                             <Badge
                                 variant="outline"
-                                class="border-purple-200 bg-purple-50 text-purple-700 dark:bg-purple-950/50"
-                                >Đóng gói</Badge
-                            >
+                                class="border-border/80 bg-muted/40 font-medium text-foreground text-xs"
+                            >Đóng gói</Badge>
                             <Badge
                                 variant="outline"
                                 :class="statusBadgeClass(task.status)"
-                                >{{ statusLabel(task.status) }}</Badge
-                            >
+                            >{{ statusLabel(task.status) }}</Badge>
                         </div>
                         <p
                             v-if="task.notes"
-                            class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                            class="rounded-lg bg-muted/30 p-2.5 text-xs leading-relaxed text-muted-foreground"
                         >
                             {{ task.notes }}
                         </p>
                         <div
-                            class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3"
+                            class="flex items-center justify-end gap-2 border-t border-border/60 pt-3"
                         >
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-bold text-white shadow-xs hover:bg-amber-700"
+                                class="gap-1.5 text-xs font-medium"
                                 @click="startTask(task)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu đóng gói
@@ -2899,7 +2996,7 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
+                                class="gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
                                 <CheckCircle class="size-3.5" /> {{ getTaskActionButtonLabel(task) }}
@@ -2912,79 +3009,76 @@ onBeforeUnmount(() => {
 
         <!-- 6. KIỂM KÊ (COUNTING) -->
         <div v-if="activeTab === 'counting'" class="flex flex-col gap-4">
-            <div class="flex justify-end">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold text-foreground">
+                        Kiểm Kê Tồn Kho Theo Phiên
+                    </h2>
+                    <p class="text-xs text-muted-foreground mt-0.5">
+                        Kiểm đếm thực tế tồn kho theo phân công của Trưởng kho
+                    </p>
+                </div>
                 <Link href="/inventory/count-sessions">
-                    <Button variant="outline" size="sm" class="gap-2"
-                        >Mở phiên kiểm kê chính thức
-                        <ArrowRight class="size-3.5"
-                    /></Button>
+                    <Button variant="outline" size="sm" class="gap-2 text-xs">
+                        Mở phiên kiểm kê chính thức
+                        <ArrowRight class="size-3.5" />
+                    </Button>
                 </Link>
             </div>
-            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">
-                Kiểm Kê Tồn Kho Theo Phiên
-            </h2>
+
             <div
                 v-if="tasksByType('counting').length === 0"
-                class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800"
+                class="rounded-xl border border-dashed border-border p-10 text-center text-xs text-muted-foreground bg-card/50"
             >
-                <BadgeCheck class="size-8 text-slate-400" />
-                <h3
-                    class="mt-3 text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                    Không có task kiểm kê phân công
-                </h3>
-                <p class="text-xs text-slate-500">
-                    Bạn có thể truy cập trang Kiểm Kê Tồn Kho để xem các phiên
-                    kiểm kê toàn kho.
-                </p>
+                <BadgeCheck class="mx-auto size-7 text-muted-foreground/60 mb-2" />
+                <p class="font-medium text-foreground">Không có task kiểm kê phân công</p>
+                <p class="mt-1">Bạn có thể truy cập trang Kiểm Kê Tồn Kho để xem các phiên kiểm kê toàn kho.</p>
             </div>
             <div
                 v-else
-                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                class="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3"
             >
                 <Card
                     v-for="task in tasksByType('counting')"
                     :key="task.id"
-                    class="border-slate-200 shadow-sm dark:border-slate-800"
+                    class="border-border/70 bg-card shadow-xs transition-colors hover:border-border"
                 >
-                    <CardContent class="p-5">
+                    <CardContent class="p-4 space-y-3">
                         <div class="flex items-center justify-between">
                             <Badge
                                 variant="outline"
-                                class="border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50"
-                                >Kiểm kê</Badge
-                            >
+                                class="border-border/80 bg-muted/40 font-medium text-foreground text-xs"
+                            >Kiểm kê</Badge>
                             <Badge
                                 variant="outline"
                                 :class="statusBadgeClass(task.status)"
-                                >{{ statusLabel(task.status) }}</Badge
-                            >
+                            >{{ statusLabel(task.status) }}</Badge>
                         </div>
                         <div
                             v-if="task.count_session"
-                            class="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                            class="rounded-lg border border-border/70 bg-muted/20 p-2.5 text-xs text-foreground"
                         >
-                            <div class="font-bold">
+                            <div class="font-semibold">
                                 Chốt nguyên liệu #{{ task.count_session.id }}
                             </div>
-                            <div class="mt-0.5">
+                            <div class="mt-0.5 text-muted-foreground">
                                 {{ task.count_session.period_start }} →
                                 {{ task.count_session.period_end }}
                             </div>
                         </div>
                         <p
                             v-if="task.notes"
-                            class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                            class="rounded-lg bg-muted/30 p-2.5 text-xs leading-relaxed text-muted-foreground"
                         >
                             {{ task.notes }}
                         </p>
                         <div
-                            class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3"
+                            class="flex items-center justify-end gap-2 border-t border-border/60 pt-3"
                         >
                             <Button
                                 v-if="task.status === 'assigned'"
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 text-xs font-semibold text-white"
+                                class="gap-1.5 text-xs font-medium"
                                 @click="startTask(task.id)"
                             >
                                 <ArrowRight class="size-3.5" /> Bắt đầu đếm
@@ -2995,10 +3089,10 @@ onBeforeUnmount(() => {
                             >
                                 <Button
                                     size="sm"
-                                    class="gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-500"
+                                    variant="outline"
+                                    class="gap-1.5 text-xs font-medium"
                                 >
-                                    <ClipboardList class="size-3.5" /> Mở kỳ
-                                    chốt
+                                    <ClipboardList class="size-3.5" /> Mở kỳ chốt
                                 </Button>
                             </Link>
                             <Button
@@ -3007,7 +3101,7 @@ onBeforeUnmount(() => {
                                     !task.count_session
                                 "
                                 size="sm"
-                                class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white"
+                                class="gap-1.5 bg-emerald-600 text-xs font-medium text-white shadow-xs hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
                                 @click="openTaskCompletion(task)"
                             >
                                 <CheckCircle class="size-3.5" /> Nộp kết quả
@@ -3022,13 +3116,14 @@ onBeforeUnmount(() => {
         <div v-if="activeTab === 'incident'" class="flex flex-col gap-6">
             <Card
                 v-if="warehouseReceivingReportList.length"
-                class="border-rose-200 shadow-sm dark:border-rose-900/50"
+                class="border-border/70 shadow-xs"
             >
                 <CardHeader>
-                    <CardTitle class="text-base font-bold text-rose-700 dark:text-rose-300">
+                    <CardTitle class="text-base font-semibold text-foreground flex items-center gap-2">
+                        <AlertTriangle class="size-4 text-rose-500" />
                         Phiếu xác nhận nguyên liệu vào Kho Tổng
                     </CardTitle>
-                    <CardDescription class="text-xs">
+                    <CardDescription class="text-xs text-muted-foreground">
                         Biên bản kiểm kê được tự động lập khi số lượng hoặc chất lượng có vấn đề theo mẫu xác nhận nguyên liệu vào Kho Tổng. Nhân viên kiểm kê đã xác nhận; Chủ doanh nghiệp và người lập phiếu đã được gửi thông báo.
                     </CardDescription>
                 </CardHeader>
@@ -3039,53 +3134,53 @@ onBeforeUnmount(() => {
                         :class="[
                             'rounded-xl border p-4 transition-colors',
                             report.id === highlightedWarehouseReportId
-                                ? 'border-indigo-400 bg-indigo-50/70 ring-2 ring-indigo-200 dark:border-indigo-500 dark:bg-indigo-950/30 dark:ring-indigo-900'
-                                : 'border-rose-200 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/20',
+                                ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/20'
+                                : 'border-border/70 bg-card',
                         ]"
                     >
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div class="text-xs">
-                                <div class="font-bold text-slate-900 dark:text-slate-100">
+                                <div class="font-semibold text-foreground">
                                     {{ report.report_code }} · Phiếu {{ report.voucher?.voucher_code || '---' }}
                                 </div>
-                                <div class="mt-1 text-slate-600 dark:text-slate-300">
+                                <div class="mt-1 text-muted-foreground">
                                     Nguồn: {{ report.voucher?.external_source_name || '---' }} · Người lập: {{ report.voucher?.received_by?.name || '---' }}
                                 </div>
-                                <div class="mt-1 text-slate-500">
+                                <div class="mt-1 text-muted-foreground/80">
                                     Nhân viên xác nhận: {{ report.employee_confirmed_by?.name || report.submitted_by?.name || '---' }} ·
                                     {{ report.employee_confirmed_at ? new Date(report.employee_confirmed_at).toLocaleString('vi-VN') : '---' }}
                                 </div>
                             </div>
-                            <Badge class="shrink-0 border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                            <Badge variant="outline" class="shrink-0 border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium text-xs">
                                 Đã xác nhận · {{ report.issue_type === 'quality_issue' ? 'Vấn đề chất lượng' : report.issue_type === 'quantity_and_quality' ? 'Lệch số lượng & chất lượng' : 'Lệch số lượng' }}
                             </Badge>
                         </div>
-                        <p class="mt-3 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                        <p class="mt-3 rounded-lg border border-border/50 bg-muted/30 p-3 text-xs leading-relaxed text-foreground">
                             {{ report.issue_summary }}
                         </p>
-                        <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
+                        <div class="mt-3 overflow-x-auto rounded-lg border border-border/60">
                             <table class="w-full min-w-[620px] text-xs">
-                                <thead class="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                <thead class="bg-muted/50 text-muted-foreground font-medium">
                                     <tr>
-                                        <th class="p-2 text-left">Nguyên liệu / lô</th>
-                                        <th class="p-2 text-right">Theo chứng từ</th>
-                                        <th class="p-2 text-right">Thực nhận</th>
-                                        <th class="p-2 text-right">Chênh lệch</th>
-                                        <th class="p-2 text-right">Thành tiền</th>
+                                        <th class="p-2.5 text-left">Nguyên liệu / lô</th>
+                                        <th class="p-2.5 text-right">Theo chứng từ</th>
+                                        <th class="p-2.5 text-right">Thực nhận</th>
+                                        <th class="p-2.5 text-right">Chênh lệch</th>
+                                        <th class="p-2.5 text-right">Thành tiền</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                                <tbody class="divide-y divide-border/60">
                                     <tr v-for="item in report.items || []" :key="item.id">
-                                        <td class="p-2">
-                                            <div class="font-semibold text-slate-900 dark:text-slate-100">{{ item.ingredient_name_snapshot }}</div>
-                                            <div class="mt-0.5 text-[10px] text-slate-500">{{ item.unit_symbol_snapshot || 'đv' }} · Lô {{ item.lot_number || '---' }}</div>
+                                        <td class="p-2.5">
+                                            <div class="font-medium text-foreground">{{ item.ingredient_name_snapshot }}</div>
+                                            <div class="mt-0.5 text-[11px] text-muted-foreground">{{ item.unit_symbol_snapshot || 'đv' }} · Lô {{ item.lot_number || '---' }}</div>
                                         </td>
-                                        <td class="p-2 text-right text-amber-700 dark:text-amber-300">{{ formatQuantity(item.expected_quantity) }}</td>
-                                        <td class="p-2 text-right font-semibold text-slate-900 dark:text-slate-100">{{ formatQuantity(item.actual_quantity) }}</td>
-                                        <td :class="['p-2 text-right font-bold', Number(item.difference_quantity) < 0 ? 'text-rose-600 dark:text-rose-300' : Number(item.difference_quantity) > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500']">
+                                        <td class="p-2.5 text-right font-mono text-muted-foreground">{{ formatQuantity(item.expected_quantity) }}</td>
+                                        <td class="p-2.5 text-right font-mono font-medium text-foreground">{{ formatQuantity(item.actual_quantity) }}</td>
+                                        <td :class="['p-2.5 text-right font-mono font-semibold', Number(item.difference_quantity) < 0 ? 'text-rose-600 dark:text-rose-400' : Number(item.difference_quantity) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground']">
                                             {{ Number(item.difference_quantity) > 0 ? '+' : '' }}{{ formatQuantity(item.difference_quantity) }}
                                         </td>
-                                        <td class="p-2 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(item.line_value) }}</td>
+                                        <td class="p-2.5 text-right font-mono font-medium text-foreground">{{ formatCurrency(item.line_value) }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -3093,15 +3188,17 @@ onBeforeUnmount(() => {
                     </div>
                 </CardContent>
             </Card>
+
             <Card
                 v-if="receivingReportList.length"
-                class="border-amber-200 shadow-sm dark:border-amber-900/50"
+                class="border-border/70 shadow-xs"
             >
                 <CardHeader>
-                    <CardTitle class="text-base font-bold text-amber-700 dark:text-amber-300">
+                    <CardTitle class="text-base font-semibold text-foreground flex items-center gap-2">
+                        <AlertTriangle class="size-4 text-amber-500" />
                         Biên bản nhận hàng cần xác nhận
                     </CardTitle>
-                    <CardDescription class="text-xs">
+                    <CardDescription class="text-xs text-muted-foreground">
                         Kiểm tra lại các nguyên liệu thiếu/hỏng/hết hạn/sai hàng rồi xác nhận để Trưởng Kho Tổng xử lý.
                     </CardDescription>
                 </CardHeader>
@@ -3109,19 +3206,19 @@ onBeforeUnmount(() => {
                     <div
                         v-for="report in receivingReportList"
                         :key="report.id"
-                        class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+                        class="rounded-xl border border-border/70 bg-card p-4"
                     >
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="text-xs">
-                                <div class="font-bold text-slate-800 dark:text-slate-100">
+                                <div class="font-semibold text-foreground">
                                     {{ report.report_code }} · Đơn {{ report.supply_request?.request_code }}
                                 </div>
-                                <div class="mt-1 text-slate-600 dark:text-slate-300">
+                                <div class="mt-1 text-muted-foreground">
                                     Chi nhánh: {{ report.supply_request?.to_branch?.name || '---' }}
                                 </div>
-                                <div class="mt-2 space-y-1 text-slate-600 dark:text-slate-300">
+                                <div class="mt-2 space-y-1 text-muted-foreground">
                                     <div v-for="item in (report.items || []).filter((row: any) => Number(row.submitted_damaged_quantity || 0) + Number(row.submitted_expired_quantity || 0) + Number(row.submitted_wrong_item_quantity || 0) + Number(row.submitted_shortage_quantity || 0) > 0)" :key="item.id">
-                                        <strong>{{ item.ingredient?.name || item.ingredient_name_snapshot }}</strong>:
+                                        <span class="font-medium text-foreground">{{ item.ingredient?.name || item.ingredient_name_snapshot }}</span>:
                                         đạt {{ item.submitted_good_quantity }}, hỏng {{ item.submitted_damaged_quantity }}, hết hạn {{ item.submitted_expired_quantity }}, thiếu {{ item.submitted_shortage_quantity }}
                                     </div>
                                 </div>
@@ -3129,110 +3226,94 @@ onBeforeUnmount(() => {
                             <Button
                                 v-if="report.status === 'confirmed_pending_ack'"
                                 size="sm"
-                                class="shrink-0 gap-1.5 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                                class="shrink-0 gap-1.5 text-xs font-medium"
                                 @click="confirmReceivingReport(report)"
                             >
                                 <CheckCircle class="size-3.5" /> Xác nhận biên bản
                             </Button>
-                            <Badge v-else variant="outline" class="shrink-0 border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <Badge v-else variant="outline" class="shrink-0 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
                                 Đã xác nhận
                             </Badge>
                         </div>
                     </div>
                 </CardContent>
             </Card>
+
             <Card
                 v-if="disputeList.length"
-                class="border-rose-200 shadow-sm dark:border-rose-900/50"
+                class="border-border/70 shadow-xs"
             >
                 <CardHeader>
                     <CardTitle
-                        class="text-base font-bold text-rose-700 dark:text-rose-300"
-                        >Biên bản tranh chấp cần phản hồi</CardTitle
+                        class="text-base font-semibold text-foreground flex items-center gap-2"
                     >
-                    <CardDescription class="text-xs"
-                        >Các biên bản được quy trách nhiệm cho tài khoản của
-                        bạn. Phản hồi sẽ được ghi vào audit trail để Trưởng kho
-                        xem xét.</CardDescription
+                        <AlertTriangle class="size-4 text-rose-500" />
+                        Biên bản tranh chấp cần phản hồi
+                    </CardTitle>
+                    <CardDescription class="text-xs text-muted-foreground"
+                        >Các biên bản được quy trách nhiệm cho tài khoản của bạn. Phản hồi sẽ được ghi vào audit trail để Trưởng kho xem xét.</CardDescription
                     >
                 </CardHeader>
                 <CardContent class="space-y-3">
                     <div
                         v-for="dispute in disputeList"
                         :key="dispute.id"
-                        class="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50/50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900/50 dark:bg-rose-950/20"
+                        class="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                         <div class="text-xs">
-                            <div
-                                class="font-bold text-slate-800 dark:text-slate-100"
-                            >
-                                {{ dispute.dispute_code }} ·
-                                {{ dispute.ingredient?.name }}
+                            <div class="font-semibold text-foreground">
+                                {{ dispute.dispute_code }} · {{ dispute.ingredient?.name }}
                             </div>
-                            <div class="mt-1 text-slate-500">
-                                Thiếu {{ dispute.discrepancy_quantity }} · Thiệt
-                                hại {{ dispute.financial_loss_amount }}
+                            <div class="mt-1 text-muted-foreground">
+                                Thiếu {{ dispute.discrepancy_quantity }} · Thiệt hại {{ dispute.financial_loss_amount }}
                             </div>
                         </div>
                         <Button
                             size="sm"
-                            class="bg-rose-600 text-xs text-white hover:bg-rose-700"
+                            variant="outline"
+                            class="text-xs font-medium border-rose-500/20 text-rose-600 hover:bg-rose-500/10"
                             @click="respondToDispute(dispute)"
-                            >Gửi phản hồi</Button
                         >
+                            Gửi phản hồi
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
-            <Card class="border-slate-200 shadow-sm dark:border-slate-800">
+
+            <Card class="border-border/70 shadow-xs">
                 <CardHeader>
                     <CardTitle
-                        class="text-lg font-bold text-slate-900 dark:text-slate-100"
-                        >Báo Cáo Sự Cố Kho & Chất Lượng</CardTitle
+                        class="text-base font-semibold text-foreground"
                     >
-                    <CardDescription class="text-xs text-slate-500"
-                        >Phản ánh kịp thời hàng hư hại, ẩm mốc, hết hạn hoặc sai
-                        lệch số lượng để Trưởng kho xử lý</CardDescription
-                    >
+                        Báo Cáo Sự Cố Kho & Chất Lượng
+                    </CardTitle>
+                    <CardDescription class="text-xs text-muted-foreground">
+                        Phản ánh kịp thời hàng hư hại, ẩm mốc, hết hạn hoặc sai lệch số lượng để Trưởng kho xử lý
+                    </CardDescription>
                 </CardHeader>
                 <CardContent class="flex flex-col gap-4">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Loại sự cố *</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Loại sự cố *</Label>
                             <select
                                 v-model="incidentForm.incident_type"
-                                class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                             >
-                                <option value="shortage">
-                                    Thiếu hàng / Hao hụt
-                                </option>
-                                <option value="damage">
-                                    Hàng hỏng / Ẩm mốc / Rách bao bì
-                                </option>
-                                <option value="expired">
-                                    Hàng cận hoặc quá hạn sử dụng
-                                </option>
-                                <option value="wrong_item">
-                                    Nhầm mã hàng / Sai thông số
-                                </option>
+                                <option value="shortage">Thiếu hàng / Hao hụt</option>
+                                <option value="damage">Hàng hỏng / Ẩm mốc / Rách bao bì</option>
+                                <option value="expired">Hàng cận hoặc quá hạn sử dụng</option>
+                                <option value="wrong_item">Nhầm mã hàng / Sai thông số</option>
                                 <option value="other">Sự cố khác</option>
                             </select>
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Nguyên liệu liên quan</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Nguyên liệu liên quan</Label>
                             <select
                                 v-model="incidentForm.ingredient_id"
-                                class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                             >
-                                <option :value="null">
-                                    -- Không xác định / Toàn bộ --
-                                </option>
+                                <option :value="null">-- Không xác định / Toàn bộ --</option>
                                 <option
                                     v-for="ing in ingredients"
                                     :key="ing.id"
@@ -3244,10 +3325,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Số lượng ảnh hưởng</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Số lượng ảnh hưởng</Label>
                             <Input
                                 type="number"
                                 v-model.number="incidentForm.quantity_affected"
@@ -3261,10 +3339,7 @@ onBeforeUnmount(() => {
 
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Mã Lô / Batch ID (nếu có)</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Mã Lô / Batch ID (nếu có)</Label>
                             <Input
                                 v-model.number="incidentForm.batch_id"
                                 type="number"
@@ -3274,17 +3349,12 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Vị trí phát hiện (nếu có)</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Vị trí phát hiện (nếu có)</Label>
                             <select
                                 v-model="incidentForm.location_id"
-                                class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                             >
-                                <option :value="null">
-                                    -- Chọn vị trí phát hiện --
-                                </option>
+                                <option :value="null">-- Chọn vị trí phát hiện --</option>
                                 <option
                                     v-for="loc in locations"
                                     :key="loc.id"
@@ -3297,31 +3367,22 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                            >Mô tả chi tiết sự cố *</Label
-                        >
+                        <Label class="text-xs font-medium text-foreground">Mô tả chi tiết sự cố *</Label>
                         <textarea
                             v-model="incidentForm.description"
                             rows="4"
                             placeholder="Mô tả cụ thể vị trí kệ hàng, thời điểm phát hiện, nguyên nhân sơ bộ..."
-                            class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            class="rounded-md border border-input bg-background p-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground placeholder:text-muted-foreground"
                         ></textarea>
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                            >Ảnh hiện trường chứng minh</Label
-                        >
+                        <Label class="text-xs font-medium text-foreground">Ảnh hiện trường chứng minh</Label>
                         <div
-                            class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-all hover:bg-slate-100/60 dark:border-slate-700 dark:bg-slate-900/40"
+                            class="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-5 transition-colors hover:bg-muted/30"
                         >
-                            <Upload class="size-5 text-slate-400" />
-                            <span
-                                class="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300"
-                                >Chụp ảnh hoặc chọn file từ máy</span
-                            >
+                            <Upload class="size-5 text-muted-foreground" />
+                            <span class="mt-1 text-xs font-medium text-foreground">Chụp ảnh hoặc chọn file từ máy</span>
                             <input
                                 type="file"
                                 multiple
@@ -3337,11 +3398,11 @@ onBeforeUnmount(() => {
                             <span
                                 v-for="(f, i) in incidentFiles"
                                 :key="f.name"
-                                class="flex items-center gap-1.5 rounded-full bg-slate-200 px-3 py-1 text-xs dark:bg-slate-800"
+                                class="flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/30 px-2.5 py-1 text-xs text-foreground"
                             >
                                 {{ f.name }}
                                 <button
-                                    class="text-rose-500"
+                                    class="text-muted-foreground hover:text-rose-500"
                                     @click="removeFile(i, 'incident')"
                                 >
                                     <X class="size-3" />
@@ -3352,7 +3413,7 @@ onBeforeUnmount(() => {
 
                     <div class="flex justify-end pt-2">
                         <Button
-                            class="gap-2 bg-rose-600 font-semibold text-white hover:bg-rose-700"
+                            class="gap-2 text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
                             :disabled="isSubmittingIncident"
                             @click="submitIncident"
                         >
@@ -3376,41 +3437,37 @@ onBeforeUnmount(() => {
                     taskSummaryData.pending > 0 ||
                     taskSummaryData.in_progress > 0
                 "
-                class="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-200"
+                class="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground"
             >
-                <AlertTriangle class="size-5 text-amber-600" />
-                <div class="text-xs">
-                    <span class="font-bold">Lưu ý bàn giao:</span> Bạn vẫn còn
-                    <span class="font-bold underline"
+                <AlertTriangle class="size-4 text-amber-500 shrink-0" />
+                <div>
+                    <span class="font-semibold">Lưu ý bàn giao:</span> Bạn vẫn còn
+                    <span class="font-semibold underline"
                         >{{
                             taskSummaryData.pending +
                             taskSummaryData.in_progress
                         }}
                         tác vụ</span
                     >
-                    chưa hoàn tất. Hãy xử lý hoặc ghi chú rõ trong biên bản bàn
-                    giao.
+                    chưa hoàn tất. Hãy xử lý hoặc ghi chú rõ trong biên bản bàn giao.
                 </div>
             </div>
 
-            <Card class="border-slate-200 shadow-sm dark:border-slate-800">
+            <Card class="border-border/70 shadow-xs">
                 <CardHeader>
                     <CardTitle
-                        class="text-lg font-bold text-slate-900 dark:text-slate-100"
-                        >Biên Bản Bàn Giao Cuối Ca</CardTitle
+                        class="text-base font-semibold text-foreground"
                     >
-                    <CardDescription class="text-xs text-slate-500"
-                        >Chốt trạng thái vệ sinh kho, an toàn thiết bị, hàng tồn
-                        và bàn giao cho ca kế tiếp</CardDescription
-                    >
+                        Biên Bản Bàn Giao Cuối Ca
+                    </CardTitle>
+                    <CardDescription class="text-xs text-muted-foreground">
+                        Chốt trạng thái vệ sinh kho, an toàn thiết bị, hàng tồn và bàn giao cho ca kế tiếp
+                    </CardDescription>
                 </CardHeader>
                 <CardContent class="flex flex-col gap-4">
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Ngày làm việc *</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Ngày làm việc *</Label>
                             <Input
                                 type="date"
                                 v-model="handoverForm.shift_date"
@@ -3418,33 +3475,19 @@ onBeforeUnmount(() => {
                             />
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Ca làm việc *</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Ca làm việc *</Label>
                             <select
                                 v-model="handoverForm.shift_type"
-                                class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                             >
-                                <option value="morning">
-                                    Ca Sáng (06:00 - 14:00)
-                                </option>
-                                <option value="afternoon">
-                                    Ca Chiều (14:00 - 22:00)
-                                </option>
-                                <option value="evening">
-                                    Ca Tối (18:00 - 23:00)
-                                </option>
-                                <option value="night">
-                                    Ca Đêm (22:00 - 06:00)
-                                </option>
+                                <option value="morning">Ca Sáng (06:00 - 14:00)</option>
+                                <option value="afternoon">Ca Chiều (14:00 - 22:00)</option>
+                                <option value="evening">Ca Tối (18:00 - 23:00)</option>
+                                <option value="night">Ca Đêm (22:00 - 06:00)</option>
                             </select>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                >Nhãn ca làm việc</Label
-                            >
+                            <Label class="text-xs font-medium text-foreground">Nhãn ca làm việc</Label>
                             <Input
                                 type="text"
                                 v-model="handoverForm.shift_label"
@@ -3455,26 +3498,20 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                            >Nội dung ghi chú bàn giao</Label
-                        >
+                        <Label class="text-xs font-medium text-foreground">Nội dung ghi chú bàn giao</Label>
                         <textarea
                             v-model="handoverForm.notes"
                             rows="3"
                             placeholder="Tình trạng kho bãi, hàng hóa cần kiểm tra đặc biệt, thiết bị xe nâng/kho lạnh..."
-                            class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                            class="rounded-md border border-input bg-background p-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground placeholder:text-muted-foreground"
                         ></textarea>
                     </div>
 
                     <div class="flex flex-col gap-1.5">
-                        <Label
-                            class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                            >Người nhận ca *</Label
-                        >
+                        <Label class="text-xs font-medium text-foreground">Người nhận ca *</Label>
                         <select
                             v-model="handoverForm.received_by"
-                            class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                            class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                         >
                             <option :value="0">Chọn nhân sự nhận ca</option>
                             <option
@@ -3485,15 +3522,14 @@ onBeforeUnmount(() => {
                                 {{ recipient.name }}
                             </option>
                         </select>
-                        <p class="text-[11px] text-slate-500">
-                            Biên bản sẽ chờ người nhận xác nhận và hệ thống sẽ
-                            gửi thông báo.
+                        <p class="text-[11px] text-muted-foreground">
+                            Biên bản sẽ chờ người nhận xác nhận và hệ thống sẽ gửi thông báo.
                         </p>
                     </div>
 
                     <div class="flex justify-end pt-2">
                         <Button
-                            class="gap-2 bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
+                            class="gap-2 text-xs font-medium"
                             :disabled="isSubmittingHandover"
                             @click="submitHandover"
                         >
@@ -3510,13 +3546,13 @@ onBeforeUnmount(() => {
 
             <div class="flex flex-col gap-3">
                 <h3
-                    class="text-sm font-bold tracking-wider text-slate-500 uppercase"
+                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
                 >
                     Lịch Sử Bàn Giao Gần Đây
                 </h3>
                 <div
                     v-if="handoverList.length === 0"
-                    class="rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-800"
+                    class="rounded-xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground bg-card/50"
                 >
                     Chưa có dữ liệu bàn giao ca trước đó.
                 </div>
@@ -3527,25 +3563,22 @@ onBeforeUnmount(() => {
                     <Card
                         v-for="handover in handoverList"
                         :key="handover.id"
-                        class="border-slate-200 shadow-sm dark:border-slate-800"
+                        class="border-border/70 bg-card shadow-xs transition-colors hover:border-border"
                     >
                         <CardContent class="p-4">
                             <div class="flex items-center justify-between">
                                 <span
-                                    class="font-bold text-slate-800 dark:text-slate-200"
-                                    >{{ handover.shift_date }} —
-                                    {{
-                                        handover.shift_label ||
-                                        handover.shift_type
-                                    }}</span
+                                    class="font-semibold text-foreground text-xs"
                                 >
+                                    {{ handover.shift_date }} — {{ handover.shift_label || handover.shift_type }}
+                                </span>
                                 <Badge
                                     variant="outline"
-                                    class="font-semibold"
+                                    class="font-medium text-xs"
                                     :class="
                                         handover.status === 'confirmed'
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                            : 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                     "
                                 >
                                     {{
@@ -3555,7 +3588,7 @@ onBeforeUnmount(() => {
                                     }}
                                 </Badge>
                             </div>
-                            <p class="mt-2 text-xs text-slate-500">
+                            <p class="mt-2 text-xs text-muted-foreground">
                                 Tạo lúc:
                                 {{
                                     new Date(
@@ -3565,7 +3598,7 @@ onBeforeUnmount(() => {
                             </p>
                             <div
                                 v-if="handover.is_system_locked"
-                                class="mt-2 flex items-center gap-1 text-xs font-bold text-rose-600"
+                                class="mt-2 flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400"
                             >
                                 <AlertTriangle class="size-3.5" />
                                 {{ handover.lock_reason }}
@@ -3576,7 +3609,7 @@ onBeforeUnmount(() => {
                                     handover.received_by === currentUser?.id
                                 "
                                 size="sm"
-                                class="mt-3 w-full bg-emerald-600 text-xs text-white"
+                                class="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium"
                                 @click="confirmHandover(handover.id)"
                             >
                                 Xác nhận đã nhận bàn giao
@@ -3587,28 +3620,28 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- ── Modal: Hoàn Thành Tác Vụ ── -->
+        <!-- ── Modal: Kiểm kê độc lập trước khi nhập tồn ── -->
         <Teleport to="body">
             <div
                 v-if="activeVerificationVoucher"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
                 @click.self="closeVerification"
             >
-                <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-indigo-200 bg-white p-5 shadow-2xl dark:border-indigo-900 dark:bg-slate-900">
-                    <div class="flex items-start justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+                <div class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border/70 bg-card p-5 shadow-xl">
+                    <div class="flex items-start justify-between gap-3 border-b border-border/60 pb-4">
                         <div>
-                            <p class="text-[10px] font-bold tracking-wider text-indigo-600 uppercase dark:text-indigo-300">Kiểm kê độc lập trước khi nhập tồn</p>
-                            <h3 class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{{ activeVerificationVoucher.voucher_code }}</h3>
-                            <p class="mt-1 text-xs text-slate-500">Người lập: {{ activeVerificationVoucher.received_by?.name || '---' }} · Nguồn ngoài: {{ activeVerificationVoucher.external_source_name || '---' }}</p>
+                            <p class="text-[11px] font-semibold tracking-wider text-primary uppercase">Kiểm kê độc lập trước khi nhập tồn</p>
+                            <h3 class="mt-1 text-base font-semibold text-foreground">{{ activeVerificationVoucher.voucher_code }}</h3>
+                            <p class="mt-1 text-xs text-muted-foreground">Người lập: {{ activeVerificationVoucher.received_by?.name || '---' }} · Nguồn ngoài: {{ activeVerificationVoucher.external_source_name || '---' }}</p>
                         </div>
-                        <button type="button" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" @click="closeVerification">
+                        <button type="button" class="text-muted-foreground hover:text-foreground" @click="closeVerification">
                             <X class="size-5" />
                         </button>
                     </div>
 
-                    <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                    <div class="mt-4 overflow-x-auto rounded-xl border border-border/60">
                         <table class="w-full min-w-[720px] text-xs">
-                            <thead class="bg-indigo-50 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+                            <thead class="bg-muted/50 text-muted-foreground font-medium">
                                 <tr>
                                     <th class="p-3 text-left">Nguyên liệu / lô</th>
                                     <th class="p-3 text-right">SL Trưởng kho khai báo</th>
@@ -3618,25 +3651,25 @@ onBeforeUnmount(() => {
                                     <th class="p-3 text-right">Thành tiền</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                            <tbody class="divide-y divide-border/60">
                                 <tr v-for="(item, index) in (activeVerificationVoucher.items || [])" :key="item.id">
                                     <td class="p-3">
-                                        <p class="font-semibold text-slate-900 dark:text-slate-100">{{ item.ingredient?.name || 'Nguyên liệu' }}</p>
-                                        <p class="mt-1 font-mono text-[11px] text-slate-500">Lô: {{ item.lot_number || '---' }}</p>
+                                        <p class="font-medium text-foreground">{{ item.ingredient?.name || 'Nguyên liệu' }}</p>
+                                        <p class="mt-0.5 font-mono text-[11px] text-muted-foreground">Lô: {{ item.lot_number || '---' }}</p>
                                     </td>
-                                    <td class="p-3 text-right font-semibold text-amber-700 dark:text-amber-300">{{ formatQuantity(item.expected_qty) }}</td>
-                                    <td class="p-3 text-slate-600 dark:text-slate-300">{{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}</td>
+                                    <td class="p-3 text-right font-mono text-muted-foreground">{{ formatQuantity(item.expected_qty) }}</td>
+                                    <td class="p-3 text-muted-foreground">{{ item.unit_label || item.ingredient?.unit?.symbol || 'đv' }}</td>
                                     <td class="p-3">
                                         <Input
                                             v-model.number="verificationItems[Number(index)].actual_qty"
                                             type="number"
                                             min="0.001"
                                             step="0.001"
-                                            class="h-9 text-right text-xs font-bold"
+                                            class="h-8 text-right font-mono text-xs font-semibold"
                                         />
                                     </td>
-                                    <td class="p-3 text-right">{{ formatCurrency(item.unit_cost) }}</td>
-                                    <td class="p-3 text-right font-semibold text-emerald-700 dark:text-emerald-300">{{ formatCurrency(Number(verificationItems[Number(index)]?.actual_qty || 0) * Number(item.unit_cost || 0)) }}</td>
+                                    <td class="p-3 text-right font-mono text-muted-foreground">{{ formatCurrency(item.unit_cost) }}</td>
+                                    <td class="p-3 text-right font-mono font-medium text-foreground">{{ formatCurrency(Number(verificationItems[Number(index)]?.actual_qty || 0) * Number(item.unit_cost || 0)) }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -3644,32 +3677,32 @@ onBeforeUnmount(() => {
 
                     <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold">Kết quả kiểm tra chất lượng *</Label>
-                            <select v-model="verificationQualityStatus" class="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground">
+                            <Label class="text-xs font-medium text-foreground">Kết quả kiểm tra chất lượng *</Label>
+                            <select v-model="verificationQualityStatus" class="h-9 rounded-md border border-input bg-background px-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground">
                                 <option value="passed">Đạt</option>
                                 <option value="conditional">Đạt có điều kiện</option>
                                 <option value="failed">Không đạt</option>
                             </select>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold">Ghi chú chất lượng</Label>
+                            <Label class="text-xs font-medium text-foreground">Ghi chú chất lượng</Label>
                             <Input v-model="verificationQualityNotes" class="h-9 text-xs" placeholder="Ngoại quan, bao bì, điều kiện bảo quản..." />
                         </div>
                     </div>
                     <div class="mt-3 flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold">Biên bản kiểm kê / giải trình chênh lệch</Label>
-                        <textarea v-model="verificationNotes" rows="3" class="rounded-md border border-input bg-background px-3 py-2 text-xs text-foreground" placeholder="Ghi rõ kết quả đếm thực tế; bắt buộc nếu lệch số Trưởng kho khai báo." />
-                        <p v-if="verificationHasIssue()" class="text-[11px] font-semibold text-rose-600 dark:text-rose-300">
+                        <Label class="text-xs font-medium text-foreground">Biên bản kiểm kê / giải trình chênh lệch</Label>
+                        <textarea v-model="verificationNotes" rows="3" class="rounded-md border border-input bg-background px-3 py-2 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground placeholder:text-muted-foreground" placeholder="Ghi rõ kết quả đếm thực tế; bắt buộc nếu lệch số Trưởng kho khai báo." />
+                        <p v-if="verificationHasIssue()" class="text-[11px] font-medium text-rose-600 dark:text-rose-400">
                             Có phát sinh chênh lệch hoặc vấn đề chất lượng. Khi xác nhận, hệ thống sẽ lập biên bản và gửi ngay cho Chủ doanh nghiệp cùng người lập phiếu.
                         </p>
                     </div>
 
-                    <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
-                        <p class="max-w-xl text-[11px] text-slate-500">Xác nhận này là căn cứ để hạch toán số lượng thực tế vào tồn Kho Tổng. Nếu có vấn đề, biên bản kiểm kê sẽ được lưu cùng phiếu và gửi cho các bên liên quan.</p>
+                    <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+                        <p class="max-w-xl text-[11px] text-muted-foreground">Xác nhận này là căn cứ để hạch toán số lượng thực tế vào tồn Kho Tổng. Nếu có vấn đề, biên bản kiểm kê sẽ được lưu cùng phiếu và gửi cho các bên liên quan.</p>
                         <div class="flex gap-2">
-                            <Button type="button" variant="outline" @click="closeVerification">Hủy</Button>
-                            <Button type="button" class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700" :disabled="isSubmittingVerification" @click="submitVerification">
-                                <CheckCircle class="size-4" /> {{ isSubmittingVerification ? 'Đang xác nhận...' : verificationHasIssue() ? 'Lập biên bản & xác nhận' : 'Xác nhận kiểm kê & nhập tồn' }}
+                            <Button type="button" variant="outline" size="sm" @click="closeVerification">Hủy</Button>
+                            <Button type="button" size="sm" class="gap-1.5 text-xs font-medium" :disabled="isSubmittingVerification" @click="submitVerification">
+                                <CheckCircle class="size-3.5" /> {{ isSubmittingVerification ? 'Đang xác nhận...' : verificationHasIssue() ? 'Lập biên bản & xác nhận' : 'Xác nhận kiểm kê & nhập tồn' }}
                             </Button>
                         </div>
                     </div>
@@ -3677,25 +3710,26 @@ onBeforeUnmount(() => {
             </div>
         </Teleport>
 
+        <!-- ── Modal: Xác Nhận Hoàn Thành Tác Vụ ── -->
         <Teleport to="body">
             <div
                 v-if="activeTaskId !== null"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
                 @click.self="activeTaskId = null"
             >
                 <div
-                    class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                    class="w-full max-w-lg rounded-2xl border border-border/70 bg-card p-6 shadow-xl"
                 >
                     <div
-                        class="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800"
+                        class="flex items-center justify-between border-b border-border/60 pb-4"
                     >
                         <h3
-                            class="text-base font-bold text-slate-900 dark:text-slate-100"
+                            class="text-base font-semibold text-foreground"
                         >
                             Xác Nhận Hoàn Thành Tác Vụ
                         </h3>
                         <button
-                            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            class="text-muted-foreground hover:text-foreground"
                             @click="activeTaskId = null"
                         >
                             <X class="size-5" />
@@ -3704,24 +3738,24 @@ onBeforeUnmount(() => {
                     <div class="flex flex-col gap-4 py-4">
                         <div class="flex flex-col gap-1.5">
                             <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                class="text-xs font-medium text-foreground"
                                 >Ghi chú kết quả thực tế</Label
                             >
                             <textarea
                                 v-model="taskResultNote"
                                 rows="3"
                                 placeholder="Mô tả kết quả thực hiện, số lượng thực tế, vị trí đã cất..."
-                                class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-950"
+                                class="rounded-md border border-input bg-background p-3 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground placeholder:text-muted-foreground"
                             ></textarea>
                         </div>
 
                         <div class="flex flex-col gap-1.5">
                             <Label
-                                class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                class="text-xs font-medium text-foreground"
                                 >Ảnh bằng chứng hoàn thành (tuỳ chọn)</Label
                             >
                             <label
-                                class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-5 text-center transition hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:bg-slate-950/40 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
+                                class="group flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center transition hover:border-primary/50 hover:bg-muted/30"
                             >
                                 <input
                                     type="file"
@@ -3731,12 +3765,12 @@ onBeforeUnmount(() => {
                                     @change="handleFileInput($event, 'task')"
                                 />
                                 <div
-                                    class="flex size-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 transition group-hover:scale-110 dark:bg-emerald-500/20 dark:text-emerald-400"
+                                    class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition group-hover:scale-105"
                                 >
-                                    <Upload class="size-5" />
+                                    <Upload class="size-4" />
                                 </div>
                                 <span
-                                    class="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-200"
+                                    class="mt-2 text-xs font-medium text-foreground"
                                 >
                                     Nhấn vào đây để tải ảnh chứng từ / hàng hóa
                                 </span>
@@ -3753,11 +3787,11 @@ onBeforeUnmount(() => {
                                 <span
                                     v-for="(f, i) in taskFiles"
                                     :key="f.name"
-                                    class="flex items-center gap-1.5 rounded-full bg-slate-200 px-3 py-1 text-xs dark:bg-slate-800"
+                                    class="flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/30 px-2.5 py-1 text-xs text-foreground"
                                 >
                                     {{ f.name }}
                                     <button
-                                        class="text-rose-500"
+                                        class="text-muted-foreground hover:text-rose-500"
                                         @click="removeFile(i, 'task')"
                                     >
                                         <X class="size-3" />
@@ -3767,7 +3801,7 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
                     <div
-                        class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800"
+                        class="flex items-center justify-end gap-2 border-t border-border/60 pt-4"
                     >
                         <Button
                             variant="outline"
@@ -3777,11 +3811,11 @@ onBeforeUnmount(() => {
                         >
                         <Button
                             size="sm"
-                            class="gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+                            class="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-xs"
                             :disabled="isProcessingTask"
                             @click="completeTask(activeTaskId!)"
                         >
-                            <CheckCircle class="size-4" /> Xác nhận hoàn tất
+                            <CheckCircle class="size-3.5" /> Xác nhận hoàn tất
                         </Button>
                     </div>
                 </div>
@@ -3792,7 +3826,7 @@ onBeforeUnmount(() => {
         <Teleport to="body">
             <div
                 v-if="showScanModal"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
                 @click.self="
                     stopCameraScan();
                     showScanModal = false;
@@ -3800,25 +3834,25 @@ onBeforeUnmount(() => {
                 "
             >
                 <div
-                    class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                    class="w-full max-w-md rounded-2xl border border-border/70 bg-card p-6 shadow-xl"
                 >
                     <div
-                        class="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800"
+                        class="flex items-center justify-between border-b border-border/60 pb-4"
                     >
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2.5">
                             <div
-                                class="flex size-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
+                                class="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"
                             >
                                 <QrCode class="size-4" />
                             </div>
                             <h3
-                                class="text-base font-bold text-slate-900 dark:text-slate-100"
+                                class="text-base font-semibold text-foreground"
                             >
                                 Quét Mã QR / Barcode Kho
                             </h3>
                         </div>
                         <button
-                            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            class="text-muted-foreground hover:text-foreground"
                             @click="
                                 stopCameraScan();
                                 showScanModal = false;
@@ -3830,9 +3864,8 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="flex flex-col gap-4 py-4">
-                        <p class="text-xs text-slate-500">
-                            Nhập hoặc quét mã SKU nguyên liệu, mã số lô hàng
-                            (Lot/Batch) hoặc mã vị trí ô kệ kho:
+                        <p class="text-xs text-muted-foreground">
+                            Nhập hoặc quét mã SKU nguyên liệu, mã số lô hàng (Lot/Batch) hoặc mã vị trí ô kệ kho:
                         </p>
 
                         <div class="flex items-center gap-2">
@@ -3840,12 +3873,13 @@ onBeforeUnmount(() => {
                                 type="text"
                                 v-model="scanInput"
                                 placeholder="Nhập mã hoặc quét từ đầu đọc..."
-                                class="h-10 text-xs font-semibold"
+                                class="h-9 text-xs font-mono"
                                 @keyup.enter="handleScan"
                                 autofocus
                             />
                             <Button
-                                class="gap-1.5 bg-amber-600 font-semibold text-white hover:bg-amber-700"
+                                size="sm"
+                                class="gap-1.5"
                                 :disabled="isScanLoading"
                                 @click="handleScan"
                             >
@@ -3858,14 +3892,14 @@ onBeforeUnmount(() => {
                                 v-if="!isCameraScanning"
                                 variant="outline"
                                 size="sm"
-                                class="gap-2"
+                                class="gap-2 text-xs"
                                 @click="startCameraScan"
                             >
-                                <QrCode class="size-4" /> Mở camera quét mã
+                                <QrCode class="size-3.5" /> Mở camera quét mã
                             </Button>
                             <div
                                 v-if="isCameraScanning"
-                                class="overflow-hidden rounded-xl border bg-black"
+                                class="overflow-hidden rounded-xl border border-border bg-black"
                             >
                                 <video
                                     id="warehouse-scan-video"
@@ -3876,22 +3910,22 @@ onBeforeUnmount(() => {
                                 <Button
                                     size="sm"
                                     variant="secondary"
-                                    class="m-2"
+                                    class="m-2 text-xs"
                                     @click="stopCameraScan"
                                     >Dừng camera</Button
                                 >
                             </div>
-                            <p v-if="cameraError" class="text-xs text-rose-600">
+                            <p v-if="cameraError" class="text-xs text-rose-600 dark:text-rose-400">
                                 {{ cameraError }}
                             </p>
                         </div>
 
                         <div
                             v-if="isScanLoading"
-                            class="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-slate-500"
+                            class="flex items-center justify-center gap-2 py-4 text-xs font-medium text-muted-foreground"
                         >
                             <RefreshCw
-                                class="size-4 animate-spin text-amber-500"
+                                class="size-4 animate-spin text-primary"
                             />
                             Đang tra cứu thông tin trong hệ thống...
                         </div>
@@ -3901,15 +3935,15 @@ onBeforeUnmount(() => {
                             class="mt-2 rounded-xl border p-4"
                             :class="
                                 scanResult.status === 'not_found'
-                                    ? 'border-rose-200 bg-rose-50/50 dark:border-rose-900/40 dark:bg-rose-950/20'
-                                    : 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-950/50'
+                                    ? 'border-rose-500/30 bg-rose-500/5'
+                                    : 'border-border/70 bg-muted/20'
                             "
                         >
                             <div
                                 v-if="scanResult.warning"
-                                class="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-100 p-2 text-xs font-bold text-amber-800 dark:bg-amber-950/80 dark:text-amber-300"
+                                class="mb-2 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs font-medium text-amber-900 dark:text-amber-200"
                             >
-                                <AlertTriangle class="size-4 shrink-0" />
+                                <AlertTriangle class="size-4 shrink-0 text-amber-500" />
                                 {{ scanResult.warning }}
                             </div>
 
@@ -3919,18 +3953,18 @@ onBeforeUnmount(() => {
                             >
                                 <Badge
                                     variant="outline"
-                                    class="w-fit border-indigo-200 bg-indigo-50 text-indigo-700"
+                                    class="w-fit text-xs font-medium border-border/80 bg-background text-foreground"
                                     >Nguyên liệu</Badge
                                 >
                                 <h4
-                                    class="text-sm font-bold text-slate-900 dark:text-slate-100"
+                                    class="text-sm font-semibold text-foreground"
                                 >
                                     {{ scanResult.name }}
                                 </h4>
-                                <p class="text-xs text-slate-500">
+                                <p class="text-xs text-muted-foreground">
                                     Mã SKU:
                                     <span
-                                        class="font-bold text-slate-700 dark:text-slate-300"
+                                        class="font-mono font-medium text-foreground"
                                         >{{ scanResult.sku }}</span
                                     >
                                     • Đơn vị: {{ scanResult.unit }}
@@ -3944,17 +3978,17 @@ onBeforeUnmount(() => {
                                 <div class="flex items-center justify-between">
                                     <Badge
                                         variant="outline"
-                                        class="w-fit border-purple-200 bg-purple-50 text-purple-700"
+                                        class="w-fit text-xs font-medium border-border/80 bg-background text-foreground"
                                         >Lô hàng</Badge
                                     >
                                     <span
-                                        class="rounded px-2 py-0.5 text-[10px] font-bold"
+                                        class="rounded-md px-2 py-0.5 text-[11px] font-medium"
                                         :class="
                                             scanResult.status === 'ok'
-                                                ? 'bg-emerald-100 text-emerald-800'
+                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                                 : scanResult.status === 'locked'
-                                                  ? 'bg-rose-100 text-rose-800'
-                                                  : 'bg-amber-100 text-amber-800'
+                                                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                         "
                                     >
                                         {{
@@ -3967,19 +4001,19 @@ onBeforeUnmount(() => {
                                     </span>
                                 </div>
                                 <h4
-                                    class="text-sm font-bold text-slate-900 dark:text-slate-100"
+                                    class="text-sm font-semibold text-foreground font-mono"
                                 >
                                     {{ scanResult.batch_number }}
                                 </h4>
                                 <p
-                                    class="text-xs text-slate-600 dark:text-slate-300"
+                                    class="text-xs text-muted-foreground"
                                 >
                                     {{ scanResult.ingredient_name }} • Còn tồn:
-                                    <span class="font-bold">{{
+                                    <span class="font-mono font-medium text-foreground">{{
                                         scanResult.quantity
                                     }}</span>
                                 </p>
-                                <p class="text-xs text-slate-500">
+                                <p class="text-xs text-muted-foreground">
                                     Hạn sử dụng:
                                     {{
                                         scanResult.expiry_date ||
@@ -3994,29 +4028,29 @@ onBeforeUnmount(() => {
                             >
                                 <Badge
                                     variant="outline"
-                                    class="w-fit border-sky-200 bg-sky-50 text-sky-700"
+                                    class="w-fit text-xs font-medium border-border/80 bg-background text-foreground"
                                     >Vị trí lưu kho</Badge
                                 >
                                 <h4
-                                    class="text-sm font-bold text-slate-900 dark:text-slate-100"
+                                    class="text-sm font-semibold text-foreground"
                                 >
                                     {{ scanResult.code }} —
                                     {{ scanResult.name }}
                                 </h4>
-                                <p class="text-xs text-slate-500">
+                                <p class="text-xs text-muted-foreground">
                                     Khu vực:
                                     <span
-                                        class="font-bold text-slate-700 dark:text-slate-300"
+                                        class="font-medium text-foreground"
                                         >{{ scanResult.zone }}</span
                                     >
                                     <span
                                         v-if="scanResult.is_cold"
-                                        class="ml-1 font-semibold text-sky-600"
+                                        class="ml-1 font-medium text-sky-600 dark:text-sky-400"
                                         >• ❄ Kho lạnh</span
                                     >
                                     <span
                                         v-if="scanResult.is_quarantine"
-                                        class="ml-1 font-semibold text-rose-600"
+                                        class="ml-1 font-medium text-rose-600 dark:text-rose-400"
                                         >• 🚫 Khu cách ly</span
                                     >
                                 </p>
@@ -4024,7 +4058,7 @@ onBeforeUnmount(() => {
 
                             <div
                                 v-else
-                                class="flex items-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400"
+                                class="flex items-center gap-2 text-xs font-medium text-rose-600 dark:text-rose-400"
                             >
                                 <AlertCircle class="size-4 shrink-0" />
                                 {{
@@ -4042,40 +4076,40 @@ onBeforeUnmount(() => {
         <Teleport to="body">
             <div
                 v-if="showPickingModal && activePickingTask"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm"
                 @click.self="showPickingModal = false"
             >
                 <div
-                    class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                    class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-border/70 bg-card shadow-xl"
                 >
                     <!-- Modal Header -->
                     <div
-                        class="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800"
+                        class="flex items-center justify-between border-b border-border/60 p-5"
                     >
                         <div class="flex items-center gap-3">
                             <div
-                                class="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
+                                class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary"
                             >
-                                <ClipboardList class="size-5" />
+                                <ClipboardList class="size-4" />
                             </div>
                             <div>
                                 <h3
-                                    class="text-base font-bold text-slate-900 dark:text-slate-100"
+                                    class="text-base font-semibold text-foreground"
                                 >
                                     Bảng Xác Nhận Soạn Hàng FEFO
                                 </h3>
-                                <p class="text-xs text-slate-500">
+                                <p class="text-xs text-muted-foreground">
                                     Đơn cấp phát:
                                     <span
-                                        class="font-bold text-amber-600 dark:text-amber-400"
+                                        class="font-semibold text-primary"
                                         >{{
                                             activePickingTask.supply_request
                                                 ?.request_code
                                         }}</span
                                     >
-                                    →
+                                    <span class="mx-1.5 text-muted-foreground">→</span>
                                     <span
-                                        class="font-semibold text-slate-700 dark:text-slate-300"
+                                        class="font-medium text-foreground"
                                         >{{
                                             formatBranchName(
                                                 activePickingTask.supply_request
@@ -4087,7 +4121,7 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
                         <button
-                            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                            class="rounded-lg p-1 text-muted-foreground hover:text-foreground"
                             @click="showPickingModal = false"
                         >
                             <X class="size-5" />
@@ -4097,11 +4131,11 @@ onBeforeUnmount(() => {
                     <!-- Modal Body: Table of Items -->
                     <div class="flex-1 overflow-y-auto p-5">
                         <div
-                            class="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/40"
+                            class="overflow-x-auto rounded-xl border border-border/60 bg-card"
                         >
                             <table class="w-full text-left text-xs">
                                 <thead
-                                    class="border-b border-slate-200 bg-slate-100/70 font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                                    class="border-b border-border/60 bg-muted/50 font-medium text-muted-foreground"
                                 >
                                     <tr>
                                         <th class="p-3">#</th>
@@ -4115,32 +4149,32 @@ onBeforeUnmount(() => {
                                     </tr>
                                 </thead>
                                 <tbody
-                                    class="divide-y divide-slate-200 dark:divide-slate-800"
+                                    class="divide-y divide-border/60"
                                 >
                                     <tr
                                         v-for="(item, idx) in pickingFormItems"
                                         :key="item.id"
-                                        class="hover:bg-slate-100/50 dark:hover:bg-slate-800/30"
+                                        class="hover:bg-muted/20"
                                     >
                                         <td
-                                            class="p-3 font-semibold text-slate-400"
+                                            class="p-3 font-mono text-muted-foreground"
                                         >
                                             #{{ Number(idx) + 1 }}
                                         </td>
                                         <td class="p-3">
                                             <p
-                                                class="font-bold text-slate-900 dark:text-slate-100"
+                                                class="font-medium text-foreground"
                                             >
                                                 {{ item.ingredient_name }}
                                             </p>
                                             <span
-                                                class="text-[10px] text-slate-400"
+                                                class="text-[11px] text-muted-foreground"
                                                 >Đơn vị:
                                                 {{ item.unit_symbol }}</span
                                             >
                                         </td>
                                         <td
-                                            class="p-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300"
+                                            class="p-3 text-right font-mono font-medium text-muted-foreground"
                                         >
                                             {{ item.approved_quantity }}
                                             {{ item.unit_symbol }}
@@ -4153,9 +4187,9 @@ onBeforeUnmount(() => {
                                                 "
                                                 min="0"
                                                 step="0.001"
-                                                class="h-8 w-24 text-right font-mono text-xs font-bold"
+                                                class="h-8 w-24 text-right font-mono text-xs font-semibold"
                                                 :class="{
-                                                    'border-rose-400 bg-rose-50 dark:bg-rose-950/30':
+                                                    'border-rose-500/50 bg-rose-500/10 text-rose-600':
                                                         item.actual_dispatched_quantity !==
                                                         item.approved_quantity,
                                                 }"
@@ -4166,7 +4200,7 @@ onBeforeUnmount(() => {
                                                 v-model="
                                                     item.warehouse_location_id
                                                 "
-                                                class="h-8 w-full min-w-[160px] rounded-md border border-slate-200 bg-white px-2 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                                class="h-8 w-full min-w-[160px] rounded-md border border-input bg-background px-2 text-xs shadow-xs focus:ring-1 focus:ring-ring text-foreground"
                                             >
                                                 <option :value="null">
                                                     -- Tự động / Không chọn --
@@ -4200,11 +4234,11 @@ onBeforeUnmount(() => {
 
                     <!-- Modal Footer -->
                     <div
-                        class="flex items-center justify-between border-t border-slate-100 p-4 dark:border-slate-800"
+                        class="flex items-center justify-between border-t border-border/60 p-4"
                     >
-                        <p class="text-[11px] text-slate-500">
+                        <p class="text-[11px] text-muted-foreground">
                             Tổng cộng:
-                            <strong class="text-slate-800 dark:text-slate-200"
+                            <strong class="text-foreground"
                                 >{{ pickingFormItems.length }} mặt hàng</strong
                             >
                             trong danh sách
@@ -4219,11 +4253,11 @@ onBeforeUnmount(() => {
                             </Button>
                             <Button
                                 size="sm"
-                                class="gap-1.5 bg-amber-600 font-semibold text-white shadow-sm hover:bg-amber-700"
+                                class="gap-1.5 text-xs font-medium"
                                 :disabled="isSubmittingPicking"
                                 @click="submitPickingModal"
                             >
-                                <CheckCircle class="size-4" />
+                                <CheckCircle class="size-3.5" />
                                 {{
                                     isSubmittingPicking
                                         ? 'Đang lưu...'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     ArrowRight,
@@ -48,7 +48,38 @@ const props = defineProps<{
     supplyChainAlerts?: any;
     supplyChainReconciliation?: any;
     negativeStockCases?: any[];
+    canManageWarehouse?: boolean;
+    canCreateReceiving?: boolean;
 }>();
+
+const page = usePage();
+
+const roles = computed(() => {
+    const raw = (page.props as any).roles ?? [];
+
+    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+});
+
+const isWarehouseStaffOnly = computed(() => {
+    return (
+        roles.value.includes('warehouse_staff') &&
+        !roles.value.includes('warehouse_manager') &&
+        !roles.value.includes('owner') &&
+        !roles.value.includes('super_admin')
+    );
+});
+
+const canCreateReceiving = computed(() => {
+    if (props.canCreateReceiving !== undefined) {
+        return Boolean(props.canCreateReceiving);
+    }
+
+    if (isWarehouseStaffOnly.value) {
+        return false;
+    }
+
+    return Boolean(props.canManageWarehouse);
+});
 
 const analytics = computed(() => props.supplyAnalytics ?? {});
 const summary = computed(() => analytics.value.summary ?? {});
@@ -441,7 +472,7 @@ const priorityBadge = (priority: string) => {
     >
         <!-- ── 1. HEADER CHUẨN ENTERPRISE (TINH TẾ, ÁNH SÁNG NHẸ) ────────── -->
         <header
-            class="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/30 p-5.5 shadow-xs backdrop-blur-md sm:flex-row sm:items-center"
+            class="animate-fade-in-up stagger-1 relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/30 p-5.5 shadow-xs backdrop-blur-md sm:flex-row sm:items-center"
         >
             <!-- Subtle Top Glow Accent -->
             <div
@@ -477,8 +508,9 @@ const priorityBadge = (priority: string) => {
                 <!-- Action Buttons with subtle sheens -->
                 <div class="flex flex-wrap items-center gap-2.5">
                     <Link
+                        v-if="canCreateReceiving"
                         href="/inventory/central-warehouse/receiving?create=1"
-                        class="inline-flex h-9.5 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary/90 px-4 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/25 transition-all hover:brightness-105 active:scale-98"
+                        class="motion-btn-primary inline-flex h-9.5 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary/90 px-4 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/25 transition-all hover:brightness-105 active:scale-98"
                     >
                         <PackageCheck class="size-4" />
                         Nhập nguyên liệu
@@ -505,7 +537,7 @@ const priorityBadge = (priority: string) => {
 
         <!-- ── 2. 6 THẺ KPI TƯƠNG TÁC (CÓ MÀU SẮC NHÃ NHẶN & ÁNH SÁNG VIỀN) ── -->
         <section class="space-y-2.5">
-            <div class="flex items-center justify-between text-xs text-muted-foreground">
+            <div class="animate-fade-in-up stagger-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span class="font-bold uppercase tracking-wider text-[10px] text-muted-foreground/90">
                     Chỉ số trọng yếu · Chọn thẻ để xem phân tích chi tiết
                 </span>
@@ -519,8 +551,9 @@ const priorityBadge = (priority: string) => {
                     v-for="(card, idx) in kpiCards"
                     :key="card.id"
                     @click="selectedKpiIdx = idx"
-                    class="group relative cursor-pointer overflow-hidden rounded-2xl border bg-card/80 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md backdrop-blur-xs"
+                    class="motion-card animate-fade-in-up group relative cursor-pointer overflow-hidden rounded-2xl border bg-card/80 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-md backdrop-blur-xs"
                     :class="[
+                        `stagger-${(idx % 6) + 1}`,
                         selectedKpiIdx === idx
                             ? card.activeBorder
                             : 'border-border/70 hover:border-border',
@@ -534,7 +567,7 @@ const priorityBadge = (priority: string) => {
                             {{ card.badge }}
                         </span>
                         <div
-                            class="flex size-7 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
+                            class="flex size-7 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-110"
                             :class="card.iconBg"
                         >
                             <component :is="card.icon" class="size-3.5" />
@@ -569,7 +602,7 @@ const priorityBadge = (priority: string) => {
         </section>
 
         <!-- ── 3. BẢNG PHÂN TÍCH CHI TIẾT THEO KPI (DEEP-DIVE CARD) ─────── -->
-        <Card class="overflow-hidden border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs">
+        <Card class="animate-fade-in-up stagger-3 overflow-hidden border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs">
             <CardHeader class="border-b border-border/60 bg-muted/20 py-3.5">
                 <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                     <div class="flex items-center gap-2.5">
@@ -589,72 +622,76 @@ const priorityBadge = (priority: string) => {
                 </div>
             </CardHeader>
 
-            <CardContent class="grid gap-5 p-5 lg:grid-cols-12">
-                <!-- 3 Cột số liệu bóc tách -->
-                <div class="space-y-3.5 lg:col-span-7">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div class="rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
-                            <p class="text-[11px] font-medium text-muted-foreground">
-                                {{ activeKpi.metric1_label }}
-                            </p>
-                            <p class="mt-1 text-base font-black text-foreground">
-                                {{ activeKpi.metric1_value }}
-                            </p>
-                        </div>
-                        <div class="rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
-                            <p class="text-[11px] font-medium text-muted-foreground">
-                                {{ activeKpi.metric2_label }}
-                            </p>
-                            <p class="mt-1 text-base font-black" :class="activeKpi.accentColor">
-                                {{ activeKpi.metric2_value }}
-                            </p>
-                        </div>
-                        <div class="rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
-                            <p class="text-[11px] font-medium text-muted-foreground">
-                                {{ activeKpi.metric3_label }}
-                            </p>
-                            <p class="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400">
-                                {{ activeKpi.metric3_value }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Tags dữ liệu liên quan -->
-                    <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <span
-                            v-for="(tag, tIdx) in activeKpi.tables"
-                            :key="tIdx"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-xs"
-                        >
-                            <ChevronRight class="size-3 text-primary" />
-                            {{ tag }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Lời khuyên & Ghi chú từ AI -->
-                <div class="lg:col-span-5">
-                    <div class="flex h-full flex-col justify-between rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/[0.02] to-transparent p-4 shadow-xs">
-                        <div>
-                            <div class="flex items-center gap-2 text-xs font-bold text-foreground">
-                                <Lightbulb class="size-4 text-amber-500" />
-                                Đánh giá & Khuyến nghị vận hành
+            <CardContent class="p-5">
+                <Transition name="fade-slide-tab" mode="out-in">
+                    <div :key="selectedKpiIdx" class="grid gap-5 lg:grid-cols-12">
+                        <!-- 3 Cột số liệu bóc tách -->
+                        <div class="space-y-3.5 lg:col-span-7">
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div class="motion-card rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
+                                    <p class="text-[11px] font-medium text-muted-foreground">
+                                        {{ activeKpi.metric1_label }}
+                                    </p>
+                                    <p class="mt-1 text-base font-black text-foreground">
+                                        {{ activeKpi.metric1_value }}
+                                    </p>
+                                </div>
+                                <div class="motion-card rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
+                                    <p class="text-[11px] font-medium text-muted-foreground">
+                                        {{ activeKpi.metric2_label }}
+                                    </p>
+                                    <p class="mt-1 text-base font-black" :class="activeKpi.accentColor">
+                                        {{ activeKpi.metric2_value }}
+                                    </p>
+                                </div>
+                                <div class="motion-card rounded-xl border border-border/70 bg-muted/30 p-3 shadow-inner">
+                                    <p class="text-[11px] font-medium text-muted-foreground">
+                                        {{ activeKpi.metric3_label }}
+                                    </p>
+                                    <p class="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400">
+                                        {{ activeKpi.metric3_value }}
+                                    </p>
+                                </div>
                             </div>
-                            <p class="mt-2.5 text-xs leading-relaxed text-muted-foreground font-medium">
-                                {{ activeKpi.note }}
-                            </p>
+
+                            <!-- Tags dữ liệu liên quan -->
+                            <div class="flex flex-wrap items-center gap-2 pt-1">
+                                <span
+                                    v-for="(tag, tIdx) in activeKpi.tables"
+                                    :key="tIdx"
+                                    class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-xs transition hover:border-border/80 hover:bg-muted/40"
+                                >
+                                    <ChevronRight class="size-3 text-primary" />
+                                    {{ tag }}
+                                </span>
+                            </div>
                         </div>
-                        <div class="mt-4 flex items-center justify-between border-t border-border/60 pt-2.5 text-[11px]">
-                            <span class="text-muted-foreground">Mô hình AI Kho Vận</span>
-                            <a
-                                :href="centralWarehouseRoutes.aiAdvisor.url()"
-                                class="font-bold text-primary hover:underline inline-flex items-center gap-1"
-                            >
-                                Mở Trợ lý AI Kho →
-                            </a>
+
+                        <!-- Lời khuyên & Ghi chú từ AI -->
+                        <div class="lg:col-span-5">
+                            <div class="flex h-full flex-col justify-between rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-primary/[0.02] to-transparent p-4 shadow-xs">
+                                <div>
+                                    <div class="flex items-center gap-2 text-xs font-bold text-foreground">
+                                        <Lightbulb class="size-4 text-amber-500" />
+                                        Đánh giá & Khuyến nghị vận hành
+                                    </div>
+                                    <p class="mt-2.5 text-xs leading-relaxed text-muted-foreground font-medium">
+                                        {{ activeKpi.note }}
+                                    </p>
+                                </div>
+                                <div class="mt-4 flex items-center justify-between border-t border-border/60 pt-2.5 text-[11px]">
+                                    <span class="text-muted-foreground">Mô hình AI Kho Vận</span>
+                                    <a
+                                        :href="centralWarehouseRoutes.aiAdvisor.url()"
+                                        class="font-bold text-primary hover:underline inline-flex items-center gap-1"
+                                    >
+                                        Mở Trợ lý AI Kho →
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Transition>
             </CardContent>
         </Card>
 
@@ -665,9 +702,9 @@ const priorityBadge = (priority: string) => {
         />
 
         <!-- ── 4. CẢNH BÁO CHUỖI CUNG ỨNG & ĐỐI SOÁT TỒN KHO ────────────── -->
-        <section class="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <section class="animate-fade-in-up stagger-4 grid grid-cols-1 gap-6 md:grid-cols-2">
             <!-- Cảnh báo chuỗi cung ứng -->
-            <Card class="border-border/80 bg-card shadow-xs">
+            <Card class="motion-card border-border/80 bg-card shadow-xs">
                 <CardHeader class="border-b border-border/60 pb-3">
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base font-bold text-foreground">
@@ -694,7 +731,7 @@ const priorityBadge = (priority: string) => {
                     <div
                         v-for="item in (supplyChainAlerts.items ?? []).slice(0, 4)"
                         :key="`${item.type}-${item.ingredient_id ?? item.purchase_order_id}`"
-                        class="flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3 transition hover:border-border"
+                        class="motion-row flex items-start justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3 transition hover:border-border hover:bg-muted/40"
                     >
                         <div>
                             <p class="text-xs font-bold text-foreground">
@@ -715,7 +752,7 @@ const priorityBadge = (priority: string) => {
             </Card>
 
             <!-- Đối soát tồn kho -->
-            <Card class="border-border/80 bg-card shadow-xs">
+            <Card class="motion-card border-border/80 bg-card shadow-xs">
                 <CardHeader class="border-b border-border/60 pb-3">
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base font-bold text-foreground">
@@ -758,7 +795,7 @@ const priorityBadge = (priority: string) => {
                         <div
                             v-for="item in reconciliation.items.slice(0, 3)"
                             :key="item.ingredient_id"
-                            class="flex justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs"
+                            class="motion-row flex justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2 text-xs transition hover:bg-muted/60"
                         >
                             <span class="truncate font-medium text-foreground">{{ item.ingredient_name }}</span>
                             <span class="font-bold text-rose-600 dark:text-rose-400">{{ formatQuantity(item.variance) }}</span>
@@ -769,9 +806,9 @@ const priorityBadge = (priority: string) => {
         </section>
 
         <!-- ── 5. AI ĐÁNH GIÁ & ƯU TIÊN HÀNH ĐỘNG ───────────────────────── -->
-        <section class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <section class="animate-fade-in-up stagger-5 grid grid-cols-1 gap-6 lg:grid-cols-12">
             <!-- Left: Đánh giá Sức khỏe Kho Tổng -->
-            <Card class="flex flex-col justify-between border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs lg:col-span-4">
+            <Card class="motion-card flex flex-col justify-between border-border/80 bg-gradient-to-b from-card to-card/90 shadow-xs lg:col-span-4">
                 <CardHeader class="border-b border-border/60 pb-3">
                     <div class="flex items-center justify-between">
                         <CardTitle class="flex items-center gap-2 text-base font-bold text-foreground">

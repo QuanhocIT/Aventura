@@ -1147,7 +1147,7 @@ const documentTypeLabel = (type: string) =>
                 <div class="flex flex-wrap gap-2">
                     <Button
                         v-if="canCreateReceiving"
-                        class="h-9 gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white shadow-xs hover:bg-orange-600 active:translate-y-0"
+                        class="motion-btn-primary h-9 gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white shadow-xs hover:bg-orange-600 active:translate-y-0"
                         @click="showGrnForm = true"
                         ><Plus class="size-3.5" /> Nhập nguyên liệu vào Kho
                         Tổng</Button
@@ -1178,7 +1178,7 @@ const documentTypeLabel = (type: string) =>
 
         <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Card
-                class="border-orange-200/80 bg-orange-50/70 shadow-xs dark:border-orange-500/20 dark:bg-orange-950/20"
+                class="motion-card animate-fade-in-up stagger-1 border-orange-200/80 bg-orange-50/70 shadow-xs hover:shadow-md dark:border-orange-500/20 dark:bg-orange-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-orange-700 uppercase dark:text-orange-300">
@@ -1194,7 +1194,7 @@ const documentTypeLabel = (type: string) =>
             </Card>
 
             <Card
-                class="border-emerald-200/80 bg-emerald-50/70 shadow-xs dark:border-emerald-500/20 dark:bg-emerald-950/20"
+                class="motion-card animate-fade-in-up stagger-2 border-emerald-200/80 bg-emerald-50/70 shadow-xs hover:shadow-md dark:border-emerald-500/20 dark:bg-emerald-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-emerald-700 uppercase dark:text-emerald-300">
@@ -1210,7 +1210,7 @@ const documentTypeLabel = (type: string) =>
             </Card>
 
             <Card
-                class="border-rose-200/80 bg-rose-50/70 shadow-xs dark:border-rose-500/20 dark:bg-rose-950/20"
+                class="motion-card animate-fade-in-up stagger-3 border-rose-200/80 bg-rose-50/70 shadow-xs hover:shadow-md dark:border-rose-500/20 dark:bg-rose-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-rose-700 uppercase dark:text-rose-300">
@@ -1226,7 +1226,7 @@ const documentTypeLabel = (type: string) =>
             </Card>
 
             <Card
-                class="border-amber-200/80 bg-amber-50/70 shadow-xs dark:border-amber-500/20 dark:bg-amber-950/20"
+                class="motion-card animate-fade-in-up stagger-4 border-amber-200/80 bg-amber-50/70 shadow-xs hover:shadow-md dark:border-amber-500/20 dark:bg-amber-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-amber-700 uppercase dark:text-amber-300">
@@ -1242,7 +1242,7 @@ const documentTypeLabel = (type: string) =>
             </Card>
 
             <Card
-                class="border-sky-200/80 bg-sky-50/70 shadow-xs dark:border-sky-500/20 dark:bg-sky-950/20"
+                class="motion-card animate-fade-in-up stagger-5 border-sky-200/80 bg-sky-50/70 shadow-xs hover:shadow-md dark:border-sky-500/20 dark:bg-sky-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-sky-700 uppercase dark:text-sky-300">
@@ -1258,7 +1258,7 @@ const documentTypeLabel = (type: string) =>
             </Card>
 
             <Card
-                class="border-indigo-200/80 bg-indigo-50/70 shadow-xs dark:border-indigo-500/20 dark:bg-indigo-950/20"
+                class="motion-card animate-fade-in-up stagger-6 border-indigo-200/80 bg-indigo-50/70 shadow-xs hover:shadow-md dark:border-indigo-500/20 dark:bg-indigo-950/20"
             >
                 <CardContent class="p-4">
                     <p class="text-[11px] font-bold text-indigo-700 uppercase dark:text-indigo-300">

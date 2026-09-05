@@ -356,7 +356,7 @@ const submitCancel = () => {
         <!-- Summary KPI Cards -->
         <section class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div
-                class="rounded-xl border border-border/70 bg-card p-4 shadow-sm"
+                class="motion-card animate-fade-in-up stagger-1 rounded-xl border border-border/70 bg-card p-4 shadow-sm"
             >
                 <p class="text-xs font-medium text-muted-foreground">
                     Chờ xem xét
@@ -371,7 +371,7 @@ const submitCancel = () => {
                 </p>
             </div>
             <div
-                class="rounded-xl border border-border/70 bg-card p-4 shadow-sm"
+                class="motion-card animate-fade-in-up stagger-2 rounded-xl border border-border/70 bg-card p-4 shadow-sm"
             >
                 <p class="text-xs font-medium text-muted-foreground">
                     Đang xử lý
@@ -384,7 +384,7 @@ const submitCancel = () => {
                 </p>
             </div>
             <div
-                class="rounded-xl border border-border/70 bg-card p-4 shadow-sm"
+                class="motion-card animate-fade-in-up stagger-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm"
             >
                 <p class="text-xs font-medium text-muted-foreground">
                     Đã hoàn tất
@@ -406,7 +406,7 @@ const submitCancel = () => {
         >
             <!-- Form Card -->
             <article
-                class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+                class="motion-card animate-fade-in-up stagger-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6"
             >
                 <div
                     class="flex items-start gap-3 border-b border-border/70 pb-4"
@@ -613,7 +613,7 @@ const submitCancel = () => {
                                 !props.permissions.can_create ||
                                 !hasAssignedBranch
                             "
-                            class="gap-2 font-bold shadow-sm"
+                            class="motion-btn-primary gap-2 font-bold shadow-sm"
                         >
                             <Send class="size-4" /> Gửi Chủ doanh nghiệp
                         </Button>
@@ -624,7 +624,7 @@ const submitCancel = () => {
             <!-- Guide Sidebar -->
             <aside class="space-y-5">
                 <article
-                    class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm"
+                    class="motion-card animate-fade-in-up stagger-5 rounded-2xl border border-border/70 bg-card p-5 shadow-sm"
                 >
                     <div class="flex items-center gap-2">
                         <ArrowRight class="size-5 text-primary" />
@@ -683,7 +683,7 @@ const submitCancel = () => {
                 </article>
 
                 <article
-                    class="rounded-xl border border-amber-500/20 bg-amber-500/10 p-5"
+                    class="motion-card animate-fade-in-up stagger-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-5"
                 >
                     <div class="flex items-start gap-3">
                         <AlertTriangle
@@ -710,7 +710,7 @@ const submitCancel = () => {
 
         <!-- Track Sent Requests -->
         <section
-            class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6"
+            class="motion-card animate-fade-in-up stagger-7 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6"
         >
             <div
                 class="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between"
@@ -733,7 +733,7 @@ const submitCancel = () => {
                 <article
                     v-for="request in visibleRequests"
                     :key="request.id"
-                    class="rounded-xl border border-border/70 bg-background p-4 shadow-sm"
+                    class="motion-row rounded-xl border border-border/70 bg-background p-4 shadow-sm"
                 >
                     <div
                         class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"

@@ -3106,61 +3106,62 @@ const formatDuration = (hours: number) => {
                                         </span>
                                     </td>
                                     <td class="px-4 py-3">
-                                        <div v-if="line.transfer.available_batches && line.transfer.available_batches.length > 1" class="space-y-1.5">
+                                        <div v-if="line.transfer.available_batches && line.transfer.available_batches.length > 0" class="space-y-1.5">
                                             <select
                                                 v-model="line.selectedBatchId"
-                                                class="w-full rounded-lg border border-border bg-background/90 px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                                class="w-full rounded-lg border border-amber-500/40 bg-background/95 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
                                             >
+                                                <option :value="null">⚡ Tự động phân bổ FEFO (Khuyên dùng)</option>
                                                 <option
-                                                    v-for="b in line.transfer.available_batches"
+                                                    v-for="(b, bIdx) in line.transfer.available_batches"
                                                     :key="b.id"
                                                     :value="b.id"
                                                 >
-                                                    Lô {{ b.batch_number }} | HSD: {{ b.expiry_date || 'Không có date' }} (Tồn: {{ formatNumber(b.quantity_remaining ?? 0) }})
+                                                    Lô {{ b.batch_number }} | HSD: {{ b.expiry_date || 'Không date' }} (Tồn: {{ formatNumber(b.quantity_remaining ?? 0) }}) {{ bIdx === 0 ? '— ★ Ưu tiên' : '' }}
                                                 </option>
                                             </select>
-                                            <div v-if="getSelectedBatch(line)" class="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                                <span v-if="getSelectedBatch(line)?.expiry_date" class="rounded bg-sky-500/10 px-1.5 py-0.5 font-semibold text-sky-400 border border-sky-500/20">
-                                                    HSD: {{ getSelectedBatch(line)?.expiry_date }}
-                                                </span>
-                                                <span v-if="getSelectedBatch(line)?.purchased_at" class="text-muted-foreground">
-                                                    NSX/Nhập: {{ getSelectedBatch(line)?.purchased_at }}
-                                                </span>
-                                                <span
-                                                    v-if="line.selectedBatchId === line.transfer.available_batches[0]?.id"
-                                                    class="rounded bg-emerald-500/10 px-1.5 py-0.5 font-bold text-emerald-400 border border-emerald-500/20"
-                                                >
-                                                    ⚡ Khuyên dùng FEFO
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div v-else-if="line.transfer.available_batches && line.transfer.available_batches.length === 1">
-                                            <div class="rounded-lg border border-border/80 bg-muted/30 p-2 text-xs">
-                                                <div class="flex items-center gap-1.5 font-bold">
-                                                    <span class="font-mono text-amber-300">Lô: {{ line.transfer.available_batches[0].batch_number }}</span>
-                                                    <span class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 border border-emerald-500/20">
-                                                        ⚡ FEFO
+                                            <div v-if="getSelectedBatch(line)" class="rounded-lg border border-border/80 bg-muted/30 p-2 text-xs">
+                                                <div class="flex items-center justify-between gap-1.5 font-bold">
+                                                    <span class="font-mono text-amber-300">
+                                                        Lô: {{ getSelectedBatch(line)?.batch_number }}
+                                                    </span>
+                                                    <span
+                                                        v-if="!line.selectedBatchId || line.selectedBatchId === line.transfer.available_batches[0]?.id"
+                                                        class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 border border-emerald-500/20"
+                                                    >
+                                                        ⚡ FEFO Ưu tiên
+                                                    </span>
+                                                    <span
+                                                        v-else
+                                                        class="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-400 border border-amber-500/20"
+                                                    >
+                                                        Đã chọn thủ công
                                                     </span>
                                                 </div>
-                                                <div class="mt-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                                                    <span v-if="line.transfer.available_batches[0].expiry_date" class="text-sky-300 font-medium">
-                                                        HSD: {{ line.transfer.available_batches[0].expiry_date }}
+                                                <div class="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground">
+                                                    <span v-if="getSelectedBatch(line)?.expiry_date" class="font-medium text-sky-300">
+                                                        HSD: {{ getSelectedBatch(line)?.expiry_date }}
                                                     </span>
-                                                    <span v-if="line.transfer.available_batches[0].purchased_at">
-                                                        NSX: {{ line.transfer.available_batches[0].purchased_at }}
+                                                    <span v-if="getSelectedBatch(line)?.purchased_at">
+                                                        NSX: {{ getSelectedBatch(line)?.purchased_at }}
                                                     </span>
                                                     <span>
-                                                        Tồn: {{ formatNumber(line.transfer.available_batches[0].quantity_remaining ?? 0) }}
+                                                        Tồn: {{ formatNumber(getSelectedBatch(line)?.quantity_remaining ?? 0) }} {{ line.transfer.unit }}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
                                         <div v-else class="rounded-lg border border-dashed border-border/70 bg-muted/20 p-2 text-[11px] text-muted-foreground">
-                                            <div class="flex items-center gap-1 font-medium text-amber-200">
-                                                <span>Lô mặc định</span>
-                                                <span class="text-[9px] text-muted-foreground">(Kế thừa)</span>
+                                            <div class="flex items-center justify-between font-medium text-amber-200">
+                                                <span class="flex items-center gap-1">
+                                                    <span>Lô mặc định</span>
+                                                    <span class="text-[9px] text-muted-foreground">(Kế thừa)</span>
+                                                </span>
+                                                <span class="rounded bg-slate-500/10 px-1.5 py-0.5 text-[9px] text-muted-foreground border border-border">
+                                                    Tự động tạo lô
+                                                </span>
                                             </div>
-                                            <p class="text-[10px] text-muted-foreground mt-0.5">Tự động gắn mã lô truy vết khi xuất</p>
+                                            <p class="text-[10px] text-muted-foreground mt-0.5">Tự động gắn mã lô truy vết khi xuất kho</p>
                                         </div>
                                     </td>
                                     <td class="px-4 py-3 text-center font-semibold">

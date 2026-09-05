@@ -397,7 +397,7 @@ const activityTypeLabel = (type: string) =>
         </div>
 
         <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Card class="border-indigo-100 bg-indigo-50/70 dark:border-indigo-500/20 dark:bg-indigo-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-1 border-indigo-100 bg-indigo-50/70 hover:shadow-md dark:border-indigo-500/20 dark:bg-indigo-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-indigo-700 uppercase dark:text-indigo-300">
                         Mặt hàng
@@ -410,7 +410,7 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-sky-100 bg-sky-50/70 dark:border-sky-500/20 dark:bg-sky-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-2 border-sky-100 bg-sky-50/70 hover:shadow-md dark:border-sky-500/20 dark:bg-sky-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-sky-700 uppercase dark:text-sky-300">
                         Tồn thực tế
@@ -423,7 +423,7 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-emerald-100 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-3 border-emerald-100 bg-emerald-50/70 hover:shadow-md dark:border-emerald-500/20 dark:bg-emerald-950/10"
                 ><CardContent class="p-4"
                     ><p
                         class="text-[11px] font-bold text-emerald-700 uppercase dark:text-emerald-300"
@@ -440,7 +440,7 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-violet-100 bg-violet-50/70 dark:border-violet-500/20 dark:bg-violet-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-4 border-violet-100 bg-violet-50/70 hover:shadow-md dark:border-violet-500/20 dark:bg-violet-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-violet-700 uppercase dark:text-violet-300">
                         Giá trị tồn
@@ -453,7 +453,7 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-amber-100 bg-amber-50/70 dark:border-amber-500/20 dark:bg-amber-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-5 border-amber-100 bg-amber-50/70 hover:shadow-md dark:border-amber-500/20 dark:bg-amber-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-amber-700 uppercase dark:text-amber-300">
                         Cần bổ sung
@@ -466,7 +466,7 @@ const activityTypeLabel = (type: string) =>
                     </p></CardContent
                 ></Card
             >
-            <Card class="border-orange-100 bg-orange-50/70 dark:border-orange-500/20 dark:bg-orange-950/10"
+            <Card class="motion-card animate-fade-in-up stagger-6 border-orange-100 bg-orange-50/70 hover:shadow-md dark:border-orange-500/20 dark:bg-orange-950/10"
                 ><CardContent class="p-4"
                     ><p class="text-[11px] font-bold text-orange-700 uppercase dark:text-orange-300">
                         Lô sắp hết hạn
@@ -495,7 +495,7 @@ const activityTypeLabel = (type: string) =>
         <section class="grid gap-3 md:grid-cols-3">
             <button
                 type="button"
-                class="flex items-center justify-between rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-left transition hover:border-rose-400/50 hover:bg-rose-500/10"
+                class="motion-card animate-fade-in-up stagger-1 flex items-center justify-between rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-left transition hover:border-rose-400/50 hover:bg-rose-500/10"
                 @click="setStatusFilter('expired')"
             >
                 <span>
@@ -513,7 +513,7 @@ const activityTypeLabel = (type: string) =>
             </button>
             <button
                 type="button"
-                class="flex items-center justify-between rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-500/10"
+                class="motion-card animate-fade-in-up stagger-2 flex items-center justify-between rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-500/10"
                 @click="setStatusFilter('locked')"
             >
                 <span>
@@ -530,7 +530,7 @@ const activityTypeLabel = (type: string) =>
                 }}</strong>
             </button>
             <div
-                class="flex items-center justify-between rounded-2xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3"
+                class="motion-card animate-fade-in-up stagger-3 flex items-center justify-between rounded-2xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3"
             >
                 <span>
                     <span
@@ -694,7 +694,7 @@ const activityTypeLabel = (type: string) =>
                                 :key="item.id"
                             >
                                 <tr
-                                    class="cursor-pointer transition hover:bg-muted/20"
+                                    class="motion-row cursor-pointer transition hover:bg-muted/20"
                                     @click="toggleExpanded(item.id)"
                                 >
                                     <td class="p-3 text-muted-foreground">
@@ -795,7 +795,7 @@ const activityTypeLabel = (type: string) =>
                                 </tr>
                                 <tr
                                     v-if="expandedId === item.id"
-                                    class="bg-muted/10"
+                                    class="bg-muted/10 animate-fade-in-up"
                                 >
                                     <td colspan="10" class="p-4">
                                         <div
