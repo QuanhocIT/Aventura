@@ -1013,10 +1013,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-amber-600 dark:text-amber-400':
                                     (props.stats?.refund_amount_today ?? 0) > 0,
@@ -1025,9 +1025,14 @@ function getTableStatusInfo(status: string) {
                             {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Hoàn tiền
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Giá trị hoàn trả khách
                         </p>
                     </CardContent>
                 </Card>
@@ -1035,10 +1040,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-rose-600 dark:text-rose-400':
                                     (props.stats?.orders_cancelled ?? 0) > 0,
@@ -1047,9 +1052,14 @@ function getTableStatusInfo(status: string) {
                             {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Đơn hủy
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn bị hủy hôm nay
                         </p>
                     </CardContent>
                 </Card>
@@ -1057,17 +1067,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.completion_rate ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Tỉ lệ hoàn thành
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn xong trên tổng đơn
                         </p>
                     </CardContent>
                 </Card>
@@ -1075,17 +1090,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.profit_margin_today ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Biên lợi nhuận
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Lợi nhuận gộp ước tính
                         </p>
                     </CardContent>
                 </Card>
@@ -1093,17 +1113,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.employees_count ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Nhân viên
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Nhân sự đang hoạt động
                         </p>
                     </CardContent>
                 </Card>
@@ -1482,10 +1507,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-amber-600 dark:text-amber-400':
                                     (props.stats?.refund_amount_today ?? 0) > 0,
@@ -1494,9 +1519,14 @@ function getTableStatusInfo(status: string) {
                             {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Hoàn tiền
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Giá trị hoàn trả khách
                         </p>
                     </CardContent>
                 </Card>
@@ -1504,10 +1534,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-rose-600 dark:text-rose-400':
                                     (props.stats?.orders_cancelled ?? 0) > 0,
@@ -1516,9 +1546,14 @@ function getTableStatusInfo(status: string) {
                             {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Đơn hủy
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn bị hủy hôm nay
                         </p>
                     </CardContent>
                 </Card>
@@ -1526,17 +1561,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.completion_rate ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Tỉ lệ hoàn thành
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn xong trên tổng đơn
                         </p>
                     </CardContent>
                 </Card>
@@ -1544,17 +1584,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.profit_margin_today ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Biên lợi nhuận
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Lợi nhuận gộp ước tính
                         </p>
                     </CardContent>
                 </Card>
@@ -1562,17 +1607,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.employees_count ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Nhân viên
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Nhân sự đang hoạt động
                         </p>
                     </CardContent>
                 </Card>
@@ -1936,10 +1986,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-amber-600 dark:text-amber-400':
                                     (props.stats?.refund_amount_today ?? 0) > 0,
@@ -1948,9 +1998,14 @@ function getTableStatusInfo(status: string) {
                             {{ formatVND(props.stats?.refund_amount_today ?? 0) }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Hoàn tiền
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Giá trị hoàn trả khách
                         </p>
                     </CardContent>
                 </Card>
@@ -1958,10 +2013,10 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                             :class="{
                                 'text-rose-600 dark:text-rose-400':
                                     (props.stats?.orders_cancelled ?? 0) > 0,
@@ -1970,9 +2025,14 @@ function getTableStatusInfo(status: string) {
                             {{ props.stats?.orders_cancelled ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Đơn hủy
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn bị hủy hôm nay
                         </p>
                     </CardContent>
                 </Card>
@@ -1980,17 +2040,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.completion_rate ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Tỉ lệ hoàn thành
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Đơn xong trên tổng đơn
                         </p>
                     </CardContent>
                 </Card>
@@ -1998,17 +2063,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.profit_margin_today ?? 0 }}%
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Biên lợi nhuận
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Lợi nhuận gộp ước tính
                         </p>
                     </CardContent>
                 </Card>
@@ -2016,17 +2086,22 @@ function getTableStatusInfo(status: string) {
                     class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
                 >
                     <CardContent
-                        class="flex flex-col items-center p-4 text-center"
+                        class="flex flex-col items-center p-3.5 text-center sm:p-4"
                     >
                         <p
-                            class="text-2xl font-black text-slate-800 dark:text-slate-100"
+                            class="text-2xl font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
                         >
                             {{ props.stats?.employees_count ?? 0 }}
                         </p>
                         <p
-                            class="mt-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                            class="mt-1 text-xs font-bold tracking-wide text-slate-700 uppercase dark:text-slate-200"
                         >
                             Nhân viên
+                        </p>
+                        <p
+                            class="mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                        >
+                            Nhân sự đang hoạt động
                         </p>
                     </CardContent>
                 </Card>
