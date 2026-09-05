@@ -67,80 +67,100 @@ function formatMoney(v: number): string {
         <!-- Dự báo doanh thu ngày mai -->
         <Card
             v-if="forecastData"
-            class="overflow-hidden border border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-50 shadow-sm dark:border-indigo-800/40 dark:from-indigo-950/20 dark:to-violet-950/20"
+            class="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:shadow-md dark:border-slate-800/80 dark:bg-slate-900/60"
         >
             <CardHeader
-                class="border-b border-indigo-100 pb-2 dark:border-indigo-800/30"
+                class="flex flex-row items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800/80"
             >
-                <CardTitle
-                    class="flex items-center gap-2 text-sm font-bold text-indigo-700 dark:text-indigo-300"
-                >
-                    <Sparkles class="size-4 animate-pulse text-indigo-500" />
-                    Dự báo doanh thu ngày mai
-                </CardTitle>
-                <p
-                    class="text-[10px] text-indigo-500/80 dark:text-indigo-400/70"
-                >
-                    {{ forecastData.day_label }}
-                </p>
-            </CardHeader>
-            <CardContent class="pt-4 text-xs">
-                <div class="mb-3 flex items-end gap-3">
+                <div class="flex items-center gap-2.5">
+                    <div
+                        class="flex size-8 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-600 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-400"
+                    >
+                        <Sparkles class="size-4" />
+                    </div>
                     <div>
-                        <p
-                            class="text-2xl font-black text-indigo-700 dark:text-indigo-300"
+                        <CardTitle
+                            class="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100"
                         >
-                            {{ formatMoney(forecastData.amount) }}
-                        </p>
-                        <p class="mt-0.5 text-[10px] text-indigo-500/70">
-                            Dựa trên {{ forecastData.samples }} tuần lịch sử
+                            Dự báo doanh thu ngày mai
+                        </CardTitle>
+                        <p
+                            class="mt-0.5 text-[11px] font-medium text-slate-500 capitalize dark:text-slate-400"
+                        >
+                            {{ forecastData.day_label }}
                         </p>
                     </div>
-                    <span
-                        :class="[
-                            'mb-1 rounded-full border px-2 py-0.5 text-[9px] font-bold',
-                            forecastData.confidence === 'high'
-                                ? 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                                : forecastData.confidence === 'medium'
-                                  ? 'border-amber-200 bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
-                                  : 'border-rose-200 bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400',
-                        ]"
-                    >
-                        Tin cậy: {{ forecastData.confidence_label }}
-                    </span>
                 </div>
+
+                <span
+                    :class="[
+                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold',
+                        forecastData.confidence === 'high'
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300'
+                            : forecastData.confidence === 'medium'
+                              ? 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300'
+                              : 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-300',
+                    ]"
+                >
+                    <span
+                        class="size-1.5 rounded-full"
+                        :class="
+                            forecastData.confidence === 'high'
+                                ? 'bg-emerald-500'
+                                : forecastData.confidence === 'medium'
+                                  ? 'bg-amber-500'
+                                  : 'bg-rose-500'
+                        "
+                    />
+                    {{
+                        forecastData.confidence_label
+                            ? forecastData.confidence_label.replace(/\s*\(Laravel Fallback\)/i, '')
+                            : 'Tin cậy: Cao'
+                    }}
+                </span>
+            </CardHeader>
+            <CardContent class="pt-4 text-xs space-y-3.5">
+                <div>
+                    <p
+                        class="text-2xl sm:text-[28px] font-black tracking-tight text-slate-900 tabular-nums dark:text-slate-100"
+                    >
+                        {{ formatMoney(forecastData.amount) }}
+                    </p>
+                    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        Dựa trên {{ forecastData.samples }} tuần lịch sử
+                    </p>
+                </div>
+
                 <!-- So sánh với hôm nay -->
                 <div
                     v-if="stats?.revenue_today && forecastData.amount > 0"
-                    class="mt-1"
+                    class="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-800/60 dark:bg-slate-950/40"
                 >
                     <div
-                        class="mb-1 flex items-center justify-between text-[10px] text-indigo-500/80"
+                        class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400"
                     >
-                        <span>Hôm nay</span>
-                        <span>Dự báo ngày mai</span>
+                        <span>Thực tế hôm nay</span>
+                        <span class="font-semibold text-slate-700 dark:text-slate-300">
+                            {{
+                                Math.min(
+                                    100,
+                                    Math.round(
+                                        (stats.revenue_today /
+                                            forecastData.amount) *
+                                            100,
+                                    ),
+                                )
+                            }}% mục tiêu
+                        </span>
                     </div>
                     <div
-                        class="h-2 overflow-hidden rounded-full bg-indigo-100 dark:bg-indigo-900/30"
+                        class="h-2 overflow-hidden rounded-full bg-slate-200/70 dark:bg-slate-800"
                     >
                         <div
-                            class="h-full rounded-full bg-indigo-500 transition-all"
+                            class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500"
                             :style="`width: ${Math.min(100, (stats.revenue_today / forecastData.amount) * 100)}%`"
                         />
                     </div>
-                    <p class="mt-1 text-[10px] text-indigo-500/70">
-                        Hôm nay đạt
-                        {{
-                            Math.min(
-                                100,
-                                Math.round(
-                                    (stats.revenue_today /
-                                        forecastData.amount) *
-                                        100,
-                                ),
-                            )
-                        }}% mục tiêu dự báo
-                    </p>
                 </div>
             </CardContent>
         </Card>
