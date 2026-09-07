@@ -12,6 +12,7 @@ import {
     ArrowRightLeft,
     PauseCircle,
     PlayCircle,
+    X,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -1027,130 +1028,143 @@ function getPriorityBadge(priority: string) {
         </Teleport>
 
         <!-- MODAL: GIAO NHIỆM VỤ MỚI -->
-
-        <div
-            v-if="showAssignTaskModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-        >
+        <Teleport to="body">
             <div
-                class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                v-if="showAssignTaskModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="showAssignTaskModal = false"
             >
-                <h3
-                    class="text-base font-bold text-slate-800 dark:text-slate-100"
+                <div
+                    class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
                 >
-                    Giao Nhiệm Vụ Kho Tổng
-                </h3>
-                <p class="mt-1 text-xs text-slate-500">
-                    Chỉ cho phép giao nhiệm vụ cho nhân viên có vai trò
-                    warehouse_staff đang hoạt động.
-                </p>
-
-                <form
-                    @submit.prevent="submitAssignTask"
-                    class="mt-4 flex flex-col gap-4"
-                >
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold"
-                            >Nhân viên thực hiện
-                            <span class="text-rose-500">*</span></Label
-                        >
-                        <select
-                            v-model="taskForm.assigned_to"
-                            class="h-9 rounded-xl border border-slate-200 bg-background px-3 text-xs focus:outline-none dark:border-slate-800"
-                        >
-                            <option value="">-- Chọn nhân viên kho --</option>
-                            <option
-                                v-for="staff in staffMembers.filter(
-                                    (s) =>
-                                        s.warehouse_staff_status === 'active',
-                                )"
-                                :key="staff.id"
-                                :value="String(staff.id)"
+                    <div class="flex items-start justify-between pb-2">
+                        <div>
+                            <h3
+                                class="text-base font-bold text-slate-800 dark:text-slate-100"
                             >
-                                {{ staff.name }} (Đang làm
-                                {{ staff.active_tasks_count }} việc)
-                            </option>
-                        </select>
-                        <p
-                            v-if="taskForm.errors.assigned_to"
-                            class="text-[11px] font-semibold text-rose-500"
+                                Giao Nhiệm Vụ Kho Tổng
+                            </h3>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Chỉ cho phép giao nhiệm vụ cho nhân viên có vai trò
+                                warehouse_staff đang hoạt động.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="showAssignTaskModal = false"
+                            class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                         >
-                            {{ taskForm.errors.assigned_to }}
-                        </p>
+                            <X class="size-4" />
+                        </button>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
+                    <form
+                        @submit.prevent="submitAssignTask"
+                        class="mt-4 flex flex-col gap-4"
+                    >
                         <div class="flex flex-col gap-1.5">
                             <Label class="text-xs font-bold"
-                                >Loại nhiệm vụ</Label
+                                >Nhân viên thực hiện
+                                <span class="text-rose-500">*</span></Label
                             >
                             <select
-                                v-model="taskForm.task_type"
+                                v-model="taskForm.assigned_to"
                                 class="h-9 rounded-xl border border-slate-200 bg-background px-3 text-xs focus:outline-none dark:border-slate-800"
                             >
+                                <option value="">-- Chọn nhân viên kho --</option>
                                 <option
-                                    v-for="t in taskTypes"
-                                    :key="t.value"
-                                    :value="t.value"
+                                    v-for="staff in staffMembers.filter(
+                                        (s) =>
+                                            s.warehouse_staff_status === 'active',
+                                    )"
+                                    :key="staff.id"
+                                    :value="String(staff.id)"
                                 >
-                                    {{ t.label }}
+                                    {{ staff.name }} (Đang làm
+                                    {{ staff.active_tasks_count }} việc)
                                 </option>
                             </select>
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold">Mức ưu tiên</Label>
-                            <select
-                                v-model="taskForm.priority"
-                                class="h-9 rounded-xl border border-slate-200 bg-background px-3 text-xs focus:outline-none dark:border-slate-800"
+                            <p
+                                v-if="taskForm.errors.assigned_to"
+                                class="text-[11px] font-semibold text-rose-500"
                             >
-                                <option value="low">Thấp</option>
-                                <option value="normal">Bình thường</option>
-                                <option value="high">Cao</option>
-                                <option value="urgent">Khẩn cấp</option>
-                            </select>
+                                {{ taskForm.errors.assigned_to }}
+                            </p>
                         </div>
-                    </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold"
-                            >Thời hạn hoàn thành (Due date)</Label
-                        >
-                        <Input
-                            type="datetime-local"
-                            v-model="taskForm.due_at"
-                            class="text-xs"
-                        />
-                    </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="flex flex-col gap-1.5">
+                                <Label class="text-xs font-bold"
+                                    >Loại nhiệm vụ</Label
+                                >
+                                <select
+                                    v-model="taskForm.task_type"
+                                    class="h-9 rounded-xl border border-slate-200 bg-background px-3 text-xs focus:outline-none dark:border-slate-800"
+                                >
+                                    <option
+                                        v-for="t in taskTypes"
+                                        :key="t.value"
+                                        :value="t.value"
+                                    >
+                                        {{ t.label }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <Label class="text-xs font-bold">Mức ưu tiên</Label>
+                                <select
+                                    v-model="taskForm.priority"
+                                    class="h-9 rounded-xl border border-slate-200 bg-background px-3 text-xs focus:outline-none dark:border-slate-800"
+                                >
+                                    <option value="low">Thấp</option>
+                                    <option value="normal">Bình thường</option>
+                                    <option value="high">Cao</option>
+                                    <option value="urgent">Khẩn cấp</option>
+                                </select>
+                            </div>
+                        </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold"
-                            >Ghi chú & Chỉ dẫn</Label
-                        >
-                        <Input
-                            v-model="taskForm.notes"
-                            placeholder="Mô tả chi tiết nguyên liệu / vị trí / yêu cầu đặc biệt..."
-                            class="text-xs"
-                        />
-                    </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold"
+                                >Thời hạn hoàn thành (Due date)</Label
+                            >
+                            <Input
+                                type="datetime-local"
+                                v-model="taskForm.due_at"
+                                class="text-xs"
+                            />
+                        </div>
 
-                    <div class="flex justify-end gap-2 border-t pt-3">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showAssignTaskModal = false"
-                            class="text-xs"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="submit"
-                            :disabled="taskForm.processing"
-                            class="bg-indigo-600 text-xs text-white hover:bg-indigo-700"
-                            >Xác Nhận Giao Việc</Button
-                        >
-                    </div>
-                </form>
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold"
+                                >Ghi chú & Chỉ dẫn</Label
+                            >
+                            <Input
+                                v-model="taskForm.notes"
+                                placeholder="Mô tả chi tiết nguyên liệu / vị trí / yêu cầu đặc biệt..."
+                                class="text-xs"
+                            />
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showAssignTaskModal = false"
+                                class="text-xs"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                :disabled="taskForm.processing"
+                                class="bg-indigo-600 text-xs text-white hover:bg-indigo-700"
+                                >Xác Nhận Giao Việc</Button
+                            >
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </Teleport>
 
         <!-- MODAL: ĐIỀU CHUYỂN NHIỆM VỤ -->
         <Teleport to="body">

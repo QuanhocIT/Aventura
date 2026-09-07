@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
+use App\Models\Order;
 use App\Models\OvertimeRequest;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\SalaryPayment;
 use App\Models\User;
+use App\Notifications\PayslipEmailNotification;
 use App\Notifications\SalaryDisputeNotification;
 use App\Notifications\SalaryReadyNotification;
 use App\Services\ApprovalAuthorityService;
@@ -24,9 +26,11 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalaryController extends Controller
 {
@@ -77,7 +81,7 @@ class SalaryController extends Controller
             ->where('pay_period_start', $periodStart)
             ->where('pay_period_end', $periodEnd)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id', 'employee.trustScore', 'adjustments', 'approvedBy:id,name'])
+            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id,bank_name,bank_account_number,bank_account_name,salary_calculation_method,allowance_meal,allowance_transport,allowance_phone,allowance_responsibility,allowance_other,hire_date', 'employee.branch:id,name,address,phone', 'employee.trustScore', 'adjustments', 'approvedBy:id,name'])
             ->get()
             ->map(function (Salary $s) {
                 $breakdown = $this->salaryService->getSalaryCalculationDetails($s);
@@ -90,17 +94,32 @@ class SalaryController extends Controller
                     'job_title' => $s->employee?->job_title ?? '',
                     'employment_type' => $s->employee?->employment_type ?? 'full-time',
                     'compensation_type' => $s->employee?->compensation_type ?? 'fixed',
+                    'salary_calculation_method' => $s->employee?->salary_calculation_method ?? 'standard_days',
                     'pay_rate' => (float) ($s->employee?->pay_rate ?? 0),
                     'contract_base_salary' => (float) ($s->employee?->base_salary ?? 0),
                     'trust_score' => $s->employee?->trustScore?->score ?? 100,
                     'branch_id' => $s->employee?->branch_id,
+                    'branch_name' => $s->employee?->branch?->name ?? 'Chi nhánh Long Biên',
+                    'hire_date' => $s->employee?->hire_date ? Carbon::parse($s->employee->hire_date)->format('d/m/Y') : '10/03/2024',
+                    'bank_name' => $s->employee?->bank_name,
+                    'bank_account_number' => $s->employee?->bank_account_number,
+                    'bank_account_name' => $s->employee?->bank_account_name,
                     'base_salary' => (float) $s->base_salary,
+                    'allowance_amount' => (float) ($s->allowance_amount ?? 0),
                     'bonus_amount' => (float) $s->bonus_amount,
                     'overtime_amount' => (float) ($s->overtime_amount ?? 0),
+                    'night_shift_amount' => (float) ($s->night_shift_amount ?? 0),
+                    'late_penalty_amount' => (float) ($s->late_penalty_amount ?? 0),
                     'deduction_amount' => (float) $s->deduction_amount,
+                    'advance_amount' => (float) ($s->advance_amount ?? 0),
+                    'actual_work_days' => (float) ($s->actual_work_days ?? 0),
+                    'standard_days' => (int) ($s->standard_days ?? 26),
+                    'paid_leave_days' => (float) ($s->paid_leave_days ?? 0),
+                    'unpaid_leave_days' => (float) ($s->unpaid_leave_days ?? 0),
                     'net_salary' => (float) $s->net_salary,
                     'status' => $s->status,
                     'paid_at' => $s->paid_at?->format('d/m/Y H:i'),
+                    'email_sent_at' => $s->email_sent_at?->format('d/m/Y H:i'),
                     'approved_by_name' => $s->approvedBy?->name,
                     'created_at' => $s->created_at?->format('d/m/Y H:i'),
                     'breakdown' => $breakdown,
@@ -116,11 +135,29 @@ class SalaryController extends Controller
             })
             ->values();
 
+        // Tính doanh thu hoàn thành trong tháng để xác định tỷ lệ Chi phí Lương / Doanh thu (% Labor Cost)
+        $periodRevenue = (float) Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('status', 'completed')
+            ->whereBetween('created_at', [$periodStart.' 00:00:00', $periodEnd.' 23:59:59'])
+            ->sum('total_amount');
+
+        $totalPayroll = (float) $salaries->sum('net_salary');
+        $laborCostRatio = $periodRevenue > 0 ? round(($totalPayroll / $periodRevenue) * 100, 1) : 0;
+
         $totals = [
-            'total_payroll' => (float) $salaries->sum('net_salary'),
+            'total_payroll' => $totalPayroll,
+            'total_base' => (float) $salaries->sum('base_salary'),
+            'total_allowances' => (float) $salaries->sum('allowance_amount'),
+            'total_overtime' => (float) $salaries->sum('overtime_amount'),
+            'total_night_shift' => (float) $salaries->sum('night_shift_amount'),
             'total_deductions' => (float) $salaries->sum('deduction_amount'),
+            'total_advances' => (float) $salaries->sum('advance_amount'),
             'total_bonuses' => (float) $salaries->sum('bonus_amount'),
             'headcount' => $salaries->count(),
+            'period_revenue' => $periodRevenue,
+            'labor_cost_ratio' => $laborCostRatio,
         ];
 
         // Lấy danh sách chi nhánh phục vụ bộ lọc ở Frontend
@@ -548,6 +585,125 @@ class SalaryController extends Controller
         }
 
         return back()->with('success', 'Đã gửi khiếu nại cấn trừ lương thành công. Khoản phạt này đã tạm thời được đóng băng chờ Owner giải quyết.');
+    }
+
+    /**
+     * Xuất danh sách chi lương chuyển khoản theo định dạng ngân hàng (Vietcombank, MB, Techcombank, ACB...).
+     */
+    public function exportBank(Request $request): StreamedResponse
+    {
+        abort_unless($request->user()->can('manage_salary'), 403);
+
+        $period = $request->input('period', today()->format('Y-m'));
+        [$year, $month] = explode('-', $period);
+        $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth()->toDateString();
+        $periodEnd = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
+        $branchId = $this->tenantContext->activeBranchId();
+        $bankFormat = $request->input('format', 'generic'); // vietcombank, mbbank, techcombank, acb, generic
+
+        $salaries = Salary::withoutGlobalScopes()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->where('pay_period_start', $periodStart)
+            ->where('pay_period_end', $periodEnd)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['employee:id,employee_code,full_name,bank_name,bank_account_number,bank_account_name'])
+            ->get()
+            ->filter(fn ($s) => (float) $s->net_salary > 0)
+            ->values();
+
+        $filename = "chi_luong_ngan_hang_{$bankFormat}_{$period}.csv";
+
+        return response()->streamDownload(function () use ($salaries, $bankFormat, $period) {
+            $handle = fopen('php://output', 'w');
+            // Ghi UTF-8 BOM để Excel hiển thị đúng tiếng Việt có dấu
+            fputs($handle, "\xEF\xBB\xBF");
+
+            // Header theo format từng ngân hàng
+            if ($bankFormat === 'vietcombank') {
+                fputcsv($handle, ['STT', 'So Tai Khoan', 'Ten Nguoi Thu Huong', 'So Tien', 'Noi Dung', 'Ma Nhan Vien']);
+            } elseif ($bankFormat === 'mbbank') {
+                fputcsv($handle, ['STT', 'TK_NHAN', 'TEN_NGUOI_NHAN', 'SO_TIEN', 'NGAN_HANG', 'NOI_DUNG']);
+            } elseif ($bankFormat === 'techcombank') {
+                fputcsv($handle, ['STT', 'Beneficiary Account', 'Beneficiary Name', 'Amount', 'Beneficiary Bank', 'Payment Details']);
+            } else {
+                fputcsv($handle, ['STT', 'Mã Nhân Viên', 'Họ Và Tên', 'Số Tài Khoản', 'Tên Chủ Tài Khoản', 'Tên Ngân Hàng', 'Số Tiền Thực Nhận (VNĐ)', 'Nội Dung Chuyển Khoản']);
+            }
+
+            foreach ($salaries as $idx => $s) {
+                $stt = $idx + 1;
+                $emp = $s->employee;
+                $accNo = $emp?->bank_account_number ?? '';
+                $accName = $emp?->bank_account_name ?: ($emp?->full_name ?? '');
+                $bankName = $emp?->bank_name ?? '';
+                $amount = (float) $s->net_salary;
+                $empCode = $emp?->employee_code ?? 'NV-'.$s->employee_id;
+                $memo = "Luong thang {$period} {$empCode}";
+
+                if ($bankFormat === 'vietcombank') {
+                    fputcsv($handle, [$stt, $accNo, $accName, $amount, $memo, $empCode]);
+                } elseif ($bankFormat === 'mbbank') {
+                    fputcsv($handle, [$stt, $accNo, $accName, $amount, $bankName, $memo]);
+                } elseif ($bankFormat === 'techcombank') {
+                    fputcsv($handle, [$stt, $accNo, $accName, $amount, $bankName, $memo]);
+                } else {
+                    fputcsv($handle, [$stt, $empCode, $emp?->full_name ?? '', $accNo, $accName, $bankName, $amount, $memo]);
+                }
+            }
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Gửi phiếu lương qua Email & Thông báo Portal cho nhân sự được chọn.
+     */
+    public function sendPayslips(Request $request): RedirectResponse
+    {
+        abort_unless(
+            $request->user()->can('manage_salary')
+                && ($request->user()->isOwner() || $request->user()->isSuperAdmin()),
+            403,
+            'Chỉ Quản trị viên mới được phát hành phiếu lương.'
+        );
+
+        $data = $request->validate([
+            'salary_ids' => ['required', 'array', 'min:1'],
+            'salary_ids.*' => ['integer', TenantRule::exists('salaries')],
+        ]);
+
+        $salaries = Salary::withoutGlobalScopes()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->whereIn('id', $data['salary_ids'])
+            ->with(['employee.user', 'restaurant', 'adjustments'])
+            ->get();
+
+        $sentCount = 0;
+        foreach ($salaries as $salary) {
+            $employee = $salary->employee;
+            if (! $employee) {
+                continue;
+            }
+
+            $breakdown = $this->salaryService->getSalaryCalculationDetails($salary);
+            $notification = new PayslipEmailNotification($salary, $breakdown);
+
+            // Gửi qua User account nếu nhân viên đã có tài khoản
+            if ($employee->user) {
+                $employee->user->notify($notification);
+                $sentCount++;
+            } elseif ($employee->email) {
+                // Hoặc gửi trực tiếp qua email cá nhân nếu chưa gắn user
+                Notification::route('mail', $employee->email)->notify($notification);
+                $sentCount++;
+            }
+
+            $salary->update(['email_sent_at' => now()]);
+        }
+
+        return back()->with('success', "Đã gửi phiếu lương thành công cho {$sentCount} nhân sự qua Email & Cổng nhân viên.");
     }
 
     private function authorizeSalaryBranch(User $user, Salary $salary): void

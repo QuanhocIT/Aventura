@@ -52,14 +52,16 @@ class SalaryService
             $salary->update(['branch_id' => $employee->branch_id]);
         }
 
+        if ($salary->status === 'draft') {
+            $this->recalculate($salary);
+            $salary->refresh();
+        }
+
         return $salary;
     }
 
     /**
-     * Tính toán lương gốc động dựa trên hình thức trả lương (compensation_type).
-     */
-    /**
-     * Tính toán lương gốc động dựa trên hình thức trả lương (compensation_type).
+     * Tính toán lương gốc động dựa trên hình thức trả lương (compensation_type) và phương thức tính.
      */
     public function calculateDynamicBaseSalary(Employee $employee, string $start, string $end, ?array $context = null): float
     {
@@ -72,10 +74,165 @@ class SalaryService
             return $this->shiftCalculation($employee, $start, $end, $context)['total_wages'];
         }
 
-        // Lương tháng cố định được trả đủ theo hợp đồng. Việc vắng/đi muộn
-        // phải có một loại điều chỉnh được duyệt riêng, không tự suy đoán từ
-        // việc thiếu log chấm công.
-        return (float) ($employee->base_salary ?? 0);
+        // Lương khoán cố định trọn gói (không trừ theo ngày công)
+        if (($employee->salary_calculation_method ?? 'standard_days') === 'fixed_package') {
+            return (float) ($employee->base_salary ?? 0);
+        }
+
+        $standardDays = (int) ($employee->standard_working_days ?: 26);
+        $leaveDays = $this->leaveDayCounts($employee, $start, $end);
+        $assignments = $this->periodAssignments($employee, $start, $end, $context ?? [], true);
+        $allPeriodAssignments = $this->periodAssignments($employee, $start, $end, $context ?? [], false);
+        $actualWorkDays = $assignments->map(fn ($assignment) => Carbon::parse($assignment->scheduled_date)->toDateString())->unique()->count();
+        $paidLeaveDays = $leaveDays['paid'] ?? 0;
+        $totalPaidDays = $actualWorkDays + $paidLeaveDays;
+        $contractBase = (float) ($employee->base_salary ?? 0);
+
+        // Nếu nhân viên không có lịch ca làm nào được xếp trong tháng (nhân sự văn phòng/quản lý không chấm công theo ca)
+        if ($allPeriodAssignments->isEmpty() && $actualWorkDays === 0 && $paidLeaveDays === 0) {
+            return $contractBase;
+        }
+
+        // Nếu có ca làm nhưng chỉ hoàn thành một số ngày công thực tế (tính lương theo ngày công chuẩn)
+        $dailyRate = $standardDays > 0 ? ($contractBase / $standardDays) : 0;
+
+        return round($dailyRate * $totalPaidDays, 2);
+    }
+
+    /**
+     * Tính toán tổng các khoản phụ cấp của nhân viên trong kỳ lương.
+     * @return array{total: float, meal: float, transport: float, phone: float, responsibility: float, other: float}
+     */
+    public function calculateAllowances(Employee $employee, string $start, string $end, ?array $context = null): array
+    {
+        $standardDays = (int) ($employee->standard_working_days ?: 26);
+        $leaveDays = $this->leaveDayCounts($employee, $start, $end);
+        $assignments = $this->periodAssignments($employee, $start, $end, $context ?? [], true);
+        $actualWorkDays = $assignments->map(fn ($a) => Carbon::parse($a->scheduled_date)->toDateString())->unique()->count();
+        $totalPaidDays = $actualWorkDays + ($leaveDays['paid'] ?? 0);
+        $ratio = $standardDays > 0 ? min(1.0, $totalPaidDays / $standardDays) : 1.0;
+
+        $isFixedPackage = ($employee->salary_calculation_method ?? 'standard_days') === 'fixed_package';
+        $workRatio = $isFixedPackage ? 1.0 : $ratio;
+
+        // Phụ cấp ăn ca và xăng xe prorated theo tỷ lệ ngày công làm việc thực tế
+        $meal = round((float) ($employee->allowance_meal ?? 0) * $workRatio, 2);
+        $transport = round((float) ($employee->allowance_transport ?? 0) * $workRatio, 2);
+        // Phụ cấp trách nhiệm, điện thoại giữ nguyên theo tháng
+        $phone = (float) ($employee->allowance_phone ?? 0);
+        $responsibility = (float) ($employee->allowance_responsibility ?? 0);
+        $other = (float) ($employee->allowance_other ?? 0);
+
+        $total = $meal + $transport + $phone + $responsibility + $other;
+
+        return [
+            'total' => round($total, 2),
+            'meal' => $meal,
+            'transport' => $transport,
+            'phone' => $phone,
+            'responsibility' => $responsibility,
+            'other' => $other,
+        ];
+    }
+
+    /**
+     * Tính toán tiền phụ cấp làm ca đêm (22h00 - 06h00) theo Luật Lao động (+30% đơn giá).
+     * @return array{hours: float, hourly_rate: float, multiplier: float, amount: float}
+     */
+    public function calculateNightShift(Employee $employee, string $start, string $end, ?array $context = null): array
+    {
+        $assignments = $this->periodAssignments($employee, $start, $end, $context ?? [], true);
+        $nightSeconds = 0.0;
+
+        foreach ($assignments as $assignment) {
+            if (! $assignment->check_in_at || ! $assignment->check_out_at) {
+                continue;
+            }
+            $checkIn = Carbon::parse($assignment->check_in_at);
+            $checkOut = Carbon::parse($assignment->check_out_at);
+            if ($checkOut->lessThanOrEqualTo($checkIn)) {
+                continue;
+            }
+
+            $date = Carbon::parse($assignment->scheduled_date);
+            // Khung đêm 1: 22h tối ngày D đến 06h sáng ngày D+1
+            $w1Start = $date->copy()->setTime(22, 0, 0);
+            $w1End = $date->copy()->addDay()->setTime(6, 0, 0);
+
+            $overlap1Start = $checkIn->max($w1Start);
+            $overlap1End = $checkOut->min($w1End);
+            if ($overlap1End->greaterThan($overlap1Start)) {
+                $nightSeconds += $overlap1Start->diffInSeconds($overlap1End);
+            }
+
+            // Khung đêm 2: 00h sáng ngày D đến 06h sáng ngày D (cho ca bắt đầu sáng sớm)
+            $w0Start = $date->copy()->setTime(0, 0, 0);
+            $w0End = $date->copy()->setTime(6, 0, 0);
+            $overlap0Start = $checkIn->max($w0Start);
+            $overlap0End = $checkOut->min($w0End);
+            if ($overlap0End->greaterThan($overlap0Start)) {
+                $nightSeconds += $overlap0Start->diffInSeconds($overlap0End);
+            }
+        }
+
+        $nightHours = round($nightSeconds / 3600, 2);
+        $hourlyRate = $this->overtimeHourlyRate($employee);
+        $nightAmount = round($nightHours * $hourlyRate * 0.30, 2);
+
+        return [
+            'hours' => $nightHours,
+            'hourly_rate' => $hourlyRate,
+            'multiplier' => 0.30,
+            'amount' => $nightAmount,
+        ];
+    }
+
+    /**
+     * Tự động quét và tính toán phạt đi muộn từ nhật ký chấm công.
+     * @return array{late_count: int, total_minutes: int, penalty_amount: float}
+     */
+    public function calculateLatePenalties(Employee $employee, string $start, string $end, ?array $context = null): array
+    {
+        $assignments = $this->periodAssignments($employee, $start, $end, $context ?? [], true);
+        $restaurant = $context['restaurant'] ?? Restaurant::find($employee->restaurant_id);
+        $graceMinutes = (int) ($restaurant?->grace_period_minutes ?? 10);
+
+        $totalLateMinutes = 0;
+        $lateCount = 0;
+        $penaltyAmount = 0.0;
+
+        foreach ($assignments as $assignment) {
+            $shift = $assignment->shift;
+            if (! $shift || ! $assignment->check_in_at) {
+                continue;
+            }
+            $dateStr = Carbon::parse($assignment->scheduled_date)->toDateString();
+            $schedStart = Carbon::parse($dateStr.' '.$shift->start_time);
+            $actualCheckIn = Carbon::parse($assignment->check_in_at);
+
+            $allowedGraceStart = $schedStart->copy()->addMinutes($graceMinutes);
+            if ($actualCheckIn->greaterThan($allowedGraceStart)) {
+                $diffMins = (int) $schedStart->diffInMinutes($actualCheckIn);
+                $totalLateMinutes += $diffMins;
+                $lateCount++;
+
+                // Thang phạt đi muộn tiêu chuẩn ngành:
+                // 11-30p: 20.000đ, 31-60p: 50.000đ, >60p: 100.000đ
+                if ($diffMins <= 30) {
+                    $penaltyAmount += 20000;
+                } elseif ($diffMins <= 60) {
+                    $penaltyAmount += 50000;
+                } else {
+                    $penaltyAmount += 100000;
+                }
+            }
+        }
+
+        return [
+            'late_count' => $lateCount,
+            'total_minutes' => $totalLateMinutes,
+            'penalty_amount' => $penaltyAmount,
+        ];
     }
 
     /** @return array{total_wages: float, regular_hours: float, ot_hours: float, ot_amount: float, unapproved_ot_hours: float, actual_work_days: int, completed_shifts_count: int} */
@@ -424,31 +581,55 @@ class SalaryService
             ->sum('amount');
 
         $employee = $salary->employee;
-        $overtimeAmount = $employee
-            ? $this->overtimeCalculation(
-                $employee,
-                Carbon::parse($salary->pay_period_start)->toDateString(),
-                Carbon::parse($salary->pay_period_end)->toDateString(),
-            )['amount']
-            : 0.0;
+        $start = Carbon::parse($salary->pay_period_start)->toDateString();
+        $end = Carbon::parse($salary->pay_period_end)->toDateString();
 
-        // Chỉ tính khấu trừ từ các adjustments có trạng thái 'applied'
-        $deductions = (float) $adjustments
-            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
+        $overtimeCalc = $employee ? $this->overtimeCalculation($employee, $start, $end) : ['amount' => 0.0];
+        $overtimeAmount = (float) $overtimeCalc['amount'];
+
+        $nightShiftCalc = $employee ? $this->calculateNightShift($employee, $start, $end) : ['amount' => 0.0];
+        $nightShiftAmount = (float) $nightShiftCalc['amount'];
+
+        $allowanceCalc = $employee ? $this->calculateAllowances($employee, $start, $end) : ['total' => 0.0];
+        $allowanceAmount = (float) $allowanceCalc['total'];
+
+        $latePenaltyCalc = $employee ? $this->calculateLatePenalties($employee, $start, $end) : ['penalty_amount' => 0.0];
+        $latePenaltyAmount = (float) $latePenaltyCalc['penalty_amount'];
+
+        $advances = (float) $adjustments
+            ->where('type', 'advance')
             ->where('status', 'applied')
             ->sum('amount');
 
-        // Hourly base salary already includes approved overtime in calculateDynamicBaseSalary().
-        // Other compensation types add overtime separately to avoid double payment.
-        $overtimeAddedToNet = $employee?->compensation_type === 'hourly'
-            ? 0.0
-            : $overtimeAmount;
+        $penaltyDeductions = (float) $adjustments
+            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation'])
+            ->where('status', 'applied')
+            ->sum('amount');
+
+        $totalDeductions = $penaltyDeductions + $latePenaltyAmount;
+
+        $overtimeAddedToNet = ($employee?->compensation_type === 'hourly') ? 0.0 : $overtimeAmount;
+
+        $leaveDays = $employee ? $this->leaveDayCounts($employee, $start, $end) : ['paid' => 0, 'unpaid' => 0];
+        $assignments = $employee ? $this->periodAssignments($employee, $start, $end, [], true) : collect();
+        $actualWorkDays = $assignments->map(fn ($a) => Carbon::parse($a->scheduled_date)->toDateString())->unique()->count();
+        $standardDays = (int) ($employee?->standard_working_days ?: 26);
+
+        $netSalary = max(0, (float) $salary->base_salary + $allowanceAmount + $bonuses + $overtimeAddedToNet + $nightShiftAmount - $totalDeductions - $advances);
 
         $salary->update([
+            'allowance_amount' => $allowanceAmount,
             'bonus_amount' => $bonuses,
             'overtime_amount' => $overtimeAmount,
-            'deduction_amount' => $deductions,
-            'net_salary' => max(0, (float) $salary->base_salary + $bonuses + $overtimeAddedToNet - $deductions),
+            'night_shift_amount' => $nightShiftAmount,
+            'late_penalty_amount' => $latePenaltyAmount,
+            'deduction_amount' => $totalDeductions,
+            'advance_amount' => $advances,
+            'actual_work_days' => $actualWorkDays,
+            'standard_days' => $standardDays,
+            'paid_leave_days' => $leaveDays['paid'] ?? 0,
+            'unpaid_leave_days' => $leaveDays['unpaid'] ?? 0,
+            'net_salary' => $netSalary,
         ]);
 
         if ($salary->status === 'draft') {
@@ -457,8 +638,8 @@ class SalaryService
                 ->where('status', 'approved')
                 ->whereIn('workflow_status', ['ready_for_payroll', 'included'])
                 ->where('payroll_status', 'ready')
-                ->whereDate('scheduled_date', '>=', Carbon::parse($salary->pay_period_start)->toDateString())
-                ->whereDate('scheduled_date', '<=', Carbon::parse($salary->pay_period_end)->toDateString())
+                ->whereDate('scheduled_date', '>=', $start)
+                ->whereDate('scheduled_date', '<=', $end)
                 ->update([
                     'salary_id' => $salary->id,
                     'workflow_status' => 'included',
@@ -1110,10 +1291,18 @@ class SalaryService
         $overtimeAmount = (float) $overtimeCalculation['amount'];
 
         $dailyRate = $standardDays > 0 ? round($contractSalary / $standardDays, 0) : 0;
+        $allowancesCalc = $this->calculateAllowances($employee, $start, $end);
+        $nightShiftCalc = $this->calculateNightShift($employee, $start, $end);
+        $latePenaltiesCalc = $this->calculateLatePenalties($employee, $start, $end);
+        $calcMethod = $employee->salary_calculation_method ?? 'standard_days';
 
         $formulaText = '';
         if ($compType === 'fixed') {
-            $formulaText = number_format($contractSalary)." đ (lương tháng cố định; {$standardDays} ngày chuẩn tham chiếu) = ".number_format($salary->base_salary).' đ';
+            if ($calcMethod === 'fixed_package' || $totalPaidDays === $standardDays || $totalPaidDays === 0) {
+                $formulaText = number_format($contractSalary)." đ (lương tháng cố định; {$standardDays} ngày chuẩn tham chiếu) = ".number_format($salary->base_salary).' đ';
+            } else {
+                $formulaText = '('.number_format($contractSalary)." đ / {$standardDays} ngày chuẩn) × ({$actualWorkDays} ngày làm + {$paidLeaveDays} phép) = ".number_format($salary->base_salary).' đ';
+            }
         } elseif ($compType === 'hourly') {
             $formulaText = '('.number_format($regularHours, 2).'h giờ thường × '.number_format($payRate).' đ/h) + ('.number_format($otHours, 2).'h OT được duyệt × '.number_format($payRate)." đ/h × {$otMultiplier}) = ".number_format($salary->base_salary).' đ';
             if ($unapprovedOtHours > 0) {
@@ -1125,6 +1314,7 @@ class SalaryService
 
         return [
             'compensation_type' => $compType,
+            'salary_calculation_method' => $calcMethod,
             'compensation_type_label' => match ($compType) {
                 'fixed' => 'Lương tháng cố định',
                 'hourly' => 'Lương theo giờ',
@@ -1148,9 +1338,13 @@ class SalaryService
             'regular_amount' => $regularAmount,
             'overtime_amount' => $overtimeAmount,
             'overtime_hourly_rate' => (float) $overtimeCalculation['hourly_rate'],
-            'policy_note' => $compType === 'fixed'
-                ? 'Lương tháng cố định không tự giảm vì thiếu log chấm công; các ngày vắng/đi muộn cần điều chỉnh được duyệt.'
-                : 'Chỉ ca hoàn thành và OT được duyệt mới được dùng để tính lương.',
+            'allowances' => $allowancesCalc,
+            'night_shift' => $nightShiftCalc,
+            'late_penalties' => $latePenaltiesCalc,
+            'advance_amount' => (float) ($salary->advance_amount ?? 0),
+            'policy_note' => $compType === 'fixed' && $calcMethod === 'standard_days'
+                ? "Lương tính theo ngày công chuẩn thực tế ({$actualWorkDays} ngày làm + {$paidLeaveDays} ngày nghỉ phép có lương)."
+                : ($compType === 'fixed' ? 'Lương khoán cố định nhận đủ 100% hợp đồng.' : 'Chỉ ca hoàn thành và OT được duyệt mới được dùng để tính lương.'),
             'formula_text' => $formulaText,
         ];
     }

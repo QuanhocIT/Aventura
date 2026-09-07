@@ -17,6 +17,11 @@ import {
     RefreshCw,
     ShoppingCart,
     ClipboardCheck,
+    Warehouse,
+    UtensilsCrossed,
+    Wallet,
+    Utensils,
+    Heart,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +35,7 @@ defineOptions({ layout: AppLayout });
 interface DocumentItem {
     id: string;
     raw_id: number | string;
-    type: 'shift_closing' | 'stock_transfer' | 'supply_request' | 'receiving_report' | 'purchase_order' | 'inventory_count';
+    type: 'shift_closing' | 'warehouse_closing' | 'stock_transfer' | 'supply_request' | 'receiving_report' | 'purchase_order' | 'inventory_count' | 'payslip';
     type_label: string;
     code: string;
     title: string;
@@ -164,24 +169,87 @@ const formatQuantity = (val: number | string | null | undefined): string => {
     return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(num);
 };
 
+const formatMoney = (val: number | string | null | undefined): string => {
+    const num = Math.round(Number(val || 0));
+
+    return new Intl.NumberFormat('en-US').format(num);
+};
+
+const currentDate = new Date();
+const todayDay = currentDate.getDate() < 10 ? `0${currentDate.getDate()}` : `${currentDate.getDate()}`;
+const todayMonth = currentDate.getMonth() + 1 < 10 ? `0${currentDate.getMonth() + 1}` : `${currentDate.getMonth() + 1}`;
+const todayYear = `${currentDate.getFullYear()}`.slice(-2);
+
+const getTimeFormula = (p: any): string => {
+    if (!p) {
+        return '';
+    }
+
+    if (p.compensation_type === 'hourly') {
+        return `${p.breakdown?.regular_hours ?? 0}h × ${formatMoney(p.pay_rate)} đ/h`;
+    }
+
+    if (p.compensation_type === 'shift') {
+        return `${p.breakdown?.completed_shifts_count ?? p.actual_work_days} ca × ${formatMoney(p.pay_rate)} đ/ca`;
+    }
+
+    const days = (p.actual_work_days || 0) + (p.paid_leave_days || 0);
+    const standard = p.standard_days || 26;
+    const base = p.contract_base_salary || p.base_salary || 0;
+
+    return `${days} / ${standard} ngày × ${formatMoney(base)}`;
+};
+
+const calculateTotalIncome = (p: any): number => {
+    if (!p) {
+        return 0;
+    }
+
+    const base = Number(p.time_based_salary ?? p.base_salary ?? 0);
+    const allow = Number(p.allowances ?? p.allowance_amount ?? 0);
+    const ot = Number(p.overtime_salary ?? p.overtime_amount ?? 0);
+    const night = Number(p.night_shift_amount ?? 0);
+    const bonus = Number(p.bonuses ?? p.bonus_amount ?? p.kpi_salary ?? 0);
+
+    return base + allow + ot + night + bonus;
+};
+
+const calculateTotalDeduction = (p: any): number => {
+    if (!p) {
+        return 0;
+    }
+
+    const ins = Number(p.insurance_deduction ?? 0);
+    const tax = Number(p.tax_deduction ?? 0);
+    const other = Number(p.other_deductions ?? p.deduction_amount ?? 0);
+    const adv = Number(p.advance_payment ?? p.advance_amount ?? 0);
+    const total = ins + tax + other + adv;
+
+    return total > 0 ? total : Number(p.deduction_amount ?? 0) + Number(p.advance_amount ?? 0);
+};
+
 const typeTabs = [
     { key: 'all', label: 'Tất cả phiếu' },
     { key: 'shift_closing', label: 'Phiếu Chốt Ca', icon: ScrollText },
+    { key: 'warehouse_closing', label: 'Phiếu Chốt Kho', icon: Warehouse },
     { key: 'stock_transfer', label: 'Phiếu Điều Chuyển', icon: ArrowLeftRight },
     { key: 'supply_request', label: 'Phiếu Xuất Kho Tổng', icon: PackageCheck },
     { key: 'receiving_report', label: 'Biên Bản Đối Soát', icon: FileCheck2 },
     { key: 'purchase_order', label: 'Phiếu Đặt Hàng NCC', icon: ShoppingCart },
     { key: 'inventory_count', label: 'Phiếu Kiểm Kê', icon: ClipboardCheck },
+    { key: 'payslip', label: 'Phiếu Lương', icon: Wallet },
 ];
 
 const getTypeIcon = (type: string) => {
     switch (type) {
         case 'shift_closing': return ScrollText;
+        case 'warehouse_closing': return Warehouse;
         case 'stock_transfer': return ArrowLeftRight;
         case 'supply_request': return PackageCheck;
         case 'receiving_report': return FileCheck2;
         case 'purchase_order': return ShoppingCart;
         case 'inventory_count': return ClipboardCheck;
+        case 'payslip': return Wallet;
         default: return ScrollText;
     }
 };
@@ -189,11 +257,13 @@ const getTypeIcon = (type: string) => {
 const getTypeBadgeColor = (type: string) => {
     switch (type) {
         case 'shift_closing': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+        case 'warehouse_closing': return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20';
         case 'stock_transfer': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
         case 'supply_request': return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
         case 'receiving_report': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
         case 'purchase_order': return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
         case 'inventory_count': return 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20';
+        case 'payslip': return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
         default: return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20';
     }
 };
@@ -694,7 +764,317 @@ const getTypeBadgeColor = (type: string) => {
                                 </div>
                             </template>
 
-                            <!-- 2. MẪU: PHIẾU ĐIỀU CHUYỂN NGUYÊN LIỆU (Matching User Image 1) -->
+                            <!-- 2. MẪU: PHIẾU CHỐT KHO (KHO TỔNG / CHI NHÁNH / GIAO CA KHO) -->
+                            <template v-else-if="activeDocument.type === 'warehouse_closing'">
+                                <!-- A. Nếu là Biên bản giao ca kho tổng -->
+                                <template v-if="activeDocument.payload?.is_shift_handover">
+                                    <div class="flex items-start justify-between border-b-2 border-black pb-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex size-11 items-center justify-center rounded-full border-2 border-black bg-neutral-100 font-bold">
+                                                <Warehouse class="size-6 text-black" />
+                                            </div>
+                                            <div>
+                                                <h4 class="font-black text-sm uppercase tracking-wider text-black">AVENTURA CENTRAL LOGISTICS</h4>
+                                                <p class="text-[10px] text-neutral-800">Trung Tâm Phân Phối & Tổng Kho Aventura</p>
+                                                <p class="text-[9px] text-neutral-600">Địa điểm: {{ activeDocument.branch_name }}</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="text-right">
+                                            <h2 class="text-base font-black uppercase text-black">BIÊN BẢN CHỐT & BÀN GIAO CA KHO</h2>
+                                            <p class="mt-0.5 inline-block border border-black px-2 py-0.5 font-mono text-xs font-bold">
+                                                Số: {{ activeDocument.code }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-2 text-right text-[10px] text-neutral-700">
+                                        <p><span class="font-semibold">Kho áp dụng:</span> {{ activeDocument.branch_name }}</p>
+                                        <p><span class="font-semibold">Ngày chốt ca:</span> {{ activeDocument.payload?.shift_date }} &nbsp;&nbsp; <span class="font-semibold">Ca trực:</span> {{ activeDocument.payload?.shift_label || 'Ca chính' }}</p>
+                                        <p><span class="font-semibold">Thủ kho giao ca:</span> {{ activeDocument.created_by_name }} &nbsp;&nbsp; <span class="font-semibold">Thủ kho nhận ca:</span> {{ activeDocument.payload?.received_by?.name || 'Đang chờ nhận ca' }}</p>
+                                    </div>
+
+                                    <!-- 1. THÔNG TIN BÀN GIAO & 2. TỔNG HỢP CA TRỰC -->
+                                    <div class="mt-3 grid grid-cols-2 gap-3 text-[10.5px]">
+                                        <div class="border border-black p-2.5">
+                                            <h5 class="font-bold uppercase tracking-wider text-[10.5px] border-b border-black pb-1 mb-2">1. THÔNG TIN NHÂN SỰ CA TRỰC</h5>
+                                            <table class="w-full text-[10px]">
+                                                <tr class="border-b border-neutral-300">
+                                                    <td class="py-1 font-semibold w-2/5">Thủ kho giao:</td>
+                                                    <td class="py-1 font-bold">{{ activeDocument.created_by_name }}</td>
+                                                </tr>
+                                                <tr class="border-b border-neutral-300">
+                                                    <td class="py-1 font-semibold">Thủ kho nhận:</td>
+                                                    <td class="py-1 font-bold">{{ activeDocument.payload?.received_by?.name || 'Chưa nhận bàn giao' }}</td>
+                                                </tr>
+                                                <tr class="border-b border-neutral-300">
+                                                    <td class="py-1 font-semibold">Ca làm việc:</td>
+                                                    <td class="py-1">{{ activeDocument.payload?.shift_label || 'Ca kho ngày' }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-1 font-semibold">Trạng thái bàn giao:</td>
+                                                    <td class="py-1 font-semibold" :class="activeDocument.has_discrepancy ? 'text-rose-600' : 'text-emerald-700'">
+                                                        {{ activeDocument.has_discrepancy ? 'Có lưu ý / Sự cố kho' : 'Bàn giao hoàn tất' }}
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <div class="border border-black p-2.5">
+                                            <h5 class="font-bold uppercase tracking-wider text-[10.5px] border-b border-black pb-1 mb-2">2. CHỈ TIÊU & GIÁ TRỊ TỒN KHO</h5>
+                                            <table class="w-full text-[10px]">
+                                                <tr class="border-b border-neutral-300">
+                                                    <td class="py-1 font-semibold">Giá trị tồn đầu ca:</td>
+                                                    <td class="py-1 text-right font-mono font-bold">{{ formatCurrency(activeDocument.payload?.starting_stock_value) }}</td>
+                                                </tr>
+                                                <tr class="border-b border-neutral-300 bg-neutral-100 font-bold">
+                                                    <td class="py-1 uppercase">Giá trị tồn cuối ca:</td>
+                                                    <td class="py-1 text-right font-mono font-black">{{ formatCurrency(activeDocument.payload?.ending_stock_value) }}</td>
+                                                </tr>
+                                                <tr class="border-b border-neutral-300">
+                                                    <td class="py-1 font-semibold">Công việc tồn (Picking/Ship):</td>
+                                                    <td class="py-1 text-right font-mono">{{ Number(activeDocument.payload?.pending_picks_count || 0) + Number(activeDocument.payload?.pending_deliveries_count || 0) }} task</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="py-1 font-semibold">Lô hàng phong tỏa / Sự cố:</td>
+                                                    <td class="py-1 text-right font-mono font-bold" :class="Number(activeDocument.payload?.locked_batches_count || activeDocument.payload?.open_incidents_count) > 0 ? 'text-rose-600' : ''">
+                                                        {{ Number(activeDocument.payload?.locked_batches_count || 0) }} lô / {{ Number(activeDocument.payload?.open_incidents_count || 0) }} sự vụ
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ghi chú & Sự cố phát sinh -->
+                                    <div class="mt-3 border border-black p-2 text-[10.5px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[10.5px] border-b border-black pb-1 mb-1.5">3. NHẬT KÝ & GHI CHÚ BÀN GIAO</h5>
+                                        <p class="text-[10px] text-neutral-800 leading-relaxed italic">
+                                            {{ activeDocument.payload?.notes || 'Trong ca hoạt động xuất nhập diễn ra bình thường, khu vực lưu kho ngăn nắp, nhiệt độ bảo quản đạt chuẩn.' }}
+                                        </p>
+                                    </div>
+
+                                    <!-- Chữ ký 4 bên -->
+                                    <div class="mt-6 grid grid-cols-4 text-center text-[10px]">
+                                        <div>
+                                            <p class="font-bold uppercase">Thủ kho giao ca</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">{{ activeDocument.created_by_name }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Thủ kho nhận ca</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">{{ activeDocument.payload?.received_by?.name || 'Đã ký nhận' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Quản lý kho</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">Trưởng Kho Tổng</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Ban Giám Đốc</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký duyệt, đóng dấu)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold text-emerald-700">[Đã Duyệt Điện Tử]</p>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- B. Mẫu Tiêu Chuẩn: Phiếu Chốt Kho Chi Nhánh / Phiếu Chốt Nguyên Liệu Kho Tổng -->
+                                <template v-else>
+                                    <!-- Header Quốc Hiệu -->
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-amber-600 font-black text-base">⚡</span>
+                                                <h4 class="font-black text-xs uppercase tracking-wider text-black">CÔNG TY TNHH AVENTURA</h4>
+                                            </div>
+                                            <p class="text-[9.5px] text-neutral-700">Hệ thống quản lý chuỗi nhà hàng & phân phối thực phẩm</p>
+                                            <p class="text-[9px] text-neutral-600">Đơn vị: {{ activeDocument.branch_name }}</p>
+                                        </div>
+
+                                        <div class="text-center">
+                                            <h4 class="font-bold text-xs uppercase text-black">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+                                            <p class="text-[10px] font-semibold">Độc lập – Tự do – Hạnh phúc</p>
+                                            <p class="text-[8px]">★ ★ ★</p>
+                                            <p class="text-[9.5px] italic text-neutral-600 mt-1">Hà Nội, {{ activeDocument.date_formatted }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 text-center">
+                                        <h2 class="text-base font-black uppercase text-black">
+                                            PHIẾU CHỐT KHO {{ activeDocument.payload?.is_central ? 'NGUYÊN LIỆU KHO TỔNG' : 'CHI NHÁNH' }}
+                                        </h2>
+                                        <p class="mt-0.5 inline-block border border-black px-3 py-0.5 font-mono text-xs font-bold">
+                                            Số: {{ activeDocument.code }}
+                                        </p>
+                                    </div>
+
+                                    <!-- 1. THÔNG TIN CHUNG -->
+                                    <div class="mt-3 border border-black p-2.5 text-[10.5px]">
+                                        <h5 class="font-bold uppercase tracking-wider text-[10.5px] border-b border-black pb-1 mb-1.5">1. THÔNG TIN CHUNG</h5>
+                                        <div class="grid grid-cols-2 gap-x-6 gap-y-1">
+                                            <p><span class="font-semibold">Kho / Chi nhánh:</span> <span class="font-bold uppercase">{{ activeDocument.branch_name }}</span></p>
+                                            <p><span class="font-semibold">Người lập phiếu:</span> <span class="font-bold">{{ activeDocument.created_by_name }}</span></p>
+                                            <p>
+                                                <span class="font-semibold">Kỳ chốt kho:</span>
+                                                Từ ngày {{ activeDocument.payload?.period_start || '01/08/2026' }} đến ngày {{ activeDocument.payload?.period_end || '31/08/2026' }}
+                                            </p>
+                                            <p><span class="font-semibold">Người cùng kiểm kê:</span> {{ activeDocument.payload?.second_counted_by?.name || 'Kế toán kho' }}</p>
+                                            <p class="col-span-2">
+                                                <span class="font-semibold">Lý do chốt:</span>
+                                                <span class="ml-1 italic">{{ activeDocument.payload?.notes || 'Chốt tồn kho định kỳ, đối chiếu sổ cái và cân đối hao hụt thực tế.' }}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 2. TỔNG HỢP GIÁ TRỊ TỒN KHO & BIẾN ĐỘNG -->
+                                    <div class="mt-2.5">
+                                        <h5 class="mb-1 font-bold uppercase tracking-wider text-[10.5px]">2. TỔNG HỢP GIÁ TRỊ TỒN KHO & BIẾN ĐỘNG TRONG KỲ</h5>
+                                        <table class="w-full border-collapse border border-black text-center text-[10px]">
+                                            <thead>
+                                                <tr class="bg-neutral-100 font-bold">
+                                                    <th class="border border-black p-1.5 w-10">STT</th>
+                                                    <th class="border border-black p-1.5 text-left">Chỉ tiêu cân đối kho</th>
+                                                    <th class="border border-black p-1.5 text-right w-32">Tổng số lượng</th>
+                                                    <th class="border border-black p-1.5 text-right w-44">Tổng giá trị (VNĐ)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td class="border border-black p-1 font-mono">1</td>
+                                                    <td class="border border-black p-1 text-left font-semibold">Tồn đầu kỳ</td>
+                                                    <td class="border border-black p-1 text-right font-mono">{{ formatQuantity(activeDocument.payload?.total_opening_qty) }}</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-semibold">{{ formatCurrency(activeDocument.payload?.total_opening_val) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-black p-1 font-mono">2</td>
+                                                    <td class="border border-black p-1 text-left font-semibold">Tổng nhập trong kỳ</td>
+                                                    <td class="border border-black p-1 text-right font-mono text-emerald-700">+{{ formatQuantity(activeDocument.payload?.total_inbound_qty) }}</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-semibold text-emerald-700">+{{ formatCurrency(activeDocument.payload?.total_inbound_val) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-black p-1 font-mono">3</td>
+                                                    <td class="border border-black p-1 text-left font-semibold">Tổng xuất trong kỳ (Bán hàng / Điều chuyển)</td>
+                                                    <td class="border border-black p-1 text-right font-mono text-rose-700">-{{ formatQuantity(activeDocument.payload?.total_outbound_qty) }}</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-semibold text-rose-700">-{{ formatCurrency(activeDocument.payload?.total_outbound_val) }}</td>
+                                                </tr>
+                                                <tr class="bg-neutral-50">
+                                                    <td class="border border-black p-1 font-mono font-bold">4</td>
+                                                    <td class="border border-black p-1 text-left font-bold">Tồn cuối kỳ theo sổ sách (1 + 2 - 3)</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-bold">{{ formatQuantity(activeDocument.payload?.total_expected_qty) }}</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-bold">{{ formatCurrency(activeDocument.payload?.total_expected_val) }}</td>
+                                                </tr>
+                                                <tr class="bg-neutral-100 font-bold">
+                                                    <td class="border border-black p-1.5 font-mono">5</td>
+                                                    <td class="border border-black p-1.5 text-left uppercase font-black">TỒN CUỐI KỲ THỰC TẾ (KIỂM ĐẾM CHỐT SỔ)</td>
+                                                    <td class="border border-black p-1.5 text-right font-mono font-black text-blue-700">{{ formatQuantity(activeDocument.payload?.total_counted_qty) }}</td>
+                                                    <td class="border border-black p-1.5 text-right font-mono font-black text-blue-700">{{ formatCurrency(activeDocument.payload?.total_counted_val) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-black p-1 font-mono">6</td>
+                                                    <td class="border border-black p-1 text-left font-semibold">Chênh lệch / Hao hụt thực tế (+/-)</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-bold" :class="Number(activeDocument.payload?.total_variance_qty) < 0 ? 'text-rose-600' : ''">
+                                                        {{ formatQuantity(activeDocument.payload?.total_variance_qty) }}
+                                                    </td>
+                                                    <td class="border border-black p-1 text-right font-mono font-bold" :class="Number(activeDocument.payload?.total_variance_val) < 0 ? 'text-rose-600' : ''">
+                                                        {{ formatCurrency(activeDocument.payload?.total_variance_val) }}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- 3. DANH SÁCH NGUYÊN LIỆU CHỐT KHO -->
+                                    <div class="mt-3">
+                                        <h5 class="mb-1 font-bold uppercase tracking-wider text-[10.5px]">3. DANH SÁCH CHI TIẾT NGUYÊN LIỆU CHỐT KHO</h5>
+                                        <table class="w-full border-collapse border border-black text-center text-[9.5px]">
+                                            <thead>
+                                                <tr class="bg-neutral-100 font-bold">
+                                                    <th class="border border-black p-1">STT</th>
+                                                    <th class="border border-black p-1">Mã NL</th>
+                                                    <th class="border border-black p-1 text-left">Tên nguyên liệu</th>
+                                                    <th class="border border-black p-1">ĐVT</th>
+                                                    <th class="border border-black p-1">Tồn đầu</th>
+                                                    <th class="border border-black p-1">Nhập</th>
+                                                    <th class="border border-black p-1">Xuất</th>
+                                                    <th class="border border-black p-1 font-bold">Tồn sổ sách</th>
+                                                    <th class="border border-black p-1 font-black bg-neutral-200">Thực chốt</th>
+                                                    <th class="border border-black p-1">Lệch</th>
+                                                    <th class="border border-black p-1 text-right">Đơn giá (đ)</th>
+                                                    <th class="border border-black p-1 text-right">Giá trị tồn (đ)</th>
+                                                    <th class="border border-black p-1 text-left">Ghi chú</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="item in (activeDocument.payload?.items || [])" :key="item.stt">
+                                                    <td class="border border-black p-1 font-mono">{{ item.stt }}</td>
+                                                    <td class="border border-black p-1 font-mono font-bold">{{ item.sku }}</td>
+                                                    <td class="border border-black p-1 text-left font-semibold">{{ item.name }}</td>
+                                                    <td class="border border-black p-1">{{ item.unit }}</td>
+                                                    <td class="border border-black p-1 font-mono">{{ formatQuantity(item.opening_quantity) }}</td>
+                                                    <td class="border border-black p-1 font-mono text-emerald-700">+{{ formatQuantity(item.inbound_quantity) }}</td>
+                                                    <td class="border border-black p-1 font-mono text-rose-700">-{{ formatQuantity(item.outbound_quantity) }}</td>
+                                                    <td class="border border-black p-1 font-mono font-semibold">{{ formatQuantity(item.expected_quantity) }}</td>
+                                                    <td class="border border-black p-1 font-mono font-black bg-neutral-50">{{ formatQuantity(item.final_quantity) }}</td>
+                                                    <td class="border border-black p-1 font-mono font-bold" :class="Number(item.variance_quantity) < 0 ? 'text-rose-600' : ''">
+                                                        {{ Number(item.variance_quantity) !== 0 ? formatQuantity(item.variance_quantity) : '0' }}
+                                                    </td>
+                                                    <td class="border border-black p-1 text-right font-mono">{{ formatCurrency(item.unit_cost) }}</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-bold">{{ formatCurrency(item.total_closing_value) }}</td>
+                                                    <td class="border border-black p-1 text-left text-[8.5px] italic">{{ item.notes || '' }}</td>
+                                                </tr>
+                                                <tr class="bg-neutral-50 font-bold">
+                                                    <td class="border border-black p-1 uppercase font-black" colspan="4">TỔNG CỘNG</td>
+                                                    <td class="border border-black p-1 font-mono">{{ formatQuantity(activeDocument.payload?.total_opening_qty) }}</td>
+                                                    <td class="border border-black p-1 font-mono text-emerald-700">+{{ formatQuantity(activeDocument.payload?.total_inbound_qty) }}</td>
+                                                    <td class="border border-black p-1 font-mono text-rose-700">-{{ formatQuantity(activeDocument.payload?.total_outbound_qty) }}</td>
+                                                    <td class="border border-black p-1 font-mono">{{ formatQuantity(activeDocument.payload?.total_expected_qty) }}</td>
+                                                    <td class="border border-black p-1 font-mono font-black bg-neutral-200">{{ formatQuantity(activeDocument.payload?.total_counted_qty) }}</td>
+                                                    <td class="border border-black p-1 font-mono" :class="Number(activeDocument.payload?.total_variance_qty) < 0 ? 'text-rose-600' : ''">
+                                                        {{ formatQuantity(activeDocument.payload?.total_variance_qty) }}
+                                                    </td>
+                                                    <td class="border border-black p-1 text-right">—</td>
+                                                    <td class="border border-black p-1 text-right font-mono font-black">{{ formatCurrency(activeDocument.total_amount) }}</td>
+                                                    <td class="border border-black p-1"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- 4. CHỮ KÝ XÁC NHẬN 4 BÊN -->
+                                    <div class="mt-6 grid grid-cols-4 text-center text-[10px]">
+                                        <div>
+                                            <p class="font-bold uppercase">Thủ kho lập phiếu</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">{{ activeDocument.created_by_name }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Người cùng kiểm kê</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">{{ activeDocument.payload?.second_counted_by?.name || 'Kế toán kho' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Quản lý chi nhánh / Kho</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký, ghi rõ họ tên)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold">{{ activeDocument.payload?.approver?.name || 'Trưởng kho' }}</p>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold uppercase">Chủ doanh nghiệp / Giám đốc</p>
+                                            <p class="text-[8.5px] italic text-neutral-600">(Ký duyệt, đóng dấu)</p>
+                                            <div class="h-14"></div>
+                                            <p class="font-bold text-emerald-700">[Đã Duyệt Điện Tử]</p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </template>
+
+                            <!-- 3. MẪU: PHIẾU ĐIỀU CHUYỂN NGUYÊN LIỆU (Matching User Image 1) -->
                             <template v-else-if="activeDocument.type === 'stock_transfer'">
                                 <!-- Header Quốc Hiệu -->
                                 <div class="flex items-start justify-between">
@@ -849,7 +1229,292 @@ const getTypeBadgeColor = (type: string) => {
                                 </div>
                             </template>
 
-                            <!-- 3. MẪU CHUNG CHO CÁC PHIẾU KHÁC (Xuất Kho Tổng / Đối Soát / Mua Hàng) -->
+                            <!-- 3. MẪU TIÊU CHUẨN: PHIẾU LƯƠNG NHÂN VIÊN -->
+                            <template v-else-if="activeDocument.type === 'payslip'">
+                                <!-- Header: Logo, Tiêu ngữ, Thông tin phiếu -->
+                                <div class="flex items-start justify-between border-b-2 border-slate-900 pb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex size-11 items-center justify-center rounded-xl border border-slate-300 bg-amber-500/10 text-amber-600 shadow-sm">
+                                            <Utensils class="size-6 text-amber-600" />
+                                        </div>
+                                        <div>
+                                            <h3 class="font-black text-sm uppercase tracking-wider text-slate-900">CÔNG TY TNHH AVENTURA</h3>
+                                            <p class="text-[10px] text-slate-600">Hệ thống F&B Chuỗi Nhà Hàng & Phân Phối Thực Phẩm</p>
+                                            <p class="text-[9px] italic text-slate-500">Hương vị từ sự tận tâm</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-center">
+                                        <h4 class="font-bold text-[11px] uppercase tracking-wider text-slate-900">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h4>
+                                        <p class="text-[10px] font-semibold text-slate-800">Độc lập - Tự do - Hạnh phúc</p>
+                                        <p class="text-[9px] text-slate-400">---o0o---</p>
+                                    </div>
+
+                                    <div class="text-right">
+                                        <h2 class="text-base font-black uppercase text-[#1e3a5f]">PHIẾU LƯƠNG NHÂN VIÊN</h2>
+                                        <p class="text-xs font-semibold text-slate-700">Kỳ lương: Tháng {{ activeDocument.payload?.period?.month || '...' }}/{{ activeDocument.payload?.period?.year || '...' }}</p>
+                                        <p class="font-mono text-[11px] text-slate-500">Mã: {{ activeDocument.code }}</p>
+                                        <span class="mt-1 inline-block rounded border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                            {{ activeDocument.status_label?.label || 'Đã thanh toán' }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- 1. THÔNG TIN NHÂN VIÊN -->
+                                <div class="mt-4">
+                                    <div class="inline-block rounded-t-md bg-[#1e3a5f] px-3 py-1 text-xs font-bold text-white uppercase tracking-wide">
+                                        1. THÔNG TIN NHÂN VIÊN
+                                    </div>
+                                    <div class="rounded-b-md rounded-tr-md border border-slate-300 bg-white p-3 text-xs leading-relaxed text-slate-800">
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-2 gap-x-4">
+                                            <div>
+                                                <span class="font-medium text-slate-500">Mã nhân viên:</span>
+                                                <p class="font-mono font-bold text-slate-900">{{ activeDocument.payload?.employee?.code || '---' }}</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Họ và tên:</span>
+                                                <p class="font-bold text-slate-900">{{ activeDocument.payload?.employee?.name || '---' }}</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Phòng ban / Bộ phận:</span>
+                                                <p class="font-semibold text-slate-800">{{ activeDocument.payload?.employee?.department || activeDocument.branch_name }}</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Chức vụ:</span>
+                                                <p class="font-semibold text-slate-800">{{ activeDocument.payload?.employee?.position || 'Nhân viên' }}</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Số công chuẩn:</span>
+                                                <p class="font-mono font-bold text-slate-900">{{ activeDocument.payload?.standard_days ?? 26 }} ngày</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Ngày làm thực tế:</span>
+                                                <p class="font-mono font-bold text-blue-700">{{ activeDocument.payload?.actual_work_days ?? 0 }} ngày</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Nghỉ phép hưởng lương:</span>
+                                                <p class="font-mono font-bold text-emerald-700">{{ activeDocument.payload?.paid_leave_days ?? 0 }} ngày</p>
+                                            </div>
+                                            <div>
+                                                <span class="font-medium text-slate-500">Hình thức trả lương:</span>
+                                                <p class="font-semibold text-slate-800">{{ activeDocument.payload?.payment_method === 'cash' ? 'Tiền mặt' : 'Chuyển khoản' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 2. CHI TIẾT THU NHẬP & KHẤU TRỪ -->
+                                <div class="mt-4">
+                                    <div class="inline-block rounded-t-md bg-[#1e3a5f] px-3 py-1 text-xs font-bold text-white uppercase tracking-wide">
+                                        2. CHI TIẾT THU NHẬP & KHẤU TRỪ
+                                    </div>
+                                    <div class="overflow-x-auto rounded-b-md rounded-tr-md border border-slate-300">
+                                        <table class="w-full border-collapse text-xs">
+                                            <thead>
+                                                <tr class="bg-[#1e3a5f] text-white">
+                                                    <th class="border border-slate-600 px-2 py-1.5 text-center font-bold w-10">STT</th>
+                                                    <th class="border border-slate-600 px-3 py-1.5 text-left font-bold w-52">Khoản mục</th>
+                                                    <th class="border border-slate-600 px-3 py-1.5 text-left font-bold">Căn cứ tính</th>
+                                                    <th class="border border-slate-600 px-3 py-1.5 text-right font-bold w-36">Thành tiền (VNĐ)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="text-slate-800">
+                                                <!-- Group A: CÁC KHOẢN THU NHẬP -->
+                                                <tr class="bg-[#f8fafc] font-bold text-[#1e3a5f]">
+                                                    <td class="border border-slate-300 px-2 py-1 text-center font-bold">A</td>
+                                                    <td class="border border-slate-300 px-3 py-1 uppercase" colspan="3">CÁC KHOẢN THU NHẬP</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">1</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Lương cơ bản theo HĐ</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Theo hợp đồng lao động</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.contract_base_salary || activeDocument.payload?.base_salary) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">2</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Lương thời gian</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">{{ getTimeFormula(activeDocument.payload) }}</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-bold">{{ formatMoney(activeDocument.payload?.time_based_salary ?? activeDocument.payload?.base_salary) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">3</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Phụ cấp chức vụ / trách nhiệm</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Phụ cấp theo vị trí công việc</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.breakdown?.allowances?.responsibility || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">4</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Phụ cấp ca làm / ca đêm</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Phụ cấp làm thêm ca tối, ca đêm</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.night_shift_amount || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">5</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Phụ cấp ăn ca / xăng xe</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Hỗ trợ cơm trưa, đi lại</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.meal_allowance || activeDocument.payload?.allowances || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">6</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Thưởng doanh số / KPI</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Theo kết quả đánh giá tháng</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.kpi_salary || activeDocument.payload?.bonuses || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">7</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Thưởng chuyên cần / Tăng ca</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">{{ activeDocument.payload?.overtime_salary > 0 ? (activeDocument.payload?.breakdown?.ot_hours || 0) + 'h OT được duyệt' : 'Đi làm đủ công' }}</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.overtime_salary || 0) }}</td>
+                                                </tr>
+                                                <!-- Total A -->
+                                                <tr class="bg-[#f1f5f9] font-bold text-slate-900">
+                                                    <td class="border border-slate-300 px-2 py-1.5 text-center"></td>
+                                                    <td class="border border-slate-300 px-3 py-1.5 uppercase" colspan="2">TỔNG THU NHẬP (A)</td>
+                                                    <td class="border border-slate-300 px-3 py-1.5 text-right font-mono text-sm font-black">{{ formatMoney(calculateTotalIncome(activeDocument.payload)) }}</td>
+                                                </tr>
+
+                                                <!-- Group B: CÁC KHOẢN KHẤU TRỪ -->
+                                                <tr class="bg-[#fff1f2] font-bold text-[#991b1b]">
+                                                    <td class="border border-slate-300 px-2 py-1 text-center font-bold">B</td>
+                                                    <td class="border border-slate-300 px-3 py-1 uppercase" colspan="3">CÁC KHOẢN KHẤU TRỪ</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">1</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Bảo hiểm xã hội (BHXH)</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">8% x Lương đóng BH</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.bhxh_amount || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">2</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Bảo hiểm y tế (BHYT)</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">1.5% x Lương đóng BH</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.bhyt_amount || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">3</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Bảo hiểm thất nghiệp (BHTN)</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">1% x Lương đóng BH</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.bhtn_amount || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">4</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Thuế thu nhập cá nhân (TNCN)</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Tạm khấu trừ theo quy định</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(activeDocument.payload?.tax_deduction || 0) }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="border border-slate-300 px-2 py-1 text-center">5</td>
+                                                    <td class="border border-slate-300 px-3 py-1 font-medium">Khấu trừ khác</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-slate-600">Ứng lương / phạt / khác (nếu có)</td>
+                                                    <td class="border border-slate-300 px-3 py-1 text-right font-mono font-medium">{{ formatMoney(Number(activeDocument.payload?.other_deductions || 0) + Number(activeDocument.payload?.advance_payment || 0)) }}</td>
+                                                </tr>
+                                                <!-- Total B -->
+                                                <tr class="bg-[#fff1f2] font-bold text-[#991b1b]">
+                                                    <td class="border border-slate-300 px-2 py-1.5 text-center"></td>
+                                                    <td class="border border-slate-300 px-3 py-1.5 uppercase" colspan="2">TỔNG KHẤU TRỪ (B)</td>
+                                                    <td class="border border-slate-300 px-3 py-1.5 text-right font-mono text-sm font-black">{{ formatMoney(calculateTotalDeduction(activeDocument.payload)) }}</td>
+                                                </tr>
+
+                                                <!-- Group C: THỰC LĨNH -->
+                                                <tr class="bg-[#1e3a5f] text-white">
+                                                    <td class="border border-slate-700 px-2 py-2 text-center text-sm font-black">C</td>
+                                                    <td class="border border-slate-700 px-3 py-2 text-sm font-black uppercase tracking-wide" colspan="2">THỰC LĨNH (A - B)</td>
+                                                    <td class="border border-slate-700 px-3 py-2 text-right font-mono text-base font-black">{{ formatMoney(activeDocument.payload?.net_salary ?? activeDocument.total_amount) }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- 3 & 4: THÔNG TIN BỔ SUNG & GHI CHÚ -->
+                                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <div class="inline-block rounded-t-md bg-[#1e3a5f] px-3 py-1 text-xs font-bold text-white uppercase tracking-wide">
+                                            3. THÔNG TIN BỔ SUNG
+                                        </div>
+                                        <div class="rounded-b-md rounded-tr-md border border-slate-300 bg-white p-3 text-xs leading-relaxed text-slate-800 space-y-1">
+                                            <div class="flex justify-between">
+                                                <span class="font-medium text-slate-600">Số tài khoản:</span>
+                                                <span class="font-bold text-slate-900 font-mono">{{ activeDocument.payload?.employee?.bank_account_number || '1903 1234 5678' }}</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="font-medium text-slate-600">Ngân hàng:</span>
+                                                <span class="font-semibold text-slate-900">{{ activeDocument.payload?.employee?.bank_name || 'Vietcombank' }}</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="font-medium text-slate-600">Chi nhánh / Đơn vị:</span>
+                                                <span class="font-semibold text-slate-900">{{ activeDocument.branch_name }}</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="font-medium text-slate-600">Nội dung chuyển khoản:</span>
+                                                <span class="font-bold text-indigo-700 font-mono">LUONG T{{ activeDocument.payload?.period?.month }}/{{ activeDocument.payload?.period?.year }} - {{ activeDocument.payload?.employee?.code }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="inline-block rounded-t-md bg-[#1e3a5f] px-3 py-1 text-xs font-bold text-white uppercase tracking-wide">
+                                            4. GHI CHÚ
+                                        </div>
+                                        <div class="rounded-b-md rounded-tr-md border border-slate-300 bg-white p-3 text-xs leading-relaxed text-slate-700 space-y-1">
+                                            <p class="flex items-start gap-1.5">
+                                                <span class="mt-1 h-1 w-1 shrink-0 rounded-full bg-slate-500"></span>
+                                                <span>Phiếu lương được lập căn cứ vào bảng chấm công, kết quả đánh giá hiệu suất và các quy định hiện hành của công ty.</span>
+                                            </p>
+                                            <p class="flex items-start gap-1.5">
+                                                <span class="mt-1 h-1 w-1 shrink-0 rounded-full bg-slate-500"></span>
+                                                <span>Nếu có thắc mắc, vui lòng liên hệ phòng Nhân sự trong vòng 07 ngày kể từ ngày nhận lương.</span>
+                                            </p>
+                                            <p class="flex items-center gap-1.5 font-medium text-indigo-900">
+                                                <Heart class="size-3.5 fill-rose-500 text-rose-500 shrink-0" />
+                                                <span>Cảm ơn bạn đã đồng hành cùng Aventura!</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 5. CHỮ KÝ 4 BÊN -->
+                                <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-xs text-slate-800">
+                                    <div>
+                                        <p class="font-bold uppercase text-[11px]">NGƯỜI LẬP PHIẾU</p>
+                                        <p class="text-[10px] italic text-slate-500">(Ký, ghi rõ họ tên)</p>
+                                        <div class="mt-12 border-b border-dotted border-slate-300"></div>
+                                        <p class="mt-1 text-[10px] text-slate-500">Ngày {{ todayDay }}/{{ todayMonth }}/20{{ todayYear }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold uppercase text-[11px]">QUẢN LÝ TRỰC TIẾP</p>
+                                        <p class="text-[10px] italic text-slate-500">(Ký, ghi rõ họ tên)</p>
+                                        <div class="mt-12 border-b border-dotted border-slate-300"></div>
+                                        <p class="mt-1 text-[10px] text-slate-500">Ngày {{ todayDay }}/{{ todayMonth }}/20{{ todayYear }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold uppercase text-[11px]">PHÒNG NHÂN SỰ</p>
+                                        <p class="text-[10px] italic text-slate-500">(Ký, ghi rõ họ tên)</p>
+                                        <div class="mt-12 border-b border-dotted border-slate-300"></div>
+                                        <p class="mt-1 text-[10px] text-slate-500">Ngày {{ todayDay }}/{{ todayMonth }}/20{{ todayYear }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold uppercase text-[11px]">NGƯỜI NHẬN LƯƠNG</p>
+                                        <p class="text-[10px] italic text-slate-500">(Ký, ghi rõ họ tên)</p>
+                                        <div class="mt-12 border-b border-dotted border-slate-300"></div>
+                                        <p class="mt-1 text-[10px] text-slate-500">Ngày {{ todayDay }}/{{ todayMonth }}/20{{ todayYear }}</p>
+                                    </div>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="mt-6 flex items-center justify-between border-t border-slate-300 pt-3 text-xs text-slate-600">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold tracking-wider text-[#1e3a5f]">AVENTURA</span>
+                                        <span>|</span>
+                                        <span class="italic text-slate-500 text-[11px]">Cùng nhau tạo nên những bữa ăn ngon hơn mỗi ngày</span>
+                                    </div>
+                                    <div class="font-serif italic text-slate-700">
+                                        <span>Thank you!</span>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- 4. MẪU CHUNG CHO CÁC PHIẾU KHÁC (Xuất Kho Tổng / Đối Soát / Mua Hàng) -->
                             <template v-else>
                                 <div class="flex items-start justify-between border-b-2 border-black pb-3">
                                     <div>

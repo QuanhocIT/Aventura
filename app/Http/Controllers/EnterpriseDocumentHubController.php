@@ -7,9 +7,12 @@ use App\Models\Inventory;
 use App\Models\PurchaseOrder;
 use App\Models\RestaurantBranch;
 use App\Models\ShiftClosing;
+use App\Models\Salary;
 use App\Models\StockTransferRequest;
 use App\Models\SupplyRequest;
 use App\Models\SupplyRequestReceivingReport;
+use App\Models\WarehouseShiftHandover;
+use App\Services\SalaryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -106,7 +109,160 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
-        // 2. Fetch Stock Transfer Requests (Phiếu Điều Chuyển Nguyên Liệu - Grouped)
+        // 2. Fetch Warehouse Closings (Phiếu Chốt Kho - Chi Nhánh & Kho Tổng & Bàn Giao Ca Kho)
+        $warehouseClosings = [];
+        if ($typeFilter === 'all' || $typeFilter === 'warehouse_closing') {
+            // A. Kỳ Chốt Kho (Material Closing & Branch Closing)
+            $closings = InventoryCountSession::where('restaurant_id', $restaurantId)
+                ->where(function ($q) {
+                    $q->whereIn('type', ['material_closing', 'branch_closing'])
+                      ->orWhereNotNull('period_start');
+                })
+                ->with(['branch', 'countedBy', 'secondCountedBy', 'approver', 'items.ingredient.unit'])
+                ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
+                ->when($fromTime, fn ($q) => $q->where('created_at', '>=', $fromTime))
+                ->when($toTime, fn ($q) => $q->where('created_at', '<=', $toTime))
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get();
+
+            foreach ($closings as $item) {
+                $code = 'PCK/' . Carbon::parse($item->period_end ?? $item->created_at)->format('Y/m/d') . '/' . str_pad((string) $item->id, 3, '0', STR_PAD_LEFT);
+                $hasDiff = abs((float) ($item->total_variance_value ?? 0)) > 0 || (float) ($item->total_shortage_quantity ?? 0) > 0 || (float) ($item->total_surplus_quantity ?? 0) > 0;
+                $isCentral = $item->type === 'material_closing';
+                
+                $totalVal = (float) ($item->total_counted_value > 0 ? $item->total_counted_value : ($item->total_expected_value ?? 0));
+
+                $totalInboundQty = (float) $item->items->sum('inbound_quantity');
+                $totalInboundVal = (float) $item->items->sum('inbound_value');
+                $totalOutboundQty = (float) $item->items->sum('outbound_quantity');
+                $totalOutboundVal = (float) $item->items->sum('outbound_value');
+                $totalOpeningQty = (float) $item->items->sum('opening_quantity');
+                $totalOpeningVal = (float) $item->items->sum(fn ($i) => (float) $i->opening_quantity * (float) $i->unit_cost);
+                $totalCountedQty = (float) ($item->total_counted_quantity ?? $item->items->sum('final_quantity'));
+                $totalExpectedQty = (float) ($item->total_expected_quantity ?? $item->items->sum('expected_quantity'));
+
+                $warehouseClosings[] = [
+                    'id' => 'warehouse_closing_' . $item->id,
+                    'raw_id' => $item->id,
+                    'type' => 'warehouse_closing',
+                    'type_label' => 'Phiếu Chốt Kho',
+                    'code' => $code,
+                    'title' => $isCentral ? 'Phiếu Chốt Nguyên Liệu Kho Tổng Định Kỳ' : 'Phiếu Chốt Tồn Kho Chi Nhánh',
+                    'branch_id' => $item->branch_id,
+                    'branch_name' => $item->branch?->name ?? ($isCentral ? 'Kho Tổng Aventura' : 'Kho chi nhánh'),
+                    'created_by_name' => $item->countedBy?->name ?? 'Trưởng kho / Quản lý',
+                    'created_at' => $item->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'date_formatted' => Carbon::parse($item->period_end ?? $item->created_at)->format('d/m/Y H:i'),
+                    'total_amount' => $totalVal,
+                    'status' => $item->status,
+                    'status_label' => $this->resolveStatusLabel($item->status, 'warehouse_closing'),
+                    'has_discrepancy' => $hasDiff,
+                    'discrepancy_note' => $hasDiff ? ('Lệch giá trị: ' . number_format((float) ($item->total_variance_value ?? 0)) . 'đ') : null,
+                    'payload' => [
+                        'id' => $item->id,
+                        'closing_code' => $code,
+                        'is_central' => $isCentral,
+                        'branch' => $item->branch,
+                        'counted_by' => $item->countedBy,
+                        'second_counted_by' => $item->secondCountedBy,
+                        'approver' => $item->approver,
+                        'period_start' => $item->period_start ? Carbon::parse($item->period_start)->format('d/m/Y') : null,
+                        'period_end' => $item->period_end ? Carbon::parse($item->period_end)->format('d/m/Y') : null,
+                        'period_start_at' => $item->period_start_at?->format('d/m/Y H:i'),
+                        'period_end_at' => $item->period_end_at?->format('d/m/Y H:i'),
+                        'notes' => $item->notes,
+                        'total_inbound_qty' => $totalInboundQty,
+                        'total_inbound_val' => $totalInboundVal,
+                        'total_outbound_qty' => $totalOutboundQty,
+                        'total_outbound_val' => $totalOutboundVal,
+                        'total_opening_qty' => $totalOpeningQty,
+                        'total_opening_val' => $totalOpeningVal,
+                        'total_counted_qty' => $totalCountedQty,
+                        'total_counted_val' => $totalVal,
+                        'total_expected_qty' => $totalExpectedQty,
+                        'total_expected_val' => (float) ($item->total_expected_value ?? 0),
+                        'total_variance_qty' => (float) ($item->total_shortage_quantity > 0 ? -$item->total_shortage_quantity : ($item->total_surplus_quantity ?? 0)),
+                        'total_variance_val' => (float) ($item->total_variance_value ?? 0),
+                        'items' => $item->items->map(fn ($row, $idx) => [
+                            'stt' => $idx + 1,
+                            'ingredient_id' => $row->ingredient_id,
+                            'sku' => $row->ingredient?->sku ?? ('NL-' . $row->ingredient_id),
+                            'name' => $row->ingredient?->name ?? 'Nguyên liệu',
+                            'unit' => $row->unit_symbol ?? $row->ingredient?->unit?->symbol ?? 'kg',
+                            'opening_quantity' => (float) ($row->opening_quantity ?? 0),
+                            'inbound_quantity' => (float) ($row->inbound_quantity ?? 0),
+                            'outbound_quantity' => (float) ($row->outbound_quantity ?? 0),
+                            'expected_quantity' => (float) ($row->expected_quantity ?? 0),
+                            'final_quantity' => (float) ($row->final_quantity ?? $row->counted_quantity_1 ?? 0),
+                            'variance_quantity' => (float) ($row->variance_quantity ?? 0),
+                            'variance_value' => (float) ($row->variance_value ?? 0),
+                            'unit_cost' => (float) ($row->unit_cost ?? 0),
+                            'total_closing_value' => round((float) ($row->final_quantity ?? 0) * (float) ($row->unit_cost ?? 0), 2),
+                            'notes' => $row->notes,
+                        ])->values(),
+                    ],
+                ];
+            }
+
+            // B. Giao Ca Kho (Warehouse Shift Handovers)
+            $handovers = WarehouseShiftHandover::where('restaurant_id', $restaurantId)
+                ->with(['branch', 'handoverBy', 'receivedBy'])
+                ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
+                ->when($fromTime, fn ($q) => $q->where('created_at', '>=', $fromTime))
+                ->when($toTime, fn ($q) => $q->where('created_at', '<=', $toTime))
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get();
+
+            foreach ($handovers as $item) {
+                $code = 'PCK-GC/' . Carbon::parse($item->shift_date ?? $item->created_at)->format('Y/m/d') . '/' . str_pad((string) $item->id, 3, '0', STR_PAD_LEFT);
+                $hasDiff = $item->locked_batches_count > 0 || $item->open_incidents_count > 0 || $item->is_system_locked;
+                $val = (float) ($item->ending_stock_value > 0 ? $item->ending_stock_value : ($item->starting_stock_value ?? 0));
+
+                $warehouseClosings[] = [
+                    'id' => 'warehouse_handover_' . $item->id,
+                    'raw_id' => $item->id,
+                    'type' => 'warehouse_closing',
+                    'type_label' => 'Phiếu Chốt Kho',
+                    'code' => $code,
+                    'title' => 'Biên Bản Chốt & Giao Ca Kho (' . ($item->shift_label ?? 'Ca trực') . ')',
+                    'branch_id' => $item->branch_id,
+                    'branch_name' => $item->branch?->name ?? 'Kho Tổng Aventura',
+                    'created_by_name' => $item->handoverBy?->name ?? 'Thủ kho giao ca',
+                    'created_at' => $item->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'date_formatted' => Carbon::parse($item->shift_date ?? $item->created_at)->format('d/m/Y') . ' (' . ($item->shift_label ?? 'Ca kho') . ')',
+                    'total_amount' => $val,
+                    'status' => $item->status,
+                    'status_label' => $this->resolveStatusLabel($item->status, 'warehouse_closing'),
+                    'has_discrepancy' => $hasDiff,
+                    'discrepancy_note' => $hasDiff ? ($item->lock_reason ?: 'Có lô hàng phong tỏa / sự cố ca trực') : null,
+                    'payload' => [
+                        'id' => $item->id,
+                        'closing_code' => $code,
+                        'is_shift_handover' => true,
+                        'shift_date' => Carbon::parse($item->shift_date)->format('d/m/Y'),
+                        'shift_label' => $item->shift_label,
+                        'shift_type' => $item->shift_type,
+                        'branch' => $item->branch,
+                        'handover_by' => $item->handoverBy,
+                        'received_by' => $item->receivedBy,
+                        'starting_stock_value' => (float) $item->starting_stock_value,
+                        'ending_stock_value' => (float) $item->ending_stock_value,
+                        'pending_picks_count' => $item->pending_picks_count,
+                        'pending_deliveries_count' => $item->pending_deliveries_count,
+                        'locked_batches_count' => $item->locked_batches_count,
+                        'open_incidents_count' => $item->open_incidents_count,
+                        'notes' => $item->notes,
+                        'stock_snapshot' => $item->stock_snapshot_json,
+                        'incidents' => $item->incidents_json,
+                        'open_tasks' => $item->open_tasks_json,
+                    ],
+                ];
+            }
+        }
+
+        // 3. Fetch Stock Transfer Requests (Phiếu Điều Chuyển Nguyên Liệu - Grouped)
         $stockTransfers = [];
         if ($typeFilter === 'all' || $typeFilter === 'stock_transfer') {
             $transfers = StockTransferRequest::where('restaurant_id', $restaurantId)
@@ -185,7 +341,7 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
-        // 3. Fetch Supply Requests (Phiếu Xuất Kho Tổng)
+        // 4. Fetch Supply Requests (Phiếu Xuất Kho Tổng)
         $supplyRequests = [];
         if ($typeFilter === 'all' || $typeFilter === 'supply_request') {
             $supplies = SupplyRequest::where('restaurant_id', $restaurantId)
@@ -223,7 +379,7 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
-        // 4. Fetch Receiving Reports (Biên Bản Đối Soát Nhận Hàng)
+        // 5. Fetch Receiving Reports (Biên Bản Đối Soát Nhận Hàng)
         $receivingReports = [];
         if ($typeFilter === 'all' || $typeFilter === 'receiving_report') {
             $reports = SupplyRequestReceivingReport::where('restaurant_id', $restaurantId)
@@ -259,7 +415,7 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
-        // 5. Fetch Purchase Orders (Phiếu Mua Hàng & Ký Quỹ NCC)
+        // 6. Fetch Purchase Orders (Phiếu Mua Hàng & Ký Quỹ NCC)
         $purchaseOrders = [];
         if ($typeFilter === 'all' || $typeFilter === 'purchase_order') {
             $pos = PurchaseOrder::where('restaurant_id', $restaurantId)
@@ -293,10 +449,12 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
-        // 6. Fetch Inventory Counts (Phiếu Kiểm Kê Kho)
+        // 7. Fetch Inventory Counts (Phiếu Kiểm Kê Kho Thực Tế)
         $inventoryCounts = [];
         if ($typeFilter === 'all' || $typeFilter === 'inventory_count') {
             $counts = InventoryCountSession::where('restaurant_id', $restaurantId)
+                ->whereNotIn('type', ['material_closing', 'branch_closing'])
+                ->whereNull('period_start')
                 ->with(['branch', 'countedBy', 'items.ingredient.unit'])
                 ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
                 ->when($fromTime, fn ($q) => $q->where('created_at', '>=', $fromTime))
@@ -330,14 +488,100 @@ class EnterpriseDocumentHubController extends Controller
             }
         }
 
+        // 8. Fetch Payslips (Phiếu Lương Nhân Viên)
+        $payslips = [];
+        if ($typeFilter === 'all' || $typeFilter === 'payslip') {
+            $salaryService = app(SalaryService::class);
+            $salaries = Salary::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->with([
+                    'employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id,bank_name,bank_account_number,bank_account_name,salary_calculation_method,allowance_meal,allowance_transport,allowance_phone,allowance_responsibility,allowance_other,hire_date',
+                    'employee.branch:id,name,address,phone',
+                    'employee.trustScore',
+                    'adjustments',
+                    'approvedBy:id,name',
+                ])
+                ->when($branchFilter, fn ($q) => $q->where('branch_id', $branchFilter))
+                ->when($fromTime, fn ($q) => $q->where('pay_period_start', '>=', Carbon::parse($fromTime)->startOfMonth()->toDateString()))
+                ->when($toTime, fn ($q) => $q->where('pay_period_end', '<=', Carbon::parse($toTime)->endOfMonth()->toDateString()))
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get();
+
+            foreach ($salaries as $item) {
+                $periodParts = explode('-', (string) $item->pay_period_start);
+                $yearStr = $periodParts[0] ?? date('Y');
+                $monthStr = isset($periodParts[1]) ? (strlen($periodParts[1]) < 2 ? '0' . $periodParts[1] : $periodParts[1]) : date('m');
+                $code = 'PL/' . $yearStr . '/' . $monthStr . '/' . ($item->employee?->employee_code ?? 'NV' . $item->employee_id);
+                $hasDiff = $item->adjustments->whereIn('type', ['penalty', 'violation', 'cash_shortage', 'inventory_loss'])->count() > 0;
+                $breakdown = $salaryService->getSalaryCalculationDetails($item);
+
+                $payslips[] = [
+                    'id' => 'payslip_' . $item->id,
+                    'raw_id' => $item->id,
+                    'type' => 'payslip',
+                    'type_label' => 'Phiếu Lương',
+                    'code' => $code,
+                    'title' => 'Phiếu Lương Tháng ' . $monthStr . '/' . $yearStr . ' - ' . ($item->employee?->full_name ?? 'Nhân viên'),
+                    'branch_id' => $item->branch_id ?? $item->employee?->branch_id,
+                    'branch_name' => $item->employee?->branch?->name ?? 'Chi nhánh chính',
+                    'created_by_name' => $item->approvedBy?->name ?? 'Phòng Nhân sự',
+                    'created_at' => $item->created_at?->toIso8601String() ?? now()->toIso8601String(),
+                    'date_formatted' => $item->created_at?->format('d/m/Y H:i') ?? Carbon::parse($item->pay_period_end)->format('d/m/Y'),
+                    'total_amount' => (float) $item->net_salary,
+                    'status' => $item->status,
+                    'status_label' => $this->resolveStatusLabel($item->status, 'payslip'),
+                    'has_discrepancy' => $hasDiff,
+                    'discrepancy_note' => $hasDiff ? 'Có khoản khấu trừ vi phạm / kỷ luật' : null,
+                    'payload' => [
+                        'id' => $item->id,
+                        'employee_code' => $item->employee?->employee_code ?? ('NV' . $item->employee_id),
+                        'employee_name' => $item->employee?->full_name ?? '—',
+                        'job_title' => $item->employee?->job_title ?? 'Nhân viên',
+                        'employment_type' => $item->employee?->employment_type ?? 'full_time',
+                        'compensation_type' => $item->employee?->compensation_type ?? 'fixed',
+                        'branch_name' => $item->employee?->branch?->name ?? 'Chi nhánh chính',
+                        'hire_date' => $item->employee?->hire_date ? Carbon::parse($item->employee->hire_date)->format('d/m/Y') : '10/03/2024',
+                        'bank_name' => $item->employee?->bank_name,
+                        'bank_account_number' => $item->employee?->bank_account_number,
+                        'bank_account_name' => $item->employee?->bank_account_name,
+                        'contract_base_salary' => (float) ($item->employee?->base_salary ?? 0),
+                        'pay_rate' => (float) ($item->employee?->pay_rate ?? 0),
+                        'base_salary' => (float) $item->base_salary,
+                        'allowance_amount' => (float) ($item->allowance_amount ?? 0),
+                        'bonus_amount' => (float) $item->bonus_amount,
+                        'overtime_amount' => (float) ($item->overtime_amount ?? 0),
+                        'night_shift_amount' => (float) ($item->night_shift_amount ?? 0),
+                        'late_penalty_amount' => (float) ($item->late_penalty_amount ?? 0),
+                        'deduction_amount' => (float) $item->deduction_amount,
+                        'advance_amount' => (float) ($item->advance_amount ?? 0),
+                        'actual_work_days' => (float) ($item->actual_work_days ?? 0),
+                        'standard_days' => (int) ($item->standard_days ?? 26),
+                        'paid_leave_days' => (float) ($item->paid_leave_days ?? 0),
+                        'unpaid_leave_days' => (float) ($item->unpaid_leave_days ?? 0),
+                        'net_salary' => (float) $item->net_salary,
+                        'status' => $item->status,
+                        'period_start' => $item->pay_period_start,
+                        'period_end' => $item->pay_period_end,
+                        'period_month' => $monthStr,
+                        'period_year' => $yearStr,
+                        'breakdown' => $breakdown,
+                        'adjustments' => $item->adjustments,
+                    ],
+                ];
+            }
+        }
+
         // Merge all documents
         $allDocuments = collect(array_merge(
             $shiftClosings,
+            $warehouseClosings,
             $stockTransfers,
             $supplyRequests,
             $receivingReports,
             $purchaseOrders,
-            $inventoryCounts
+            $inventoryCounts,
+            $payslips
         ))->sortByDesc('created_at')->values();
 
         // Search filtering
@@ -424,12 +668,14 @@ class EnterpriseDocumentHubController extends Controller
     private function resolveStatusLabel(string $status, string $type): array
     {
         return match ($status) {
-            'pending', 'dispatch_pending_approval' => ['label' => 'Chờ duyệt', 'color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'],
-            'approved' => ['label' => 'Đã duyệt', 'color' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'],
+            'pending', 'pending_approval', 'dispatch_pending_approval' => ['label' => 'Chờ duyệt', 'color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'],
+            'approved', 'signed' => ['label' => 'Đã duyệt / Đã ký', 'color' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'],
             'dispatched' => ['label' => 'Đang vận chuyển', 'color' => 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'],
             'completed', 'confirmed', 'received' => ['label' => 'Hoàn tất', 'color' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'],
+            'paid' => ['label' => 'Đã chi trả', 'color' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'],
             'partial_received', 'disputed' => ['label' => 'Có chênh lệch / Khiếu nại', 'color' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'],
             'rejected', 'cancelled' => ['label' => 'Đã từ chối / Hủy', 'color' => 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'],
+            'in_progress', 'draft' => ['label' => 'Đang xử lý', 'color' => 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'],
             default => ['label' => 'Đã ghi nhận', 'color' => 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'],
         };
     }

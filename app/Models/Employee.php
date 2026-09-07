@@ -80,6 +80,12 @@ class Employee extends Model
             'date_of_birth' => 'date',
             'hire_date' => 'date',
             'base_salary' => 'decimal:2',
+            'pay_rate' => 'decimal:2',
+            'allowance_meal' => 'decimal:2',
+            'allowance_transport' => 'decimal:2',
+            'allowance_phone' => 'decimal:2',
+            'allowance_responsibility' => 'decimal:2',
+            'allowance_other' => 'decimal:2',
             'citizen_id_number' => 'encrypted',
         ];
     }

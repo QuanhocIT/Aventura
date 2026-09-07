@@ -21,11 +21,24 @@ class Salary extends Model
             'pay_period_end' => 'date:Y-m-d',
             'paid_at' => 'datetime',
             'base_salary' => 'decimal:2',
+            'allowance_amount' => 'decimal:2',
             'bonus_amount' => 'decimal:2',
             'overtime_amount' => 'decimal:2',
+            'night_shift_amount' => 'decimal:2',
+            'late_penalty_amount' => 'decimal:2',
             'deduction_amount' => 'decimal:2',
+            'advance_amount' => 'decimal:2',
             'net_salary' => 'decimal:2',
+            'actual_work_days' => 'decimal:2',
+            'paid_leave_days' => 'decimal:2',
+            'unpaid_leave_days' => 'decimal:2',
+            'email_sent_at' => 'datetime',
         ];
+    }
+
+    public function restaurant(): BelongsTo
+    {
+        return $this->belongsTo(Restaurant::class);
     }
 
     public function employee(): BelongsTo

@@ -428,7 +428,7 @@ const statusLabel: Record<string, string> = {
 
 const statusColor: Record<string, string> = {
     enrolled:
-        'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+        'bg-slate-100 text-slate-700 dark:bg-transparent dark:text-slate-300 border-slate-200 dark:border-white/20',
     in_progress:
         'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200/60 dark:border-blue-500/30',
     completed:
@@ -443,7 +443,7 @@ const statusColor: Record<string, string> = {
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 lg:p-6">
         <!-- Hero Header -->
         <div
-            class="relative overflow-hidden rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-slate-100/50 p-5 shadow-xs lg:p-6 dark:border-indigo-500/20 dark:from-indigo-950/40 dark:via-blue-950/20 dark:to-slate-900/40"
+            class="relative overflow-hidden rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-500/10 via-blue-500/5 to-slate-100/50 p-5 shadow-xs lg:p-6 dark:border-white/10 dark:bg-transparent dark:from-transparent dark:via-transparent dark:to-transparent"
         >
             <div
                 class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
@@ -494,7 +494,7 @@ const statusColor: Record<string, string> = {
         <!-- Metric KPI Overview -->
         <div class="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
             <Card
-                class="border-slate-200/80 bg-white shadow-xs transition-all hover:border-indigo-200 dark:border-slate-800 dark:bg-slate-900"
+                class="border-slate-200/80 bg-white/60 shadow-xs transition-all hover:border-indigo-200 dark:border-white/10 dark:bg-transparent dark:hover:border-white/20"
             >
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between">
@@ -526,7 +526,7 @@ const statusColor: Record<string, string> = {
             </Card>
 
             <Card
-                class="border-slate-200/80 bg-white shadow-xs transition-all hover:border-blue-200 dark:border-slate-800 dark:bg-slate-900"
+                class="border-slate-200/80 bg-white/60 shadow-xs transition-all hover:border-blue-200 dark:border-white/10 dark:bg-transparent dark:hover:border-white/20"
             >
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between">
@@ -556,7 +556,7 @@ const statusColor: Record<string, string> = {
             </Card>
 
             <Card
-                class="border-slate-200/80 bg-white shadow-xs transition-all hover:border-emerald-200 dark:border-slate-800 dark:bg-slate-900"
+                class="border-slate-200/80 bg-white/60 shadow-xs transition-all hover:border-emerald-200 dark:border-white/10 dark:bg-transparent dark:hover:border-white/20"
             >
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between">
@@ -586,7 +586,7 @@ const statusColor: Record<string, string> = {
             </Card>
 
             <Card
-                class="border-slate-200/80 bg-white shadow-xs transition-all hover:border-amber-200 dark:border-slate-800 dark:bg-slate-900"
+                class="border-slate-200/80 bg-white/60 shadow-xs transition-all hover:border-amber-200 dark:border-white/10 dark:bg-transparent dark:hover:border-white/20"
             >
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between">
@@ -624,7 +624,7 @@ const statusColor: Record<string, string> = {
                 canManage &&
                 (stats.overdue || stats.awaiting_approval || stats.failed)
             "
-            class="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-amber-950/20"
+            class="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-amber-500/30 dark:bg-transparent"
         >
             <div class="flex flex-wrap items-center gap-4">
                 <div
@@ -668,9 +668,9 @@ const statusColor: Record<string, string> = {
 
         <!-- Tabs Switcher -->
         <div
-            class="flex border-b border-slate-200/80 pb-0 dark:border-slate-800"
+            class="flex border-b border-slate-200/80 pb-0 dark:border-white/10"
         >
-            <div class="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80">
+            <div class="flex rounded-xl border border-slate-200/80 bg-slate-100/70 p-1 dark:border-white/10 dark:bg-transparent">
                 <button
                     v-for="tab in [
                         {
@@ -689,7 +689,7 @@ const statusColor: Record<string, string> = {
                     :class="[
                         'flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200',
                         activeTab === tab.key
-                            ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-900 dark:text-indigo-400'
+                            ? 'bg-white text-indigo-700 shadow-sm dark:bg-white/10 dark:text-indigo-400'
                             : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white',
                     ]"
                 >
@@ -708,7 +708,7 @@ const statusColor: Record<string, string> = {
                 <Card
                     v-for="course in courses"
                     :key="course.id"
-                    class="group flex flex-col overflow-hidden border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/40"
+                    class="group flex flex-col overflow-hidden border-slate-200/80 bg-white/60 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-white/10 dark:bg-transparent dark:hover:border-indigo-500/50"
                 >
                     <CardContent
                         class="flex flex-1 flex-col justify-between space-y-4 p-5"
@@ -770,7 +770,7 @@ const statusColor: Record<string, string> = {
                                     <span
                                         v-for="rKey in course.target_roles"
                                         :key="rKey"
-                                        class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        class="rounded-md border bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-white/5 dark:bg-white/5 dark:text-slate-300"
                                     >
                                         {{ roleLabelsMap[rKey] || rKey }}
                                     </span>
@@ -793,12 +793,12 @@ const statusColor: Record<string, string> = {
                             <!-- Quizzes preview -->
                             <div
                                 v-if="course.quizzes?.length"
-                                class="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-slate-800"
+                                class="flex flex-wrap gap-1.5 border-t border-slate-100 pt-2 dark:border-white/10"
                             >
                                 <span
                                     v-for="q in course.quizzes"
                                     :key="q.id"
-                                    class="inline-flex items-center gap-1 rounded-md bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                    class="inline-flex items-center gap-1 rounded-md border bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300"
                                 >
                                     <Award class="size-3" /> {{ q.title }}
                                 </span>
@@ -808,13 +808,13 @@ const statusColor: Record<string, string> = {
                         <!-- Action Bar -->
                         <div
                             v-if="canManage"
-                            class="flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-3 dark:border-slate-800"
+                            class="flex flex-wrap items-center justify-between gap-1.5 border-t border-slate-100 pt-3 dark:border-white/10"
                         >
                             <div class="flex items-center gap-1">
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    class="h-8 text-xs font-medium"
+                                    class="h-8 text-xs font-medium dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5"
                                     @click="openLessonDialog(course.id)"
                                 >
                                     <Plus class="mr-1 size-3" /> Bài học
@@ -822,7 +822,7 @@ const statusColor: Record<string, string> = {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    class="h-8 text-xs font-medium"
+                                    class="h-8 text-xs font-medium dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5"
                                     @click="openQuizDialog(course.id)"
                                 >
                                     <Award class="mr-1 size-3" /> Quiz
@@ -854,7 +854,7 @@ const statusColor: Record<string, string> = {
             <!-- Empty Courses State -->
             <Card
                 v-else
-                class="border-dashed border-slate-300 bg-slate-50/50 p-12 text-center dark:border-slate-800 dark:bg-slate-900/30"
+                class="border-dashed border-slate-300 bg-slate-50/50 p-12 text-center dark:border-white/10 dark:bg-transparent"
             >
                 <div
                     class="mx-auto flex size-14 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400"
@@ -884,7 +884,7 @@ const statusColor: Record<string, string> = {
         <!-- Enrollments Tab -->
         <div v-if="activeTab === 'enrollments'" class="space-y-4">
             <Card
-                class="overflow-hidden border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900"
+                class="overflow-hidden border-slate-200/80 bg-white/60 shadow-xs dark:border-white/10 dark:bg-transparent"
             >
                 <CardContent class="overflow-x-auto p-0">
                     <table
@@ -892,7 +892,7 @@ const statusColor: Record<string, string> = {
                     >
                         <thead>
                             <tr
-                                class="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold tracking-wider text-slate-600 uppercase dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+                                class="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold tracking-wider text-slate-600 uppercase dark:border-white/10 dark:bg-transparent dark:text-slate-300"
                             >
                                 <th class="px-5 py-3.5">Nhân viên</th>
                                 <th class="px-5 py-3.5">Khóa đào tạo</th>
@@ -905,17 +905,17 @@ const statusColor: Record<string, string> = {
                             </tr>
                         </thead>
                         <tbody
-                            class="divide-y divide-slate-100 dark:divide-slate-800/60"
+                            class="divide-y divide-slate-100 dark:divide-white/5"
                         >
                             <tr
                                 v-for="e in enrollments"
                                 :key="e.id"
-                                class="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                                class="transition-colors hover:bg-slate-50/80 dark:border-white/5 dark:hover:bg-white/5"
                             >
                                 <td class="px-5 py-4">
                                     <div class="flex items-center gap-3">
                                         <div
-                                            class="flex size-9 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                                            class="flex size-9 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
                                         >
                                             {{
                                                 (e.employee?.full_name || 'NV')
@@ -971,7 +971,7 @@ const statusColor: Record<string, string> = {
                                         class="flex flex-col items-center gap-1.5"
                                     >
                                         <div
-                                            class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                            class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10"
                                         >
                                             <div
                                                 class="h-full rounded-full bg-indigo-600 transition-all duration-500"
@@ -1011,7 +1011,7 @@ const statusColor: Record<string, string> = {
                                     <Button
                                         v-if="
                                             !canManage ||
-                                            e.employee_id === currentEmployeeId
+                                             e.employee_id === currentEmployeeId
                                         "
                                         size="sm"
                                         class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
@@ -1034,7 +1034,7 @@ const statusColor: Record<string, string> = {
                                         v-else
                                         size="sm"
                                         variant="outline"
-                                        class="text-xs"
+                                        class="text-xs dark:border-white/10 dark:bg-transparent dark:hover:bg-white/5"
                                         @click="openLearning(e)"
                                     >
                                         <BookOpen class="mr-1 size-3.5" /> Xem

@@ -625,6 +625,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('salaries/{salary}/approve', [SalaryController::class, 'approve'])->name('salaries.approve');
     Route::patch('salaries/{salary}/paid', [SalaryController::class, 'markPaid'])->name('salaries.paid');
     Route::post('salaries/{salary}/adjustments', [SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
+    Route::get('salaries/export-bank', [SalaryController::class, 'exportBank'])->name('salaries.export-bank');
+    Route::post('salaries/send-payslips', [SalaryController::class, 'sendPayslips'])->name('salaries.send-payslips');
 
     // Quỹ lương & bậc lương theo chi nhánh (chỉ Chủ doanh nghiệp)
     Route::prefix('payroll-budget')->name('payroll-budget.')->group(function () {
