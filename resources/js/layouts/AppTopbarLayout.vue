@@ -66,34 +66,16 @@ const isStaff = computed(() => roles.value.length > 0);
 const tenant = computed(() => (page.props as any).tenant ?? null);
 const isMobileOpen = ref(false);
 
-// Scroll-based navbar hide/show
-const navHidden = ref(false);
-let lastScrollY = 0;
-let ticking = false;
+const isScrolled = ref(false);
 
 function onScroll() {
-    if (ticking) {
-        return;
-    }
-
-    ticking = true;
-    requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const diff = currentY - lastScrollY;
-
-        // Hide when scrolling down more than 60px from top, show when scrolling up
-        if (currentY > 120) {
-            navHidden.value = diff > 0;
-        } else {
-            navHidden.value = false;
-        }
-
-        lastScrollY = currentY;
-        ticking = false;
-    });
+    isScrolled.value = window.scrollY > 20;
 }
 
-onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }));
+onMounted(() => {
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+});
 onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
 withDefaults(
@@ -162,14 +144,14 @@ const handleLogout = () => {
 
 <template>
     <header
-        class="z-40 transition-all duration-500"
+        class="sticky top-0 z-40 transition-colors duration-200"
         :class="[
             transparent
-                ? 'absolute top-0 right-0 left-0 border-b border-white/10 bg-transparent text-white'
-                : 'sticky top-0 border-b border-border bg-background/95 text-foreground backdrop-blur',
-            !transparent && navHidden
-                ? '-translate-y-full shadow-none'
-                : 'translate-y-0',
+                ? isScrolled
+                    ? 'border-b border-slate-800/80 bg-slate-950/95 text-white shadow-md backdrop-blur'
+                    : 'border-b border-white/10 bg-transparent text-white'
+                : 'border-b border-border bg-background/95 text-foreground shadow-xs backdrop-blur supports-[backdrop-filter]:bg-background/80',
+            transparent ? '-mb-[60px]' : '',
         ]"
     >
         <div

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\V1\PublicApiController;
 use App\Http\Controllers\Auth\GoogleController;
-use App\Http\Controllers\Auth\TwoFactorChallengeQrController;
 use App\Http\Controllers\Auth\TwoFactorEmailCodeController;
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
 use App\Http\Controllers\Billing\CheckoutController;
@@ -220,11 +219,6 @@ Route::middleware('guest')->group(function () {
     Route::post('two-factor-challenge/send-email-code', [TwoFactorEmailCodeController::class, 'store'])
         ->middleware('throttle:6,1')
         ->name('two-factor.email-code.send');
-
-    // Trả về QR code cho user đang ở trang two-factor-challenge (đã auth bằng password)
-    Route::get('two-factor-challenge/setup-qr', TwoFactorChallengeQrController::class)
-        ->middleware('throttle:10,1')
-        ->name('two-factor.challenge.setup-qr');
 });
 
 Route::middleware(['auth'])->group(function () {
