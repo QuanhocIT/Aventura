@@ -204,13 +204,13 @@ class ProfitLossService
      */
     private function laborCostForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): float
     {
-        return Salary::withoutGlobalScopes()
+        return (float) Salary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('status', ['approved', 'paid'])
             ->whereBetween('pay_period_end', [$start->toDateString(), $end->toDateString()])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-            ->get(['id', 'net_salary'])
-            ->sum(fn (Salary $s) => (float) $s->net_salary);
+            ->get(['id', 'net_salary', 'advance_amount'])
+            ->sum(fn (Salary $s) => (float) $s->net_salary + (float) $s->advance_amount);
     }
 
     private function operatingExpensesForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): array

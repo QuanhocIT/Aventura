@@ -21,9 +21,12 @@ class EInvoiceService
         $restaurant = $order->restaurant;
         $vatRate = (float) ($order->tax_rate ?? self::VAT_RATE);
 
-        // Tổng thanh toán đã gồm VAT → tách ngược ra tiền hàng + thuế
+        // Tổng thanh toán đã gồm VAT → tách ra tiền hàng trước/sau chiết khấu + thuế theo chuẩn TT78
         $totalWithVat = (float) $order->total_amount;
+        $discountAmount = (float) $order->discount_amount;
+        $discountWithoutVat = round($discountAmount / (1 + $vatRate / 100), 2);
         $totalWithoutVat = round($totalWithVat / (1 + $vatRate / 100), 2);
+        $grossWithoutVat = round($totalWithoutVat + $discountWithoutVat, 2);
         $vatAmount = round($totalWithVat - $totalWithoutVat, 2);
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><HDon/>');
@@ -75,9 +78,9 @@ class EInvoiceService
 
         // Tổng hợp thanh toán
         $tToan = $ndHDon->addChild('TToan');
-        $tToan->addChild('TgTCThue', $this->num($totalWithoutVat));
+        $tToan->addChild('TgTCThue', $this->num($grossWithoutVat));
         $tToan->addChild('TgTThue', $this->num($vatAmount));
-        $tToan->addChild('TTCKTMai', $this->num((float) $order->discount_amount));
+        $tToan->addChild('TTCKTMai', $this->num($discountWithoutVat));
         $tToan->addChild('TgTTTBSo', $this->num($totalWithVat));
         $this->addCData($tToan->addChild('TgTTTBChu'), $this->amountInWords($totalWithVat));
 
@@ -133,8 +136,10 @@ class EInvoiceService
             $ones = $n % 10;
             $parts = [];
 
-            if ($hundreds > 0 || $full) {
+            if ($hundreds > 0) {
                 $parts[] = $units[$hundreds].' trăm';
+            } elseif ($full) {
+                $parts[] = 'không trăm';
             }
 
             if ($tens > 1) {

@@ -171,10 +171,11 @@ class DailyReportService
             ->pluck('cnt', 'status');
 
         $orderIds = $orders->pluck('id');
-        $grossRevenue = $orders->sum('total_amount');
-        $discountTotal = $orders->sum('discount_amount');
-        $serviceCharge = $orders->sum('service_charge');
-        $taxTotal = $orders->sum('tax_amount');
+        $discountTotal = (float) $orders->sum('discount_amount');
+        $totalAmount = (float) $orders->sum('total_amount');
+        $grossRevenue = $totalAmount + $discountTotal;
+        $serviceCharge = (float) $orders->sum('service_charge');
+        $taxTotal = (float) $orders->sum('tax_amount');
 
         $refundTotal = (float) Payment::withoutGlobalScopes()
             ->join('orders', 'payments.order_id', '=', 'orders.id')
@@ -187,7 +188,7 @@ class DailyReportService
             ->whereNull('orders.deleted_at')
             ->sum('payments.amount');
 
-        $netRevenue = max(0.0, $grossRevenue - $refundTotal);
+        $netRevenue = max(0.0, $totalAmount - $refundTotal);
         $completedCount = $orders->count();
         $cancelledCount = (int) ($allOrders->get('cancelled', 0));
         $orderCount = $allOrders->sum();
@@ -210,9 +211,9 @@ class DailyReportService
             'cancelled_count' => $cancelledCount,
             'average_order_value' => $completedCount > 0 ? round($netRevenue / $completedCount, 2) : 0.0,
             'cash_revenue' => (float) $payments->where('payment_method', 'cash')->sum('amount'),
-            'bank_transfer_revenue' => (float) $payments->where('payment_method', 'bank_transfer')->sum('amount'),
+            'bank_transfer_revenue' => (float) $payments->whereIn('payment_method', ['bank_transfer', 'vietqr'])->sum('amount'),
             'card_revenue' => (float) $payments->where('payment_method', 'card')->sum('amount'),
-            'ewallet_revenue' => (float) $payments->where('payment_method', 'ewallet')->sum('amount'),
+            'ewallet_revenue' => (float) $payments->whereIn('payment_method', ['ewallet', 'momo', 'zalopay', 'vnpay'])->sum('amount'),
             'mixed_revenue' => (float) $payments->where('payment_method', 'mixed')->sum('amount'),
             'first_order_at' => $orders->min('completed_at'),
             'last_order_at' => $orders->max('completed_at'),

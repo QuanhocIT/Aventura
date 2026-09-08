@@ -142,7 +142,7 @@ class OrderItemCancellationService
 
             $orderUpdates = ['subtotal' => $activeSubtotal];
             if (! in_array($oldPaymentStatus, ['paid', 'partial_refund'], true)) {
-                $orderUpdates['total_amount'] = max(0.0, $activeSubtotal - (float) $order->discount_amount);
+                $orderUpdates['total_amount'] = ! $hasActiveItems ? 0.0 : max(0.0, $activeSubtotal - (float) $order->discount_amount + (float) $order->service_charge + (float) $order->tax_amount);
             }
             if (! $hasActiveItems) {
                 $orderUpdates['status'] = 'cancelled';

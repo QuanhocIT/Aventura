@@ -9,6 +9,7 @@ use App\Models\AccountReceivablePayment;
 use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Services\CashPostingService;
 use App\Services\FinancialPostingService;
@@ -417,11 +418,19 @@ class DebtController extends Controller
                 $customer = Customer::where('id', $lockedReceivable->customer_id)->lockForUpdate()->firstOrFail();
                 $customer->decrement('current_debt', $collectAmount);
 
-                // Update Order payment status if fully paid
+                // Update Order payment status and Payment record if fully paid
                 if ($status === 'paid' && $lockedReceivable->order_id) {
                     Order::where('id', $lockedReceivable->order_id)->update([
                         'payment_status' => 'paid',
                     ]);
+
+                    Payment::where('order_id', $lockedReceivable->order_id)
+                        ->where('payment_method', 'debt')
+                        ->where('status', 'unpaid')
+                        ->update([
+                            'status' => 'paid',
+                            'paid_at' => now(),
+                        ]);
                 }
 
                 AccountReceivablePayment::firstOrCreate(

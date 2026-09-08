@@ -11,7 +11,7 @@ import {
     ChevronDown,
     Headphones,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
@@ -37,6 +37,57 @@ const props = defineProps<{
     canRegister?: boolean;
     plans?: DbPlan[];
 }>();
+
+type PlanKey = 'free' | 'basic' | 'pro' | 'enterprise';
+const selectedPlanKey = ref<PlanKey>('pro');
+
+const getPlan = (key: PlanKey): DbPlan | undefined => {
+    const code = key === 'basic' ? 'starter' : key;
+
+    return props.plans?.find((p) => p.code === code || p.code === key);
+};
+
+const getPlanPriceFormatted = (key: PlanKey): string => {
+    const p = getPlan(key);
+
+    if (!p) {
+        if (key === 'free') {
+            return '0đ';
+        }
+
+        if (key === 'basic') {
+            return '299.000đ';
+        }
+
+        if (key === 'pro') {
+            return '699.000đ';
+        }
+
+        return '1.499.000đ';
+    }
+
+    return p.price === 0 ? '0đ' : new Intl.NumberFormat('vi-VN').format(p.price) + 'đ';
+};
+
+const getPlanLimit = (key: PlanKey, field: 'max_branches' | 'max_tables' | 'max_users'): string => {
+    const p = getPlan(key);
+
+    if (!p || p[field] === null || p[field] === undefined) {
+        return 'Không giới hạn';
+    }
+
+    return String(p[field]);
+};
+
+const hasPlanFeature = (key: PlanKey, featureKey: string, defaultValue: boolean): boolean => {
+    const p = getPlan(key);
+
+    if (!p || !p.features) {
+        return defaultValue;
+    }
+
+    return Boolean((p.features as Record<string, any>)[featureKey] ?? defaultValue);
+};
 
 // FAQ accordion toggle state
 const openFaqIndices = ref<number[]>([0, 1]);
@@ -76,19 +127,66 @@ const faqs = [
     },
 ];
 
-const comparisonFeatures: Record<string, any>[] = [
-    { name: 'Số chi nhánh', free: '1', basic: '3', pro: '10', enterprise: 'Không giới hạn' },
-    { name: 'Số bàn', free: '15', basic: '60', pro: '200', enterprise: 'Không giới hạn' },
-    { name: 'Số nhân viên', free: '5', basic: '20', pro: '60', enterprise: 'Không giới hạn' },
+const comparisonFeatures = computed(() => [
+    {
+        name: 'Số chi nhánh',
+        free: getPlanLimit('free', 'max_branches'),
+        basic: getPlanLimit('basic', 'max_branches'),
+        pro: getPlanLimit('pro', 'max_branches'),
+        enterprise: getPlanLimit('enterprise', 'max_branches'),
+    },
+    {
+        name: 'Số bàn',
+        free: getPlanLimit('free', 'max_tables'),
+        basic: getPlanLimit('basic', 'max_tables'),
+        pro: getPlanLimit('pro', 'max_tables'),
+        enterprise: getPlanLimit('enterprise', 'max_tables'),
+    },
+    {
+        name: 'Số nhân viên',
+        free: getPlanLimit('free', 'max_users'),
+        basic: getPlanLimit('basic', 'max_users'),
+        pro: getPlanLimit('pro', 'max_users'),
+        enterprise: getPlanLimit('enterprise', 'max_users'),
+    },
     { name: 'Dung lượng lưu trữ', free: '500 MB', basic: '5 GB', pro: '50 GB', enterprise: '200 GB' },
     { name: 'API (req/phút)', free: '30', basic: '120', pro: '600', enterprise: '3.000' },
-    { name: 'Màn hình Bếp (Kitchen Display)', free: true, basic: true, pro: true, enterprise: true },
-    { name: 'Đặt món qua QR', free: false, basic: false, pro: true, enterprise: true },
-    { name: 'Quản lý Tồn kho', free: false, basic: false, pro: true, enterprise: true },
-];
-
-type PlanKey = 'free' | 'basic' | 'pro' | 'enterprise';
-const selectedPlanKey = ref<PlanKey>('pro');
+    {
+        name: 'Màn hình Bếp (Kitchen Display)',
+        free: hasPlanFeature('free', 'kitchen_display', true),
+        basic: hasPlanFeature('basic', 'kitchen_display', true),
+        pro: hasPlanFeature('pro', 'kitchen_display', true),
+        enterprise: hasPlanFeature('enterprise', 'kitchen_display', true),
+    },
+    {
+        name: 'Đặt món qua QR',
+        free: hasPlanFeature('free', 'qr_ordering', true),
+        basic: hasPlanFeature('basic', 'qr_ordering', true),
+        pro: hasPlanFeature('pro', 'qr_ordering', true),
+        enterprise: hasPlanFeature('enterprise', 'qr_ordering', true),
+    },
+    {
+        name: 'Quản lý Tồn kho',
+        free: hasPlanFeature('free', 'inventory_basic', false),
+        basic: hasPlanFeature('basic', 'inventory_basic', true),
+        pro: hasPlanFeature('pro', 'inventory_basic', true),
+        enterprise: hasPlanFeature('enterprise', 'inventory_basic', true),
+    },
+    {
+        name: 'Quản lý Nhân sự & Chấm công',
+        free: hasPlanFeature('free', 'hr_timekeeping', false),
+        basic: hasPlanFeature('basic', 'hr_timekeeping', true),
+        pro: hasPlanFeature('pro', 'hr_timekeeping', true),
+        enterprise: hasPlanFeature('enterprise', 'hr_timekeeping', true),
+    },
+    {
+        name: 'Báo cáo & Phân tích chuyên sâu',
+        free: hasPlanFeature('free', 'advanced_analytics', false),
+        basic: hasPlanFeature('basic', 'advanced_analytics', false),
+        pro: hasPlanFeature('pro', 'advanced_analytics', true),
+        enterprise: hasPlanFeature('enterprise', 'advanced_analytics', true),
+    },
+]);
 
 const plansList: { key: PlanKey; label: string }[] = [
     { key: 'free', label: 'Miễn Phí' },
@@ -212,22 +310,22 @@ const plansList: { key: PlanKey; label: string }[] = [
                                     <span
                                         class="text-3xl font-extrabold"
                                         :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'"
-                                    >0đ</span>
+                                    >{{ getPlanPriceFormatted('free') }}</span>
                                     <span class="text-xs text-muted-foreground">/tháng</span>
                                 </div>
 
                                 <ul class="mt-6 space-y-2.5 text-xs">
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>1</strong> chi nhánh</span>
+                                        <span><strong>{{ getPlanLimit('free', 'max_branches') }}</strong> chi nhánh</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>15</strong> bàn</span>
+                                        <span><strong>{{ getPlanLimit('free', 'max_tables') }}</strong> bàn</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>5</strong> nhân viên</span>
+                                        <span><strong>{{ getPlanLimit('free', 'max_users') }}</strong> nhân viên</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
@@ -241,8 +339,8 @@ const plansList: { key: PlanKey; label: string }[] = [
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
                                         <span>Màn hình Bếp (Kitchen Display)</span>
                                     </li>
-                                    <li class="flex items-center gap-2 text-muted-foreground/60 line-through">
-                                        <X class="size-4 shrink-0 text-muted-foreground/40" />
+                                    <li class="flex items-center gap-2 text-foreground">
+                                        <Check class="size-4 shrink-0" :class="selectedPlanKey === 'free' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
                                         <span>Đặt món qua QR</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-muted-foreground/60 line-through">
@@ -298,22 +396,22 @@ const plansList: { key: PlanKey; label: string }[] = [
                                     <span
                                         class="text-3xl font-extrabold"
                                         :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'"
-                                    >299.000đ</span>
+                                    >{{ getPlanPriceFormatted('basic') }}</span>
                                     <span class="text-xs text-muted-foreground">/tháng</span>
                                 </div>
 
                                 <ul class="mt-6 space-y-2.5 text-xs">
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>3</strong> chi nhánh</span>
+                                        <span><strong>{{ getPlanLimit('basic', 'max_branches') }}</strong> chi nhánh</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>60</strong> bàn</span>
+                                        <span><strong>{{ getPlanLimit('basic', 'max_tables') }}</strong> bàn</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>20</strong> nhân viên</span>
+                                        <span><strong>{{ getPlanLimit('basic', 'max_users') }}</strong> nhân viên</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
@@ -331,8 +429,8 @@ const plansList: { key: PlanKey; label: string }[] = [
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
                                         <span>Đặt món qua QR</span>
                                     </li>
-                                    <li class="flex items-center gap-2 text-muted-foreground/60 line-through">
-                                        <X class="size-4 shrink-0 text-muted-foreground/40" />
+                                    <li class="flex items-center gap-2 text-foreground">
+                                        <Check class="size-4 shrink-0" :class="selectedPlanKey === 'basic' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
                                         <span>Quản lý Tồn kho</span>
                                     </li>
                                 </ul>
@@ -378,22 +476,22 @@ const plansList: { key: PlanKey; label: string }[] = [
                                 </p>
 
                                 <div class="mt-6 flex items-baseline gap-1">
-                                    <span class="text-3xl font-extrabold text-blue-600 dark:text-blue-400">699.000đ</span>
+                                    <span class="text-3xl font-extrabold text-blue-600 dark:text-blue-400">{{ getPlanPriceFormatted('pro') }}</span>
                                     <span class="text-xs text-muted-foreground">/tháng</span>
                                 </div>
 
                                 <ul class="mt-6 space-y-2.5 text-xs">
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                                        <span><strong>10</strong> chi nhánh</span>
+                                        <span><strong>{{ getPlanLimit('pro', 'max_branches') }}</strong> chi nhánh</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                                        <span><strong>200</strong> bàn</span>
+                                        <span><strong>{{ getPlanLimit('pro', 'max_tables') }}</strong> bàn</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                                        <span><strong>60</strong> nhân viên</span>
+                                        <span><strong>{{ getPlanLimit('pro', 'max_users') }}</strong> nhân viên</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
@@ -464,22 +562,22 @@ const plansList: { key: PlanKey; label: string }[] = [
                                     <span
                                         class="text-3xl font-extrabold"
                                         :class="selectedPlanKey === 'enterprise' ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'"
-                                    >1.499.000đ</span>
+                                    >{{ getPlanPriceFormatted('enterprise') }}</span>
                                     <span class="text-xs text-muted-foreground">/tháng</span>
                                 </div>
 
                                 <ul class="mt-6 space-y-2.5 text-xs">
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'enterprise' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>Không giới hạn</strong> chi nhánh</span>
+                                        <span><strong>{{ getPlanLimit('enterprise', 'max_branches') }}</strong> chi nhánh</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'enterprise' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>Không giới hạn</strong> bàn</span>
+                                        <span><strong>{{ getPlanLimit('enterprise', 'max_tables') }}</strong> bàn</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'enterprise' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />
-                                        <span><strong>Không giới hạn</strong> nhân viên</span>
+                                        <span><strong>{{ getPlanLimit('enterprise', 'max_users') }}</strong> nhân viên</span>
                                     </li>
                                     <li class="flex items-center gap-2 text-foreground">
                                         <Check class="size-4 shrink-0" :class="selectedPlanKey === 'enterprise' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'" />

@@ -168,9 +168,14 @@ class ReportsController extends Controller
             'ewallet_pct' => round($summaries->sum('ewallet_revenue') / $totalPayment * 100, 1),
         ];
 
-        // ── Period comparison (kỳ trước cùng độ dài) ─────────────────────────
-        $prevEnd = $startDate->copy()->subDay();
-        $prevStart = $prevEnd->copy()->subDays($dayCount - 1);
+        // ── Period comparison (kỳ trước cùng độ dài / cùng kỳ tháng trước) ────
+        if ($period === 'month') {
+            $prevStart = $startDate->copy()->subMonthNoOverflow();
+            $prevEnd = $endDate->copy()->subMonthNoOverflow();
+        } else {
+            $prevEnd = $startDate->copy()->subDay();
+            $prevStart = $prevEnd->copy()->subDays($dayCount - 1);
+        }
 
         $prevSummaries = $this->branchReports->dailyRevenue(
             $restaurantId,
@@ -198,6 +203,7 @@ class ReportsController extends Controller
             'revenue_change_pct' => $revenueChangePct,
             'order_change_pct' => $orderChangePct,
             'avg_change_pct' => $avgChangePct,
+            'comparison_label' => $period === 'month' ? 'cùng kỳ tháng trước' : 'kỳ trước',
             'prev_date_range' => [
                 'start' => $prevStart->format('d/m/Y'),
                 'end' => $prevEnd->format('d/m/Y'),

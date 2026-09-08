@@ -264,7 +264,7 @@ class PromotionApplicationService
 
             $order->update([
                 'discount_amount' => $newTotalDiscount,
-                'total_amount' => max(0.0, $subtotal - $newTotalDiscount),
+                'total_amount' => max(0.0, $subtotal - $newTotalDiscount + (float) $order->service_charge + (float) $order->tax_amount),
                 'note' => ($order->note ? $order->note.' ' : '').'[Đã áp mã voucher: '.$promotion->code.': -'.number_format($discountAmount).'đ]',
             ]);
 

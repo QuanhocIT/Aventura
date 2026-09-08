@@ -77,6 +77,7 @@ type PeriodComparison = {
     revenue_change_pct: number | null;
     order_change_pct: number | null;
     avg_change_pct: number | null;
+    comparison_label?: string;
     prev_date_range: { start: string; end: string };
     has_prev_data: boolean;
 };
@@ -1035,7 +1036,7 @@ void deltaBadge;
                                         ? '+'
                                         : ''
                                 }}{{ periodComparison.revenue_change_pct }}% vs
-                                kỳ trước
+                                {{ periodComparison.comparison_label || 'kỳ trước' }}
                             </span>
                         </div>
                         <p
@@ -1211,7 +1212,7 @@ void deltaBadge;
                 <p
                     class="mb-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
                 >
-                    So sánh với kỳ trước ({{
+                    So sánh với {{ periodComparison.comparison_label || 'kỳ trước' }} ({{
                         periodComparison.prev_date_range.start
                     }}
                     — {{ periodComparison.prev_date_range.end }})
@@ -1351,6 +1352,7 @@ void deltaBadge;
                             :title="'OPEX: ' + profitBreakdown.opex_pct + '%'"
                         />
                         <div
+                            v-if="profitBreakdown.net_profit_pct > 0"
                             class="h-full flex-1 bg-violet-400 transition-all"
                             :title="
                                 'Lợi nhuận ròng: ' +

@@ -88,11 +88,9 @@ class BankReconciliationController extends Controller
             $query->where(function ($q) use ($search): void {
                 $q->where('transaction_code', 'like', "%{$search}%")
                     ->orWhereHas('order', function ($oq) use ($search): void {
-                        $oq->where('order_code', 'like', "%{$search}%")
-                            ->orWhere('customer_name', 'like', "%{$search}%")
-                            ->orWhere('customer_phone', 'like', "%{$search}%")
+                        $oq->where('order_number', 'like', "%{$search}%")
                             ->orWhereHas('customer', function ($cq) use ($search): void {
-                                $cq->where('name', 'like', "%{$search}%")
+                                $cq->where('full_name', 'like', "%{$search}%")
                                     ->orWhere('phone', 'like', "%{$search}%");
                             });
                     });
@@ -106,8 +104,8 @@ class BankReconciliationController extends Controller
             ->through(function (Payment $payment): array {
                 $order = $payment->order;
                 $customer = $order?->customer;
-                $customerName = $customer?->name ?? $order?->customer_name ?? 'Khách lẻ';
-                $customerPhone = $customer?->phone ?? $order?->customer_phone ?? '';
+                $customerName = $customer?->full_name ?? 'Khách lẻ';
+                $customerPhone = $customer?->phone ?? '';
 
                 $itemsSummary = $order && $order->items->isNotEmpty()
                     ? $order->items->take(3)->map(fn ($item) => "{$item->quantity}x ".($item->product_name ?? $item->product?->name ?? 'Món'))->join(', ').($order->items->count() > 3 ? '...' : '')
@@ -116,7 +114,7 @@ class BankReconciliationController extends Controller
                 return [
                     'id' => $payment->id,
                     'order_id' => $payment->order_id,
-                    'order_code' => $order?->order_code ?? ('DH-'.$payment->order_id),
+                    'order_code' => $order?->order_number ?? ('DH-'.$payment->order_id),
                     'paid_at' => $payment->paid_at ? $payment->paid_at->format('H:i d/m/Y') : $payment->created_at->format('H:i d/m/Y'),
                     'paid_date_raw' => $payment->paid_at ? $payment->paid_at->format('Y-m-d') : $payment->created_at->format('Y-m-d'),
                     'branch_id' => $payment->branch_id,
@@ -135,9 +133,9 @@ class BankReconciliationController extends Controller
                     'reconciliation_note' => $payment->reconciliation_note,
                     'order' => $order ? [
                         'id' => $order->id,
-                        'order_code' => $order->order_code,
+                        'order_code' => $order->order_number,
                         'total_amount' => (float) $order->total_amount,
-                        'final_amount' => (float) $order->final_amount,
+                        'final_amount' => (float) $order->total_amount,
                         'status' => $order->status,
                         'items' => $order->items->map(fn ($item) => [
                             'id' => $item->id,

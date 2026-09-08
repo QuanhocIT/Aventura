@@ -1,10 +1,10 @@
 /**
  * Service Worker Aventura — offline-first cho tài nguyên tĩnh.
  * - Asset build (JS/CSS có hash) : cache-first, bất biến nên an toàn tuyệt đối.
- * - Trang HTML/API              : luôn qua mạng (tránh stale CSRF/dữ liệu).
- * Hàng đợi đơn offline xử lý ở tầng ứng dụng (useOfflineQueue), không ở đây.
+ * - Hình ảnh tĩnh (.webp, .svg, .png, .jpg) & fonts : stale-while-revalidate / cache-first.
+ * - Trang HTML / API             : luôn qua mạng (tránh stale CSRF/dữ liệu).
  */
-const CACHE_NAME = 'aventura-assets-v1';
+const CACHE_NAME = 'aventura-assets-v2';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -21,11 +21,21 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Chỉ cache asset build (immutable — tên file chứa hash) cùng origin
-    const isBuildAsset = url.origin === self.location.origin && url.pathname.startsWith('/build/');
+    if (event.request.method !== 'GET') {
+        return;
+    }
 
-    if (event.request.method !== 'GET' || !isBuildAsset) {
-        return; // để trình duyệt xử lý bình thường
+    const isSameOrigin = url.origin === self.location.origin;
+    const isBuildAsset = isSameOrigin && url.pathname.startsWith('/build/');
+    const isStaticImage = isSameOrigin && (
+        url.pathname.startsWith('/images/') ||
+        url.pathname.match(/\.(webp|svg|png|jpg|jpeg|ico)$/i)
+    );
+    const isExternalFont = url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('fonts.googleapis.com');
+
+    // Chỉ cache asset tĩnh (build assets, images, fonts)
+    if (!isBuildAsset && !isStaticImage && !isExternalFont) {
+        return;
     }
 
     event.respondWith(
@@ -33,6 +43,16 @@ self.addEventListener('fetch', (event) => {
             const cached = await cache.match(event.request);
 
             if (cached) {
+                // Với ảnh tĩnh: trả về bản cache ngay, đồng thời cập nhật ngầm nếu có thay đổi (Stale-While-Revalidate)
+                if (isStaticImage) {
+                    fetch(event.request)
+                        .then((networkRes) => {
+                            if (networkRes.ok) {
+                                cache.put(event.request, networkRes);
+                            }
+                        })
+                        .catch(() => {});
+                }
                 return cached;
             }
 

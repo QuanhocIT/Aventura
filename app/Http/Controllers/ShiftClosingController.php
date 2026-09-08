@@ -287,9 +287,9 @@ class ShiftClosingController extends Controller
         $allCompletedOrders = $completedOrders->concat($unpaidTableOrders);
         $orderIds = $allCompletedOrders->pluck('id');
 
-        $grossRevenue = $allCompletedOrders->sum('total_amount');
-        $discountTotal = $allCompletedOrders->sum('discount_amount');
-        $netRevenue = $grossRevenue - $discountTotal;
+        $discountTotal = (float) $allCompletedOrders->sum('discount_amount');
+        $netRevenue = (float) $allCompletedOrders->sum('total_amount');
+        $grossRevenue = $netRevenue + $discountTotal;
 
         $payments = Payment::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -301,9 +301,9 @@ class ShiftClosingController extends Controller
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
         $expectedCash += (float) $unpaidTableOrders->sum('total_amount');
 
-        $bankTransferAmount = (float) $payments->where('payment_method', 'bank_transfer')->sum('amount');
+        $bankTransferAmount = (float) $payments->whereIn('payment_method', ['bank_transfer', 'vietqr'])->sum('amount');
         $cardAmount = (float) $payments->where('payment_method', 'card')->sum('amount');
-        $ewalletAmount = (float) $payments->where('payment_method', 'ewallet')->sum('amount');
+        $ewalletAmount = (float) $payments->whereIn('payment_method', ['ewallet', 'momo', 'zalopay', 'vnpay'])->sum('amount');
         $mixedAmount = (float) $payments->where('payment_method', 'mixed')->sum('amount');
         $transferAmount = $bankTransferAmount + $cardAmount + $ewalletAmount + $mixedAmount;
 
@@ -1209,7 +1209,7 @@ class ShiftClosingController extends Controller
             ->sum('total_amount');
 
         $expectedCash = (float) $payments->where('payment_method', 'cash')->sum('amount');
-        $transferAmount = (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount');
+        $transferAmount = (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed', 'vietqr', 'vnpay', 'momo', 'zalopay'])->sum('amount');
 
         $register = CashRegister::where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
@@ -1578,7 +1578,7 @@ class ShiftClosingController extends Controller
                     }
                 } else {
                     $method = $ord->payment_method ?? 'cash';
-                    $amount = (float) ($ord->final_amount ?? max(0.0, (float) $ord->total_amount - (float) $ord->discount_amount));
+                    $amount = (float) ($ord->total_amount ?? 0);
                     if ($method === 'cash') {
                         $areaGroups[$groupKey]['expected_cash'] += $amount;
                         $hasCash = true;
@@ -1598,9 +1598,9 @@ class ShiftClosingController extends Controller
         }
 
         foreach ($areaGroups as $k => $g) {
-            $gross = $g['expected_cash'] + $g['transfer_amount'] - $g['refunded_total_amount'];
-            $areaGroups[$k]['gross_revenue'] = max(0.0, $gross);
-            $areaGroups[$k]['net_revenue'] = max(0.0, $gross - $g['discount_total']);
+            $net = $g['expected_cash'] + $g['transfer_amount'] - $g['refunded_total_amount'];
+            $areaGroups[$k]['net_revenue'] = max(0.0, $net);
+            $areaGroups[$k]['gross_revenue'] = max(0.0, $net + $g['discount_total']);
         }
 
         $result = collect(array_values($areaGroups))

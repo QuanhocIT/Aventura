@@ -231,7 +231,7 @@ class OrderSplitService
 
         $order->update([
             'subtotal' => $subtotal,
-            'total_amount' => max(0, $subtotal - (float) $order->discount_amount + (float) $order->service_charge),
+            'total_amount' => max(0, $subtotal - (float) $order->discount_amount + (float) $order->service_charge + (float) $order->tax_amount),
         ]);
     }
 }

@@ -32,10 +32,11 @@ class BranchReportService
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw("{$dateExpr} as report_date")
             ->selectRaw('COUNT(*) as completed_order_count')
-            ->selectRaw('COALESCE(SUM(total_amount), 0) as gross_revenue')
+            ->selectRaw('COALESCE(SUM(COALESCE(subtotal + COALESCE(service_charge, 0), total_amount + discount_amount)), 0) as gross_revenue')
             ->selectRaw('COALESCE(SUM(discount_amount), 0) as discount_total')
             ->selectRaw('COALESCE(SUM(service_charge), 0) as service_charge_total')
             ->selectRaw('COALESCE(SUM(COALESCE(refund_amount, 0)), 0) as refund_total')
+            ->selectRaw('COALESCE(SUM(CASE WHEN total_amount - COALESCE(refund_amount, 0) > 0 THEN total_amount - COALESCE(refund_amount, 0) ELSE 0 END), 0) as net_revenue')
             ->groupBy(DB::raw($dateExpr))
             ->get()
             ->keyBy('report_date');
@@ -85,9 +86,9 @@ class BranchReportService
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->selectRaw("{$paymentDateExpr} as report_date")
             ->selectRaw("SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END) as cash_revenue")
-            ->selectRaw("SUM(CASE WHEN payment_method = 'bank_transfer' THEN amount ELSE 0 END) as bank_transfer_revenue")
+            ->selectRaw("SUM(CASE WHEN payment_method IN ('bank_transfer', 'vietqr') THEN amount ELSE 0 END) as bank_transfer_revenue")
             ->selectRaw("SUM(CASE WHEN payment_method = 'card' THEN amount ELSE 0 END) as card_revenue")
-            ->selectRaw("SUM(CASE WHEN payment_method = 'ewallet' THEN amount ELSE 0 END) as ewallet_revenue")
+            ->selectRaw("SUM(CASE WHEN payment_method IN ('ewallet', 'momo', 'zalopay', 'vnpay') THEN amount ELSE 0 END) as ewallet_revenue")
             ->groupBy(DB::raw($paymentDateExpr))
             ->get()
             ->keyBy('report_date');
@@ -103,7 +104,7 @@ class BranchReportService
             $gross = (float) ($completedRow->gross_revenue ?? 0);
             $discount = (float) ($completedRow->discount_total ?? 0);
             $refund = (float) ($completedRow->refund_total ?? 0);
-            $net = max(0, $gross - $discount - $refund);
+            $net = (float) ($completedRow->net_revenue ?? 0);
             $completedCount = (int) ($completedRow->completed_order_count ?? 0);
             $cogsAmount = (float) ($cogsRow->cogs_amount ?? 0);
 

@@ -208,7 +208,7 @@ class OrderService
                     $newSubtotal = OrderItem::where('order_id', $existingActiveOrder->id)->sum('line_total');
                     $existingActiveOrder->update([
                         'subtotal' => $newSubtotal,
-                        'total_amount' => max(0.00, $newSubtotal - $existingActiveOrder->discount_amount),
+                        'total_amount' => max(0.00, $newSubtotal - (float) $existingActiveOrder->discount_amount + (float) $existingActiveOrder->service_charge + (float) $existingActiveOrder->tax_amount),
                         'note' => ($existingActiveOrder->note ? $existingActiveOrder->note.' ' : '').'[Gộp đơn trùng bàn do đồng bộ Offline]',
                     ]);
 
