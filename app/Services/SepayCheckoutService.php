@@ -51,6 +51,7 @@ class SepayCheckoutService
                     'source' => $source,
                     'plan_code' => $plan->code,
                     'pending_payment' => true,
+                    'snapshot' => $this->planSnapshot($plan),
                 ],
                 'billing_meta' => [
                     'provider' => 'sepay',
@@ -119,5 +120,16 @@ class SepayCheckoutService
         } while (RestaurantSubscription::query()->where('transaction_code', $code)->exists());
 
         return $code;
+    }
+
+    private function planSnapshot(SubscriptionPlan $plan): array
+    {
+        return [
+            'max_branches' => $plan->max_branches,
+            'max_tables' => $plan->max_tables,
+            'max_users' => $plan->max_users,
+            'max_dishes' => $plan->max_dishes,
+            'features' => $plan->features ?? [],
+        ];
     }
 }

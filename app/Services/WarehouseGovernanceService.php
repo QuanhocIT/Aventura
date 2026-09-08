@@ -202,7 +202,10 @@ class WarehouseGovernanceService
         User $resolver,
         string $responsibleType,
         ?int $responsibleUserId = null,
-        ?string $resolutionNotes = null
+        ?string $resolutionNotes = null,
+        ?float $penaltyAmount = null,
+        bool $writeOffInventory = false,
+        ?string $claimStatus = null
     ): InventoryDiscrepancyDispute {
         if (! $resolver->isSuperAdmin() && (int) $resolver->restaurant_id !== $restaurantId) {
             throw new \InvalidArgumentException('Không thể xử lý biên bản của nhà hàng khác.');
@@ -214,7 +217,17 @@ class WarehouseGovernanceService
             throw new \InvalidArgumentException('Bắt buộc ghi nhận kết luận xử lý biên bản.');
         }
 
-        return DB::transaction(function () use ($disputeId, $restaurantId, $resolver, $responsibleType, $responsibleUserId, $resolutionNotes): InventoryDiscrepancyDispute {
+        return DB::transaction(function () use (
+            $disputeId,
+            $restaurantId,
+            $resolver,
+            $responsibleType,
+            $responsibleUserId,
+            $resolutionNotes,
+            $penaltyAmount,
+            $writeOffInventory,
+            $claimStatus
+        ): InventoryDiscrepancyDispute {
             $dispute = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
                 ->lockForUpdate()
                 ->findOrFail($disputeId);
@@ -223,13 +236,39 @@ class WarehouseGovernanceService
                 throw new \InvalidArgumentException('Biên bản đã được xử lý và không thể quy trách nhiệm lại.');
             }
 
-            $dispute->loadMissing(['supplyRequest', 'ingredient']);
+            $dispute->loadMissing(['supplyRequest.toBranch', 'supplyRequest.fromBranch', 'ingredient']);
             $responsible = $responsibleUserId
                 ? User::where('restaurant_id', $restaurantId)->where('status', 'active')->findOrFail($responsibleUserId)
                 : null;
 
             $this->assertResponsibleParty($dispute, $responsibleType, $responsible, $restaurantId);
-            $penaltyAdjustment = $this->createPenaltyAdjustmentIfEnabled($dispute, $responsibleType, $responsible, $restaurantId);
+
+            $lossAmount = (float) $dispute->financial_loss_amount;
+            $effectivePenalty = 0.0;
+            $waivedAmount = 0.0;
+
+            if (in_array($responsibleType, ['warehouse_staff', 'branch_staff'], true)) {
+                $effectivePenalty = $penaltyAmount !== null ? max(0, min($lossAmount, $penaltyAmount)) : $lossAmount;
+                $waivedAmount = max(0, round($lossAmount - $effectivePenalty, 2));
+            } elseif ($responsibleType === 'transporter') {
+                $effectivePenalty = $penaltyAmount !== null ? max(0, min($lossAmount, $penaltyAmount)) : $lossAmount;
+                $waivedAmount = max(0, round($lossAmount - $effectivePenalty, 2));
+                if (! $claimStatus) {
+                    $claimStatus = 'pending_collection';
+                }
+            } else { // unknown
+                $effectivePenalty = 0.0;
+                $waivedAmount = $lossAmount;
+            }
+
+            $penaltyAdjustment = $this->createPenaltyAdjustmentIfEnabled(
+                $dispute,
+                $responsibleType,
+                $responsible,
+                $restaurantId,
+                $effectivePenalty
+            );
+
             if ($dispute->status === 'appealed' && ! $penaltyAdjustment && in_array($responsibleType, ['transporter', 'unknown'], true)) {
                 $this->waiveExistingPenaltyAdjustment($dispute, $restaurantId);
             }
@@ -239,10 +278,110 @@ class WarehouseGovernanceService
                 $storedResolutionNotes = trim($dispute->resolution_notes."\n[Kết luận xem xét lại]: ".trim($resolutionNotes));
             }
 
+            $writeOffTransactionId = $dispute->write_off_transaction_id;
+            $writeOffAt = $dispute->write_off_at;
+
+            if ($writeOffInventory && ! $writeOffTransactionId) {
+                $targetBranchId = $dispute->supplyRequest?->to_branch_id ?? $dispute->supplyRequest?->from_branch_id;
+                if ($targetBranchId && $dispute->ingredient_id) {
+                    $inventory = \App\Models\Inventory::firstOrCreate(
+                        [
+                            'restaurant_id' => $restaurantId,
+                            'branch_id' => $targetBranchId,
+                            'ingredient_id' => $dispute->ingredient_id,
+                        ],
+                        ['quantity_on_hand' => 0]
+                    );
+
+                    $writeOffQty = (float) $dispute->discrepancy_quantity;
+                    $unitCost = $writeOffQty > 0
+                        ? round($lossAmount / $writeOffQty, 2)
+                        : (float) ($dispute->ingredient?->cost_price ?? 0);
+
+                    $tx = InventoryTransaction::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $targetBranchId,
+                        'ingredient_id' => $dispute->ingredient_id,
+                        'inventory_id' => $inventory->id,
+                        'performed_by' => $resolver->id,
+                        'type' => 'waste',
+                        'waste_category' => 'damage_transit',
+                        'direction' => 'out',
+                        'quantity' => $writeOffQty,
+                        'unit_cost' => $unitCost,
+                        'total_cost' => $lossAmount,
+                        'source_type' => 'inventory_dispute',
+                        'source_id' => $dispute->id,
+                        'notes' => "Hạch toán xuất hao hụt thất thoát theo biên bản {$dispute->dispute_code}",
+                        'occurred_at' => now(),
+                    ]);
+
+                    $writeOffTransactionId = $tx->id;
+                    $writeOffAt = now();
+
+                    // Ghi nhận bút toán kép tài chính: Có 1521 (giảm tồn kho), Nợ 1388 (phải thu bồi thường), Nợ 8111 (chi phí thất thoát nhà hàng chịu)
+                    try {
+                        $journalLines = [];
+                        if ($effectivePenalty > 0) {
+                            $journalLines[] = [
+                                'account' => '1388',
+                                'debit' => $effectivePenalty,
+                                'credit' => 0,
+                                'description' => "Phải thu bồi thường thất thoát chuyển kho ({$dispute->dispute_code})",
+                            ];
+                        }
+                        if ($waivedAmount > 0) {
+                            $journalLines[] = [
+                                'account' => '8111',
+                                'debit' => $waivedAmount,
+                                'credit' => 0,
+                                'description' => "Chi phí hao hụt hàng hóa nhà hàng chịu ({$dispute->dispute_code})",
+                            ];
+                        }
+                        $journalLines[] = [
+                            'account' => '1521',
+                            'debit' => 0,
+                            'credit' => $lossAmount,
+                            'description' => "Giảm trừ tồn kho nguyên vật liệu do thất thoát ({$dispute->dispute_code})",
+                        ];
+
+                        if (count($journalLines) >= 2 && $lossAmount > 0) {
+                            app(\App\Services\FinancialPostingService::class)->post([
+                                'restaurant_id' => $restaurantId,
+                                'branch_id' => $targetBranchId,
+                                'entry_date' => now()->toDateString(),
+                                'source_type' => InventoryDiscrepancyDispute::class,
+                                'source_id' => $dispute->id,
+                                'idempotency_key' => "inventory_dispute:write_off:{$dispute->id}",
+                                'description' => "Hạch toán hao hụt chuyển kho theo biên bản {$dispute->dispute_code}",
+                                'created_by' => $resolver->id,
+                                'lines' => $journalLines,
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning("Financial posting on dispute write-off failed: {$e->getMessage()}", [
+                            'dispute_id' => $dispute->id,
+                        ]);
+                    }
+                }
+            }
+
+            $finalStatus = 'resolved';
+            if ($penaltyAdjustment) {
+                $finalStatus = 'penalized';
+            } elseif ($responsibleType === 'transporter' && $effectivePenalty > 0 && ($claimStatus ?? 'pending_collection') === 'pending_collection') {
+                $finalStatus = 'investigating';
+            }
+
             $dispute->update([
                 'responsible_type' => $responsibleType,
                 'responsible_user_id' => $responsibleUserId,
-                'status' => $penaltyAdjustment ? 'penalized' : 'resolved',
+                'penalty_amount' => $effectivePenalty,
+                'waived_amount' => $waivedAmount,
+                'claim_status' => $responsibleType === 'transporter' ? ($claimStatus ?? 'pending_collection') : null,
+                'write_off_transaction_id' => $writeOffTransactionId,
+                'write_off_at' => $writeOffAt,
+                'status' => $finalStatus,
                 'resolution_notes' => $storedResolutionNotes,
                 'resolved_by' => $resolver->id,
                 'resolved_at' => now(),
@@ -252,7 +391,18 @@ class WarehouseGovernanceService
                 $responsible->notify(new WarehouseDisputeAssignedNotification($dispute->fresh(['ingredient', 'supplyRequest']), $resolver));
             }
 
-            return $dispute->fresh(['ingredient', 'responsibleUser', 'resolver', 'supplyRequest']);
+            return $dispute->fresh([
+                'ingredient.unit',
+                'responsibleUser',
+                'resolver',
+                'claimCollector',
+                'supplyRequest.toBranch',
+                'supplyRequest.fromBranch',
+                'supplyRequest.transporter',
+                'supplyRequest.receivingReport.confirmedBy',
+                'supplyRequest.receivingReport.driverConfirmedBy',
+                'writeOffTransaction',
+            ]);
         });
     }
 
@@ -294,10 +444,19 @@ class WarehouseGovernanceService
         InventoryDiscrepancyDispute $dispute,
         string $responsibleType,
         ?User $responsible,
-        int $restaurantId
+        int $restaurantId,
+        ?float $penaltyAmount = null
     ): ?SalaryAdjustment {
         $rules = $this->getRules($restaurantId);
         if (! $rules->penalty_deduction_enabled || ! $responsible || ! in_array($responsibleType, ['warehouse_staff', 'branch_staff'], true)) {
+            return null;
+        }
+
+        $effectivePenalty = $penaltyAmount !== null
+            ? min((float) $dispute->financial_loss_amount, max(0, $penaltyAmount))
+            : (float) $dispute->financial_loss_amount;
+
+        if ($effectivePenalty <= 0) {
             return null;
         }
 
@@ -317,8 +476,9 @@ class WarehouseGovernanceService
             ->where('reference_id', $dispute->id)
             ->first();
         if ($existing) {
-            if ($existing->status !== 'applied') {
+            if ($existing->status !== 'applied' || (float) $existing->amount !== $effectivePenalty) {
                 $existing->update([
+                    'amount' => $effectivePenalty,
                     'status' => 'applied',
                     'dispute_reason' => null,
                 ]);
@@ -329,16 +489,20 @@ class WarehouseGovernanceService
         }
 
         $salaryService = app(SalaryService::class);
-        $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, now()->toDateString());
-        if (in_array($salary->status, ['approved', 'paid'], true)) {
-            throw new \InvalidArgumentException('Bảng lương của nhân sự đã khóa, không thể tự động thêm khoản bồi thường.');
+        $targetDate = now();
+        $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $targetDate->toDateString());
+        $rolloverNote = '';
+        while (in_array($salary->status, ['approved', 'paid'], true)) {
+            $targetDate = $targetDate->copy()->addMonth()->startOfMonth();
+            $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $targetDate->toDateString());
+            $rolloverNote = " [Chuyển khấu trừ sang kỳ {$targetDate->format('m/Y')} do kỳ trước đã khóa sổ]";
         }
 
         return $salaryService->addAdjustment($salary, [
             'employee_id' => $employee->id,
             'type' => 'inventory_loss',
-            'amount' => (float) $dispute->financial_loss_amount,
-            'reason' => "Bồi thường thất thoát giao nhận {$dispute->dispute_code} — {$dispute->dispute_reason}",
+            'amount' => $effectivePenalty,
+            'reason' => "Bồi thường thất thoát giao nhận {$dispute->dispute_code} — {$dispute->dispute_reason}{$rolloverNote}",
             'reference_id' => $dispute->id,
             'reference_type' => InventoryDiscrepancyDispute::class,
             'status' => 'applied',
@@ -405,7 +569,101 @@ class WarehouseGovernanceService
             ->get()
             ->each(fn (User $user) => $user->notify(new WarehouseDisputeAssignedNotification($dispute, $actor, true)));
 
-        return $dispute->fresh(['ingredient', 'responsibleUser', 'resolver', 'supplyRequest']);
+        return $dispute->fresh([
+            'ingredient.unit',
+            'responsibleUser',
+            'resolver',
+            'supplyRequest.toBranch',
+            'supplyRequest.fromBranch',
+            'supplyRequest.transporter',
+            'supplyRequest.receivingReport.confirmedBy',
+            'supplyRequest.receivingReport.driverConfirmedBy',
+            'writeOffTransaction',
+            'claimCollector',
+        ]);
+    }
+
+    /**
+     * Thu tiền bồi thường từ đơn vị vận chuyển đối với biên bản lệch hàng.
+     */
+    public function collectTransporterClaim(
+        int $disputeId,
+        int $restaurantId,
+        User $collector,
+        float $collectedAmount,
+        string $paymentMethod = 'cash',
+        ?string $notes = null
+    ): InventoryDiscrepancyDispute {
+        return DB::transaction(function () use ($disputeId, $restaurantId, $collector, $collectedAmount, $paymentMethod, $notes): InventoryDiscrepancyDispute {
+            $dispute = InventoryDiscrepancyDispute::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->lockForUpdate()
+                ->findOrFail($disputeId);
+
+            if ($dispute->responsible_type !== 'transporter') {
+                throw new \InvalidArgumentException('Chỉ có thể thu tiền bồi thường đối với biên bản quy trách nhiệm vận chuyển.');
+            }
+
+            if ($collectedAmount <= 0) {
+                throw new \InvalidArgumentException('Số tiền thu bồi thường phải lớn hơn 0.');
+            }
+
+            $dispute->update([
+                'claim_status' => 'collected',
+                'status' => 'resolved',
+                'claim_collected_amount' => $collectedAmount,
+                'claim_collected_at' => now(),
+                'claim_collected_by' => $collector->id,
+                'claim_notes' => $notes,
+            ]);
+
+            $accountCode = $paymentMethod === 'bank' ? '1121' : '1111';
+            $targetBranchId = $dispute->supplyRequest?->to_branch_id ?? $dispute->supplyRequest?->from_branch_id;
+
+            try {
+                app(\App\Services\FinancialPostingService::class)->post([
+                    'restaurant_id' => $restaurantId,
+                    'branch_id' => $targetBranchId,
+                    'entry_date' => now()->toDateString(),
+                    'source_type' => InventoryDiscrepancyDispute::class,
+                    'source_id' => $dispute->id,
+                    'idempotency_key' => "inventory_dispute:claim_collection:{$dispute->id}:".now()->timestamp,
+                    'description' => "Thu tiền bồi thường vận chuyển biên bản {$dispute->dispute_code}",
+                    'created_by' => $collector->id,
+                    'lines' => [
+                        [
+                            'account' => $accountCode,
+                            'debit' => $collectedAmount,
+                            'credit' => 0,
+                            'description' => "Thu tiền bồi thường thất thoát hàng ({$paymentMethod})",
+                        ],
+                        [
+                            'account' => '1388',
+                            'debit' => 0,
+                            'credit' => $collectedAmount,
+                            'description' => "Giảm trừ khoản phải thu bồi thường ({$dispute->dispute_code})",
+                        ],
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Financial posting on claim collection failed: {$e->getMessage()}", [
+                    'dispute_id' => $dispute->id,
+                ]);
+            }
+
+            return $dispute->fresh([
+                'ingredient.unit',
+                'responsibleUser',
+                'resolver',
+                'claimCollector',
+                'supplyRequest.toBranch',
+                'supplyRequest.fromBranch',
+                'supplyRequest.transporter',
+                'supplyRequest.receivingReport.confirmedBy',
+                'supplyRequest.receivingReport.driverConfirmedBy',
+                'writeOffTransaction',
+            ]);
+        });
     }
 
     /**
@@ -417,26 +675,50 @@ class WarehouseGovernanceService
             ->whereIn('status', ['open', 'investigating', 'appealed'])
             ->count();
 
-        $totalFinancialLoss = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+        $totalFinancialLoss = (float) InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
             ->sum('financial_loss_amount');
 
-        $wasteLossTotal = InventoryTransaction::where('restaurant_id', $restaurantId)
+        $totalPenalized = (float) InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+            ->sum('penalty_amount');
+
+        $totalWaived = (float) InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+            ->sum('waived_amount');
+
+        $totalClaimCollected = (float) InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+            ->where('claim_status', 'collected')
+            ->sum('claim_collected_amount');
+
+        $wasteLossTotal = (float) InventoryTransaction::where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
             ->sum('total_cost');
 
         $recentDisputes = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
-            ->with(['ingredient', 'responsibleUser', 'supplyRequest.toBranch', 'supplyRequest.fromBranch'])
+            ->with([
+                'ingredient.unit',
+                'responsibleUser',
+                'resolver',
+                'claimCollector',
+                'supplyRequest.toBranch',
+                'supplyRequest.fromBranch',
+                'supplyRequest.transporter',
+                'supplyRequest.receivingReport.confirmedBy',
+                'supplyRequest.receivingReport.driverConfirmedBy',
+                'writeOffTransaction',
+            ])
             ->orderByDesc('id')
-            ->take(20)
+            ->take(50)
             ->get();
 
         $rules = $this->getRules($restaurantId);
 
         return [
             'open_disputes_count' => $openDisputes,
-            'total_discrepancy_loss' => (float) $totalFinancialLoss,
-            'total_waste_loss' => (float) $wasteLossTotal,
-            'total_combined_loss' => (float) ($totalFinancialLoss + $wasteLossTotal),
+            'total_discrepancy_loss' => $totalFinancialLoss,
+            'total_penalized_amount' => $totalPenalized,
+            'total_waived_amount' => $totalWaived,
+            'total_claim_collected' => $totalClaimCollected,
+            'total_waste_loss' => $wasteLossTotal,
+            'total_combined_loss' => $totalFinancialLoss + $wasteLossTotal,
             'rules' => $rules,
             'recent_disputes' => $recentDisputes,
         ];

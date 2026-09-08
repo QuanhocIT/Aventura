@@ -2,12 +2,18 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     AlertTriangle,
+    ArrowRight,
+    Banknote,
+    Calendar,
     Camera,
     CheckCircle2,
     ClipboardCheck,
     Handshake,
     ListChecks,
+    Send,
+    UserCheck,
     Wrench,
+    X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -25,7 +31,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type HandoverStatus = 'draft' | 'pending_acceptance' | 'accepted' | 'disputed';
+type HandoverStatus = 'draft' | 'pending_acceptance' | 'accepted' | 'disputed' | 'dispute_resolved';
 
 type Handover = {
     id: number;
@@ -46,6 +52,10 @@ type Handover = {
     incident_notes: string | null;
     pending_tasks: string | null;
     dispute_reason: string | null;
+    dispute_resolved_at?: string | null;
+    dispute_resolved_by_name?: string | null;
+    dispute_resolution_notes?: string | null;
+    final_cash_amount?: number | null;
     unfinished_items: number;
     checklist_total: number;
     checklist_done: number;
@@ -98,6 +108,8 @@ const props = defineProps<{
     activeBranch?: { id: number; name: string } | null;
     currentUserId?: number;
     isManager?: boolean;
+    suggestedCashAmount?: number | null;
+    suggestedShiftClosingId?: number | null;
 }>();
 
 const currency = new Intl.NumberFormat('vi-VN');
@@ -128,6 +140,11 @@ const statusConfig: Record<
         label: 'Không khớp',
         badge: 'bg-rose-50 text-rose-800 border-rose-300 font-bold dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/40',
         dot: 'bg-rose-500',
+    },
+    dispute_resolved: {
+        label: 'Đã xử lý tranh chấp',
+        badge: 'bg-indigo-50 text-indigo-800 border-indigo-300 font-bold dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-900/40',
+        dot: 'bg-indigo-500',
     },
 };
 
@@ -169,6 +186,10 @@ const draftHandover = computed(
 function openSubmit(handover: Handover) {
     submitTarget.value = handover;
     submitForm.reset();
+
+    if (props.suggestedCashAmount !== undefined && props.suggestedCashAmount !== null) {
+        submitForm.cash_amount = props.suggestedCashAmount;
+    }
 }
 
 function submitHandover() {
@@ -325,6 +346,35 @@ function submitDispute() {
             disputeTarget.value = null;
         },
         onError: () => toast.error('Cần nêu rõ lý do.'),
+    });
+}
+
+// ── Trọng tài / Giải quyết tranh chấp bởi Quản lý ────────────────────────────
+
+const resolveTarget = ref<Handover | null>(null);
+const resolveForm = useForm({
+    resolution_notes: '',
+    final_cash_amount: 0,
+});
+
+function openResolveDialog(handover: Handover) {
+    resolveTarget.value = handover;
+    resolveForm.resolution_notes = '';
+    resolveForm.final_cash_amount = Number(handover.cash_amount || 0);
+}
+
+function submitResolveDispute() {
+    if (!resolveTarget.value) {
+        return;
+    }
+
+    resolveForm.patch(`/shift-handovers/${resolveTarget.value.id}/resolve-dispute`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Đã phân xử và chốt giải quyết tranh chấp bàn giao ca.');
+            resolveTarget.value = null;
+        },
+        onError: () => toast.error('Không thể giải quyết tranh chấp. Vui lòng kiểm tra lại.'),
     });
 }
 </script>
@@ -1019,8 +1069,25 @@ function submitDispute() {
                                 v-if="h.dispute_reason"
                                 class="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300"
                             >
-                                {{ h.dispute_reason }}
+                                <span class="font-bold">Lý do báo không khớp:</span> {{ h.dispute_reason }}
                             </p>
+
+                            <!-- Kết luận phân xử của quản lý nếu đã giải quyết -->
+                            <div
+                                v-if="h.status === 'dispute_resolved'"
+                                class="mt-2 rounded-xl border border-indigo-200 bg-indigo-50/70 p-2.5 text-xs text-indigo-950 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-200"
+                            >
+                                <div class="font-bold flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+                                    <CheckCircle2 class="size-3.5" />
+                                    <span>Đã phân xử bởi {{ h.dispute_resolved_by_name || 'Quản lý' }} ({{ h.dispute_resolved_at }})</span>
+                                </div>
+                                <div class="mt-1">
+                                    <strong>Kết luận:</strong> {{ h.dispute_resolution_notes }}
+                                </div>
+                                <div v-if="h.final_cash_amount !== null" class="mt-1 font-semibold text-emerald-700 dark:text-emerald-400">
+                                    Tiền mặt chốt nhận: {{ currency.format(h.final_cash_amount) }}đ
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex shrink-0 flex-col items-end gap-2">
@@ -1059,6 +1126,20 @@ function submitDispute() {
                                     Không khớp
                                 </Button>
                             </div>
+
+                            <div
+                                v-else-if="h.status === 'disputed' && isManager"
+                                class="flex gap-1.5"
+                            >
+                                <Button
+                                    size="sm"
+                                    class="h-7 gap-1 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700 shadow-sm"
+                                    @click="openResolveDialog(h)"
+                                >
+                                    <UserCheck class="size-3.5" />
+                                    Phân xử
+                                </Button>
+                            </div>
                         </div>
                     </li>
                 </ul>
@@ -1067,205 +1148,353 @@ function submitDispute() {
     </div>
 
     <!-- Dialog nộp bàn giao -->
+    <!-- Modal: Nộp bàn giao ca -->
     <Teleport to="body">
-        <div
-            v-if="submitTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto backdrop-blur-xs"
-            @click.self="submitTarget = null"
-        >
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
             <div
-                class="my-auto flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl dark:border-indigo-500/20 dark:bg-slate-900"
+                v-if="submitTarget"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-xs"
+                @click.self="submitTarget = null"
             >
-                <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200/90 bg-slate-50/70 p-5 sm:p-6 pb-4 dark:border-slate-800 dark:bg-slate-900">
-                    <div>
-                        <h2
-                            class="text-base font-bold text-slate-900 dark:text-slate-100"
+                <Card
+                    class="relative my-auto flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-card shadow-2xl dark:border-slate-800"
+                >
+                    <!-- Header -->
+                    <div class="flex shrink-0 items-center justify-between border-b border-border/80 bg-muted/20 px-6 py-4 dark:border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+                                <Handshake class="size-5.5" />
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h2 class="text-base font-extrabold text-foreground">
+                                        Nộp Bàn Giao Ca
+                                    </h2>
+                                    <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold text-indigo-600 border border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                        Bước 2 / 3
+                                    </span>
+                                </div>
+                                <p class="text-xs text-muted-foreground mt-0.5">
+                                    Chốt tiền két, hiện trạng thiết bị và chuyển giao trách nhiệm ca làm
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            @click="submitTarget = null"
+                            class="rounded-xl p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                            title="Đóng"
                         >
-                            Nộp bàn giao ca
-                        </h2>
-                        <p
-                            class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
-                        >
-                            {{ submitTarget.from_user_name }} →
-                            {{
-                                submitTarget.to_user_name ||
-                                'Chưa chọn người nhận'
-                            }}
-                            · {{ formatShift(submitTarget.from_shift) }} →
-                            {{ formatShift(submitTarget.to_shift) }}
-                        </p>
+                            <X class="size-5" />
+                        </button>
                     </div>
-                    <span
-                        class="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
-                        >Bước 2 / 3</span
-                    >
-                </div>
 
-                <div class="flex-1 overflow-y-auto p-5 sm:p-6 pt-4">
-                    <div
-                        class="grid gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs sm:grid-cols-3 dark:border-indigo-500/15 dark:bg-indigo-950/20"
-                    >
-                        <div>
-                            <p class="font-semibold text-slate-600 dark:text-slate-400">
-                                Checklist
-                            </p>
-                            <p
-                                class="mt-1 font-bold text-slate-900 dark:text-slate-100"
-                            >
-                                {{ submitTarget.checklist_done }}/{{
-                                    submitTarget.checklist_total
-                                }}
-                                mục
-                            </p>
+                    <!-- Shift Overview Banner -->
+                    <div class="flex items-center justify-between bg-muted/30 px-6 py-2.5 text-xs border-b border-border/60">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-indigo-600 dark:text-indigo-400">Ca giao:</span>
+                            <span class="font-semibold text-foreground">{{ submitTarget.from_user_name }}</span>
+                            <span v-if="submitTarget.from_shift_name" class="text-muted-foreground">({{ submitTarget.from_shift_name }})</span>
                         </div>
-                        <div>
-                            <p class="font-semibold text-slate-600 dark:text-slate-400">
-                                Tiền mặt
-                            </p>
-                            <p
-                                class="mt-1 font-bold text-slate-900 dark:text-slate-100"
-                            >
-                                {{ currency.format(submitForm.cash_amount || 0) }}đ
-                            </p>
-                        </div>
-                        <div>
-                            <p class="font-semibold text-slate-600 dark:text-slate-400">Ngày</p>
-                            <p
-                                class="mt-1 font-bold text-slate-900 dark:text-slate-100"
-                            >
-                                {{ submitTarget.handover_date }}
-                            </p>
+                        <ArrowRight class="size-3.5 text-muted-foreground" />
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-emerald-600 dark:text-emerald-400">Ca nhận:</span>
+                            <span class="font-semibold text-foreground">{{ submitTarget.to_user_name || (colleagues.find(c => c.id === submitForm.to_user_id)?.name ?? 'Chưa chọn') }}</span>
+                            <span v-if="submitTarget.to_shift_name" class="text-muted-foreground">({{ submitTarget.to_shift_name }})</span>
                         </div>
                     </div>
 
-                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <Label
-                                class="text-xs font-black text-slate-700 uppercase dark:text-slate-300"
-                                >Người nhận ca
-                                <span class="text-rose-500">*</span></Label
-                            >
-                            <select
-                                v-model="submitForm.to_user_id"
-                                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-xs focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                            >
-                                <option :value="null">— Chọn người nhận —</option>
-                                <option
-                                    v-for="c in colleagues"
-                                    :key="c.id"
-                                    :value="c.id"
+                    <!-- Summary Stats Pills -->
+                    <div class="grid grid-cols-3 gap-3 p-6 pb-2">
+                        <div class="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 p-3">
+                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                <CheckCircle2 class="size-4.5" />
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-medium text-muted-foreground">Checklist</p>
+                                <p class="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                    {{ submitTarget.checklist_done }}/{{ submitTarget.checklist_total }} mục (100%)
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 p-3">
+                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                                <Banknote class="size-4.5" />
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-medium text-muted-foreground">Tiền két bàn giao</p>
+                                <p class="text-xs font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                                    {{ currency.format(submitForm.cash_amount || 0) }}đ
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/30 p-3">
+                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                <Calendar class="size-4.5" />
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-medium text-muted-foreground">Ngày bàn giao</p>
+                                <p class="text-xs font-bold text-foreground">
+                                    {{ submitTarget.handover_date }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form Body -->
+                    <div class="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <Label class="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                                    <UserCheck class="size-3.5 text-indigo-600 dark:text-indigo-400" />
+                                    Người nhận ca <span class="text-rose-500">*</span>
+                                </Label>
+                                <select
+                                    v-model="submitForm.to_user_id"
+                                    required
+                                    class="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition"
                                 >
-                                    {{ c.name }}
-                                </option>
-                            </select>
+                                    <option :value="null">— Chọn đồng nghiệp nhận ca —</option>
+                                    <option
+                                        v-for="c in colleagues"
+                                        :key="c.id"
+                                        :value="c.id"
+                                    >
+                                        {{ c.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <Label class="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                                        <Banknote class="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        Tiền mặt bàn giao trong két (VNĐ)
+                                    </Label>
+                                    <button
+                                        v-if="suggestedCashAmount !== undefined && suggestedCashAmount !== null"
+                                        type="button"
+                                        @click="submitForm.cash_amount = suggestedCashAmount"
+                                        class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 underline cursor-pointer"
+                                    >
+                                        Lấy từ chốt ca ({{ currency.format(suggestedCashAmount) }}đ)
+                                    </button>
+                                </div>
+                                <Input
+                                    v-model.number="submitForm.cash_amount"
+                                    type="number"
+                                    min="0"
+                                    step="1000"
+                                    placeholder="0"
+                                    class="mt-1.5 rounded-xl border-border bg-background font-mono font-bold text-sm text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                            </div>
                         </div>
 
                         <div>
-                            <Label
-                                class="text-xs font-black text-slate-700 uppercase dark:text-slate-300"
-                                >Tiền mặt bàn giao</Label
-                            >
-                            <Input
-                                v-model.number="submitForm.cash_amount"
-                                type="number"
-                                min="0"
-                                step="1000"
-                                class="mt-1 border-slate-300 text-slate-800 shadow-xs dark:border-slate-700 dark:text-slate-100"
-                            />
-                        </div>
-
-                        <div class="sm:col-span-2">
-                            <Label
-                                class="text-xs font-black text-slate-700 uppercase dark:text-slate-300"
-                                >Thiết bị</Label
-                            >
+                            <Label class="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                                <Wrench class="size-3.5 text-slate-500" />
+                                Hiện trạng thiết bị & máy móc
+                            </Label>
                             <textarea
                                 v-model="submitForm.equipment_notes"
                                 rows="2"
-                                placeholder="Máy POS, máy in, tủ mát… có gì bất thường?"
-                                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 shadow-xs focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                placeholder="Máy POS, máy in bill, tủ mát, bếp... hoạt động bình thường hay có trục trặc?"
+                                class="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition"
                             ></textarea>
                         </div>
 
-                        <div class="sm:col-span-2">
-                            <Label
-                                class="text-xs font-black text-slate-700 uppercase dark:text-slate-300"
-                                >Sự cố trong ca</Label
-                            >
+                        <div>
+                            <Label class="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                                <AlertTriangle class="size-3.5 text-amber-500" />
+                                Sự cố phát sinh trong ca (nếu có)
+                            </Label>
                             <textarea
                                 v-model="submitForm.incident_notes"
                                 rows="2"
-                                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 shadow-xs focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                placeholder="Bể vỡ dụng cụ, khách phàn nàn, sự cố mất điện (để trống nếu không có)..."
+                                class="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition"
                             ></textarea>
                         </div>
 
-                        <div class="sm:col-span-2">
-                            <Label
-                                class="text-xs font-black text-slate-700 uppercase dark:text-slate-300"
-                                >Công việc còn tồn</Label
-                            >
+                        <div>
+                            <Label class="text-xs font-bold flex items-center gap-1.5 text-foreground">
+                                <ClipboardCheck class="size-3.5 text-blue-500" />
+                                Công việc còn tồn đọng cần bàn giao
+                            </Label>
                             <textarea
                                 v-model="submitForm.pending_tasks"
                                 rows="2"
-                                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 shadow-xs focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                placeholder="Bàn đặt tiệc 19h, hóa đơn đang chờ khách chuyển khoản, hàng sắp giao..."
+                                class="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition"
                             ></textarea>
                         </div>
                     </div>
-                </div>
 
-                <div class="flex shrink-0 justify-end gap-2 border-t border-slate-200/90 p-5 sm:p-6 py-4 dark:border-slate-800">
-                    <Button variant="outline" class="font-semibold" @click="submitTarget = null"
-                        >Hủy</Button
-                    >
-                    <Button
-                        class="font-bold shadow-sm"
-                        :disabled="
-                            submitForm.processing || !submitForm.to_user_id
-                        "
-                        @click="submitHandover"
-                    >
-                        Nộp bàn giao
-                    </Button>
-                </div>
+                    <!-- Footer Actions -->
+                    <div class="flex shrink-0 items-center justify-between border-t border-border/80 bg-muted/20 px-6 py-4 dark:border-slate-800">
+                        <p class="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                            <span class="inline-block size-1.5 rounded-full bg-indigo-500"></span>
+                            Ca sau sẽ nhận thông báo để kiểm tra và xác nhận
+                        </p>
+                        <div class="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="rounded-xl px-4 font-semibold text-muted-foreground hover:text-foreground"
+                                @click="submitTarget = null"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                size="sm"
+                                class="rounded-xl bg-indigo-600 px-5 font-bold text-white shadow-md hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="submitForm.processing || !submitForm.to_user_id"
+                                @click="submitHandover"
+                            >
+                                <Send class="mr-1.5 size-3.5" />
+                                {{ submitForm.processing ? 'Đang nộp...' : 'Xác nhận nộp bàn giao' }}
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
             </div>
-        </div>
+        </Transition>
     </Teleport>
 
     <!-- Dialog báo không khớp -->
     <Teleport to="body">
-        <div
-            v-if="disputeTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-            @click.self="disputeTarget = null"
-        >
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
             <div
-                class="w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900"
+                v-if="disputeTarget"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="disputeTarget = null"
             >
-                <h2
-                    class="text-base font-bold text-slate-900 dark:text-slate-100"
+                <Card
+                    class="relative my-auto w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800"
                 >
-                    Bàn giao không khớp
-                </h2>
-                <textarea
-                    v-model="disputeForm.dispute_reason"
-                    rows="3"
-                    placeholder="Nêu rõ thiếu gì, lệch bao nhiêu…"
-                    class="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 shadow-xs focus:border-indigo-500 focus:outline-hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                ></textarea>
-                <div class="mt-4 flex justify-end gap-2">
-                    <Button variant="outline" class="font-semibold" @click="disputeTarget = null"
-                        >Hủy</Button
-                    >
-                    <Button
-                        variant="destructive"
-                        class="font-bold shadow-sm"
-                        :disabled="disputeForm.processing"
-                        @click="submitDispute"
-                    >
-                        Gửi báo cáo
-                    </Button>
-                </div>
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                                <AlertTriangle class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-bold text-rose-600 dark:text-rose-400">
+                                    Báo Bàn Giao Không Khớp
+                                </h2>
+                                <p class="text-xs text-muted-foreground">
+                                    Ghi nhận lý do để chuyển quản lý giải quyết
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="disputeTarget = null" class="rounded-xl p-1 text-muted-foreground hover:bg-muted"><X class="size-4" /></button>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <Label class="text-xs font-bold text-foreground">Chi tiết sai lệch / Thiếu hụt</Label>
+                        <textarea
+                            v-model="disputeForm.dispute_reason"
+                            rows="3"
+                            placeholder="Nêu rõ thiếu bao nhiêu tiền két, hư hỏng thiết bị nào..."
+                            class="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                        ></textarea>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl font-semibold" @click="disputeTarget = null">Hủy</Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            class="rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700 shadow-md"
+                            :disabled="disputeForm.processing || !disputeForm.dispute_reason.trim()"
+                            @click="submitDispute"
+                        >
+                            <AlertTriangle class="mr-1.5 size-3.5" />
+                            Gửi báo cáo sai lệch
+                        </Button>
+                    </div>
+                </Card>
             </div>
-        </div>
+        </Transition>
+    </Teleport>
+
+    <!-- Modal: Phân xử / Trọng tài giải quyết tranh chấp bàn giao ca -->
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div
+                v-if="resolveTarget"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="resolveTarget = null"
+            >
+                <Card
+                    class="relative my-auto w-full max-w-lg rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800"
+                >
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400">
+                                <UserCheck class="size-5" />
+                            </div>
+                            <div>
+                                <h2 class="text-base font-bold text-foreground">
+                                    Trọng Tài Giải Quyết Tranh Chấp
+                                </h2>
+                                <p class="text-xs text-muted-foreground">
+                                    Phân xử phiên bàn giao #{{ resolveTarget.id }} giữa {{ resolveTarget.from_user_name }} và {{ resolveTarget.to_user_name }}
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="resolveTarget = null" class="rounded-xl p-1 text-muted-foreground hover:bg-muted"><X class="size-4" /></button>
+                    </div>
+
+                    <div class="mt-4 space-y-3.5">
+                        <div class="rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200 space-y-1">
+                            <div class="font-bold flex items-center gap-1.5 text-rose-700 dark:text-rose-400">
+                                <AlertTriangle class="size-3.5" />
+                                <span>Lý do ca vào báo không khớp:</span>
+                            </div>
+                            <p class="pl-5">{{ resolveTarget.dispute_reason }}</p>
+                            <div v-if="resolveTarget.cash_amount !== null" class="pl-5 pt-1 text-[11px] text-muted-foreground">
+                                Tiền ca trước khai: <span class="font-bold text-foreground">{{ currency.format(resolveTarget.cash_amount) }}đ</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Label class="text-xs font-bold text-foreground">Số tiền mặt chốt thực tế (VNĐ)</Label>
+                            <Input
+                                v-model.number="resolveForm.final_cash_amount"
+                                type="number"
+                                min="0"
+                                step="1000"
+                                placeholder="0"
+                                class="mt-1.5 rounded-xl border-border bg-background font-mono font-bold text-sm text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            />
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                                Điều chỉnh số tiền chốt nhận thực tế trong két nếu có chênh lệch.
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label class="text-xs font-bold text-foreground">Kết luận phân xử & Biện pháp xử lý <span class="text-rose-500">*</span></Label>
+                            <textarea
+                                v-model="resolveForm.resolution_notes"
+                                rows="3"
+                                placeholder="Nêu rõ kết quả kiểm đếm, ai chịu trách nhiệm phần tiền thiếu hoặc hướng giải quyết thiết bị hỏng..."
+                                class="mt-1.5 w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none transition"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl font-semibold" @click="resolveTarget = null">Hủy</Button>
+                        <Button
+                            size="sm"
+                            class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700 shadow-md"
+                            :disabled="resolveForm.processing || !resolveForm.resolution_notes.trim()"
+                            @click="submitResolveDispute"
+                        >
+                            <CheckCircle2 class="mr-1.5 size-3.5" />
+                            Xác Nhận & Đóng Tranh Chấp
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
     </Teleport>
 </template>

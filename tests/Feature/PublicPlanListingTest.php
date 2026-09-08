@@ -25,6 +25,7 @@ class PublicPlanListingTest extends TestCase
 
         // activePlans() cache 1 giờ — phải dọn giữa các test
         Cache::forget('active_plans');
+        Cache::forget('subscription_plans_active');
     }
 
     private function planNamesOnLoginPage(): array
@@ -98,5 +99,24 @@ class PublicPlanListingTest extends TestCase
 
         $this->assertNotContains('Gói riêng khách B', $names);
         $this->assertNotContains('Gói ngừng bán B', $names);
+    }
+
+    public function test_shared_available_plans_do_not_expose_custom_negotiated_plans(): void
+    {
+        SubscriptionPlan::factory()->create([
+            'code' => 'bespoke-shared',
+            'name' => 'Gói riêng shared',
+            'price' => 9876543,
+            'status' => 'active',
+            'is_custom' => true,
+        ]);
+
+        $response = $this->get('/login');
+        $response->assertOk();
+
+        $plans = $response->viewData('page')['props']['available_plans'] ?? [];
+        $names = array_column($plans, 'name');
+
+        $this->assertNotContains('Gói riêng shared', $names);
     }
 }

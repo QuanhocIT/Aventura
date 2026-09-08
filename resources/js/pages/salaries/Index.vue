@@ -227,6 +227,7 @@ function formatPeriodVietnamese(periodStr: string): string {
     }
 
     const parts = periodStr.split('-');
+
     if (parts.length !== 2) {
         return periodStr;
     }
@@ -240,6 +241,7 @@ function formatPeriodVietnamese(periodStr: string): string {
 function toggleMonthPicker() {
     if (!showMonthPicker.value && activePeriod.value) {
         const parts = activePeriod.value.split('-');
+
         if (parts[0]) {
             pickerYear.value = parseInt(parts[0], 10) || new Date().getFullYear();
         }
@@ -394,6 +396,7 @@ const selectedIds = ref<number[]>([]);
 
 const isAllSelected = computed(() => {
     const pageIds = paginatedSalaries.value.map((s) => s.id);
+
     if (pageIds.length === 0) {
         return false;
     }
@@ -403,6 +406,7 @@ const isAllSelected = computed(() => {
 
 function toggleSelectAll() {
     const pageIds = paginatedSalaries.value.map((s) => s.id);
+
     if (isAllSelected.value) {
         selectedIds.value = selectedIds.value.filter((id) => !pageIds.includes(id));
     } else {
@@ -413,6 +417,7 @@ function toggleSelectAll() {
 
 function toggleSelect(id: number) {
     const idx = selectedIds.value.indexOf(id);
+
     if (idx > -1) {
         selectedIds.value.splice(idx, 1);
     } else {
@@ -479,6 +484,7 @@ function openSendPayslipModal() {
 
 function submitSendPayslips() {
     const targetIds = selectedIds.value.length > 0 ? selectedIds.value : props.salaries.map((s) => s.id);
+
     if (targetIds.length === 0 || sendingPayslips.value) {
         return;
     }
@@ -602,6 +608,7 @@ function getPeriodParts(periodStr: string) {
             month: m < 10 ? `0${m}` : `${m}`,
         };
     }
+
     const parts = periodStr.split('-');
     const year = parts[0] || '2026';
     const monthNum = parseInt(parts[1] || '1', 10);
@@ -616,9 +623,11 @@ function getTimeFormula(salary: SalaryRow): string {
     if (salary.compensation_type === 'hourly') {
         return `${salary.breakdown?.regular_hours ?? 0}h × ${formatMoney(salary.pay_rate)} đ/h`;
     }
+
     if (salary.compensation_type === 'shift') {
         return `${salary.breakdown?.completed_shifts_count ?? salary.actual_work_days} ca × ${formatMoney(salary.pay_rate)} đ/ca`;
     }
+
     const days = (salary.actual_work_days || 0) + (salary.paid_leave_days || 0);
     const standard = salary.standard_days || 26;
     const base = salary.contract_base_salary || salary.base_salary || 0;
@@ -1261,82 +1270,86 @@ function exportFullCSV() {
     </div>
 
     <!-- ══ Bank Batch Export Modal ══════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="showBankExportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBankExportModal = false">
-            <Card class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
-                        <Landmark class="size-6" />
-                    </div>
-                    <div>
-                        <h2 class="text-base font-black text-foreground">Xuất File Chi Lương Ngân Hàng</h2>
-                        <p class="text-xs text-muted-foreground">Tạo file danh sách nạp chuyển khoản theo lô (Payroll Batch)</p>
-                    </div>
-                </div>
-
-                <div class="mt-4 space-y-3">
-                    <Label class="text-xs font-bold text-slate-600 uppercase dark:text-slate-300">Chọn định dạng ngân hàng:</Label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label
-                            v-for="bank in [
-                                { id: 'vietcombank', name: 'Vietcombank' },
-                                { id: 'mbbank', name: 'MB Bank' },
-                                { id: 'techcombank', name: 'Techcombank' },
-                                { id: 'acb', name: 'ACB' },
-                                { id: 'generic', name: 'Chuẩn chung (Excel/CSV)' },
-                            ]"
-                            :key="bank.id"
-                            class="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-xs font-bold transition"
-                            :class="selectedBankFormat === bank.id ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-800'"
-                        >
-                            <input type="radio" v-model="selectedBankFormat" :value="bank.id" class="hidden" />
-                            <CreditCard class="size-4 shrink-0 text-indigo-600" />
-                            <span>{{ bank.name }}</span>
-                        </label>
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="showBankExportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBankExportModal = false">
+                <Card class="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                            <Landmark class="size-6" />
+                        </div>
+                        <div>
+                            <h2 class="text-base font-black text-foreground">Xuất File Chi Lương Ngân Hàng</h2>
+                            <p class="text-xs text-muted-foreground">Tạo file danh sách nạp chuyển khoản theo lô (Payroll Batch)</p>
+                        </div>
                     </div>
 
-                    <p class="rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:bg-slate-900">
-                        File sẽ xuất danh sách nhân viên có Lương Net > 0 kèm Số tài khoản, Tên chủ TK, Ngân hàng và Số tiền.
-                    </p>
-                </div>
+                    <div class="mt-4 space-y-3">
+                        <Label class="text-xs font-bold text-slate-600 uppercase dark:text-slate-300">Chọn định dạng ngân hàng:</Label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label
+                                v-for="bank in [
+                                    { id: 'vietcombank', name: 'Vietcombank' },
+                                    { id: 'mbbank', name: 'MB Bank' },
+                                    { id: 'techcombank', name: 'Techcombank' },
+                                    { id: 'acb', name: 'ACB' },
+                                    { id: 'generic', name: 'Chuẩn chung (Excel/CSV)' },
+                                ]"
+                                :key="bank.id"
+                                class="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-xs font-bold transition"
+                                :class="selectedBankFormat === bank.id ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-800'"
+                            >
+                                <input type="radio" v-model="selectedBankFormat" :value="bank.id" class="hidden" />
+                                <CreditCard class="size-4 shrink-0 text-indigo-600" />
+                                <span>{{ bank.name }}</span>
+                            </label>
+                        </div>
 
-                <div class="mt-6 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="showBankExportModal = false">Đóng</Button>
-                    <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" @click="triggerBankExport">
-                        <Download class="mr-1.5 size-4" /> Tải file chi lương
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                        <p class="rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-500 dark:bg-slate-900">
+                            File sẽ xuất danh sách nhân viên có Lương Net > 0 kèm Số tài khoản, Tên chủ TK, Ngân hàng và Số tiền.
+                        </p>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl" @click="showBankExportModal = false">Đóng</Button>
+                        <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" @click="triggerBankExport">
+                            <Download class="mr-1.5 size-4" /> Tải file chi lương
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 
     <!-- ══ Send Payslips Modal ══════════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="showSendPayslipModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showSendPayslipModal = false">
-            <Card class="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-                        <Send class="size-6" />
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="showSendPayslipModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showSendPayslipModal = false">
+                <Card class="relative my-auto w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/40">
+                            <Send class="size-6" />
+                        </div>
+                        <div>
+                            <h2 class="text-base font-black text-foreground">Gửi Phiếu Lương Điện Tử</h2>
+                            <p class="text-xs text-muted-foreground">Kỳ lương: {{ formatPeriodVietnamese(activePeriod) }}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 class="text-base font-black text-foreground">Gửi Phiếu Lương Điện Tử</h2>
-                        <p class="text-xs text-muted-foreground">Kỳ lương: {{ formatPeriodVietnamese(activePeriod) }}</p>
+
+                    <div class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+                        Hệ thống sẽ gửi thông báo phiếu lương chi tiết đến <strong>{{ selectedIds.length > 0 ? selectedIds.length : salaries.length }} nhân sự</strong> qua Email và Cổng nhân viên (Portal) để nhân viên đối soát, ký nhận.
                     </div>
-                </div>
 
-                <div class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
-                    Hệ thống sẽ gửi thông báo phiếu lương chi tiết đến <strong>{{ selectedIds.length > 0 ? selectedIds.length : salaries.length }} nhân sự</strong> qua Email và Cổng nhân viên (Portal) để nhân viên đối soát, ký nhận.
-                </div>
-
-                <div class="mt-6 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="showSendPayslipModal = false">Hủy</Button>
-                    <Button size="sm" class="rounded-xl bg-blue-600 font-bold text-white hover:bg-blue-700" :disabled="sendingPayslips" @click="submitSendPayslips">
-                        {{ sendingPayslips ? 'Đang gửi...' : 'Xác nhận gửi phiếu' }}
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl" @click="showSendPayslipModal = false">Hủy</Button>
+                        <Button size="sm" class="rounded-xl bg-blue-600 font-bold text-white hover:bg-blue-700" :disabled="sendingPayslips" @click="submitSendPayslips">
+                            {{ sendingPayslips ? 'Đang gửi...' : 'Xác nhận gửi phiếu' }}
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 
     <!-- ══ Comprehensive Payslip Document Modal (Matching Image 2) ═════════ -->
     <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
@@ -1734,104 +1747,110 @@ function exportFullCSV() {
     </Transition>
 
     <!-- ══ Add Adjustment Dialog ═══════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="adjTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="adjTarget = null">
-            <Card class="w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
-                <div class="flex items-center justify-between border-b pb-3">
-                    <h2 class="text-base font-bold text-indigo-600">Thêm Khoản Điều Chỉnh Lương</h2>
-                    <button @click="adjTarget = null" class="rounded-full p-1 text-muted-foreground"><X class="size-4" /></button>
-                </div>
-                <div class="mt-4 space-y-4 text-xs">
-                    <div>
-                        <Label class="font-bold">Loại điều chỉnh</Label>
-                        <select v-model="adjForm.type" class="mt-1.5 w-full rounded-xl border p-2 font-semibold">
-                            <option value="bonus">Thưởng chuyên cần / Phụ cấp</option>
-                            <option value="advance">Tạm ứng lương</option>
-                            <option value="penalty">Phạt hành chính / Kỷ luật</option>
-                            <option value="violation">Khấu trừ vi phạm / Hao hụt</option>
-                        </select>
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="adjTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="adjTarget = null">
+                <Card class="relative my-auto w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <h2 class="text-base font-bold text-indigo-600">Thêm Khoản Điều Chỉnh Lương</h2>
+                        <button @click="adjTarget = null" class="rounded-full p-1 text-muted-foreground"><X class="size-4" /></button>
                     </div>
-                    <div>
-                        <Label class="font-bold">Số tiền (VNĐ)</Label>
-                        <Input v-model="adjForm.amount" type="number" min="0" step="1000" class="mt-1.5 rounded-xl font-bold" />
+                    <div class="mt-4 space-y-4 text-xs">
+                        <div>
+                            <Label class="font-bold">Loại điều chỉnh</Label>
+                            <select v-model="adjForm.type" class="mt-1.5 w-full rounded-xl border p-2 font-semibold">
+                                <option value="bonus">Thưởng chuyên cần / Phụ cấp</option>
+                                <option value="advance">Tạm ứng lương</option>
+                                <option value="penalty">Phạt hành chính / Kỷ luật</option>
+                                <option value="violation">Khấu trừ vi phạm / Hao hụt</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label class="font-bold">Số tiền (VNĐ)</Label>
+                            <Input v-model="adjForm.amount" type="number" min="0" step="1000" class="mt-1.5 rounded-xl font-bold" />
+                        </div>
+                        <div>
+                            <Label class="font-bold">Lý do điều chỉnh</Label>
+                            <textarea v-model="adjForm.reason" rows="3" class="mt-1.5 w-full rounded-xl border p-2 text-xs font-semibold" placeholder="Mô tả lý do cụ thể..." />
+                        </div>
                     </div>
-                    <div>
-                        <Label class="font-bold">Lý do điều chỉnh</Label>
-                        <textarea v-model="adjForm.reason" rows="3" class="mt-1.5 w-full rounded-xl border p-2 text-xs font-semibold" placeholder="Mô tả lý do cụ thể..." />
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl" @click="adjTarget = null">Hủy</Button>
+                        <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" :disabled="adjForm.processing" @click="submitAdj">
+                            Xác nhận
+                        </Button>
                     </div>
-                </div>
-                <div class="mt-6 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="adjTarget = null">Hủy</Button>
-                    <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" :disabled="adjForm.processing" @click="submitAdj">
-                        Xác nhận
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 
     <!-- ══ Bulk Adjustment Dialog ═════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="showBulkDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBulkDialog = false">
-            <Card class="w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
-                <div class="flex items-center justify-between border-b pb-3">
-                    <h2 class="text-base font-bold text-rose-600">Thưởng / Phạt Hàng Loạt ({{ selectedIds.length }} NV)</h2>
-                    <button @click="showBulkDialog = false" class="rounded-full p-1 text-muted-foreground"><X class="size-4" /></button>
-                </div>
-                <div class="mt-4 space-y-4 text-xs">
-                    <div>
-                        <Label class="font-bold">Loại điều chỉnh</Label>
-                        <select v-model="bulkForm.type" class="mt-1.5 w-full rounded-xl border p-2 font-semibold">
-                            <option value="bonus">Thưởng chuyên cần / Thưởng nóng đồng loạt</option>
-                            <option value="advance">Tạm ứng lương đồng loạt</option>
-                            <option value="penalty">Phạt lỗi tập thể / Kỷ luật</option>
-                            <option value="violation">Khấu trừ vi phạm nội bộ</option>
-                        </select>
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="showBulkDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBulkDialog = false">
+                <Card class="relative my-auto w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
+                    <div class="flex items-center justify-between border-b pb-3">
+                        <h2 class="text-base font-bold text-rose-600">Thưởng / Phạt Hàng Loạt ({{ selectedIds.length }} NV)</h2>
+                        <button @click="showBulkDialog = false" class="rounded-full p-1 text-muted-foreground"><X class="size-4" /></button>
                     </div>
-                    <div>
-                        <Label class="font-bold">Số tiền mỗi người (VNĐ)</Label>
-                        <Input v-model="bulkForm.amount" type="number" min="0" step="1000" class="mt-1.5 rounded-xl font-bold text-rose-600" />
+                    <div class="mt-4 space-y-4 text-xs">
+                        <div>
+                            <Label class="font-bold">Loại điều chỉnh</Label>
+                            <select v-model="bulkForm.type" class="mt-1.5 w-full rounded-xl border p-2 font-semibold">
+                                <option value="bonus">Thưởng chuyên cần / Thưởng nóng đồng loạt</option>
+                                <option value="advance">Tạm ứng lương đồng loạt</option>
+                                <option value="penalty">Phạt lỗi tập thể / Kỷ luật</option>
+                                <option value="violation">Khấu trừ vi phạm nội bộ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label class="font-bold">Số tiền mỗi người (VNĐ)</Label>
+                            <Input v-model="bulkForm.amount" type="number" min="0" step="1000" class="mt-1.5 rounded-xl font-bold text-rose-600" />
+                        </div>
+                        <div>
+                            <Label class="font-bold">Lý do điều chỉnh hàng loạt</Label>
+                            <textarea v-model="bulkForm.reason" rows="3" class="mt-1.5 w-full rounded-xl border p-2 text-xs font-semibold" placeholder="Mô tả lý do..." />
+                        </div>
                     </div>
-                    <div>
-                        <Label class="font-bold">Lý do điều chỉnh hàng loạt</Label>
-                        <textarea v-model="bulkForm.reason" rows="3" class="mt-1.5 w-full rounded-xl border p-2 text-xs font-semibold" placeholder="Mô tả lý do..." />
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl" @click="showBulkDialog = false">Hủy</Button>
+                        <Button size="sm" class="rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700" :disabled="bulkForm.processing" @click="submitBulkAdj">
+                            Áp dụng hàng loạt
+                        </Button>
                     </div>
-                </div>
-                <div class="mt-6 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="showBulkDialog = false">Hủy</Button>
-                    <Button size="sm" class="rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700" :disabled="bulkForm.processing" @click="submitBulkAdj">
-                        Áp dụng hàng loạt
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 
     <!-- ══ Bulk Approve Modal ══════════════════════════════════════════════════ -->
-    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
-        <div v-if="showBulkApproveModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBulkApproveModal = false">
-            <Card class="w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
-                        <Check class="size-6" />
+    <Teleport to="body">
+        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition duration-150 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="showBulkApproveModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs" @click.self="showBulkApproveModal = false">
+                <Card class="relative my-auto w-full max-w-md rounded-3xl border border-slate-200 bg-card p-6 shadow-2xl dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                            <Check class="size-6" />
+                        </div>
+                        <div>
+                            <h2 class="text-base font-extrabold text-foreground">Phê Duyệt Hàng Loạt</h2>
+                            <p class="text-xs text-muted-foreground">Phê duyệt {{ selectedIds.length }} bảng lương đã chọn</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 class="text-base font-extrabold text-foreground">Phê Duyệt Hàng Loạt</h2>
-                        <p class="text-xs text-muted-foreground">Phê duyệt {{ selectedIds.length }} bảng lương đã chọn</p>
+                    <div class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+                        Sau khi phê duyệt, bảng lương sẽ được khóa để chuẩn bị chi trả. Bạn có chắc chắn muốn duyệt {{ selectedIds.length }} phiếu lương này?
                     </div>
-                </div>
-                <div class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
-                    Sau khi phê duyệt, bảng lương sẽ được khóa để chuẩn bị chi trả. Bạn có chắc chắn muốn duyệt {{ selectedIds.length }} phiếu lương này?
-                </div>
-                <div class="mt-6 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="showBulkApproveModal = false">Hủy</Button>
-                    <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" :disabled="bulkApproving" @click="submitBulkApprove">
-                        {{ bulkApproving ? 'Đang duyệt...' : 'Đồng ý phê duyệt' }}
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                    <div class="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" class="rounded-xl" @click="showBulkApproveModal = false">Hủy</Button>
+                        <Button size="sm" class="rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700" :disabled="bulkApproving" @click="submitBulkApprove">
+                            {{ bulkApproving ? 'Đang duyệt...' : 'Đồng ý phê duyệt' }}
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 </template>
 
 <style scoped>

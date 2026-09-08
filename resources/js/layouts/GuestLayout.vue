@@ -37,7 +37,7 @@ const navLinks = [
         >
             <div class="mx-auto flex h-16 max-w-7xl items-center px-4 lg:px-8">
                 <!-- Logo -->
-                <Link href="/" class="flex shrink-0 items-center gap-2">
+                <Link href="/" prefetch="hover" cache-for="1m" class="flex shrink-0 items-center gap-2">
                     <AppLogoIcon class="size-7 fill-current text-foreground" />
                     <span class="text-lg font-bold">Aventura</span>
                 </Link>
@@ -71,12 +71,12 @@ const navLinks = [
                         variant="outline"
                         class="hidden lg:inline-flex"
                     >
-                        <Link :href="login()">Đăng nhập</Link>
+                        <Link :href="login()" prefetch="hover" cache-for="1m">Đăng nhập</Link>
                     </Button>
 
                     <!-- Register CTA (desktop) -->
                     <Button as-child class="hidden lg:inline-flex">
-                        <Link :href="register()">Dùng thử miễn phí</Link>
+                        <Link :href="register()" prefetch="hover" cache-for="1m">Dùng thử miễn phí</Link>
                     </Button>
 
                     <!-- Hamburger (mobile) -->
@@ -125,10 +125,10 @@ const navLinks = [
                                     variant="outline"
                                     class="w-full"
                                 >
-                                    <Link :href="login()">Đăng nhập</Link>
+                                    <Link :href="login()" prefetch="hover" cache-for="1m">Đăng nhập</Link>
                                 </Button>
                                 <Button as-child class="w-full">
-                                    <Link :href="register()"
+                                    <Link :href="register()" prefetch="hover" cache-for="1m"
                                         >Dùng thử miễn phí</Link
                                     >
                                 </Button>

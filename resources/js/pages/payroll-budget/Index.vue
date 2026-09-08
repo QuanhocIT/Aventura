@@ -5,6 +5,7 @@ import {
     ArrowUpRight,
     Banknote,
     CheckCircle2,
+    ChevronLeft,
     ChevronRight,
     CircleDollarSign,
     CircleHelp,
@@ -243,6 +244,32 @@ const recommendedBudget = computed(() => {
 const activeTierCount = computed(
     () => props.wageTiers.filter((tier) => tier.is_active).length,
 );
+
+const tierPage = ref(1);
+const tiersPerPage = 5;
+
+const totalTierPages = computed(() =>
+    Math.max(1, Math.ceil(props.wageTiers.length / tiersPerPage)),
+);
+
+const paginatedWageTiers = computed(() => {
+    const page = Math.min(Math.max(1, tierPage.value), totalTierPages.value);
+    const start = (page - 1) * tiersPerPage;
+
+    return props.wageTiers.slice(start, start + tiersPerPage);
+});
+
+function nextTierPage() {
+    if (tierPage.value < totalTierPages.value) {
+        tierPage.value++;
+    }
+}
+
+function prevTierPage() {
+    if (tierPage.value > 1) {
+        tierPage.value--;
+    }
+}
 
 function selectBranch(branch: BranchRow) {
     selectedBranchId.value = branch.branch_id;
@@ -948,7 +975,7 @@ async function removeTier(tier: WageTier) {
 
             <div class="grid lg:grid-cols-[1.15fr_0.85fr]">
                 <div
-                    class="overflow-x-auto border-b border-border/70 lg:border-r lg:border-b-0"
+                    class="flex flex-col justify-between overflow-x-auto border-b border-border/70 lg:border-r lg:border-b-0"
                 >
                     <table class="w-full min-w-[650px] text-sm">
                         <thead
@@ -969,12 +996,12 @@ async function removeTier(tier: WageTier) {
                         </thead>
                         <tbody>
                             <tr
-                                v-for="tier in wageTiers"
+                                v-for="tier in paginatedWageTiers"
                                 :key="tier.id"
                                 class="border-b border-border/60 transition hover:bg-accent/30"
                                 :class="!tier.is_active ? 'opacity-60' : ''"
                             >
-                                <td class="px-5 py-4">
+                                <td class="px-5 py-3.5">
                                     <div class="font-semibold">
                                         {{ tier.name }}
                                     </div>
@@ -999,16 +1026,16 @@ async function removeTier(tier: WageTier) {
                                     </div>
                                 </td>
                                 <td
-                                    class="px-5 py-4 text-xs text-muted-foreground"
+                                    class="px-5 py-3.5 text-xs text-muted-foreground"
                                 >
                                     {{ branchName(tier.branch_id) }}
                                 </td>
                                 <td
-                                    class="px-5 py-4 text-right font-semibold tabular-nums"
+                                    class="px-5 py-3.5 text-right font-semibold tabular-nums"
                                 >
                                     {{ compactVnd(monthlyTierAmount(tier)) }}
                                 </td>
-                                <td class="px-5 py-4">
+                                <td class="px-5 py-3.5">
                                     <div class="flex justify-end gap-1">
                                         <button
                                             type="button"
@@ -1055,6 +1082,37 @@ async function removeTier(tier: WageTier) {
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Pagination Controls -->
+                    <div
+                        v-if="wageTiers.length > tiersPerPage"
+                        class="flex items-center justify-between border-t border-border/70 bg-muted/20 px-5 py-3 text-xs"
+                    >
+                        <span class="font-medium text-muted-foreground">
+                            Hiển thị {{ (tierPage - 1) * tiersPerPage + 1 }} - {{ Math.min(tierPage * tiersPerPage, wageTiers.length) }} trong tổng {{ wageTiers.length }} bậc
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                :disabled="tierPage === 1"
+                                class="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2.5 font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                                @click="prevTierPage"
+                            >
+                                <ChevronLeft class="size-3.5" /> Trước
+                            </button>
+                            <span class="rounded-md border border-border bg-card px-2.5 py-1 font-bold text-foreground">
+                                Trang {{ tierPage }} / {{ totalTierPages }}
+                            </span>
+                            <button
+                                type="button"
+                                :disabled="tierPage === totalTierPages"
+                                class="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2.5 font-semibold text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                                @click="nextTierPage"
+                            >
+                                Sau <ChevronRight class="size-3.5" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="p-5 sm:p-6">
@@ -1108,10 +1166,6 @@ async function removeTier(tier: WageTier) {
                             </label>
                             <label class="block text-sm font-medium">
                                 % Doanh thu
-                                <span
-                                    class="text-xs font-normal text-muted-foreground"
-                                    >(tùy chọn)</span
-                                >
                                 <div class="relative mt-1.5">
                                     <input
                                         v-model.number="
@@ -1121,7 +1175,7 @@ async function removeTier(tier: WageTier) {
                                         min="0"
                                         max="100"
                                         step="0.1"
-                                        placeholder="Ví dụ: 2.5 (để trống nếu không có)"
+                                        placeholder="Ví dụ: 2.5"
                                         class="block h-10 w-full rounded-lg border border-border bg-background px-3 pr-7 text-sm tabular-nums outline-none focus:border-primary"
                                     />
                                     <span

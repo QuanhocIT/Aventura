@@ -11,6 +11,8 @@ use App\Models\ShiftHandoverCheck;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Notifications\ShiftHandoverPendingNotification;
+use App\Notifications\ShiftHandoverDisputedNotification;
+use App\Notifications\ShiftHandoverDisputeResolvedNotification;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,6 +48,7 @@ class ShiftHandoverController extends Controller
                 'template:id,name',
                 'template.items:id,template_id,title,description,requires_photo,sort_order',
                 'checks:id,handover_id,item_id,is_done,photo_path,notes,checked_by,checked_at',
+                'disputeResolver:id,name',
             ])
             ->latest('handover_date')
             ->latest('id')
@@ -72,6 +75,10 @@ class ShiftHandoverController extends Controller
                 'incident_notes' => $h->incident_notes,
                 'pending_tasks' => $h->pending_tasks,
                 'dispute_reason' => $h->dispute_reason,
+                'dispute_resolved_at' => $h->dispute_resolved_at?->format('H:i d/m/Y'),
+                'dispute_resolved_by_name' => $h->disputeResolver?->name,
+                'dispute_resolution_notes' => $h->dispute_resolution_notes,
+                'final_cash_amount' => $h->final_cash_amount !== null ? (float) $h->final_cash_amount : null,
                 'unfinished_items' => $h->unfinishedItems(),
                 'checklist_total' => $h->template?->items?->count() ?? 0,
                 'checklist_done' => $h->checks->where('is_done', true)->count(),
@@ -92,6 +99,14 @@ class ShiftHandoverController extends Controller
                 'submitted_at' => $h->submitted_at?->format('H:i d/m/Y'),
                 'accepted_at' => $h->accepted_at?->format('H:i d/m/Y'),
             ]);
+
+        $recentClosing = ShiftClosing::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('cashier_user_id', $user->id)
+            ->whereDate('closing_date', today())
+            ->whereNull('trashed_at')
+            ->latest('id')
+            ->first();
 
         return Inertia::render('shift-handovers/Index', [
             'handovers' => $handovers,
@@ -123,6 +138,8 @@ class ShiftHandoverController extends Controller
                     ->get(['id', 'name'])
                 : collect(),
             'activeBranchId' => $branchId,
+            'suggestedCashAmount' => $recentClosing?->actual_cash !== null ? (float) $recentClosing->actual_cash : null,
+            'suggestedShiftClosingId' => $recentClosing?->id,
         ]);
     }
 
@@ -333,7 +350,75 @@ class ShiftHandoverController extends Controller
             'dispute_reason' => $data['dispute_reason'],
         ]);
 
-        return back()->with('success', 'Đã ghi nhận bàn giao không khớp.');
+        // Gửi thông báo đến người bàn giao và các Quản lý / Chủ nhà hàng
+        try {
+            if ($handover->fromUser) {
+                $handover->fromUser->notify(new ShiftHandoverDisputedNotification($handover, $user, $data['dispute_reason']));
+            }
+
+            $managers = User::where('restaurant_id', $handover->restaurant_id)
+                ->where('id', '!=', $user->id)
+                ->where('status', 'active')
+                ->whereHas('roles', fn ($q) => $q->whereIn('name', ['owner', 'manager', 'branch_manager']))
+                ->get();
+
+            foreach ($managers as $mgr) {
+                if ($mgr->canAccessBranch($handover->branch_id)) {
+                    $mgr->notify(new ShiftHandoverDisputedNotification($handover, $user, $data['dispute_reason']));
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Failed sending handover dispute notifications: {$e->getMessage()}");
+        }
+
+        return back()->with('success', 'Đã ghi nhận bàn giao không khớp và gửi thông báo đến Quản lý.');
+    }
+
+    /**
+     * Quản lý / Chủ trọng tài giải quyết tranh chấp bàn giao ca.
+     */
+    public function resolveDispute(Request $request, ShiftHandover $handover): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertHandoverScope($handover, $user);
+        abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->isSuperAdmin(), 403, 'Chỉ Quản lý hoặc Chủ nhà hàng mới có quyền phân xử tranh chấp.');
+        abort_unless($handover->status === ShiftHandover::STATUS_DISPUTED, 422, 'Chỉ phiên bàn giao đang có tranh chấp mới cần trọng tài giải quyết.');
+
+        $data = $request->validate([
+            'resolution_notes' => ['nullable', 'string', 'min:5', 'max:1000'],
+            'dispute_resolution_notes' => ['nullable', 'string', 'min:5', 'max:1000'],
+            'final_cash_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $resolutionNotes = $data['resolution_notes'] ?? $data['dispute_resolution_notes'] ?? null;
+        abort_if(blank($resolutionNotes), 422, 'Vui lòng nhập lý do / phương án phân xử (tối thiểu 5 ký tự).');
+
+        $finalCash = array_key_exists('final_cash_amount', $data) && $data['final_cash_amount'] !== null
+            ? (float) $data['final_cash_amount']
+            : ($handover->cash_amount !== null ? (float) $handover->cash_amount : null);
+
+        $handover->update([
+            'status' => ShiftHandover::STATUS_DISPUTE_RESOLVED,
+            'final_cash_amount' => $finalCash,
+            'dispute_resolution_notes' => $resolutionNotes,
+            'dispute_resolved_at' => now(),
+            'dispute_resolved_by' => $user->id,
+        ]);
+
+        // Thông báo kết luận phân xử cho cả 2 bên giao & nhận
+        try {
+            $notification = new ShiftHandoverDisputeResolvedNotification($handover, $user, $data['resolution_notes'], $finalCash);
+            if ($handover->fromUser) {
+                $handover->fromUser->notify($notification);
+            }
+            if ($handover->toUser) {
+                $handover->toUser->notify($notification);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Failed sending dispute resolution notifications: {$e->getMessage()}");
+        }
+
+        return back()->with('success', 'Đã phân xử và chốt giải quyết tranh chấp bàn giao ca.');
     }
 
     private function authorizeOutgoing(ShiftHandover $handover, User $user): void

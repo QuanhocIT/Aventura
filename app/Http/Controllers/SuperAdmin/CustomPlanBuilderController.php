@@ -151,6 +151,8 @@ class CustomPlanBuilderController extends Controller
 
         // Xóa Cache
         Cache::forget('superadmin_ai_insights');
+        Cache::forget('active_plans');
+        Cache::forget('subscription_plans_active');
         DashboardController::forgetCache();
 
         return back()->with('success', 'Đã thiết lập và áp dụng gói dịch vụ tùy chỉnh cho doanh nghiệp thành công.');

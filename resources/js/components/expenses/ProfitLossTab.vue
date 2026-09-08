@@ -75,11 +75,16 @@ function vnd(n: number): string {
 }
 
 function changePercent(now: number, before: number): number | null {
-    if (before === 0) {
+    const n = Number(now);
+    const b = Number(before);
+
+    if (!b || isNaN(b) || isNaN(n) || b === 0) {
         return null;
     }
 
-    return Math.round(((now - before) / Math.abs(before)) * 100);
+    const res = Math.round(((n - b) / Math.abs(b)) * 100);
+
+    return isNaN(res) ? null : res;
 }
 
 const revenueChange = computed(() =>

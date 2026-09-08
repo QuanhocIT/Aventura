@@ -496,109 +496,107 @@ function toggleAudit(logId: number): void {
     <Head title="Phân quyền thao tác" />
 
     <div class="mx-auto w-full max-w-[1600px] space-y-5 p-4 lg:p-7">
+        <!-- Header: Clean, modern, professional translucent command header -->
         <header
-            class="relative overflow-hidden rounded-[1.75rem] border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 text-slate-900 shadow-sm dark:border-indigo-500/20 dark:bg-slate-950 dark:text-white dark:shadow-xl"
+            class="relative flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/40 p-4 backdrop-blur-xl shadow-xs sm:p-5 dark:border-white/[0.08] dark:bg-white/[0.025]"
         >
-            <div
-                class="absolute -top-36 -right-16 size-96 rounded-full bg-indigo-500/20 blur-3xl"
-            />
-            <div
-                class="absolute -bottom-36 left-1/3 size-80 rounded-full bg-sky-500/10 blur-3xl"
-            />
-            <div
-                class="relative flex flex-col gap-6 px-5 py-6 lg:flex-row lg:items-end lg:justify-between lg:px-7"
-            >
-                <div class="flex items-start gap-4">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex items-start gap-3.5">
                     <div
-                        class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-500/10 text-indigo-600 dark:border-indigo-300/20 dark:bg-indigo-500/20 dark:text-indigo-200 dark:shadow-lg dark:shadow-indigo-900/30"
+                        class="flex size-11 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-600 shadow-xs dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-400"
                     >
-                        <ShieldCheck class="size-7" />
+                        <ShieldCheck class="size-5" />
                     </div>
                     <div>
-                        <div class="mb-2 flex flex-wrap items-center gap-2">
+                        <div class="mb-1 flex flex-wrap items-center gap-2">
+                            <h1 class="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl dark:text-white">
+                                Phân quyền & Giới hạn thao tác
+                            </h1>
                             <Badge
-                                class="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200"
-                                ><span
-                                    class="mr-1.5 size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"
-                                />
-                                Đang áp dụng</Badge
-                            ><Badge
-                                class="border-indigo-300/30 bg-indigo-500/10 text-indigo-700 dark:border-indigo-300/20 dark:bg-indigo-400/10 dark:text-indigo-100"
-                                >Điểm kiểm soát {{ policyScore }}/100</Badge
+                                variant="outline"
+                                class="border-emerald-500/30 bg-emerald-500/10 text-xs font-semibold text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300"
                             >
+                                <span class="mr-1.5 size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                                Đang áp dụng
+                            </Badge>
+                            <Badge
+                                variant="secondary"
+                                class="border border-slate-200/60 bg-white/60 text-xs font-medium text-slate-600 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-300"
+                            >
+                                Điểm kiểm soát {{ policyScore }}/100
+                            </Badge>
                         </div>
-                        <h1
-                            class="text-2xl font-black tracking-tight text-slate-900 lg:text-3xl dark:text-white"
-                        >
-                            Phân quyền & Giới hạn thao tác
-                        </h1>
-                        <p
-                            class="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300"
-                        >
-                            Điều hành hạn mức giảm giá, hủy đơn, dữ liệu nhạy
-                            cảm và dấu vết kiểm toán theo vai trò.
+                        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                            Điều hành hạn mức giảm giá, hủy đơn, dữ liệu nhạy cảm và dấu vết kiểm toán theo vai trò.
                         </p>
                     </div>
                 </div>
+
                 <div class="flex flex-wrap items-center gap-2">
                     <span
                         v-if="hasChanges"
-                        class="mr-1 flex items-center gap-1.5 text-xs font-semibold text-amber-200"
-                        ><CircleAlert class="size-4" /> Chưa lưu thay đổi</span
-                    ><Button
+                        class="mr-1 flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+                    >
+                        <CircleAlert class="size-4" /> Chưa lưu thay đổi
+                    </span>
+                    <Button
                         v-if="hasChanges"
                         type="button"
-                        variant="ghost"
-                        class="gap-2 text-slate-200 hover:bg-white/10 hover:text-white"
+                        variant="outline"
+                        size="sm"
+                        class="h-9 gap-1.5 text-xs"
                         @click="resetForm"
-                        ><RotateCcw class="size-4" /> Khôi phục</Button
-                    ><Button
+                    >
+                        <RotateCcw class="size-3.5" /> Khôi phục
+                    </Button>
+                    <Button
                         type="button"
-                        class="gap-2 bg-indigo-500 text-white shadow-lg shadow-indigo-950/30 hover:bg-indigo-400"
+                        size="sm"
+                        class="h-9 gap-2 px-4 text-xs font-semibold shadow-xs"
                         :disabled="form.processing"
                         @click="submit"
-                        ><Save class="size-4" />
-                        {{
-                            form.processing ? 'Đang lưu...' : 'Lưu chính sách'
-                        }}</Button
                     >
+                        <Save class="size-3.5" />
+                        {{ form.processing ? 'Đang lưu...' : 'Lưu chính sách' }}
+                    </Button>
                 </div>
             </div>
+
             <div
-                class="relative flex flex-wrap gap-x-6 gap-y-2 border-t border-white/[0.08] px-5 py-3 text-xs text-slate-400 lg:px-7"
+                class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200/60 pt-3 text-xs text-slate-500 dark:border-white/[0.06] dark:text-slate-400"
             >
-                <span class="flex items-center gap-1.5"
-                    ><History class="size-3.5" /> Cập nhật gần nhất:
-                    {{ formatDateTime(policy.updated_at) }}</span
-                ><span class="flex items-center gap-1.5"
-                    ><FileSearch2 class="size-3.5" />
-                    {{ props.recentAudit.length }} sự kiện nhạy cảm gần
-                    đây</span
-                >
+                <span class="flex items-center gap-1.5">
+                    <History class="size-3.5" /> Cập nhật gần nhất:
+                    {{ formatDateTime(policy.updated_at) }}
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <FileSearch2 class="size-3.5" />
+                    {{ props.recentAudit.length }} sự kiện nhạy cảm gần đây
+                </span>
             </div>
         </header>
 
         <div
             v-if="riskItems.length"
-            class="flex flex-col gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.08] px-4 py-3 text-sm lg:flex-row lg:items-center dark:bg-amber-500/[0.06]"
+            class="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 text-sm backdrop-blur-md lg:flex-row lg:items-center dark:border-amber-500/20 dark:bg-amber-500/[0.04]"
         >
             <div
-                class="flex shrink-0 items-center gap-2 font-bold text-amber-700 dark:text-amber-300"
+                class="flex shrink-0 items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-300"
             >
-                <AlertTriangle class="size-4" /> {{ riskItems.length }} điểm cần
-                lưu ý
+                <AlertTriangle class="size-4" /> {{ riskItems.length }} điểm cần lưu ý
             </div>
             <div class="flex flex-1 flex-wrap gap-2">
                 <span
                     v-for="item in riskItems.slice(0, 3)"
                     :key="item.title"
-                    class="rounded-lg border border-amber-500/15 bg-white/60 px-2.5 py-1 text-xs text-amber-800 dark:bg-slate-950/30 dark:text-amber-200"
-                    >{{ item.title }}</span
+                    class="rounded-md border border-amber-500/15 bg-white/60 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-white/[0.04] dark:text-amber-200"
                 >
+                    {{ item.title }}
+                </span>
             </div>
             <button
                 type="button"
-                class="flex items-center gap-1 text-xs font-bold text-amber-700 hover:underline dark:text-amber-300"
+                class="flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline dark:text-amber-300"
                 @click="activeTab = 'policy'"
             >
                 Xem cấu hình <ArrowRight class="size-3.5" />
@@ -607,19 +605,19 @@ function toggleAudit(logId: number): void {
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div
-                class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[0.08] dark:bg-slate-950/60"
+                class="rounded-2xl border border-slate-200/60 bg-white/40 p-5 backdrop-blur-xl shadow-xs dark:border-white/[0.08] dark:bg-white/[0.025]"
             >
                 <div class="flex items-center justify-between">
                     <span
                         class="text-[11px] font-bold tracking-wider text-slate-400 uppercase"
                         >Giảm giá trực tiếp</span
-                    ><LockKeyhole class="size-4 text-indigo-500" />
+                    ><LockKeyhole class="size-4 text-indigo-500 dark:text-indigo-400" />
                 </div>
                 <div
-                    class="mt-5 text-2xl font-black tracking-tight text-slate-900 dark:text-white"
+                    class="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white"
                 >
                     {{ formatNumber(discountStaff) }}%
-                    <span class="text-base text-slate-400">/</span>
+                    <span class="text-base font-normal text-slate-400">/</span>
                     {{ formatNumber(discountManager) }}%
                 </div>
                 <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -627,16 +625,16 @@ function toggleAudit(logId: number): void {
                 </p>
             </div>
             <div
-                class="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 shadow-sm dark:bg-emerald-500/[0.03]"
+                class="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5 backdrop-blur-xl shadow-xs dark:border-emerald-500/20 dark:bg-emerald-500/[0.02]"
             >
                 <div class="flex items-center justify-between">
                     <span
                         class="text-[11px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-300"
                         >Hủy đơn trực tiếp</span
-                    ><Ban class="size-4 text-emerald-500" />
+                    ><Ban class="size-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <div
-                    class="mt-5 text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300"
+                    class="mt-4 text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-300"
                 >
                     {{
                         cancelStaff === 0
@@ -654,16 +652,16 @@ function toggleAudit(logId: number): void {
                 </p>
             </div>
             <div
-                class="rounded-2xl border border-sky-500/20 bg-sky-500/[0.04] p-5 shadow-sm dark:bg-sky-500/[0.03]"
+                class="rounded-2xl border border-sky-500/20 bg-sky-500/[0.04] p-5 backdrop-blur-xl shadow-xs dark:border-sky-500/20 dark:bg-sky-500/[0.02]"
             >
                 <div class="flex items-center justify-between">
                     <span
                         class="text-[11px] font-bold tracking-wider text-sky-600 uppercase dark:text-sky-300"
                         >Dữ liệu được mở</span
-                    ><UsersRound class="size-4 text-sky-500" />
+                    ><UsersRound class="size-4 text-sky-500 dark:text-sky-400" />
                 </div>
                 <div
-                    class="mt-5 text-2xl font-black tracking-tight text-sky-700 dark:text-sky-300"
+                    class="mt-4 text-2xl font-black tracking-tight text-sky-700 dark:text-sky-300"
                 >
                     {{ protectedDataCount }}/4
                 </div>
@@ -672,16 +670,16 @@ function toggleAudit(logId: number): void {
                 </p>
             </div>
             <div
-                class="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-5 shadow-sm dark:bg-violet-500/[0.03]"
+                class="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-5 backdrop-blur-xl shadow-xs dark:border-violet-500/20 dark:bg-violet-500/[0.02]"
             >
                 <div class="flex items-center justify-between">
                     <span
                         class="text-[11px] font-bold tracking-wider text-violet-600 uppercase dark:text-violet-300"
                         >Dấu vết kiểm toán</span
-                    ><FileSearch2 class="size-4 text-violet-500" />
+                    ><FileSearch2 class="size-4 text-violet-500 dark:text-violet-400" />
                 </div>
                 <div
-                    class="mt-5 text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300"
+                    class="mt-4 text-2xl font-black tracking-tight text-violet-700 dark:text-violet-300"
                 >
                     {{ form.audit_all_changes ? 'Đang bật' : 'Đang tắt' }}
                 </div>

@@ -86,6 +86,7 @@ class SubscriptionPlanController extends Controller
         }
 
         $plan = SubscriptionPlan::create([
+            'is_custom' => false,
             'code' => Str::lower($validated['code']),
             'name' => $validated['name'],
             'price' => $validated['price'],
@@ -123,6 +124,8 @@ class SubscriptionPlanController extends Controller
 
     public function update(Request $request, SubscriptionPlan $plan): RedirectResponse
     {
+        $this->ensureStandardPlan($plan);
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'description' => 'nullable|string|max:255',
@@ -187,8 +190,12 @@ class SubscriptionPlanController extends Controller
         return back()->with('success', "Đã cập nhật gói {$plan->name}.");
     }
 
-    public function planRestaurants(SubscriptionPlan $plan): JsonResponse
+    public function planRestaurants(int|string $id): JsonResponse
     {
+        $plan = SubscriptionPlan::withTrashed()
+            ->where('is_custom', false)
+            ->findOrFail($id);
+
         $restaurants = $plan->restaurants()
             ->with('owner')
             ->get()
@@ -209,7 +216,9 @@ class SubscriptionPlanController extends Controller
 
     public function destroy(Request $request, int|string $id): RedirectResponse
     {
-        $plan = SubscriptionPlan::findOrFail($id);
+        $plan = SubscriptionPlan::query()
+            ->where('is_custom', false)
+            ->findOrFail($id);
 
         $oldStatus = $plan->status;
         $plan->update(['status' => 'inactive']);
@@ -240,7 +249,9 @@ class SubscriptionPlanController extends Controller
 
     public function restore(Request $request, int|string $id): RedirectResponse
     {
-        $plan = SubscriptionPlan::withTrashed()->findOrFail($id);
+        $plan = SubscriptionPlan::withTrashed()
+            ->where('is_custom', false)
+            ->findOrFail($id);
         $deletedAt = $plan->deleted_at;
         $plan->restore();
         $plan->update(['status' => 'active']);
@@ -266,5 +277,10 @@ class SubscriptionPlanController extends Controller
         DashboardController::forgetCache();
 
         return back()->with('success', "Đã khôi phục và tiếp tục cung cấp gói \"{$plan->name}\".");
+    }
+
+    private function ensureStandardPlan(SubscriptionPlan $plan): void
+    {
+        abort_if($plan->is_custom, 404);
     }
 }

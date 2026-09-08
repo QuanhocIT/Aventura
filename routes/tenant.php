@@ -352,6 +352,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::patch('/{handover}/submit', [ShiftHandoverController::class, 'submit'])->name('submit');
         Route::patch('/{handover}/accept', [ShiftHandoverController::class, 'accept'])->name('accept');
         Route::patch('/{handover}/dispute', [ShiftHandoverController::class, 'dispute'])->name('dispute');
+        Route::patch('/{handover}/resolve-dispute', [ShiftHandoverController::class, 'resolveDispute'])->name('resolve-dispute');
     });
 
     // Quản Lý Hao Hụt & Lãng Phí (Waste Management)
@@ -580,6 +581,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Expenses / OPEX Tracker
     Route::prefix('expenses')->name('expenses.')->group(function () {
         Route::get('/', [ExpenseController::class, 'index'])->name('index');
+        Route::get('/export', [ExpenseController::class, 'export'])->name('export');
         Route::post('/', [ExpenseController::class, 'store'])->name('store');
         Route::patch('/{expense}', [ExpenseController::class, 'update'])->name('update');
         Route::delete('/{expense}', [ExpenseController::class, 'destroy'])->name('destroy');
@@ -590,8 +592,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/recurring', [ExpenseController::class, 'storeRecurring'])->name('recurring.store');
         Route::patch('/recurring/{recurring}', [ExpenseController::class, 'updateRecurring'])->name('recurring.update');
         Route::delete('/recurring/{recurring}', [ExpenseController::class, 'destroyRecurring'])->name('recurring.destroy');
+        Route::post('/recurring/{recurring}/trigger', [ExpenseController::class, 'triggerRecurring'])->name('recurring.trigger');
 
         Route::post('/categories', [ExpenseController::class, 'storeCategory'])->name('categories.store');
+        Route::patch('/categories/{category}', [ExpenseController::class, 'updateCategory'])->name('categories.update');
         Route::delete('/categories/{category}', [ExpenseController::class, 'destroyCategory'])->name('categories.destroy');
         // Chủ đặt hạn mức chi tiêu tháng theo chi nhánh.
         Route::post('/branch-budget', [ExpenseController::class, 'storeBranchBudget'])->name('branch-budget.store');
@@ -959,9 +963,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Bộ Quy Tắc Siết Chặt Quản Lý Tài Chính & Quy Trách Nhiệm Kho (Dành cho Trưởng Kho)
     Route::get('inventory/warehouse-governance', [WarehouseGovernanceController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.view')->name('inventory.warehouse-governance');
+    Route::get('inventory/warehouse-governance/export', [WarehouseGovernanceController::class, 'exportDisputesReport'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.view')->name('inventory.warehouse-governance.export');
     Route::post('api/warehouse-governance/rules', [WarehouseGovernanceController::class, 'updateRules'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.update-rules');
     Route::post('api/warehouse-governance/disputes/{id}/resolve', [WarehouseGovernanceController::class, 'resolveDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_governance.manage')->name('warehouse-governance.resolve-dispute');
     Route::post('api/warehouse-governance/disputes/{id}/respond', [WarehouseGovernanceController::class, 'respondDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|manager')->name('warehouse-governance.respond-dispute');
+    Route::post('api/warehouse-governance/disputes/{id}/collect-claim', [WarehouseGovernanceController::class, 'collectClaim'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_governance.manage')->name('warehouse-governance.collect-claim');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
     Route::get('inventory/branch-closing', [BranchClosingController::class, 'page'])->middleware('role_or_permission:owner|super_admin|manager|inventory.count')->name('inventory.branch-closing');

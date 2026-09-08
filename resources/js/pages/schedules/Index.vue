@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { CalendarDays } from 'lucide-vue-next';
+import { CalendarDays, ChevronDown } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -128,6 +128,29 @@ type PropType = {
 };
 
 const props = defineProps<PropType>();
+
+// --- AI STAFFING SUGGESTIONS DISPLAY LIMIT (MAX 3) ---
+const showAllStaffingTips = ref(false);
+
+const displayedStaffingTips = computed(() => {
+    if (!props.staffingTips) {
+        return [];
+    }
+
+    if (showAllStaffingTips.value) {
+        return props.staffingTips;
+    }
+
+    return props.staffingTips.slice(0, 3);
+});
+
+const remainingStaffingTipsCount = computed(() => {
+    if (!props.staffingTips) {
+        return 0;
+    }
+
+    return Math.max(0, props.staffingTips.length - 3);
+});
 
 // --- REAL-TIME LIVE CLOCK ---
 const currentTime = ref('');
@@ -350,14 +373,35 @@ const refreshAdminData = () => {
                 v-if="staffingTips && staffingTips.length > 0"
                 class="space-y-2"
             >
-                <p
-                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                >
-                    <span class="text-sm">⚡</span> Gợi ý AI — Tối ưu nhân sự
-                    theo ca
-                </p>
+                <div class="flex items-center justify-between">
+                    <p
+                        class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                    >
+                        <span class="text-sm">⚡</span> Gợi ý AI — Tối ưu nhân sự
+                        theo ca
+                        <span
+                            class="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                        >
+                            {{ staffingTips.length }} cảnh báo
+                        </span>
+                    </p>
+                    <button
+                        v-if="remainingStaffingTipsCount > 0"
+                        type="button"
+                        @click="showAllStaffingTips = !showAllStaffingTips"
+                        class="flex items-center gap-1 text-xs font-semibold text-amber-700 transition-colors hover:text-amber-900 hover:underline dark:text-amber-400 dark:hover:text-amber-300"
+                    >
+                        <span>{{ showAllStaffingTips ? 'Thu gọn lại' : `Xem tất cả (${staffingTips.length})` }}</span>
+                        <ChevronDown
+                            :class="[
+                                'size-3.5 transition-transform duration-200',
+                                showAllStaffingTips ? 'rotate-180' : '',
+                            ]"
+                        />
+                    </button>
+                </div>
                 <div
-                    v-for="(tip, i) in staffingTips"
+                    v-for="(tip, i) in displayedStaffingTips"
                     :key="i"
                     :class="[
                         'flex items-start gap-3 rounded-xl border p-3 text-xs',
@@ -387,6 +431,28 @@ const refreshAdminData = () => {
                     >
                         {{ tip.pct }}% DT
                     </span>
+                </div>
+
+                <!-- Remaining Alerts Indicator / Expand button -->
+                <div v-if="remainingStaffingTipsCount > 0" class="pt-0.5">
+                    <button
+                        type="button"
+                        @click="showAllStaffingTips = !showAllStaffingTips"
+                        class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 py-2.5 text-xs font-medium text-amber-800 transition-all hover:bg-amber-100/70 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                    >
+                        <span v-if="!showAllStaffingTips">
+                            + Còn lại <strong>{{ remainingStaffingTipsCount }}</strong> cảnh báo AI khác (nhấn để xem chi tiết)
+                        </span>
+                        <span v-else>
+                            Thu gọn danh sách (chỉ hiển thị 3 cảnh báo hàng đầu)
+                        </span>
+                        <ChevronDown
+                            :class="[
+                                'size-3.5 transition-transform duration-200',
+                                showAllStaffingTips ? 'rotate-180' : '',
+                            ]"
+                        />
+                    </button>
                 </div>
             </div>
 

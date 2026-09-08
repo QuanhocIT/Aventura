@@ -33,6 +33,7 @@ class FinancialPostingService
         '1122' => ['name' => 'Tiền chờ đối soát thẻ', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '1123' => ['name' => 'Tiền chờ đối soát ví điện tử', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '1311' => ['name' => 'Phải thu khách hàng', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
+        '1388' => ['name' => 'Phải thu khác (bồi thường, khiếu nại)', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '1521' => ['name' => 'Nguyên vật liệu tồn kho', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '2111' => ['name' => 'Tài sản cố định', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '2141' => ['name' => 'Hao mòn tài sản cố định', 'type' => 'asset', 'normal_balance' => 'credit', 'is_system' => true],

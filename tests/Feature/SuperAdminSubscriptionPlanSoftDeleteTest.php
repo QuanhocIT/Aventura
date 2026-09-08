@@ -65,6 +65,10 @@ class SuperAdminSubscriptionPlanSoftDeleteTest extends TestCase
         $softDeletedPlan = SubscriptionPlan::withTrashed()->find($plan->id);
         $this->assertEquals('inactive', $softDeletedPlan->status);
 
+        $restaurantsResponse = $this->actingAs($this->superAdmin)
+            ->getJson(route('superadmin.plans.restaurants', $plan->id));
+        $restaurantsResponse->assertOk()->assertJsonCount(1, 'restaurants');
+
         // 2. Verify existing customer still retains plan access via relationship
         $restaurant->refresh();
         $this->assertNotNull($restaurant->plan);
@@ -87,5 +91,32 @@ class SuperAdminSubscriptionPlanSoftDeleteTest extends TestCase
         $this->assertNotNull($restoredPlan);
         $this->assertEquals('active', $restoredPlan->status);
         $this->assertNull($restoredPlan->deleted_at);
+    }
+
+    public function test_standard_plan_endpoints_cannot_mutate_custom_plans(): void
+    {
+        $customPlan = SubscriptionPlan::create([
+            'restaurant_id' => null,
+            'is_custom' => true,
+            'code' => 'custom_private_test',
+            'name' => 'Custom Private Test',
+            'price' => 100000,
+            'billing_cycle' => 'monthly',
+            'status' => 'active',
+            'features' => [],
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->patch(route('superadmin.plans.update', $customPlan->id), [])
+            ->assertNotFound();
+
+        $this->actingAs($this->superAdmin)
+            ->delete(route('superadmin.plans.destroy', $customPlan->id))
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('subscription_plans', [
+            'id' => $customPlan->id,
+            'deleted_at' => null,
+        ]);
     }
 }

@@ -223,4 +223,76 @@ class IncidentTest extends TestCase
             ->get("/incidents/{$incident->id}/photo")
             ->assertOk();
     }
+
+    public function test_incident_with_needs_shift_cover_tags_schedule_assignments(): void
+    {
+        $employee = \App\Models\Employee::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->staff->id,
+            'employee_code' => 'EMP-TEST01',
+            'full_name' => $this->staff->name,
+            'status' => 'active',
+        ]);
+
+        $workShift = \App\Models\WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Ca Sáng',
+            'code' => 'WS-01',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'status' => 'active',
+        ]);
+
+        $assignment = \App\Models\ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $workShift->id,
+            'scheduled_date' => Carbon::today()->toDateString(),
+            'status' => 'scheduled',
+            'notes' => 'Ca sáng bình thường',
+        ]);
+
+        $this->actingAs($this->staff)->post('/incidents', $this->payload([
+            'type' => 'other',
+            'severity' => 'medium',
+            'title' => 'Nhân viên ngộ độc cần cấp cứu',
+            'needs_shift_cover' => true,
+            'occurred_at' => Carbon::today()->setTime(9, 0)->toDateTimeString(),
+        ]))->assertRedirect();
+
+        $assignment->refresh();
+        $this->assertStringContainsString('Cần bọc ca khẩn cấp', $assignment->notes);
+    }
+
+    public function test_equipment_failure_incident_creates_maintenance_log_and_updates_equipment(): void
+    {
+        $equipment = \App\Models\Equipment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Máy xay cà phê Eureka',
+            'code' => 'EQ-EUR-01',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->staff)->post('/incidents', $this->payload([
+            'type' => 'equipment_failure',
+            'severity' => 'high',
+            'title' => 'Máy xay cà phê Eureka bị kẹt đá khét lẹt',
+            'description' => 'Lưỡi dao kẹt cứng bốc khói đen cần thợ sửa gấp',
+        ]))->assertRedirect();
+
+        $equipment->refresh();
+        $this->assertSame('broken', $equipment->status);
+
+        $maintenanceLog = \App\Models\EquipmentMaintenanceLog::where('equipment_id', $equipment->id)->latest('id')->first();
+        $this->assertNotNull($maintenanceLog);
+        $this->assertSame('repair', $maintenanceLog->type);
+        $this->assertSame('pending', $maintenanceLog->status);
+        $this->assertStringContainsString('Khắc phục sự cố', $maintenanceLog->title);
+
+        $incident = Incident::withoutGlobalScopes()->latest('id')->first();
+        $this->assertStringContainsString('Tự động lập Phiếu sửa chữa thiết bị', $incident->immediate_action);
+    }
 }

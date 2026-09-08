@@ -91,6 +91,9 @@ class WarehouseGovernanceController extends Controller
             'responsible_type' => 'required|string|in:warehouse_staff,transporter,branch_staff,unknown',
             'responsible_user_id' => ['nullable', TenantRule::exists('users')],
             'resolution_notes' => 'required|string|max:1000',
+            'penalty_amount' => 'nullable|numeric|min:0',
+            'write_off_inventory' => 'nullable|boolean',
+            'claim_status' => 'nullable|string|in:pending_collection,collected,waived',
         ]);
 
         $user = $request->user();
@@ -101,8 +104,11 @@ class WarehouseGovernanceController extends Controller
                 $user->restaurant_id,
                 $user,
                 $request->responsible_type,
-                $request->responsible_user_id,
-                $request->resolution_notes
+                $request->responsible_user_id ? (int) $request->responsible_user_id : null,
+                $request->resolution_notes,
+                $request->filled('penalty_amount') ? (float) $request->penalty_amount : null,
+                (bool) $request->input('write_off_inventory', false),
+                $request->input('claim_status')
             );
 
             return response()->json([
@@ -135,5 +141,137 @@ class WarehouseGovernanceController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * Collect compensation claim from transporter.
+     */
+    public function collectClaim(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'collected_amount' => 'required|numeric|min:1',
+            'payment_method' => 'required|string|in:cash,bank',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $user = $request->user();
+
+        try {
+            $dispute = $this->governanceService->collectTransporterClaim(
+                $id,
+                $user->restaurant_id,
+                $user,
+                (float) $request->collected_amount,
+                $request->payment_method,
+                $request->notes
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã ghi nhận thu tiền bồi thường từ đơn vị vận chuyển và hạch toán kế toán thành công.',
+                'data' => $dispute,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Export disputes report to CSV.
+     */
+    public function exportDisputesReport(Request $request)
+    {
+        $user = $request->user();
+        $disputes = \App\Models\InventoryDiscrepancyDispute::where('restaurant_id', $user->restaurant_id)
+            ->with([
+                'ingredient.unit',
+                'responsibleUser',
+                'resolver',
+                'supplyRequest.toBranch',
+                'supplyRequest.fromBranch',
+                'supplyRequest.transporter',
+            ])
+            ->orderByDesc('id')
+            ->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="bao-cao-bat-dong-kho-'.now()->format('Ymd-His').'.csv"',
+        ];
+
+        $callback = function () use ($disputes) {
+            $handle = fopen('php://output', 'w');
+            // BOM UTF-8 for Excel
+            fputs($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'Mã Biên Bản',
+                'Ngày Ghi Nhận',
+                'Mã Đơn Cấp Phát',
+                'Chi Nhánh Nhận',
+                'Mặt Hàng',
+                'ĐVT',
+                'SL Thực Xuất',
+                'SL Thực Nhận',
+                'SL Chênh Lệch',
+                'Tổng Thiệt Hại (VNĐ)',
+                'Bên Chịu Trách Nhiệm',
+                'Người Chịu Phạt',
+                'Số Tiền Phạt Lương (VNĐ)',
+                'Công Ty Hỗ Trợ/Miễn (VNĐ)',
+                'Trạng Thái',
+                'Hạch Toán Kho',
+                'Ghi Chú Kết Luận',
+                'Người Giải Quyết',
+                'Ngày Giải Quyết',
+            ]);
+
+            foreach ($disputes as $d) {
+                $respLabel = match ($d->responsible_type) {
+                    'warehouse_staff' => 'Nhân viên Kho Tổng',
+                    'branch_staff' => 'Nhân viên Chi nhánh',
+                    'transporter' => 'Đơn vị Vận chuyển',
+                    default => 'Chưa xác định',
+                };
+
+                $statusLabel = match ($d->status) {
+                    'open' => 'Mới phát sinh',
+                    'investigating' => 'Đang đối soát',
+                    'appealed' => 'Khiếu nại/Phản hồi',
+                    'penalized' => 'Đã phạt lương',
+                    'resolved' => 'Đã xử lý xong',
+                    default => $d->status,
+                };
+
+                fputcsv($handle, [
+                    $d->dispute_code,
+                    $d->created_at?->format('d/m/Y H:i') ?? '',
+                    $d->supplyRequest?->request_code ?? '',
+                    $d->supplyRequest?->toBranch?->name ?? '',
+                    $d->ingredient?->name ?? '',
+                    $d->ingredient?->unit?->symbol ?? '',
+                    (float) $d->dispatched_quantity,
+                    (float) $d->received_quantity,
+                    (float) $d->discrepancy_quantity,
+                    (float) $d->financial_loss_amount,
+                    $respLabel,
+                    $d->responsibleUser?->name ?? ($d->responsible_type === 'transporter' ? ($d->supplyRequest?->transporter?->name ?? 'Tài xế/ĐVVC') : ''),
+                    (float) ($d->penalty_amount ?? 0),
+                    (float) ($d->waived_amount ?? 0),
+                    $statusLabel,
+                    $d->write_off_transaction_id ? 'Đã xuất hao hụt' : 'Chưa hạch toán',
+                    $d->resolution_notes ?? '',
+                    $d->resolver?->name ?? '',
+                    $d->resolved_at?->format('d/m/Y H:i') ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

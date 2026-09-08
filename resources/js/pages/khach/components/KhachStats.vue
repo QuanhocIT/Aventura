@@ -81,7 +81,7 @@ onUnmounted(() => {
                         {{ countRestaurants }}+
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                        class="mt-1.5 text-xs font-semibold leading-tight text-slate-700 sm:text-sm dark:text-slate-300"
                     >
                         Nhà hàng đang vận hành
                     </p>
@@ -93,7 +93,7 @@ onUnmounted(() => {
                         {{ (countOrders / 1000).toFixed(1) }}K+
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                        class="mt-1.5 text-xs font-semibold leading-tight text-slate-700 sm:text-sm dark:text-slate-300"
                     >
                         Đơn hàng đã xử lý
                     </p>
@@ -105,7 +105,7 @@ onUnmounted(() => {
                         {{ (countUptime / 10).toFixed(1) }}%
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                        class="mt-1.5 text-xs font-semibold leading-tight text-slate-700 sm:text-sm dark:text-slate-300"
                     >
                         Uptime cam kết SLA
                     </p>
@@ -115,7 +115,7 @@ onUnmounted(() => {
             <!-- 3 value prop cards -->
             <div class="mt-10 grid gap-4 md:grid-cols-3">
                 <Card
-                    class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                    class="reveal-on-scroll group border-border bg-card transition-shadow hover:shadow-md"
                     style="transition-delay: 0ms"
                 >
                     <CardHeader>
@@ -124,10 +124,10 @@ onUnmounted(() => {
                         >
                             <Building2 class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base text-amber-100/90"
+                        <CardTitle class="mt-3 text-base font-bold text-foreground"
                             >Quản lý chuỗi quy mô lớn</CardTitle
                         >
-                        <CardDescription>
+                        <CardDescription class="text-sm leading-relaxed text-muted-foreground">
                             Multi-branch với dữ liệu tenant tách biệt. Một tài
                             khoản kiểm soát toàn bộ hệ thống chi nhánh, báo cáo
                             hợp nhất theo thời gian thực.
@@ -135,7 +135,7 @@ onUnmounted(() => {
                     </CardHeader>
                 </Card>
                 <Card
-                    class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                    class="reveal-on-scroll group border-border bg-card transition-shadow hover:shadow-md"
                     style="transition-delay: 150ms"
                 >
                     <CardHeader>
@@ -144,10 +144,10 @@ onUnmounted(() => {
                         >
                             <LineChart class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base text-amber-100/90"
+                        <CardTitle class="mt-3 text-base font-bold text-foreground"
                             >Minh bạch từng thao tác</CardTitle
                         >
-                        <CardDescription>
+                        <CardDescription class="text-sm leading-relaxed text-muted-foreground">
                             Audit log ghi vết mọi thay đổi nhạy cảm — thay giá,
                             hủy đơn, xóa dữ liệu. Không thể tẩy xóa, tra soát
                             bất kỳ lúc nào.
@@ -155,7 +155,7 @@ onUnmounted(() => {
                     </CardHeader>
                 </Card>
                 <Card
-                    class="reveal-on-scroll group border-border transition-shadow hover:shadow-md"
+                    class="reveal-on-scroll group border-border bg-card transition-shadow hover:shadow-md"
                     style="transition-delay: 300ms"
                 >
                     <CardHeader>
@@ -164,10 +164,10 @@ onUnmounted(() => {
                         >
                             <Rocket class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base text-amber-100/90"
+                        <CardTitle class="mt-3 text-base font-bold text-foreground"
                             >Onboarding không cần giải thích</CardTitle
                         >
-                        <CardDescription>
+                        <CardDescription class="text-sm leading-relaxed text-muted-foreground">
                             Đăng ký xong, chatbot hướng dẫn từng bước từ menu →
                             bàn → nhân viên → order. Vận hành thật ngay trong 30
                             phút đầu.

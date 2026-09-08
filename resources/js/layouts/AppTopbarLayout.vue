@@ -108,8 +108,10 @@ withDefaults(
 const { getInitials } = useInitials();
 
 const publicNavItems = [
-    { label: 'Tính năng', href: '#features' },
-    { label: 'Bảng giá', href: '#pricing' },
+    { label: 'Trang chủ', href: '/' },
+    { label: 'Giới thiệu', href: '/gioi-thieu' },
+    { label: 'Tính năng', href: '/#features' },
+    { label: 'Bảng giá', href: '/bang-gia' },
     { label: 'Tin tức', href: '/tin-tuc' },
 ];
 
@@ -125,7 +127,11 @@ const authNavItems = [
 const navItems = computed(() => (user.value ? authNavItems : publicNavItems));
 
 function isActiveNav(href: string): boolean {
-    if (href.startsWith('#')) {
+    if (href === '/') {
+        return page.url === '/' || page.url === '';
+    }
+
+    if (href.startsWith('#') || href.includes('#')) {
         return false;
     }
 
@@ -167,19 +173,29 @@ const handleLogout = () => {
         ]"
     >
         <div
-            class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 lg:px-8"
+            class="mx-auto flex max-w-7xl items-center gap-6 px-4 py-3 lg:px-8"
         >
             <Link
                 href="/"
-                class="flex items-center gap-2 font-semibold"
+                prefetch="hover"
+                cache-for="1m"
+                class="flex items-center gap-2.5 font-bold"
                 :class="transparent ? 'text-white' : 'text-foreground'"
             >
                 <span
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary font-sans text-sm font-bold text-primary-foreground"
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 font-sans text-sm font-bold text-white shadow-xs"
                     >A</span
                 >
                 <div class="flex flex-col leading-none">
-                    <span>Aventura</span>
+                    <span
+                        class="text-lg font-bold tracking-tight"
+                        :class="
+                            transparent
+                                ? 'text-white'
+                                : 'text-slate-900 dark:text-white'
+                        "
+                        >Aventura</span
+                    >
                     <span
                         v-if="user && tenant?.name"
                         class="mt-0.5 text-xs font-normal"
@@ -193,28 +209,30 @@ const handleLogout = () => {
                 </div>
             </Link>
 
-            <nav class="hidden flex-1 items-center gap-1 md:flex">
+            <nav class="hidden flex-1 items-center gap-2 md:flex">
                 <component
                     v-for="item in navItems"
                     :key="item.label"
                     :is="item.href.startsWith('#') ? 'a' : Link"
                     :href="item.href"
-                    class="rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200"
+                    :prefetch="item.href.startsWith('#') ? undefined : 'hover'"
+                    :cache-for="item.href.startsWith('#') ? undefined : '1m'"
+                    class="relative rounded-md px-3 py-2 text-sm font-semibold transition-all duration-200"
                     :class="
                         transparent
                             ? isActiveNav(item.href)
                                 ? 'bg-white/15 font-bold text-white shadow-sm backdrop-blur-sm'
                                 : 'text-zinc-200 hover:bg-white/10 hover:text-white'
                             : isActiveNav(item.href)
-                              ? 'bg-primary/10 font-extrabold text-primary shadow-xs'
-                              : 'text-slate-800 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                              ? 'text-blue-600 after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2.5px] after:rounded-full after:bg-blue-600 dark:text-blue-400 dark:after:bg-blue-400'
+                              : 'text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white'
                     "
                 >
                     {{ item.label }}
                 </component>
             </nav>
 
-            <div class="hidden items-center gap-2 md:flex">
+            <div class="hidden items-center gap-3 md:flex">
                 <AppearanceToggleInline />
 
                 <!-- Notification Center -->
@@ -225,26 +243,26 @@ const handleLogout = () => {
                         as-child
                         variant="outline"
                         size="sm"
-                        class="transition-all"
+                        class="rounded-lg border-slate-200 bg-white/90 font-medium text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                         :class="
                             transparent
                                 ? 'border-white/20 bg-white/5 text-white hover:bg-white/15 hover:text-white'
                                 : ''
                         "
                     >
-                        <Link href="/login">Đăng nhập</Link>
+                        <Link href="/login" prefetch="hover" cache-for="1m">Đăng nhập</Link>
                     </Button>
                     <Button
                         as-child
                         size="sm"
-                        class="transition-all"
+                        class="rounded-lg font-semibold text-white shadow-xs transition-all"
                         :class="
                             transparent
                                 ? 'border-none bg-amber-500 font-bold text-zinc-950 hover:bg-amber-600'
-                                : ''
+                                : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500'
                         "
                     >
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register" prefetch="hover" cache-for="1m">Dùng miễn phí</Link>
                     </Button>
                 </template>
 
@@ -392,6 +410,8 @@ const handleLogout = () => {
                     :key="item.label"
                     :is="item.href.startsWith('#') ? 'a' : Link"
                     :href="item.href"
+                    :prefetch="item.href.startsWith('#') ? undefined : 'hover'"
+                    :cache-for="item.href.startsWith('#') ? undefined : '1m'"
                     class="rounded-md px-3 py-2 text-sm transition-colors"
                     :class="
                         transparent
@@ -421,7 +441,7 @@ const handleLogout = () => {
                                 : ''
                         "
                     >
-                        <Link href="/login">Đăng nhập</Link>
+                        <Link href="/login" prefetch="hover" cache-for="1m">Đăng nhập</Link>
                     </Button>
                     <Button
                         as-child
@@ -433,11 +453,11 @@ const handleLogout = () => {
                                 : ''
                         "
                     >
-                        <Link href="/register">Dùng miễn phí</Link>
+                        <Link href="/register" prefetch="hover" cache-for="1m">Dùng miễn phí</Link>
                     </Button>
                 </template>
                 <Button v-else as-child size="sm" class="flex-1">
-                    <Link href="/dashboard">Vào hệ thống</Link>
+                    <Link href="/dashboard" prefetch="hover" cache-for="1m">Vào hệ thống</Link>
                 </Button>
             </div>
         </div>

@@ -45,7 +45,6 @@ const warehouseStaffNavItems = [
     { label: 'Tác vụ hôm nay', href: '/inventory/staff-portal' },
     { label: 'Kho', href: '/inventory/central-warehouse' },
     { label: 'Nhận hàng', href: '/inventory/central-warehouse/receiving' },
-    { label: 'Logistics', href: '/inventory/delivery-manifests' },
     { label: 'Hỗ trợ', href: '/support' },
 ];
 

@@ -24,8 +24,9 @@ import {
     Clock,
     MessageSquare,
     Database,
+    ChevronDown,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { StatusBadge, AlertBanner } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
@@ -161,6 +162,29 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
+
+// --- ANOMALIES DISPLAY LIMIT (MAX 3) ---
+const showAllAnomalies = ref(false);
+
+const displayedAnomalies = computed(() => {
+    if (!props.anomalies) {
+        return [];
+    }
+
+    if (showAllAnomalies.value) {
+        return props.anomalies;
+    }
+
+    return props.anomalies.slice(0, 3);
+});
+
+const remainingAnomaliesCount = computed(() => {
+    if (!props.anomalies) {
+        return 0;
+    }
+
+    return Math.max(0, props.anomalies.length - 3);
+});
 watch(
     () => page.props.flash,
     (flash: any) => {
@@ -697,14 +721,40 @@ const tagBgColors: Record<string, string> = {
         </div>
 
         <!-- Anomaly Alerts -->
-        <AlertBanner
-            v-for="anomaly in anomalies"
-            :key="anomaly.type"
-            :severity="anomaly.severity === 'danger' ? 'critical' : 'warning'"
-            :title="anomaly.title"
-            :message="anomaly.message"
-            class=""
-        />
+        <template v-if="anomalies && anomalies.length > 0">
+            <div class="space-y-3">
+                <AlertBanner
+                    v-for="anomaly in displayedAnomalies"
+                    :key="anomaly.type"
+                    :severity="anomaly.severity === 'danger' ? 'critical' : 'warning'"
+                    :title="anomaly.title"
+                    :message="anomaly.message"
+                    class=""
+                />
+
+                <!-- Remaining Anomalies Button -->
+                <div v-if="remainingAnomaliesCount > 0" class="pt-0.5">
+                    <button
+                        type="button"
+                        @click="showAllAnomalies = !showAllAnomalies"
+                        class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/60 py-2 text-xs font-medium text-amber-800 transition-all hover:bg-amber-100/70 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                    >
+                        <span v-if="!showAllAnomalies">
+                            + Còn lại <strong>{{ remainingAnomaliesCount }}</strong> cảnh báo bất thường khác (nhấn để xem chi tiết)
+                        </span>
+                        <span v-else>
+                            Thu gọn danh sách (chỉ hiển thị 3 cảnh báo)
+                        </span>
+                        <ChevronDown
+                            :class="[
+                                'size-3.5 transition-transform duration-200',
+                                showAllAnomalies ? 'rotate-180' : '',
+                            ]"
+                        />
+                    </button>
+                </div>
+            </div>
+        </template>
 
         <div class="grid gap-6 lg:grid-cols-[1.5fr,0.9fr]">
             <div class="flex flex-col gap-6">

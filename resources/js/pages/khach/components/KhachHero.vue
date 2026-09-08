@@ -32,7 +32,7 @@ const defaultSlides = [
             { icon: '🔒', label: 'Bảo mật Audit' },
             { icon: '🎁', label: 'Dùng miễn phí' },
         ],
-        image: '/restaurant_hero_bg_1.jpg',
+        image: '/restaurant_hero_bg_1.webp',
         gradient:
             'linear-gradient(135deg, rgba(8, 10, 15, 0.93) 0%, rgba(15, 20, 30, 0.82) 50%, rgba(8, 10, 15, 0.91) 100%)',
     },
@@ -47,7 +47,7 @@ const defaultSlides = [
             { icon: '🚀', label: 'Tăng tốc phục vụ' },
             { icon: '📈', label: 'Tối ưu doanh số' },
         ],
-        image: '/restaurant_hero_bg_2.jpg',
+        image: '/restaurant_hero_bg_2.webp',
         gradient:
             'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(12, 28, 24, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)',
     },
@@ -62,7 +62,7 @@ const defaultSlides = [
             { icon: '⚠️', label: 'Cảnh báo tồn thấp' },
             { icon: '📉', label: 'Chống thất thoát' },
         ],
-        image: '/restaurant_hero_bg_1.jpg',
+        image: '/restaurant_hero_bg_1.webp',
         gradient:
             'linear-gradient(135deg, rgba(8, 10, 15, 0.94) 0%, rgba(30, 18, 12, 0.84) 50%, rgba(8, 10, 15, 0.92) 100%)',
     },

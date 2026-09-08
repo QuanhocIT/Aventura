@@ -81,8 +81,24 @@ const goToPage = (url: string) => {
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 };
 
+// --- COMPUTED ROLE ---
+const isManagerOrOwner = computed(() => {
+    const authUser = usePage().props.auth?.user as any;
+
+    return (
+        authUser?.permissions?.includes('manage_violations') ||
+        authUser?.permissions?.includes('manage_employees') ||
+        authUser?.permissions?.includes('branch.manage') ||
+        ['owner', 'admin', 'manager', 'branch_manager', 'warehouse_manager', 'super_admin'].includes(
+            props.currentUserRole,
+        )
+    );
+});
+
 // --- STATE ---
-const activeTab = ref<'reports' | 'submit'>('reports');
+const activeTab = ref<'reports' | 'submit'>(
+    isManagerOrOwner.value ? 'reports' : 'submit',
+);
 const activeFilter = ref<'all' | 'open' | 'resolved' | 'dismissed'>('all');
 const showResolveModal = ref(false);
 const selectedReport = ref<Report | null>(null);
@@ -194,20 +210,6 @@ const appealStatusConfig: Record<string, { label: string; cls: string }> = {
         cls: 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/20',
     },
 };
-
-// --- COMPUTED ---
-const isManagerOrOwner = computed(() => {
-    const authUser = usePage().props.auth?.user as any;
-
-    return (
-        authUser?.permissions?.includes('manage_violations') ||
-        authUser?.permissions?.includes('manage_employees') ||
-        authUser?.permissions?.includes('branch.manage') ||
-        ['owner', 'admin', 'manager', 'branch_manager', 'warehouse_manager', 'super_admin'].includes(
-            props.currentUserRole,
-        )
-    );
-});
 
 const filteredReports = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
@@ -372,67 +374,110 @@ const statusConfig: Record<
         >
             <div class="flex items-center gap-3">
                 <div
+                    v-if="isManagerOrOwner"
                     class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 shadow-sm dark:bg-rose-950/60 dark:text-rose-400"
                 >
                     <Scale class="size-6" />
                 </div>
+                <div
+                    v-else
+                    class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-sm dark:bg-emerald-950/60 dark:text-emerald-400"
+                >
+                    <ShieldCheck class="size-6" />
+                </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">
-                        Giám Sát Nội Bộ & Sai Phạm
+                        {{ isManagerOrOwner ? 'Giám Sát Nội Bộ & Sai Phạm' : 'Hòm Thư Tố Cáo Ẩn Danh' }}
                     </h1>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
-                        Cơ chế giám sát chéo minh bạch, hòm thư tố cáo ẩn danh
-                        bảo vệ nhân sự và quy trình cấn trừ phạt trực tiếp vào
-                        bảng lương.
+                        {{
+                            isManagerOrOwner
+                                ? 'Cơ chế giám sát chéo minh bạch, hòm thư tố cáo ẩn danh bảo vệ nhân sự và quy trình cấn trừ phạt trực tiếp vào bảng lương.'
+                                : 'Kênh gửi phản ánh và tố giác sai phạm hoàn toàn bảo mật — danh tính của bạn được mã hóa và bảo vệ tuyệt đối.'
+                        }}
                     </p>
                 </div>
             </div>
 
             <!-- Tab switcher -->
             <div class="flex flex-wrap items-center gap-2">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    @click="switchTab('reports')"
-                    :class="[
-                        'rounded-xl text-xs font-bold transition-all',
-                        activeTab === 'reports'
-                            ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20'
-                            : '',
-                    ]"
-                >
-                    <FileText class="mr-1.5 size-4" />
-                    Danh sách sai phạm & tố cáo
-                </Button>
-                <Button
-                    v-if="isManagerOrOwner"
-                    variant="default"
-                    size="sm"
-                    @click="switchTab('submit', false)"
-                    :class="[
-                        'rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-sm transition-all hover:from-rose-700 hover:to-indigo-700',
-                        activeTab === 'submit' && !reportForm.is_anonymous
-                            ? 'ring-2 ring-rose-400 ring-offset-1'
-                            : '',
-                    ]"
-                >
-                    <Plus class="mr-1.5 size-4" />
-                    Lập biên bản vi phạm
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    @click="switchTab('submit', true)"
-                    :class="[
-                        'rounded-xl text-xs font-bold transition-all',
-                        activeTab === 'submit' && reportForm.is_anonymous
-                            ? 'border-rose-300 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'
-                            : '',
-                    ]"
-                >
-                    <Send class="mr-1.5 size-4" />
-                    Gửi tố cáo ẩn danh
-                </Button>
+                <!-- For Staff -->
+                <template v-if="!isManagerOrOwner">
+                    <Button
+                        variant="default"
+                        size="sm"
+                        @click="switchTab('submit', true)"
+                        :class="[
+                            'rounded-xl text-xs font-bold transition-all shadow-sm',
+                            activeTab === 'submit'
+                                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                : 'bg-muted text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        <Send class="mr-1.5 size-4" />
+                        Gửi tố cáo ẩn danh
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="switchTab('reports')"
+                        :class="[
+                            'rounded-xl text-xs font-bold transition-all',
+                            activeTab === 'reports'
+                                ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20'
+                                : '',
+                        ]"
+                    >
+                        <FileText class="mr-1.5 size-4" />
+                        Đơn của tôi & Kháng cáo
+                    </Button>
+                </template>
+
+                <!-- For Manager / Owner -->
+                <template v-else>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="switchTab('reports')"
+                        :class="[
+                            'rounded-xl text-xs font-bold transition-all',
+                            activeTab === 'reports'
+                                ? 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/20'
+                                : '',
+                        ]"
+                    >
+                        <FileText class="mr-1.5 size-4" />
+                        Danh sách sai phạm & tố cáo
+                    </Button>
+                    <Button
+                        variant="default"
+                        size="sm"
+                        @click="switchTab('submit', false)"
+                        :class="[
+                            'rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-sm transition-all hover:from-rose-700 hover:to-indigo-700',
+                            activeTab === 'submit' && !reportForm.is_anonymous
+                                ? 'ring-2 ring-rose-400 ring-offset-1'
+                                : '',
+                        ]"
+                    >
+                        <Plus class="mr-1.5 size-4" />
+                        Lập biên bản vi phạm
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="switchTab('submit', true)"
+                        :class="[
+                            'rounded-xl text-xs font-bold transition-all',
+                            activeTab === 'submit' && reportForm.is_anonymous
+                                ? 'border-rose-300 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400'
+                                : '',
+                        ]"
+                    >
+                        <ShieldAlert class="mr-1.5 size-4" />
+                        Gửi tố cáo ẩn danh
+                    </Button>
+                </template>
             </div>
         </div>
 
@@ -469,8 +514,8 @@ const statusConfig: Record<
                 </button>
             </div>
 
-            <!-- Stats row -->
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <!-- Stats row (Dành riêng cho Quản lý & Chủ nhà hàng) -->
+            <div v-if="isManagerOrOwner" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div
                     class="rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/30 dark:bg-blue-950/20"
                 >
@@ -917,13 +962,16 @@ const statusConfig: Record<
                     <h3
                         class="text-sm font-semibold text-slate-700 dark:text-slate-300"
                     >
-                        Không có tố cáo nội bộ
+                        {{ isManagerOrOwner ? 'Không có tố cáo nội bộ' : 'Chưa có đơn tố cáo hoặc khiếu nại nào' }}
                     </h3>
                     <p
-                        class="max-w-[250px] text-xs text-slate-400 dark:text-slate-500"
+                        class="max-w-[320px] text-xs text-slate-400 dark:text-slate-500"
                     >
-                        Toàn bộ nhân sự hoạt động chuẩn chỉ, không phát hiện dấu
-                        hiệu sai phạm!
+                        {{
+                            isManagerOrOwner
+                                ? 'Toàn bộ nhân sự hoạt động chuẩn chỉ, không phát hiện dấu hiệu sai phạm!'
+                                : 'Bạn chưa gửi tố cáo nào. Nếu phát hiện sai phạm hoặc gian lận, hãy bấm "Gửi tố cáo ẩn danh" để phản ánh an toàn.'
+                        }}
                     </p>
                 </div>
 

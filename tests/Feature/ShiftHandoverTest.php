@@ -204,6 +204,8 @@ class ShiftHandoverTest extends TestCase
 
     public function test_incoming_shift_can_dispute(): void
     {
+        \Illuminate\Support\Facades\Notification::fake();
+
         $handover = $this->openHandover();
         $this->tickEverything($handover);
 
@@ -220,7 +222,68 @@ class ShiftHandoverTest extends TestCase
             ])
             ->assertRedirect();
 
+        $handover->refresh();
+        $this->assertSame(ShiftHandover::STATUS_DISPUTED, $handover->status);
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $this->outgoing,
+            \App\Notifications\ShiftHandoverDisputedNotification::class
+        );
+    }
+
+    public function test_manager_or_owner_can_arbitrate_dispute(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $handover = $this->openHandover();
+        $this->tickEverything($handover);
+
+        $this->actingAs($this->outgoing)
+            ->patch(route('shift-handovers.submit', $handover), [
+                'to_user_id' => $this->incoming->id,
+                'cash_amount' => 500_000,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($this->incoming)
+            ->patch(route('shift-handovers.dispute', $handover), [
+                'dispute_reason' => 'Két thiếu 100.000đ.',
+            ])
+            ->assertRedirect();
+
         $this->assertSame(ShiftHandover::STATUS_DISPUTED, $handover->fresh()->status);
+
+        // Staff không có quyền phân xử
+        $this->actingAs($this->incoming)
+            ->patch(route('shift-handovers.resolve-dispute', $handover), [
+                'final_cash_amount' => 450_000,
+                'dispute_resolution_notes' => 'Tự ý giải quyết không được.',
+            ])
+            ->assertForbidden();
+
+        // Chủ nhà hàng / Quản lý phân xử thành công
+        $this->actingAs($this->owner)
+            ->patch(route('shift-handovers.resolve-dispute', $handover), [
+                'final_cash_amount' => 400_000,
+                'resolution_notes' => 'Đã trích camera, chấp nhận trừ 100.000đ tiền mặt.',
+            ])
+            ->assertRedirect();
+
+        $handover->refresh();
+        $this->assertSame(ShiftHandover::STATUS_DISPUTE_RESOLVED, $handover->status);
+        $this->assertEquals(400_000, (float) $handover->final_cash_amount);
+        $this->assertSame($this->owner->id, $handover->dispute_resolved_by);
+        $this->assertSame('Đã trích camera, chấp nhận trừ 100.000đ tiền mặt.', $handover->dispute_resolution_notes);
+        $this->assertNotNull($handover->dispute_resolved_at);
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $this->outgoing,
+            \App\Notifications\ShiftHandoverDisputeResolvedNotification::class
+        );
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $this->incoming,
+            \App\Notifications\ShiftHandoverDisputeResolvedNotification::class
+        );
     }
 
     public function test_submitted_handover_can_no_longer_be_edited(): void

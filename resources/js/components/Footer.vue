@@ -171,8 +171,19 @@ import {
                             </Link>
                         </li>
                         <li>
+                            <Link
+                                href="/gioi-thieu"
+                                class="group flex items-center transition-colors hover:text-white"
+                            >
+                                <ChevronRight
+                                    class="mr-1.5 size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-400"
+                                />
+                                <span>Giới thiệu Aventura</span>
+                            </Link>
+                        </li>
+                        <li>
                             <a
-                                href="#features"
+                                href="/#features"
                                 class="group flex items-center transition-colors hover:text-white"
                             >
                                 <ChevronRight
@@ -182,15 +193,15 @@ import {
                             </a>
                         </li>
                         <li>
-                            <a
-                                href="#pricing"
+                            <Link
+                                href="/bang-gia"
                                 class="group flex items-center transition-colors hover:text-white"
                             >
                                 <ChevronRight
                                     class="mr-1.5 size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-400"
                                 />
                                 <span>Bảng giá & Gói dịch vụ</span>
-                            </a>
+                            </Link>
                         </li>
                         <li>
                             <Link

@@ -234,6 +234,8 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/gioi-thieu', [HomeController::class, 'about'])->name('about');
+Route::get('/bang-gia', [HomeController::class, 'pricing'])->name('pricing');
 Route::get('/tin-tuc', [NewsController::class, 'index'])->name('news.index');
 Route::get('/tin-tuc/{slug}', [NewsController::class, 'show'])->name('news.show');
 

@@ -3,13 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\Employee;
+use App\Models\Equipment;
+use App\Models\EquipmentMaintenanceLog;
 use App\Models\Incident;
 use App\Models\RestaurantBranch;
+use App\Models\ScheduleAssignment;
 use App\Models\User;
 use App\Notifications\IncidentEscalatedNotification;
 use App\Support\Tenant\TenantContext;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -171,15 +177,110 @@ class IncidentController extends Controller
             $owner->notify(new IncidentEscalatedNotification($incident));
         }
 
+        $extraNotes = [];
+
+        // 1. Tự động liên kết Bọc ca khẩn cấp khi sự cố cần người trực thay
+        if ($incident->needs_shift_cover) {
+            try {
+                $employee = Employee::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('user_id', $user->id)
+                    ->first();
+
+                $occurredDate = Carbon::parse($incident->occurred_at)->toDateString();
+
+                $assignments = ScheduleAssignment::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $branchId)
+                    ->whereDate('scheduled_date', $occurredDate)
+                    ->when($employee, fn ($q) => $q->where('employee_id', $employee->id))
+                    ->whereIn('status', ['scheduled', 'checked_in'])
+                    ->get();
+
+                if ($assignments->isNotEmpty()) {
+                    $codeStr = 'INC-'.str_pad((string) $incident->id, 6, '0', STR_PAD_LEFT);
+                    foreach ($assignments as $assignment) {
+                        $coverNote = "[{$codeStr}: Cần bọc ca khẩn cấp]";
+                        if (! str_contains($assignment->notes ?? '', $coverNote)) {
+                            $assignment->update([
+                                'notes' => trim(($assignment->notes ? $assignment->notes.' ' : '').$coverNote),
+                            ]);
+                        }
+                    }
+                    $extraNotes[] = "đã đánh dấu {$assignments->count()} ca trực cần bọc ca";
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Failed linking incident to shift cover: {$e->getMessage()}");
+            }
+        }
+
+        // 2. Tự động lập Phiếu sửa chữa thiết bị khi sự cố là hỏng hóc máy móc
+        if ($incident->type === 'equipment_failure') {
+            try {
+                $equipmentQuery = Equipment::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'));
+
+                $equipment = null;
+                if ($incident->location) {
+                    $equipment = (clone $equipmentQuery)->where('location', 'like', "%{$incident->location}%")->first();
+                }
+                if (! $equipment) {
+                    $equipment = (clone $equipmentQuery)->where('name', 'like', "%{$incident->title}%")->first();
+                }
+                if (! $equipment) {
+                    $equipment = (clone $equipmentQuery)->first();
+                }
+                if (! $equipment) {
+                    $equipment = Equipment::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $branchId,
+                        'name' => $incident->title ?: 'Thiết bị gặp sự cố',
+                        'location' => $incident->location,
+                        'status' => 'broken',
+                    ]);
+                } else {
+                    $equipment->update(['status' => 'broken']);
+                }
+
+                $codeStr = 'INC-'.str_pad((string) $incident->id, 6, '0', STR_PAD_LEFT);
+                $log = EquipmentMaintenanceLog::create([
+                    'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
+                    'equipment_id' => $equipment->id,
+                    'type' => 'repair',
+                    'title' => "Khắc phục sự cố {$codeStr}: {$incident->title}",
+                    'description' => "Tự động kích hoạt từ Sổ Sự Cố Khẩn Cấp [{$codeStr}]. Chi tiết: {$incident->description}",
+                    'status' => 'pending',
+                    'scheduled_date' => now()->toDateString(),
+                    'reported_by' => $user->id,
+                ]);
+
+                $autoAction = "[Tự động lập Phiếu sửa chữa thiết bị #{$log->id}]";
+                $incident->update([
+                    'immediate_action' => trim(($incident->immediate_action ? $incident->immediate_action."\n" : '').$autoAction),
+                ]);
+
+                $extraNotes[] = "đã tự động tạo phiếu sửa chữa thiết bị #{$log->id}";
+            } catch (\Throwable $e) {
+                Log::warning("Failed creating equipment maintenance log for incident: {$e->getMessage()}");
+            }
+        }
+
         AuditLog::log('incident_reported', 'created', $incident, null, [
             'type' => $incident->type,
             'severity' => $incident->severity,
             'auto_escalated' => $incident->escalated,
+            'extra_integrations' => $extraNotes,
         ]);
 
         $msg = $incident->escalated
             ? 'Đã ghi nhận sự cố và TỰ ĐỘNG báo lên Chủ nhà hàng để xử lý khẩn cấp.'
             : 'Đã ghi nhận sự cố. Quản lý sẽ tiếp nhận và xử lý.';
+
+        if (! empty($extraNotes)) {
+            $msg .= ' (Hệ thống '.implode(', ', $extraNotes).').';
+        }
 
         return back()->with('success', $msg);
     }

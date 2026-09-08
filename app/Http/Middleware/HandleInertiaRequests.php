@@ -106,6 +106,7 @@ class HandleInertiaRequests extends Middleware
         // Danh sách subscription plans được cache 1 giờ để phục vụ SubscriptionWidget & nâng cấp gói trên toàn bộ hệ thống
         $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
             $plans = SubscriptionPlan::where('status', 'active')
+                ->where('is_custom', false)
                 ->orderBy('price')
                 ->get()
                 ->map(fn (SubscriptionPlan $p) => [

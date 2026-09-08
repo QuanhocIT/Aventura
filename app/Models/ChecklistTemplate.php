@@ -45,7 +45,7 @@ class ChecklistTemplate extends Model
 
     public function scopeHandover(Builder $query): Builder
     {
-        return $query->where('type', self::TYPE_HANDOVER);
+        return $query->whereIn('type', [self::TYPE_HANDOVER, 'closing']);
     }
 
     public function items(): HasMany

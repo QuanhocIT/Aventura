@@ -11,6 +11,7 @@ use App\Models\Coupon;
 use App\Models\PaymentWebhook;
 use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
+use App\Models\SubscriptionPlan;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Notifications\DunningNotification;
@@ -86,11 +87,17 @@ class BillingService
                 : $paidAt;
             $newEndedAt = $endAt->copy()->addDays($durationDays);
 
+            $subscriptionMeta = $subscription->meta ?? [];
+            if (! isset($subscriptionMeta['snapshot']) && $subscription->plan) {
+                $subscriptionMeta['snapshot'] = $this->planSnapshot($subscription->plan);
+            }
+
             $subscription->update([
                 'status' => 'active',
                 'ended_at' => $newEndedAt,
                 'renewal_at' => $newEndedAt,
                 'last_paid_at' => $paidAt,
+                'meta' => $subscriptionMeta,
                 'grace_ends_at' => $newEndedAt->copy()->addDays($graceDays),
                 'billing_meta' => array_merge($subscription->billing_meta ?? [], [
                     'provider_payload' => $payload,
@@ -655,6 +662,7 @@ class BillingService
                                 'parent_sub_id' => $subscription->id,
                                 'plan_code' => $plan->code,
                                 'pending_payment' => true,
+                                'snapshot' => ($subscription->meta ?? [])['snapshot'] ?? $this->planSnapshot($plan),
                             ],
                             'billing_meta' => [
                                 'provider' => 'sepay',
@@ -849,5 +857,16 @@ class BillingService
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    private function planSnapshot(?SubscriptionPlan $plan): array
+    {
+        return [
+            'max_branches' => $plan?->max_branches,
+            'max_tables' => $plan?->max_tables,
+            'max_users' => $plan?->max_users,
+            'max_dishes' => $plan?->max_dishes,
+            'features' => $plan?->features ?? [],
+        ];
     }
 }

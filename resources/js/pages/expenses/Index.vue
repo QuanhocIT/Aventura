@@ -16,6 +16,14 @@ import {
     ListFilter,
     X,
     FileUp,
+    Search,
+    Lock,
+    CreditCard,
+    CheckCircle2,
+    AlertTriangle,
+    Zap,
+    ArrowUpRight,
+    ArrowDownRight,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
@@ -105,6 +113,17 @@ type Analytics = {
         amount: number;
         percentage: number;
     }[];
+    cash_flow_summary?: {
+        inflow_completed_orders?: number;
+        outflow_expenses?: number;
+        outflow_payroll?: number;
+        total_outflow?: number;
+        net_cash_flow?: number;
+        inflow?: number;
+        outflow_opex?: number;
+        outflow_labor?: number;
+        outflow_total?: number;
+    };
 };
 
 const props = defineProps<{
@@ -128,6 +147,7 @@ const props = defineProps<{
         require_receipt: boolean;
         committed: number;
         remaining: number | null;
+        committed_ratio?: number;
         month: string;
     } | null;
     branchBudgets?: Array<{
@@ -137,6 +157,7 @@ const props = defineProps<{
         require_receipt: boolean;
         committed: number;
         remaining: number | null;
+        committed_ratio?: number;
     }>;
     canManageBudget?: boolean;
     canManageExpenses?: boolean;
@@ -180,11 +201,18 @@ const activeTab = ref<
 >(props.filters.year || props.filters.month ? 'profit-loss' : 'analytics');
 
 // --- VND Formatter Helper ---
-const vnd = (v: number) =>
-    new Intl.NumberFormat('vi-VN', {
+const vnd = (v: number | string | null | undefined) => {
+    const num = Number(v);
+
+    if (v === null || v === undefined || isNaN(num)) {
+        return '0 ₫';
+    }
+
+    return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
-    }).format(v);
+    }).format(num);
+};
 
 // --- MODALS STATE ---
 const showExpenseModal = ref(false);
@@ -195,6 +223,9 @@ const showRecurringModal = ref(false);
 const editingRecurring = ref<RecurringExpense | null>(null);
 
 const showCategoryModal = ref(false);
+const editingCategory = ref<Category | null>(null);
+const categorySearch = ref('');
+const categoryTypeFilter = ref<'all' | 'system' | 'custom'>('all');
 
 // --- FILTER FORM ---
 const filterForm = ref({
@@ -376,21 +407,85 @@ function rejectExpense(expense: OperatingExpense) {
     );
 }
 
-function payExpense(expense: OperatingExpense) {
-    const method = window.prompt(
-        'Phương thức thanh toán: cash hoặc bank_transfer',
-        'bank_transfer',
-    );
+// --- THANH TOÁN CHỨNG TỪ (MODAL) ---
+const showPaymentModal = ref(false);
+const payingExpense = ref<OperatingExpense | null>(null);
+const paymentForm = useForm({
+    payment_method: 'bank_transfer' as 'cash' | 'bank_transfer',
+    financial_account_code: '1121', // 1111: Tiền mặt, 1121: Tiền gửi ngân hàng
+    payment_reference: '',
+});
 
-    if (!method || !['cash', 'bank_transfer'].includes(method)) {
+function openPayExpenseModal(expense: OperatingExpense) {
+    payingExpense.value = expense;
+    paymentForm.payment_method = 'bank_transfer';
+    paymentForm.financial_account_code = '1121';
+    paymentForm.payment_reference = '';
+    showPaymentModal.value = true;
+}
+
+function submitPayment() {
+    if (!payingExpense.value) {
         return;
     }
 
-    router.patch(
-        '/expenses/' + expense.id + '/pay',
-        { payment_method: method },
-        { preserveScroll: true },
-    );
+    paymentForm.patch(`/expenses/${payingExpense.value.id}/pay`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showPaymentModal.value = false;
+            payingExpense.value = null;
+            toast.success('Đã thanh toán và hạch toán phiếu chi thành công!');
+        },
+        onError: () => {
+            toast.error('Có lỗi xảy ra khi thực hiện thanh toán.');
+        },
+    });
+}
+
+function triggerRecurringExpense(r: RecurringExpense) {
+    confirmDialog({
+        title: 'Kích hoạt phát sinh chi phí ngay?',
+        description: `Hệ thống sẽ lập tức tạo phiếu chi thực tế "${r.name}" với số tiền ${vnd(r.amount)} trong tháng này.`,
+        confirmText: 'Tạo phiếu chi ngay',
+        cancelText: 'Hủy',
+        variant: 'default',
+    }).then((confirmed) => {
+        if (!confirmed) {
+            return;
+        }
+
+        router.post(
+            `/expenses/recurring/${r.id}/trigger`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(`Đã tạo phiếu chi cho "${r.name}" thành công!`);
+                },
+                onError: () => {
+                    toast.error('Không thể tạo phiếu chi từ khoản định kỳ.');
+                },
+            },
+        );
+    });
+}
+
+function exportExpenses() {
+    const params = new URLSearchParams();
+
+    if (filterForm.value.category_id) {
+        params.set('category_id', filterForm.value.category_id);
+    }
+
+    if (filterForm.value.start_date) {
+        params.set('start_date', filterForm.value.start_date);
+    }
+
+    if (filterForm.value.end_date) {
+        params.set('end_date', filterForm.value.end_date);
+    }
+
+    window.location.href = `/expenses/export?${params.toString()}`;
 }
 
 // --- RECURRING FORM ---
@@ -509,11 +604,27 @@ async function deleteRecurring(rec: RecurringExpense) {
     }
 }
 
-// --- CATEGORY FORM ---
+// --- CATEGORY FORM & ACTIONS ---
 const categoryForm = useForm({
     name: '',
     description: '',
 });
+
+function openNewCategoryModal() {
+    editingCategory.value = null;
+    categoryForm.name = '';
+    categoryForm.description = '';
+    categoryForm.clearErrors();
+    showCategoryModal.value = true;
+}
+
+function openEditCategoryModal(cat: Category) {
+    editingCategory.value = cat;
+    categoryForm.name = cat.name;
+    categoryForm.description = cat.description || '';
+    categoryForm.clearErrors();
+    showCategoryModal.value = true;
+}
 
 function saveCategory() {
     if (!categoryForm.name.trim()) {
@@ -522,16 +633,30 @@ function saveCategory() {
         return;
     }
 
-    categoryForm.post('/expenses/categories', {
-        onSuccess: () => {
-            showCategoryModal.value = false;
-            categoryForm.reset();
-            toast.success('Đã thêm danh mục chi phí tùy chỉnh mới!');
-        },
-        onError: (err: any) => {
-            toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
-        },
-    });
+    if (editingCategory.value) {
+        categoryForm.patch(`/expenses/categories/${editingCategory.value.id}`, {
+            onSuccess: () => {
+                showCategoryModal.value = false;
+                editingCategory.value = null;
+                categoryForm.reset();
+                toast.success('Đã cập nhật danh mục chi phí!');
+            },
+            onError: (err: any) => {
+                toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
+            },
+        });
+    } else {
+        categoryForm.post('/expenses/categories', {
+            onSuccess: () => {
+                showCategoryModal.value = false;
+                categoryForm.reset();
+                toast.success('Đã thêm danh mục chi phí tùy chỉnh mới!');
+            },
+            onError: (err: any) => {
+                toast.error((Object.values(err)[0] as string) || 'Có lỗi xảy ra');
+            },
+        });
+    }
 }
 
 async function deleteCategory(cat: Category) {
@@ -546,6 +671,33 @@ async function deleteCategory(cat: Category) {
             onError: () => toast.error('Có lỗi xảy ra khi xóa.'),
         });
     }
+}
+
+const filteredCategories = computed(() => {
+    return props.categories.filter((c) => {
+        const query = categorySearch.value.trim().toLowerCase();
+        const matchesSearch =
+            !query ||
+            c.name.toLowerCase().includes(query) ||
+            (c.description && c.description.toLowerCase().includes(query));
+
+        const matchesType =
+            categoryTypeFilter.value === 'all' ||
+            (categoryTypeFilter.value === 'system' && c.restaurant_id === null) ||
+            (categoryTypeFilter.value === 'custom' && c.restaurant_id !== null);
+
+        return matchesSearch && matchesType;
+    });
+});
+
+function getCategoryThisMonth(categoryId: number) {
+    const item = props.analytics.category_breakdown?.find((b) => b.id === categoryId);
+
+    return item ? { amount: item.amount, percentage: item.percentage } : { amount: 0, percentage: 0 };
+}
+
+function getCategoryRecurringCount(categoryId: number) {
+    return props.recurringExpenses?.filter((r) => r.category_id === categoryId).length || 0;
 }
 
 // --- Chart Max Value Helper ---
@@ -614,7 +766,7 @@ const chartMaxVal = computed(() => {
                 </Button>
                 <Button
                     v-if="activeTab === 'categories' && props.canManageExpenses"
-                    @click="showCategoryModal = true"
+                    @click="openNewCategoryModal"
                     class="h-9 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
                 >
                     <PlusCircle class="mr-1.5 size-4" />
@@ -627,34 +779,76 @@ const chartMaxVal = computed(() => {
         <div
             v-if="props.expenseBudget && props.expenseBudget.has_budget"
             :class="[
-                'flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4',
+                'flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border p-4 shadow-xs',
                 (props.expenseBudget.remaining ?? 0) < 0
                     ? 'border-rose-200 bg-rose-50/60 dark:border-rose-900/40 dark:bg-rose-950/10'
-                    : (props.expenseBudget.remaining ?? 0) <
-                        (props.expenseBudget.budget_amount ?? 0) * 0.15
+                    : (props.expenseBudget.committed_ratio ?? 0) >= 80
                       ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/10'
                       : 'border-emerald-100 bg-emerald-50/50 dark:border-emerald-900/30 dark:bg-emerald-950/10',
             ]"
         >
             <div class="flex items-center gap-3">
-                <Wallet class="size-6 text-slate-600 dark:text-slate-300" />
+                <div
+                    :class="[
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                        (props.expenseBudget.remaining ?? 0) < 0
+                            ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/40'
+                            : (props.expenseBudget.committed_ratio ?? 0) >= 80
+                              ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40'
+                              : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40',
+                    ]"
+                >
+                    <Wallet class="size-5" />
+                </div>
                 <div>
-                    <div class="text-xs font-bold text-slate-500">
-                        Hạn mức chi tiêu tháng {{ props.expenseBudget.month }}
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-500">
+                        <span>Hạn mức chi tiêu tháng {{ props.expenseBudget.month }}</span>
                         <span
                             v-if="props.expenseBudget.require_receipt"
-                            class="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                            class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300"
                             >Bắt buộc hoá đơn</span
                         >
                     </div>
                     <div
-                        class="text-sm font-black text-slate-800 dark:text-slate-100"
+                        class="mt-0.5 text-sm font-black text-slate-800 dark:text-slate-100"
                     >
                         Đã chi {{ vnd(props.expenseBudget.committed) }} /
                         {{ vnd(props.expenseBudget.budget_amount ?? 0) }}
                     </div>
                 </div>
             </div>
+
+            <!-- Progress bar in single branch card -->
+            <div class="flex flex-1 max-w-xs flex-col gap-1.5 px-2">
+                <div class="flex items-center justify-between text-[11px] font-bold">
+                    <span class="text-slate-500">Tỷ lệ sử dụng ngân sách</span>
+                    <span
+                        :class="[
+                            (props.expenseBudget.remaining ?? 0) < 0
+                                ? 'text-rose-600'
+                                : (props.expenseBudget.committed_ratio ?? 0) >= 80
+                                  ? 'text-amber-600'
+                                  : 'text-emerald-600',
+                        ]"
+                    >
+                        {{ props.expenseBudget.committed_ratio ?? 0 }}%
+                    </span>
+                </div>
+                <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div
+                        :class="[
+                            'h-full rounded-full transition-all duration-500',
+                            (props.expenseBudget.remaining ?? 0) < 0
+                                ? 'bg-rose-500'
+                                : (props.expenseBudget.committed_ratio ?? 0) >= 80
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500',
+                        ]"
+                        :style="`width: ${Math.min(100, props.expenseBudget.committed_ratio ?? 0)}%`"
+                    />
+                </div>
+            </div>
+
             <div class="text-right">
                 <div class="text-[11px] font-semibold text-slate-500">
                     Còn lại
@@ -677,7 +871,7 @@ const chartMaxVal = computed(() => {
             v-if="
                 props.canManageBudget && (props.branchBudgets?.length ?? 0) > 0
             "
-            class="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+            class="rounded-2xl border border-slate-100 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900"
         >
             <div class="mb-3 flex items-center justify-between">
                 <div
@@ -687,12 +881,13 @@ const chartMaxVal = computed(() => {
                 </div>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[560px] text-left text-xs">
+                <table class="w-full min-w-[640px] text-left text-xs">
                     <thead>
                         <tr class="text-[11px] text-slate-400">
                             <th class="pb-2">Chi nhánh</th>
                             <th class="pb-2 text-right">Hạn mức</th>
                             <th class="pb-2 text-right">Đã chi</th>
+                            <th class="pb-2 text-center">Tiến độ sử dụng</th>
                             <th class="pb-2 text-right">Còn lại</th>
                             <th class="pb-2 text-center">Hoá đơn</th>
                             <th class="pb-2"></th>
@@ -705,21 +900,62 @@ const chartMaxVal = computed(() => {
                             class="border-t border-slate-100 dark:border-slate-800"
                         >
                             <td
-                                class="py-2 font-semibold text-slate-700 dark:text-slate-200"
+                                class="py-2.5 font-semibold text-slate-700 dark:text-slate-200"
                             >
                                 {{ b.branch_name }}
                             </td>
-                            <td class="py-2 text-right">
+                            <td class="py-2.5 text-right">
                                 {{
                                     b.budget_amount ? vnd(b.budget_amount) : '—'
                                 }}
                             </td>
-                            <td class="py-2 text-right text-slate-500">
+                            <td class="py-2.5 text-right text-slate-500">
                                 {{ vnd(b.committed) }}
+                            </td>
+                            <td class="py-2.5 text-center">
+                                <div v-if="b.budget_amount" class="inline-flex flex-col items-center gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                            <div
+                                                :class="[
+                                                    'h-full rounded-full transition-all',
+                                                    (b.committed_ratio ?? 0) >= 100
+                                                        ? 'bg-rose-500'
+                                                        : (b.committed_ratio ?? 0) >= 80
+                                                          ? 'bg-amber-500'
+                                                          : 'bg-emerald-500',
+                                                ]"
+                                                :style="`width: ${Math.min(100, b.committed_ratio ?? 0)}%`"
+                                            />
+                                        </div>
+                                        <span class="font-mono text-[10px] font-bold text-slate-500">
+                                            {{ b.committed_ratio ?? 0 }}%
+                                        </span>
+                                    </div>
+                                    <span
+                                        v-if="(b.committed_ratio ?? 0) >= 100"
+                                        class="inline-flex items-center gap-0.5 rounded-full bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-600 dark:bg-rose-950/40"
+                                    >
+                                        <AlertTriangle class="size-2.5" /> Vượt mức
+                                    </span>
+                                    <span
+                                        v-else-if="(b.committed_ratio ?? 0) >= 80"
+                                        class="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-600 dark:bg-amber-950/40"
+                                    >
+                                        Cảnh báo
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.2 text-[9px] font-bold text-emerald-600 dark:bg-emerald-950/40"
+                                    >
+                                        <CheckCircle2 class="size-2.5" /> An toàn
+                                    </span>
+                                </div>
+                                <span v-else class="text-[11px] text-slate-400">Chưa đặt</span>
                             </td>
                             <td
                                 :class="[
-                                    'py-2 text-right font-bold',
+                                    'py-2.5 text-right font-bold',
                                     b.remaining === null
                                         ? 'text-slate-400'
                                         : b.remaining < 0
@@ -733,15 +969,15 @@ const chartMaxVal = computed(() => {
                                         : vnd(b.remaining)
                                 }}
                             </td>
-                            <td class="py-2 text-center">
+                            <td class="py-2.5 text-center">
                                 <span
                                     v-if="b.require_receipt"
-                                    class="text-emerald-600"
+                                    class="text-emerald-600 font-bold"
                                     >✓</span
                                 >
                                 <span v-else class="text-slate-300">—</span>
                             </td>
-                            <td class="py-2 text-right">
+                            <td class="py-2.5 text-right">
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -834,6 +1070,82 @@ const chartMaxVal = computed(() => {
 
         <!-- ── TAB 1: ANALYTICS ── -->
         <div v-if="activeTab === 'analytics'" class="animate-fade-in space-y-6">
+            <!-- DÒNG TIỀN THỰC TẾ (NET CASH FLOW) -->
+            <div
+                v-if="analytics.cash_flow_summary"
+                class="overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-5 shadow-xs dark:border-slate-800 dark:from-slate-900 dark:to-slate-900/50"
+            >
+                <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+                        <Wallet class="size-4.5 text-amber-500" />
+                        <span>Tổng hợp Dòng tiền vận hành & Doanh thu tháng này</span>
+                    </div>
+                    <span
+                        :class="[
+                            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs font-bold',
+                            (analytics.cash_flow_summary.net_cash_flow ?? 0) >= 0
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
+                        ]"
+                    >
+                        <component
+                            :is="(analytics.cash_flow_summary.net_cash_flow ?? 0) >= 0 ? ArrowUpRight : ArrowDownRight"
+                            class="size-4"
+                        />
+                        Dòng tiền thuần (Net Cash):
+                        {{ vnd(analytics.cash_flow_summary.net_cash_flow ?? 0) }}
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 dark:border-emerald-900/30 dark:bg-emerald-950/15">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">Dòng tiền VÀO (+)</span>
+                            <ArrowUpRight class="size-3.5 text-emerald-600" />
+                        </div>
+                        <p class="mt-1 font-mono text-xl font-black text-emerald-600 dark:text-emerald-400">
+                            +{{ vnd(analytics.cash_flow_summary.inflow_completed_orders ?? analytics.cash_flow_summary.inflow ?? 0) }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-slate-500">
+                            Doanh thu thực thu từ đơn hàng hoàn thành
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-rose-100 bg-rose-50/40 p-3.5 dark:border-rose-900/30 dark:bg-rose-950/15">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-rose-700 dark:text-rose-400">Dòng tiền RA (-)</span>
+                            <ArrowDownRight class="size-3.5 text-rose-600" />
+                        </div>
+                        <p class="mt-1 font-mono text-xl font-black text-rose-600 dark:text-rose-400">
+                            -{{ vnd(analytics.cash_flow_summary.total_outflow ?? analytics.cash_flow_summary.outflow_total ?? 0) }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-slate-500">
+                            Bao gồm OPEX: {{ vnd(analytics.cash_flow_summary.outflow_expenses ?? analytics.cash_flow_summary.outflow_opex ?? 0) }} + Lương: {{ vnd(analytics.cash_flow_summary.outflow_payroll ?? analytics.cash_flow_summary.outflow_labor ?? 0) }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5 dark:border-blue-900/30 dark:bg-blue-950/15">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-blue-700 dark:text-blue-400">Trạng thái dòng tiền</span>
+                            <CreditCard class="size-3.5 text-blue-600" />
+                        </div>
+                        <p
+                            :class="[
+                                'mt-1 font-mono text-xl font-black',
+                                (analytics.cash_flow_summary.net_cash_flow ?? 0) >= 0
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-rose-600 dark:text-rose-400',
+                            ]"
+                        >
+                            {{ (analytics.cash_flow_summary.net_cash_flow ?? 0) >= 0 ? 'Dương tiền' : 'Thâm hụt tiền' }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-slate-500">
+                            {{ (analytics.cash_flow_summary.net_cash_flow ?? 0) >= 0 ? 'Kinh doanh tự trang trải đủ chi phí' : 'Chi phí vận hành vượt quá tiền thu từ khách' }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Metric Cards -->
             <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <!-- Card 1: Total OPEX this month -->
@@ -873,16 +1185,16 @@ const chartMaxVal = computed(() => {
                             <div
                                 :class="[
                                     'flex h-8 w-8 items-center justify-center rounded-full border',
-                                    analytics.mom_delta > 0
+                                    (analytics.mom_delta || 0) > 0
                                         ? 'border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/20'
-                                        : analytics.mom_delta < 0
+                                        : (analytics.mom_delta || 0) < 0
                                           ? 'border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/20'
                                           : 'border-slate-100 bg-slate-50 text-slate-500',
                                 ]"
                             >
                                 <component
                                     :is="
-                                        analytics.mom_delta >= 0
+                                        (analytics.mom_delta || 0) >= 0
                                             ? TrendingUp
                                             : TrendingDown
                                     "
@@ -892,15 +1204,26 @@ const chartMaxVal = computed(() => {
                             <span
                                 :class="[
                                     'font-mono text-2xl font-black',
-                                    analytics.mom_delta > 0
+                                    (analytics.mom_delta || 0) > 0
                                         ? 'text-rose-600'
-                                        : analytics.mom_delta < 0
+                                        : (analytics.mom_delta || 0) < 0
                                           ? 'text-emerald-600'
                                           : 'text-slate-600',
                                 ]"
                             >
-                                {{ analytics.mom_delta >= 0 ? '+' : ''
-                                }}{{ analytics.mom_delta }}%
+                                <template
+                                    v-if="
+                                        analytics.mom_delta !== null &&
+                                        analytics.mom_delta !== undefined &&
+                                        !isNaN(analytics.mom_delta)
+                                    "
+                                >
+                                    {{ analytics.mom_delta >= 0 ? '+' : ''
+                                    }}{{ analytics.mom_delta }}%
+                                </template>
+                                <template v-else>
+                                    0%
+                                </template>
                             </span>
                         </div>
                         <p class="mt-2 text-[10px] text-slate-400">
@@ -925,7 +1248,7 @@ const chartMaxVal = computed(() => {
                         <p
                             class="font-mono text-3xl font-black text-indigo-600 dark:text-indigo-400"
                         >
-                            {{ analytics.recurring_ratio }}%
+                            {{ isNaN(analytics.recurring_ratio) ? 0 : (analytics.recurring_ratio || 0) }}%
                         </p>
                         <p class="mt-2 text-[10px] text-slate-400">
                             Tỷ trọng các khoản chi tự động (mặt bằng, phần mềm)
@@ -1104,7 +1427,7 @@ const chartMaxVal = computed(() => {
 
                     <!-- Actions -->
                     <div
-                        class="flex w-full shrink-0 items-center gap-2 md:w-auto"
+                        class="flex w-full shrink-0 flex-wrap items-center gap-2 md:w-auto"
                     >
                         <Button
                             @click="applyFilters"
@@ -1118,6 +1441,14 @@ const chartMaxVal = computed(() => {
                             class="h-8 px-4 text-xs font-semibold"
                         >
                             Bỏ lọc
+                        </Button>
+                        <Button
+                            @click="exportExpenses"
+                            variant="outline"
+                            class="h-8 gap-1.5 border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:bg-slate-900 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                            title="Xuất danh sách chi phí ra file Excel/CSV"
+                        >
+                            <Download class="size-3.5" /> Xuất Excel
                         </Button>
                     </div>
                 </CardContent>
@@ -1268,11 +1599,11 @@ const chartMaxVal = computed(() => {
                                                 props.canApproveExpenses &&
                                                 e.status === 'approved'
                                             "
-                                            @click="payExpense(e)"
-                                            class="rounded-sm p-1 text-blue-600 hover:bg-blue-50"
-                                            title="Ghi nhận thanh toán"
+                                            @click="openPayExpenseModal(e)"
+                                            class="inline-flex items-center gap-1 rounded-sm bg-blue-50 px-1.5 py-0.5 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400"
+                                            title="Thanh toán chi tiền chứng từ"
                                         >
-                                            Trả
+                                            <CreditCard class="size-3" /> Chi tiền
                                         </button>
                                         <button
                                             v-if="props.canManageExpenses"
@@ -1430,6 +1761,14 @@ const chartMaxVal = computed(() => {
                                     >
                                         <button
                                             v-if="props.canManageExpenses"
+                                            @click="triggerRecurringExpense(r)"
+                                            class="inline-flex cursor-pointer items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300"
+                                            title="Tạo ngay phiếu chi thực tế"
+                                        >
+                                            <Zap class="size-3" /> Chi ngay
+                                        </button>
+                                        <button
+                                            v-if="props.canManageExpenses"
                                             @click="openEditRecurringModal(r)"
                                             class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                                             title="Sửa"
@@ -1453,62 +1792,203 @@ const chartMaxVal = computed(() => {
             </Card>
         </div>
 
-        <!-- ── TAB 4: CATEGORIES MANAGEMENT ── -->
+        <!-- ── TAB 4: CATEGORIES MANAGEMENT (TABLE VIEW) ── -->
         <div
             v-if="activeTab === 'categories'"
-            class="animate-fade-in space-y-6"
+            class="animate-fade-in space-y-4"
         >
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <!-- Loop over all categories -->
-                <Card
-                    v-for="c in categories"
-                    :key="c.id"
-                    class="overflow-hidden border-border shadow-xs"
+            <Card class="border-border shadow-xs">
+                <CardHeader
+                    class="flex flex-col gap-4 border-b bg-slate-50/30 p-4 sm:flex-row sm:items-center sm:justify-between dark:bg-slate-900/5"
                 >
-                    <CardHeader
-                        class="flex flex-row items-start justify-between border-b bg-slate-50/30 pb-2 dark:bg-slate-900/5"
-                    >
-                        <div>
-                            <CardTitle
-                                class="text-sm font-bold text-slate-800 dark:text-slate-200"
-                                >{{ c.name }}</CardTitle
-                            >
-                            <CardDescription class="mt-1 text-[10px] font-bold">
-                                <span
-                                    v-if="c.restaurant_id === null"
-                                    class="dark:bg-slate-850 rounded-full bg-slate-100 px-2 py-0.5 font-bold text-slate-500 dark:text-slate-400"
-                                >
-                                    Hệ thống dùng chung
-                                </span>
-                                <span
-                                    v-else
-                                    class="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700 dark:bg-amber-950/25 dark:text-amber-400"
-                                >
-                                    Tùy chỉnh riêng
-                                </span>
-                            </CardDescription>
+                    <div class="space-y-1">
+                        <CardTitle
+                            class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200"
+                        >
+                            <Layers class="size-4 text-amber-600 dark:text-amber-400" />
+                            Danh Sách Phân Loại Chi Phí (OPEX)
+                        </CardTitle>
+                        <CardDescription class="text-xs">
+                            Quản lý các nhóm chi phí dùng để phân loại khi ghi nhận chi tiêu, tạo lịch định kỳ và hạch toán lãi/lỗ.
+                        </CardDescription>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Search Box -->
+                        <div class="relative w-full sm:w-52">
+                            <Search class="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                v-model="categorySearch"
+                                placeholder="Tìm kiếm danh mục..."
+                                class="h-8 pl-8 text-xs"
+                            />
                         </div>
 
-                        <!-- Trash icon for custom category -->
-                        <button
-                            v-if="c.restaurant_id !== null"
-                            @click="deleteCategory(c)"
-                            class="cursor-pointer rounded-sm p-1 text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                            title="Xóa danh mục"
-                        >
-                            <Trash2 class="size-4" />
-                        </button>
-                    </CardHeader>
-                    <CardContent
-                        class="min-h-[50px] pt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
-                    >
-                        {{
-                            c.description ||
-                            'Chưa có mô tả chi tiết cho danh mục này.'
-                        }}
-                    </CardContent>
-                </Card>
-            </div>
+                        <!-- Type Filter -->
+                        <div class="flex rounded-lg border border-border bg-slate-100/60 p-0.5 dark:bg-slate-800">
+                            <button
+                                type="button"
+                                @click="categoryTypeFilter = 'all'"
+                                :class="[
+                                    'px-2.5 py-1 text-[11px] font-bold rounded-md transition-all',
+                                    categoryTypeFilter === 'all'
+                                        ? 'bg-white shadow-xs text-slate-800 dark:bg-slate-700 dark:text-slate-100'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                ]"
+                            >
+                                Tất cả ({{ categories.length }})
+                            </button>
+                            <button
+                                type="button"
+                                @click="categoryTypeFilter = 'system'"
+                                :class="[
+                                    'px-2.5 py-1 text-[11px] font-bold rounded-md transition-all',
+                                    categoryTypeFilter === 'system'
+                                        ? 'bg-white shadow-xs text-slate-800 dark:bg-slate-700 dark:text-slate-100'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                ]"
+                            >
+                                Hệ thống
+                            </button>
+                            <button
+                                type="button"
+                                @click="categoryTypeFilter = 'custom'"
+                                :class="[
+                                    'px-2.5 py-1 text-[11px] font-bold rounded-md transition-all',
+                                    categoryTypeFilter === 'custom'
+                                        ? 'bg-white shadow-xs text-slate-800 dark:bg-slate-700 dark:text-slate-100'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                ]"
+                            >
+                                Tùy chỉnh
+                            </button>
+                        </div>
+                    </div>
+                </CardHeader>
+
+                <CardContent class="p-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-left text-xs">
+                            <thead>
+                                <tr class="border-b bg-slate-50/20 font-bold text-slate-500 dark:bg-slate-900/5">
+                                    <th class="p-3 pl-5">Tên danh mục</th>
+                                    <th class="p-3">Mô tả mục đích</th>
+                                    <th class="p-3 text-center">Phân loại</th>
+                                    <th class="p-3 text-right">Chi phí tháng này</th>
+                                    <th class="p-3 text-center">Lịch định kỳ</th>
+                                    <th class="p-3 text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-slate-600 dark:divide-slate-800 dark:text-slate-350">
+                                <tr v-if="filteredCategories.length === 0">
+                                    <td colspan="6" class="p-10 text-center font-bold text-slate-400">
+                                        Không tìm thấy danh mục chi phí nào phù hợp.
+                                    </td>
+                                </tr>
+                                <tr
+                                    v-for="c in filteredCategories"
+                                    :key="c.id"
+                                    class="transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                                >
+                                    <!-- Name -->
+                                    <td class="p-3 pl-5 font-bold text-slate-800 dark:text-slate-200">
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 font-mono text-[10px] font-bold text-amber-600 dark:bg-amber-950/30 dark:text-amber-400">
+                                                #{{ c.id }}
+                                            </div>
+                                            <span class="font-bold">{{ c.name }}</span>
+                                        </div>
+                                    </td>
+
+                                    <!-- Description -->
+                                    <td class="max-w-xs p-3 leading-relaxed text-slate-500 dark:text-slate-400">
+                                        {{ c.description || 'Chưa có mô tả chi tiết cho danh mục này.' }}
+                                    </td>
+
+                                    <!-- Type badge -->
+                                    <td class="p-3 text-center">
+                                        <span
+                                            v-if="c.restaurant_id === null"
+                                            class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                        >
+                                            <Lock class="size-3 text-slate-400" />
+                                            Hệ thống
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/25 dark:text-amber-400"
+                                        >
+                                            Tùy chỉnh riêng
+                                        </span>
+                                    </td>
+
+                                    <!-- Expenses this month -->
+                                    <td class="p-3 text-right">
+                                        <div v-if="getCategoryThisMonth(c.id).amount > 0">
+                                            <div class="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                {{ vnd(getCategoryThisMonth(c.id).amount) }}
+                                            </div>
+                                            <div class="text-[10px] text-slate-400">
+                                                {{ getCategoryThisMonth(c.id).percentage }}% tổng chi
+                                            </div>
+                                        </div>
+                                        <span v-else class="font-mono text-[11px] text-slate-400">
+                                            0 đ
+                                        </span>
+                                    </td>
+
+                                    <!-- Recurring count -->
+                                    <td class="p-3 text-center">
+                                        <span
+                                            v-if="getCategoryRecurringCount(c.id) > 0"
+                                            class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-[10px] font-bold text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
+                                        >
+                                            {{ getCategoryRecurringCount(c.id) }} lịch
+                                        </span>
+                                        <span v-else class="font-mono text-slate-300 dark:text-slate-600">—</span>
+                                    </td>
+
+                                    <!-- Actions -->
+                                    <td class="p-3 text-center">
+                                        <!-- Custom category: Edit and Delete -->
+                                        <div
+                                            v-if="c.restaurant_id !== null && props.canManageExpenses"
+                                            class="flex items-center justify-center gap-1.5"
+                                        >
+                                            <button
+                                                type="button"
+                                                @click="openEditCategoryModal(c)"
+                                                class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                                                title="Chỉnh sửa danh mục"
+                                            >
+                                                <Edit2 class="size-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="deleteCategory(c)"
+                                                class="cursor-pointer rounded-sm p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/25"
+                                                title="Xóa danh mục"
+                                            >
+                                                <Trash2 class="size-3.5" />
+                                            </button>
+                                        </div>
+
+                                        <!-- System category: Locked info -->
+                                        <div
+                                            v-else
+                                            class="inline-flex items-center text-[10px] font-semibold text-slate-400 dark:text-slate-500"
+                                            title="Danh mục chuẩn hệ thống, không thể xóa hoặc sửa để bảo đảm an toàn dữ liệu kế toán"
+                                        >
+                                            <Lock class="mr-1 size-3 text-slate-400" />
+                                            Mặc định
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
 
         <!-- ── TAB 5: PROFIT & LOSS REPORT ── -->
@@ -1771,11 +2251,11 @@ const chartMaxVal = computed(() => {
         </Teleport>
 
         <!-- ── MODAL: CREATE/EDIT RECURRING EXPENSE ── -->
-
-        <div
-            v-if="showRecurringModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showRecurringModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+            >
             <Card
                 class="w-full max-w-lg animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
             >
@@ -1949,156 +2429,162 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        </Teleport>
 
-        <!-- ── MODAL: CREATE CUSTOM CATEGORY ── -->
-
-        <div
-            v-if="showCategoryModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-md animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
+        <!-- ── MODAL: CREATE / EDIT CUSTOM CATEGORY ── -->
+        <Teleport to="body">
+            <div
+                v-if="showCategoryModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader class="border-b pb-3">
-                    <CardTitle
-                        class="flex items-center gap-1.5 text-sm font-bold"
-                    >
-                        <Layers class="size-5 text-slate-800" />
-                        Thêm Danh Mục Chi Phí Mới
-                    </CardTitle>
-                    <CardDescription class="text-xs"
-                        >Tạo danh mục chi phí riêng biệt của cửa hàng phục vụ
-                        phân nhóm.</CardDescription
-                    >
-                </CardHeader>
-                <form @submit.prevent="saveCategory">
-                    <CardContent class="space-y-4 p-5 text-xs">
-                        <!-- Name -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="cat-name"
-                                class="text-xs font-bold text-slate-500"
-                                >Tên danh mục (ví dụ: Phí ship, Tiếp
-                                khách...):</Label
-                            >
-                            <Input
-                                id="cat-name"
-                                v-model="categoryForm.name"
-                                type="text"
-                                placeholder="Nhập tên..."
-                                class="w-full text-xs"
-                            />
-                        </div>
-
-                        <!-- Description -->
-                        <div class="space-y-1.5">
-                            <Label
-                                for="cat-desc"
-                                class="text-xs font-bold text-slate-500"
-                                >Mô tả danh mục:</Label
-                            >
-                            <Input
-                                id="cat-desc"
-                                v-model="categoryForm.description"
-                                type="text"
-                                placeholder="Nhập mô tả ngắn..."
-                                class="w-full text-xs"
-                            />
-                        </div>
-                    </CardContent>
-                    <div
-                        class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showCategoryModal = false"
-                            class="h-9 text-xs font-semibold"
-                            >Hủy</Button
-                        >
-                        <Button
-                            type="submit"
-                            class="h-9 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900"
-                            :disabled="categoryForm.processing"
-                        >
-                            Thêm danh mục
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
-
-        <!-- ── MODAL: DOCUMENT PREVIEW ── -->
-
-        <div
-            v-if="invoicePreviewUrl"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-border bg-card shadow-2xl"
-            >
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-3"
+                <Card
+                    class="w-full max-w-md animate-in border-border bg-card shadow-2xl duration-200 fade-in zoom-in"
                 >
-                    <div>
+                    <CardHeader class="border-b pb-3">
                         <CardTitle
                             class="flex items-center gap-1.5 text-sm font-bold"
                         >
-                            <FileText class="size-5 text-amber-600" />
-                            Xem Hóa Đơn Chứng Từ
+                            <Layers class="size-5 text-amber-600" />
+                            {{ editingCategory ? 'Chỉnh Sửa Danh Mục Chi Phí' : 'Thêm Danh Mục Chi Phí Mới' }}
                         </CardTitle>
-                        <CardDescription class="text-xs"
-                            >Chứng từ đính kèm cho giao dịch.</CardDescription
+                        <CardDescription class="text-xs">
+                            {{
+                                editingCategory
+                                    ? 'Cập nhật tên hoặc mô tả cho danh mục chi phí tùy chỉnh.'
+                                    : 'Tạo danh mục chi phí riêng biệt của cửa hàng phục vụ phân nhóm.'
+                            }}
+                        </CardDescription>
+                    </CardHeader>
+                    <form @submit.prevent="saveCategory">
+                        <CardContent class="space-y-4 p-5 text-xs">
+                            <!-- Name -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="cat-name"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Tên danh mục (ví dụ: Phí ship, Tiếp
+                                    khách...):</Label
+                                >
+                                <Input
+                                    id="cat-name"
+                                    v-model="categoryForm.name"
+                                    type="text"
+                                    placeholder="Nhập tên..."
+                                    class="w-full text-xs"
+                                />
+                            </div>
+
+                            <!-- Description -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    for="cat-desc"
+                                    class="text-xs font-bold text-slate-500"
+                                    >Mô tả danh mục:</Label
+                                >
+                                <Input
+                                    id="cat-desc"
+                                    v-model="categoryForm.description"
+                                    type="text"
+                                    placeholder="Nhập mô tả ngắn..."
+                                    class="w-full text-xs"
+                                />
+                            </div>
+                        </CardContent>
+                        <div
+                            class="flex justify-end gap-2 border-t bg-slate-50/30 p-4 dark:bg-slate-900/10"
+                        >
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showCategoryModal = false"
+                                class="h-9 text-xs font-semibold"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="submit"
+                                class="h-9 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                                :disabled="categoryForm.processing"
+                            >
+                                {{ editingCategory ? 'Lưu thay đổi' : 'Thêm danh mục' }}
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            </div>
+        </Teleport>
+
+        <!-- ── MODAL: DOCUMENT PREVIEW ── -->
+        <Teleport to="body">
+            <div
+                v-if="invoicePreviewUrl"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+            >
+                <Card
+                    class="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-border bg-card shadow-2xl"
+                >
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b pb-3"
+                    >
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-sm font-bold"
+                            >
+                                <FileText class="size-5 text-amber-600" />
+                                Xem Hóa Đơn Chứng Từ
+                            </CardTitle>
+                            <CardDescription class="text-xs"
+                                >Chứng từ đính kèm cho giao dịch.</CardDescription
+                            >
+                        </div>
+                        <button
+                            @click="invoicePreviewUrl = null"
+                            class="cursor-pointer rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <X class="size-5" />
+                        </button>
+                    </CardHeader>
+                    <div
+                        class="relative flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900"
+                    >
+                        <!-- PDF Embed -->
+                        <embed
+                            v-if="invoicePreviewUrl.toLowerCase().endsWith('.pdf')"
+                            :src="invoicePreviewUrl"
+                            type="application/pdf"
+                            class="h-full w-full"
+                        />
+                        <!-- Image Preview -->
+                        <div
+                            v-else
+                            class="flex h-full w-full items-center justify-center p-4"
+                        >
+                            <img
+                                :src="invoicePreviewUrl"
+                                alt="Hóa đơn chứng từ"
+                                class="max-h-full max-w-full rounded-lg border object-contain shadow-md"
+                            />
+                        </div>
+                    </div>
+                    <div
+                        class="flex justify-end gap-2 border-t bg-slate-50 p-4 dark:bg-slate-950"
+                    >
+                        <a
+                            :href="invoicePreviewUrl"
+                            download
+                            class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold transition hover:bg-muted"
+                        >
+                            <Download class="size-3.5" />
+                            Tải xuống file
+                        </a>
+                        <Button
+                            @click="invoicePreviewUrl = null"
+                            class="text-xs font-semibold"
+                            >Đóng</Button
                         >
                     </div>
-                    <button
-                        @click="invoicePreviewUrl = null"
-                        class="cursor-pointer rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                        <X class="size-5" />
-                    </button>
-                </CardHeader>
-                <div
-                    class="relative flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900"
-                >
-                    <!-- PDF Embed -->
-                    <embed
-                        v-if="invoicePreviewUrl.toLowerCase().endsWith('.pdf')"
-                        :src="invoicePreviewUrl"
-                        type="application/pdf"
-                        class="h-full w-full"
-                    />
-                    <!-- Image Preview -->
-                    <div
-                        v-else
-                        class="flex h-full w-full items-center justify-center p-4"
-                    >
-                        <img
-                            :src="invoicePreviewUrl"
-                            alt="Hóa đơn chứng từ"
-                            class="max-h-full max-w-full rounded-lg border object-contain shadow-md"
-                        />
-                    </div>
-                </div>
-                <div
-                    class="flex justify-end gap-2 border-t bg-slate-50 p-4 dark:bg-slate-950"
-                >
-                    <a
-                        :href="invoicePreviewUrl"
-                        download
-                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-xs font-semibold transition hover:bg-muted"
-                    >
-                        <Download class="size-3.5" />
-                        Tải xuống file
-                    </a>
-                    <Button
-                        @click="invoicePreviewUrl = null"
-                        class="text-xs font-semibold"
-                        >Đóng</Button
-                    >
-                </div>
-            </Card>
-        </div>
+                </Card>
+            </div>
+        </Teleport>
 
         <!-- MODAL: ĐẶT HẠN MỨC CHI TIÊU CHI NHÁNH -->
         <Teleport to="body">
@@ -2182,6 +2668,163 @@ const chartMaxVal = computed(() => {
                                 class="rounded-xl border-0 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-900"
                             >
                                 Lưu hạn mức
+                            </Button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- MODAL: THANH TOÁN CHỨNG TỪ (CHI TIỀN) -->
+        <Teleport to="body">
+            <div
+                v-if="showPaymentModal && payingExpense"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+            >
+                <div
+                    class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <div
+                        class="mb-4 flex items-center justify-between border-b pb-3"
+                    >
+                        <div
+                            class="flex items-center gap-2 text-sm font-extrabold tracking-wider text-slate-800 uppercase dark:text-slate-100"
+                        >
+                            <CreditCard class="size-4.5 text-blue-600" /> Thanh toán chi tiền
+                        </div>
+                        <button
+                            @click="showPaymentModal = false; payingExpense = null"
+                            class="cursor-pointer text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                            <X class="size-4.5" />
+                        </button>
+                    </div>
+
+                    <!-- Expense Summary Card -->
+                    <div
+                        class="mb-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/30 dark:bg-blue-950/20"
+                    >
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-500"
+                                >Nội dung chi phí</span
+                            >
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                {{ payingExpense.category ? payingExpense.category.name : 'Chi phí' }}
+                            </span>
+                        </div>
+                        <div class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                            {{ payingExpense.description || 'Không có ghi chú' }}
+                        </div>
+                        <div class="mt-3 flex items-baseline justify-between border-t border-blue-200/50 pt-2 dark:border-blue-900/40">
+                            <span class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Số tiền thanh toán:</span
+                            >
+                            <span class="font-mono text-xl font-black text-blue-700 dark:text-blue-400">
+                                {{ vnd(payingExpense.amount) }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <form
+                        @submit.prevent="submitPayment"
+                        class="flex flex-col gap-4"
+                    >
+                        <!-- Method selector radio/pills -->
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Phương thức thanh toán <span class="text-rose-500">*</span></label
+                            >
+                            <div class="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    @click="
+                                        paymentForm.payment_method = 'bank_transfer';
+                                        paymentForm.financial_account_code = '1121';
+                                    "
+                                    :class="[
+                                        'flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition-all',
+                                        paymentForm.payment_method === 'bank_transfer'
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-300'
+                                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50',
+                                    ]"
+                                >
+                                    <CreditCard class="size-4" /> Chuyển khoản
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="
+                                        paymentForm.payment_method = 'cash';
+                                        paymentForm.financial_account_code = '1111';
+                                    "
+                                    :class="[
+                                        'flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition-all',
+                                        paymentForm.payment_method === 'cash'
+                                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                            : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/50',
+                                    ]"
+                                >
+                                    <Wallet class="size-4" /> Tiền mặt
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Financial Account selector -->
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Tài khoản tiền xuất quỹ</label
+                            >
+                            <select
+                                v-model="paymentForm.financial_account_code"
+                                class="h-9 rounded-xl border border-input bg-background px-3 text-xs font-semibold"
+                            >
+                                <option value="1121">1121 - Tiền gửi ngân hàng</option>
+                                <option value="1111">1111 - Tiền mặt tại quỹ</option>
+                                <option
+                                    v-for="fa in props.financialAccounts"
+                                    :key="fa.code"
+                                    :value="fa.code"
+                                >
+                                    {{ fa.code }} - {{ fa.name }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Payment Reference -->
+                        <div class="flex flex-col gap-1.5">
+                            <label
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                                >Mã tham chiếu / Số biên lai giao dịch</label
+                            >
+                            <Input
+                                v-model="paymentForm.payment_reference"
+                                placeholder="VD: FT240907001, Phiếu chi số 05..."
+                                class="h-9 rounded-xl text-xs"
+                            />
+                            <p class="text-[10px] text-slate-400">
+                                Dùng để đối soát sổ phụ ngân hàng hoặc thủ quỹ.
+                            </p>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showPaymentModal = false; payingExpense = null"
+                                class="rounded-xl text-xs"
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="paymentForm.processing"
+                                class="rounded-xl border-0 bg-blue-600 text-xs font-bold text-white hover:bg-blue-700"
+                            >
+                                <span v-if="paymentForm.processing">Đang hạch toán...</span>
+                                <span v-else class="flex items-center gap-1.5">
+                                    <CheckCircle2 class="size-3.5" /> Xác nhận chi tiền
+                                </span>
                             </Button>
                         </div>
                     </form>

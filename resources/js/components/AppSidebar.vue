@@ -578,12 +578,7 @@ const ownerNav = computed<NavItem[]>(() => {
             icon: Boxes,
             feature: 'inventory_basic',
         },
-        {
-            title: 'Chuyến xe Logistics',
-            href: '/inventory/delivery-manifests',
-            icon: Route,
-            feature: 'inventory_basic',
-        },
+
         {
             title: 'Thu hồi Lô Khẩn cấp',
             href: '/inventory/batch-recalls',
@@ -1498,12 +1493,7 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             icon: Boxes,
             feature: 'inventory_basic',
         },
-        {
-            title: 'Chuyến xe Logistics',
-            href: '/inventory/delivery-manifests',
-            icon: Route,
-            feature: 'inventory_basic',
-        },
+
         {
             title: 'Thu hồi Lô Khẩn cấp',
             href: '/inventory/batch-recalls',
@@ -1627,13 +1617,7 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
             section: 'supply',
         },
-        {
-            title: 'Chuyến xe Logistics',
-            href: '/inventory/delivery-manifests',
-            icon: Route,
-            feature: 'inventory_basic',
-            section: 'supply',
-        },
+
         {
             title: 'Central Kitchen Sơ chế',
             href: '/inventory/central-kitchen',

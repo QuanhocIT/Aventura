@@ -235,7 +235,7 @@ const copySetupKey = (): void => {
                     />
                 </span>
                 <span
-                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent dark:from-white dark:to-zinc-300"
+                    class="text-lg font-black tracking-tight text-zinc-950 dark:text-white"
                     >Aventura</span
                 >
             </Link>

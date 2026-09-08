@@ -92,6 +92,13 @@ class RestaurantOnboardingService
                 'meta' => [
                     'source' => 'self_serve_onboarding',
                     'plan_code' => $plan->code,
+                    'snapshot' => [
+                        'max_branches' => $plan->max_branches,
+                        'max_tables' => $plan->max_tables,
+                        'max_users' => $plan->max_users,
+                        'max_dishes' => $plan->max_dishes,
+                        'features' => $plan->features ?? [],
+                    ],
                 ],
             ]);
 

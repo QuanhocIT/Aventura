@@ -129,7 +129,16 @@ class SubscriptionPlanSeeder extends Seeder
         ];
 
         foreach ($plans as $plan) {
-            SubscriptionPlan::updateOrCreate(['code' => $plan['code']], $plan);
+            $existing = SubscriptionPlan::withTrashed()
+                ->where('code', $plan['code'])
+                ->first();
+
+            if ($existing) {
+                $existing->restore();
+                $existing->update($plan);
+            } else {
+                SubscriptionPlan::create($plan);
+            }
         }
     }
 }

@@ -6,11 +6,14 @@ use App\Models\BranchExpenseBudget;
 use App\Models\ExpenseCategory;
 use App\Models\FinancialAccount;
 use App\Models\OperatingExpense;
+use App\Models\Order;
 use App\Models\RecurringExpense;
+use App\Models\Salary;
 use App\Services\CashPostingService;
 use App\Services\ExpenseBudgetService;
 use App\Services\FinancialPostingService;
 use App\Services\ProfitLossService;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
@@ -168,6 +171,26 @@ class ExpenseController extends Controller
         $month = (int) ($request->input('month') ?? now()->month);
         $profitLossService = app(ProfitLossService::class);
 
+        // 5. Cash Flow Summary (Inflow from orders, Outflow from OPEX + Salary)
+        $cashInflow = (float) Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$thisMonthStart, $thisMonthEnd])
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->sum(DB::raw('CASE WHEN total_amount - COALESCE(refund_amount, 0) > 0 THEN total_amount - COALESCE(refund_amount, 0) ELSE 0 END'));
+
+        $laborOutflow = (float) Salary::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['approved', 'paid'])
+            ->whereBetween('pay_period_end', [$thisMonthStart, $thisMonthEnd])
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->get(['id', 'net_salary'])
+            ->sum(fn (Salary $s) => (float) $s->net_salary);
+
+        $opexOutflow = (float) $totalThisMonth;
+        $totalOutflow = $laborOutflow + $opexOutflow;
+        $netCashFlow = $cashInflow - $totalOutflow;
+
         $analytics = [
             'total_this_month' => $totalThisMonth,
             'total_last_month' => $totalLastMonth,
@@ -175,6 +198,17 @@ class ExpenseController extends Controller
             'recurring_ratio' => $recurringRatio,
             'six_months_mom' => $sixMonthsMom,
             'category_breakdown' => $categoryBreakdown,
+            'cash_flow_summary' => [
+                'inflow' => round($cashInflow),
+                'outflow_opex' => round($opexOutflow),
+                'outflow_labor' => round($laborOutflow),
+                'outflow_total' => round($totalOutflow),
+                'net_cash_flow' => round($netCashFlow),
+                'inflow_completed_orders' => round($cashInflow),
+                'outflow_expenses' => round($opexOutflow),
+                'outflow_payroll' => round($laborOutflow),
+                'total_outflow' => round($totalOutflow),
+            ],
         ];
 
         // ── Hạn mức chi tiêu chi nhánh ───────────────────────────────────────────
@@ -185,11 +219,14 @@ class ExpenseController extends Controller
         $expenseBudget = null;
         if ($branchId) {
             $b = $budgetService->budgetFor($restaurantId, $branchId, $budgetMonth);
+            $committed = $budgetService->committedThisMonth($restaurantId, $branchId, $budgetMonth);
+            $budgetAmt = $b ? (float) $b->budget_amount : null;
             $expenseBudget = [
                 'has_budget' => (bool) $b,
-                'budget_amount' => $b ? (float) $b->budget_amount : null,
+                'budget_amount' => $budgetAmt,
                 'require_receipt' => $b ? (bool) $b->require_receipt : false,
-                'committed' => $budgetService->committedThisMonth($restaurantId, $branchId, $budgetMonth),
+                'committed' => $committed,
+                'committed_ratio' => ($budgetAmt && $budgetAmt > 0) ? round(($committed / $budgetAmt) * 100, 1) : 0,
                 'remaining' => $budgetService->remaining($restaurantId, $branchId, $budgetMonth),
                 'month' => $budgetMonth->format('m/Y'),
             ];
@@ -200,12 +237,15 @@ class ExpenseController extends Controller
         if ($isOwner && $restaurant) {
             foreach ($restaurant->branches()->get(['id', 'name']) as $br) {
                 $b = $budgetService->budgetFor($restaurantId, $br->id, $budgetMonth);
+                $committed = $budgetService->committedThisMonth($restaurantId, $br->id, $budgetMonth);
+                $budgetAmt = $b ? (float) $b->budget_amount : null;
                 $branchBudgets[] = [
                     'branch_id' => $br->id,
                     'branch_name' => $br->name,
-                    'budget_amount' => $b ? (float) $b->budget_amount : null,
+                    'budget_amount' => $budgetAmt,
                     'require_receipt' => $b ? (bool) $b->require_receipt : true,
-                    'committed' => $budgetService->committedThisMonth($restaurantId, $br->id, $budgetMonth),
+                    'committed' => $committed,
+                    'committed_ratio' => ($budgetAmt && $budgetAmt > 0) ? round(($committed / $budgetAmt) * 100, 1) : 0,
                     'remaining' => $budgetService->remaining($restaurantId, $br->id, $budgetMonth),
                 ];
             }
@@ -612,6 +652,27 @@ class ExpenseController extends Controller
     }
 
     /**
+     * Update a custom expense category.
+     */
+    public function updateCategory(Request $request, ExpenseCategory $category)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($category->restaurant_id !== $request->user()->restaurant_id, 403, 'Không thể chỉnh sửa danh mục mặc định của hệ thống.');
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'description' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $category->update([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+        ]);
+
+        return back()->with('success', 'Đã cập nhật danh mục chi phí thành công.');
+    }
+
+    /**
      * Delete a custom expense category.
      */
     public function destroyCategory(Request $request, ExpenseCategory $category)
@@ -670,5 +731,108 @@ class ExpenseController extends Controller
         }
 
         abort(403, 'Chỉ Chủ doanh nghiệp mới được ghi nhận hoặc thay đổi chi phí vận hành.');
+    }
+
+    /**
+     * Export expenses to CSV (UTF-8 BOM for Excel).
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+
+        $query = OperatingExpense::with(['category', 'creator', 'approver', 'branch'])
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId));
+
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('expense_date', [$request->start_date, $request->end_date]);
+        }
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        $expenses = $query->orderByDesc('expense_date')->orderByDesc('id')->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="chi-phi-'.now()->format('Ymd_His').'.csv"',
+        ];
+
+        return response()->stream(function () use ($expenses) {
+            $handle = fopen('php://output', 'w');
+            // Ghi UTF-8 BOM để Excel hiển thị đúng tiếng Việt
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($handle, [
+                'Mã phiếu',
+                'Ngày chi',
+                'Chi nhánh',
+                'Danh mục',
+                'Số tiền (VNĐ)',
+                'Thuế VAT (VNĐ)',
+                'Định kỳ',
+                'Trạng thái',
+                'Người tạo',
+                'Người duyệt',
+                'Ngày duyệt',
+                'Ghi chú',
+            ]);
+
+            foreach ($expenses as $e) {
+                fputcsv($handle, [
+                    '#'.$e->id,
+                    $e->expense_date ? $e->expense_date->format('d/m/Y') : '',
+                    $e->branch?->name ?? 'Toàn chuỗi',
+                    $e->category?->name ?? 'Chưa phân loại',
+                    $e->amount,
+                    $e->tax_amount ?? 0,
+                    $e->recurring_expense_id ? 'Định kỳ' : 'Thủ công',
+                    match ($e->status) {
+                        'paid' => 'Đã thanh toán',
+                        'approved' => 'Đã duyệt',
+                        'draft' => 'Bản nháp',
+                        'rejected' => 'Từ chối',
+                        default => $e->status,
+                    },
+                    $e->creator?->name ?? '',
+                    $e->approver?->name ?? '',
+                    $e->approved_at ? $e->approved_at->format('d/m/Y H:i') : '',
+                    $e->description ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    /**
+     * Trigger a recurring expense to create an operational expense immediately.
+     */
+    public function triggerRecurring(Request $request, RecurringExpense $recurring)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $expense = OperatingExpense::create([
+            'restaurant_id' => $recurring->restaurant_id,
+            'branch_id' => $recurring->branch_id,
+            'category_id' => $recurring->category_id,
+            'financial_account_code' => $recurring->financial_account_code ?? '6271',
+            'recurring_expense_id' => $recurring->id,
+            'amount' => $recurring->amount,
+            'expense_date' => now()->toDateString(),
+            'description' => "Phát sinh từ lịch định kỳ: {$recurring->name}",
+            'status' => 'approved',
+            'created_by' => $request->user()->id,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
+
+        $recurring->update(['last_triggered_at' => now()]);
+
+        return back()->with('success', "Đã tạo phiếu chi thành công cho lịch '{$recurring->name}' (Mã #{$expense->id}).");
     }
 }

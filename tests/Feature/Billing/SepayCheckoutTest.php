@@ -6,6 +6,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\QuotaService;
 use App\Services\SepayCheckoutService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -111,7 +112,15 @@ class SepayCheckoutTest extends TestCase
 
         $this->assertSame($pro->id, $restaurant->plan_id);
         $this->assertSame('active', $restaurant->status);
-        $this->assertSame('active', $checkout['subscription']->fresh()->status);
+        $activeSubscription = $checkout['subscription']->fresh();
+        $this->assertSame('active', $activeSubscription->status);
+        $this->assertSame(
+            $pro->max_branches,
+            data_get($activeSubscription->meta, 'snapshot.max_branches')
+        );
+
+        $pro->update(['max_branches' => 999]);
+        $this->assertSame(10, app(QuotaService::class)->getLimit($restaurant->fresh(), 'branches'));
     }
 
     public function test_yearly_checkout_respects_custom_yearly_discount_percent(): void

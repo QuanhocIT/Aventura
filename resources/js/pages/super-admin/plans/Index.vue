@@ -30,7 +30,7 @@ import {
     RotateCcw,
     Trash2,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { PageHeader, StatusBadge } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -100,6 +100,17 @@ const paginatedPlans = computed(() => {
 const totalPages = computed(() => {
     return Math.ceil(props.plans.length / itemsPerPage);
 });
+
+watch(
+    () => props.plans.length,
+    (length) => {
+        const lastPage = Math.max(1, Math.ceil(length / itemsPerPage));
+
+        if (currentPage.value > lastPage) {
+            currentPage.value = lastPage;
+        }
+    },
+);
 
 const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
 const showComparison = ref(false);
@@ -217,6 +228,7 @@ function submitCreate() {
 const selectedPlanForRestaurants = ref<Plan | null>(null);
 const restaurants = ref<any[]>([]);
 const isLoadingRestaurants = ref(false);
+const restaurantLoadError = ref('');
 
 const form = useForm({
     name: '',
@@ -313,15 +325,23 @@ async function showRestaurants(plan: Plan) {
     selectedPlanForRestaurants.value = plan;
     isLoadingRestaurants.value = true;
     restaurants.value = [];
+    restaurantLoadError.value = '';
 
     try {
         const response = await fetch(
             `/super-admin/plans/${plan.id}/restaurants`,
         );
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
         const data = await response.json();
         restaurants.value = data.restaurants || [];
     } catch (e) {
         console.error('Error fetching plan restaurants:', e);
+        restaurantLoadError.value =
+            'Không thể tải danh sách nhà hàng đang dùng gói này.';
     } finally {
         isLoadingRestaurants.value = false;
     }
@@ -699,6 +719,7 @@ const planIcon: Record<string, any> = {
                                     >VIP</Badge
                                 >
                                 <Button
+                                    v-if="!plan.is_deleted"
                                     variant="ghost"
                                     size="icon"
                                     title="Chỉnh sửa gói"
@@ -2522,6 +2543,12 @@ const planIcon: Record<string, any> = {
                         <span
                             class="inline-block size-6 animate-spin rounded-full border-2 border-primary border-t-transparent"
                         />
+                    </div>
+                    <div
+                        v-else-if="restaurantLoadError"
+                        class="py-12 text-center text-sm font-semibold text-destructive"
+                    >
+                        {{ restaurantLoadError }}
                     </div>
                     <div
                         v-else-if="restaurants.length === 0"

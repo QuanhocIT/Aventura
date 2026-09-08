@@ -162,7 +162,7 @@ const passwordStrength = computed(
                     />
                 </span>
                 <span
-                    class="to-zinc-650 bg-gradient-to-r from-zinc-900 bg-clip-text text-lg font-black tracking-tight text-transparent dark:from-white dark:to-zinc-300"
+                    class="text-lg font-black tracking-tight text-zinc-950 dark:text-white"
                     >Aventura</span
                 >
             </Link>
@@ -620,9 +620,10 @@ const passwordStrength = computed(
         >
             <!-- Restaurant background image -->
             <img
-                src="/restaurant-register-bg.png"
+                src="/restaurant-register-bg.webp"
                 alt=""
                 class="pointer-events-none absolute inset-0 size-full object-cover opacity-75"
+                decoding="async"
             />
             <div class="pointer-events-none absolute inset-0 bg-zinc-950/55" />
 

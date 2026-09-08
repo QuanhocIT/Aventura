@@ -21,8 +21,23 @@ class InventoryDiscrepancyDispute extends Model
             'received_quantity' => 'decimal:3',
             'discrepancy_quantity' => 'decimal:3',
             'financial_loss_amount' => 'decimal:2',
+            'penalty_amount' => 'decimal:2',
+            'waived_amount' => 'decimal:2',
+            'claim_collected_amount' => 'decimal:2',
+            'claim_collected_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'write_off_at' => 'datetime',
         ];
+    }
+
+    public function claimCollector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'claim_collected_by');
+    }
+
+    public function writeOffTransaction(): BelongsTo
+    {
+        return $this->belongsTo(InventoryTransaction::class, 'write_off_transaction_id');
     }
 
     public function supplyRequest(): BelongsTo

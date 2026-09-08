@@ -11,6 +11,7 @@ import {
     CreditCard,
     Wallet,
     Landmark,
+    ChevronDown,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import AreaChart from '@/components/charts/AreaChart.vue';
@@ -152,6 +153,29 @@ const maxItemQty = Math.max(...(props.topItems.map((i) => i.quantity) || [1]));
 const totalPaymentsSum =
     props.revenueByPaymentMethod.reduce((sum, item) => sum + item.revenue, 0) ||
     1;
+
+// --- AI ANOMALIES DISPLAY LIMIT (MAX 3) ---
+const showAllAnomalies = ref(false);
+
+const displayedAnomalies = computed(() => {
+    if (!props.anomalies) {
+        return [];
+    }
+
+    if (showAllAnomalies.value) {
+        return props.anomalies;
+    }
+
+    return props.anomalies.slice(0, 3);
+});
+
+const remainingAnomaliesCount = computed(() => {
+    if (!props.anomalies) {
+        return 0;
+    }
+
+    return Math.max(0, props.anomalies.length - 3);
+});
 </script>
 
 <template>
@@ -160,8 +184,33 @@ const totalPaymentsSum =
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- AI Anomalies Alert -->
         <div v-if="anomalies && anomalies.length > 0" class="space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <p class="flex items-center gap-1.5 text-xs font-bold text-rose-700 uppercase tracking-wider dark:text-rose-400">
+                    <AlertTriangle class="size-4 text-rose-500" />
+                    Cảnh báo bất thường từ AI
+                    <span
+                        class="ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                    >
+                        {{ anomalies.length }} cảnh báo
+                    </span>
+                </p>
+                <button
+                    v-if="remainingAnomaliesCount > 0"
+                    type="button"
+                    @click="showAllAnomalies = !showAllAnomalies"
+                    class="flex items-center gap-1 text-xs font-semibold text-rose-700 transition-colors hover:text-rose-900 hover:underline dark:text-rose-400 dark:hover:text-rose-300"
+                >
+                    <span>{{ showAllAnomalies ? 'Thu gọn' : `Xem tất cả (${anomalies.length})` }}</span>
+                    <ChevronDown
+                        :class="[
+                            'size-3.5 transition-transform duration-200',
+                            showAllAnomalies ? 'rotate-180' : '',
+                        ]"
+                    />
+                </button>
+            </div>
             <div
-                v-for="(anomaly, idx) in anomalies"
+                v-for="(anomaly, idx) in displayedAnomalies"
                 :key="idx"
                 class="flex items-start gap-3 rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-rose-700 shadow-xs dark:text-rose-300"
             >
@@ -170,6 +219,28 @@ const totalPaymentsSum =
                     <h5 class="text-sm font-bold">{{ anomaly.title }}</h5>
                     <p class="text-xs">{{ anomaly.message }}</p>
                 </div>
+            </div>
+
+            <!-- Remaining Anomalies Button -->
+            <div v-if="remainingAnomaliesCount > 0" class="pt-0.5">
+                <button
+                    type="button"
+                    @click="showAllAnomalies = !showAllAnomalies"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-rose-300 bg-rose-50/60 py-2 text-xs font-medium text-rose-800 transition-all hover:bg-rose-100/70 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                >
+                    <span v-if="!showAllAnomalies">
+                        + Còn lại <strong>{{ remainingAnomaliesCount }}</strong> cảnh báo bất thường khác (nhấn để xem chi tiết)
+                    </span>
+                    <span v-else>
+                        Thu gọn danh sách (chỉ hiển thị 3 cảnh báo)
+                    </span>
+                    <ChevronDown
+                        :class="[
+                            'size-3.5 transition-transform duration-200',
+                            showAllAnomalies ? 'rotate-180' : '',
+                        ]"
+                    />
+                </button>
             </div>
         </div>
 

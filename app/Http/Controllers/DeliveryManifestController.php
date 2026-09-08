@@ -20,32 +20,9 @@ class DeliveryManifestController extends Controller
         protected WarehouseStaffAccessService $staffAccess,
     ) {}
 
-    public function page(Request $request): Response
+    public function page(Request $request): \Illuminate\Http\RedirectResponse
     {
-        $user = $request->user();
-        $this->authorizeWarehouseView($user);
-        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
-        $manifests = DeliveryManifest::where('restaurant_id', $user->restaurant_id)
-            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
-            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['items.supplyRequest.toBranch', 'creator', 'dispatchedBy'])
-            ->orderBy('id', 'desc')
-            ->get();
-
-        $approvedRequests = SupplyRequest::where('restaurant_id', $user->restaurant_id)
-            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
-            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
-            ->where('status', SupplyRequest::STATUS_DISPATCH_PENDING)
-            ->with(['toBranch', 'items.ingredient'])
-            ->orderBy('id', 'desc')
-            ->get();
-
-        return Inertia::render('inventory/DeliveryManifests', [
-            'manifests' => $manifests,
-            'approvedRequests' => $approvedRequests,
-            'canCreateManifest' => $this->canCreateManifest($user),
-            'canDispatchManifest' => $this->canDispatchManifest($user),
-        ]);
+        return redirect()->to('/inventory/central-warehouse');
     }
 
     public function index(Request $request): JsonResponse

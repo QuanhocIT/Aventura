@@ -3911,13 +3911,15 @@ const submitSwapReject = () => {
 
         <!-- Modal: Thiết lập ca nhanh -->
 
-        <div
-            v-if="showQuickScheduleModal"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-        >
-            <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showQuickScheduleModal"
+                class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="showQuickScheduleModal = false"
             >
+                <Card
+                    class="relative my-auto w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in dark:border-slate-800"
+                >
                 <CardHeader
                     class="flex flex-row items-start justify-between gap-4 border-b pb-3"
                 >
@@ -3975,16 +3977,19 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
 
-        <div
-            v-if="showShiftConfigModal"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
-        >
-            <Card
-                class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showShiftConfigModal"
+                class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="showShiftConfigModal = false"
             >
+                <Card
+                    class="relative my-auto w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in dark:border-slate-800"
+                >
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                 >
@@ -4108,16 +4113,19 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
 
-        <div
-            v-if="showAssignModal"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-28"
-        >
-            <Card
-                class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showAssignModal"
+                class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="showAssignModal = false"
             >
+                <Card
+                    class="relative my-auto w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in dark:border-slate-800"
+                >
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                 >
@@ -4257,6 +4265,7 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
 

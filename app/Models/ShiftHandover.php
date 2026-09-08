@@ -26,6 +26,8 @@ class ShiftHandover extends Model
 
     public const STATUS_DISPUTED = 'disputed';
 
+    public const STATUS_DISPUTE_RESOLVED = 'dispute_resolved';
+
     protected $guarded = [];
 
     protected function casts(): array
@@ -33,9 +35,16 @@ class ShiftHandover extends Model
         return [
             'handover_date' => 'date',
             'cash_amount' => 'decimal:2',
+            'final_cash_amount' => 'decimal:2',
             'submitted_at' => 'datetime',
             'accepted_at' => 'datetime',
+            'dispute_resolved_at' => 'datetime',
         ];
+    }
+
+    public function disputeResolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'dispute_resolved_by');
     }
 
     public function fromUser(): BelongsTo

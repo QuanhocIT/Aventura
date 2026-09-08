@@ -1,33 +1,30 @@
-﻿<script setup lang="ts">
-import { Monitor, Moon, Sun } from 'lucide-vue-next';
+<script setup lang="ts">
+import { Sun } from 'lucide-vue-next';
 import { useAppearance } from '@/composables/useAppearance';
 
-const { appearance, updateAppearance } = useAppearance();
+const { resolvedAppearance, updateAppearance } = useAppearance();
 
-const tabs = [
-    { value: 'light', Icon: Sun, label: 'Light' },
-    { value: 'dark', Icon: Moon, label: 'Dark' },
-    { value: 'system', Icon: Monitor, label: 'System' },
-] as const;
+const toggleTheme = () => {
+    updateAppearance(resolvedAppearance.value === 'dark' ? 'light' : 'dark');
+};
 </script>
 
 <template>
-    <div
-        class="inline-flex gap-1 rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800"
+    <button
+        type="button"
+        @click="toggleTheme"
+        class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1 text-slate-600 shadow-xs transition-colors hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+        :title="resolvedAppearance === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"
     >
-        <button
-            v-for="{ value, Icon, label } in tabs"
-            :key="value"
-            @click="updateAppearance(value)"
-            :class="[
-                'flex items-center rounded-md px-2 py-1 transition-colors',
-                appearance === value
-                    ? 'bg-white shadow-xs dark:bg-neutral-700 dark:text-neutral-100'
-                    : 'text-neutral-500 hover:bg-neutral-200/60 hover:text-black dark:text-neutral-400 dark:hover:bg-neutral-700/60',
-            ]"
-            :title="label"
+        <Sun class="size-4 text-slate-500 dark:text-slate-400" />
+        <span
+            class="relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border border-slate-300 bg-slate-200 p-0.5 transition-colors duration-200 dark:border-slate-700 dark:bg-slate-800"
         >
-            <component :is="Icon" class="h-4 w-4" />
-        </button>
-    </div>
+            <span
+                class="pointer-events-none inline-block size-2.5 rounded-full bg-white shadow-xs transition-transform duration-200"
+                :class="resolvedAppearance === 'dark' ? 'translate-x-3 bg-blue-500' : 'translate-x-0 bg-white'"
+            />
+        </span>
+    </button>
 </template>
+
