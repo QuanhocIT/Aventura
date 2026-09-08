@@ -260,7 +260,7 @@ const plansList: { key: PlanKey; label: string }[] = [
                         <div class="relative flex justify-center lg:col-span-7 xl:col-span-7 lg:justify-end">
                             <div class="relative w-full max-w-2xl lg:max-w-none">
                                 <img
-                                    src="/images/pricing_hero_banner_target.webp"
+                                    src="/images/pricing_hero_banner_target.webp?v=2"
                                     alt="Hệ thống POS thu ngân Aventura"
                                     class="h-auto w-full object-contain transition-transform duration-500 hover:scale-[1.01]"
                                     fetchpriority="high"
